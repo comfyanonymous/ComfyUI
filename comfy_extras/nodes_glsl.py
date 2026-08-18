@@ -75,6 +75,43 @@ MAX_BOOLS = 10      # u_bool0-9
 MAX_CURVES = 4      # u_curve0-3 (1D LUT textures)
 MAX_OUTPUTS = 4     # fragColor0-3 (MRT)
 
+
+def _autogrow_slot_index(name: str, prefix: str) -> int | None:
+    """Return the slot index encoded in an autogrow input name, if any."""
+    if not name.startswith(prefix):
+        return None
+    digits = name[len(prefix):]
+    if not digits.isdigit():
+        return None
+    return int(digits)
+
+
+def _dense_autogrow_values(values: dict | None, prefix: str, default):
+    """Build a dense value list indexed by autogrow slot.
+
+    Autogrow omits unconnected slots from the dict entirely, so absent (or
+    None) slots use ``default`` instead of shifting later slots down.
+    """
+    indexed = {}
+    for name, value in (values or {}).items():
+        index = _autogrow_slot_index(name, prefix)
+        if index is not None and value is not None:
+            indexed[index] = value
+    if not indexed:
+        return []
+    return [indexed.get(i, default) for i in range(max(indexed) + 1)]
+
+
+def _indexed_autogrow_values(values: dict | None, prefix: str):
+    """Return ``(slot index, value)`` pairs for connected slots, sorted by slot."""
+    indexed = {}
+    for name, value in (values or {}).items():
+        index = _autogrow_slot_index(name, prefix)
+        if index is not None and value is not None:
+            indexed[index] = value
+    return sorted(indexed.items())
+
+
 # Vertex shader using gl_VertexID trick - no VBO needed.
 # Draws a single triangle that covers the entire screen:
 #
@@ -391,7 +428,8 @@ def _render_shader_batch(
     floats: list[float],
     ints: list[int],
     bools: list[bool] | None = None,
-    curves: list[np.ndarray] | None = None,
+    curves: list[tuple[int, np.ndarray]] | None = None,
+    image_slots: list[int] | None = None,
 ) -> list[list[np.ndarray]]:
     """
     Render a fragment shader for multiple batches efficiently.
@@ -403,11 +441,16 @@ def _render_shader_batch(
         fragment_code: User's fragment shader code
         width: Output width
         height: Output height
-        image_batches: List of batches, each batch is a list of input images (H, W, C) float32 [0,1]
-        floats: List of float uniforms
-        ints: List of int uniforms
-        bools: List of bool uniforms (passed as int 0/1 to GLSL bool uniforms)
-        curves: List of 1D LUT arrays (float32) of arbitrary size for u_curve0-N
+        image_batches: List of batches; each batch holds input images (H, W, C)
+            float32 [0,1] ordered by autogrow slot
+        floats: Dense list of float uniforms indexed by slot (u_float0-N)
+        ints: Dense list of int uniforms indexed by slot (u_int0-N)
+        bools: Dense list of bool uniforms indexed by slot (u_bool0-N),
+            passed as int 0/1 to GLSL bool uniforms
+        curves: (slot index, LUT array) pairs for u_curve0-N, where each LUT
+            is a float32 1D array of arbitrary size
+        image_slots: Slot index bound to each input texture unit, in unit
+            order; defaults to texture units matching their slot index
 
     Returns:
         List of batch outputs, each is a list of output images (H, W, 4) float32 [0,1]
@@ -442,6 +485,10 @@ def _render_shader_batch(
     ping_pong_fbos = []
 
     num_inputs = len(image_batches[0])
+    if image_slots is None:
+        image_slots = list(range(num_inputs))
+    elif len(image_slots) != num_inputs:
+        raise ValueError("image_slots must have one entry per input image")
 
     try:
         # Compile shaders (once for all batches)
@@ -495,19 +542,19 @@ def _render_shader_batch(
                     raise RuntimeError("Ping-pong framebuffer is not complete")
 
         # Create input textures (reused for all batches)
-        for i in range(num_inputs):
+        for unit, slot in enumerate(image_slots):
             tex = gl.glGenTextures(1)
             input_textures.append(tex)
-            gl.glActiveTexture(gl.GL_TEXTURE0 + i)
+            gl.glActiveTexture(gl.GL_TEXTURE0 + unit)
             gl.glBindTexture(gl.GL_TEXTURE_2D, tex)
             gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
             gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
             gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
             gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
 
-            loc = gl.glGetUniformLocation(program, f"u_image{i}")
+            loc = gl.glGetUniformLocation(program, f"u_image{slot}")
             if loc >= 0:
-                gl.glUniform1i(loc, i)
+                gl.glUniform1i(loc, unit)
 
         # Set static uniforms (once for all batches)
         loc = gl.glGetUniformLocation(program, "u_resolution")
@@ -530,11 +577,11 @@ def _render_shader_batch(
                 gl.glUniform1i(loc, 1 if v else 0)
 
         # Create 1D LUT textures for curves (bound after image texture units)
-        for i, lut in enumerate(curves):
+        for unit, (slot, lut) in enumerate(curves):
             tex = gl.glGenTextures(1)
             curve_textures.append(tex)
-            unit = MAX_IMAGES + i
-            gl.glActiveTexture(gl.GL_TEXTURE0 + unit)
+            texture_unit = MAX_IMAGES + unit
+            gl.glActiveTexture(gl.GL_TEXTURE0 + texture_unit)
             gl.glBindTexture(gl.GL_TEXTURE_2D, tex)
             gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_R32F, len(lut), 1, 0, gl.GL_RED, gl.GL_FLOAT, lut)
             gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
@@ -542,9 +589,9 @@ def _render_shader_batch(
             gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
             gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
 
-            loc = gl.glGetUniformLocation(program, f"u_curve{i}")
+            loc = gl.glGetUniformLocation(program, f"u_curve{slot}")
             if loc >= 0:
-                gl.glUniform1i(loc, unit)
+                gl.glUniform1i(loc, texture_unit)
 
         # Get u_pass uniform location for multi-pass
         pass_loc = gl.glGetUniformLocation(program, "u_pass")
@@ -760,14 +807,16 @@ class GLSLShader(io.ComfyNode):
         **kwargs,
     ) -> io.NodeOutput:
 
-        image_list = [v for v in images.values() if v is not None]
-        float_list = (
-            [v if v is not None else 0.0 for v in floats.values()] if floats else []
-        )
-        int_list = [v if v is not None else 0 for v in ints.values()] if ints else []
-        bool_list = [v if v is not None else False for v in bools.values()] if bools else []
+        indexed_images = _indexed_autogrow_values(images, "image")
+        image_list = [value for _, value in indexed_images]
+        float_list = _dense_autogrow_values(floats, "u_float", 0.0)
+        int_list = _dense_autogrow_values(ints, "u_int", 0)
+        bool_list = _dense_autogrow_values(bools, "u_bool", False)
 
-        curve_luts = [v.to_lut().astype(np.float32) for v in curves.values() if v is not None] if curves else []
+        curve_luts = [
+            (slot, value.to_lut().astype(np.float32))
+            for slot, value in _indexed_autogrow_values(curves, "u_curve")
+        ]
 
         if not image_list:
             raise ValueError("At least one input image is required")
@@ -796,6 +845,7 @@ class GLSLShader(io.ComfyNode):
             int_list,
             bool_list,
             curve_luts,
+            image_slots=[slot for slot, _ in indexed_images],
         )
 
         # Collect outputs into tensors
