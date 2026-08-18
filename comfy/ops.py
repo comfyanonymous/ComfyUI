@@ -555,7 +555,7 @@ class disable_weight_init:
                 local_metadata,
                 missing_keys,
                 unexpected_keys,
-                weight_shape=(self.in_features, self.out_features),
+                weight_shape=(self.out_features, self.in_features),
                 bias_shape=(self.out_features,),
             )
 
