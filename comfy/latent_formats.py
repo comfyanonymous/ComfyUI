@@ -577,6 +577,7 @@ class MiniMaxH3Video(LatentFormat):
     spacial_downscale_ratio = 16
     temporal_downscale_ratio = 4
     scale_factor = 1.0
+    taesd_decoder_name = "taeh3"
 
     latent_rgb_factors = [
         [-0.018555,  0.024344, -0.017536],
