@@ -652,7 +652,10 @@ class TestRunner:
             "app.assets.semantics.set_semantics_version",
             side_effect=RuntimeError("database is locked"),
         ):
-            assert run_pending_semantics_steps() == 0
+            assert run_pending_semantics_steps() == 0, (
+                "the seeder calls this, so a transient lock here must return "
+                "rather than abort its whole scan"
+            )
 
         session.expire_all()
         assert get_semantics_version(session) == 0
