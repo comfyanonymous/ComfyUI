@@ -32,7 +32,11 @@ from app.assets.database.queries.semantics import (
     get_tag_origins_by_reference,
 )
 from app.assets.helpers import normalize_tags
-from app.assets.semantics.step import InterruptCheck, SemanticsStepInterrupted
+from app.assets.semantics.step import (
+    InterruptCheck,
+    SemanticsStepInterrupted,
+    StepResult,
+)
 from app.assets.services.file_utils import verify_file_unchanged
 from app.assets.services.path_utils import (
     compute_loader_path,
@@ -45,7 +49,7 @@ _ROWS_PER_TRANSACTION = 500
 
 
 @dataclass
-class ReprojectionSummary:
+class ReprojectionSummary(StepResult):
 
     scanned: int = 0
     unchanged_files: int = 0
@@ -57,6 +61,17 @@ class ReprojectionSummary:
     tags_removed: int = 0
     missing_flags_cleared: int = 0
     verify_flags_set: int = 0
+
+    @property
+    def complete(self) -> bool:
+        """A path under no known root today may be under one tomorrow.
+
+        Its file is on disk -- an absent file is counted separately -- so the
+        root was configured away rather than deleted, and nothing else will ever
+        re-derive the row: the scan only builds specs for paths it has not seen.
+        Staying unstamped is what lets restoring the root repair them.
+        """
+        return self.unclassified_paths == 0
 
     def __str__(self) -> str:
         return (

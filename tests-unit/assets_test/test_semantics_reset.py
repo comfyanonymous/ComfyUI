@@ -23,7 +23,11 @@ from app.assets.database.models import (
 from app.assets.database.queries.semantics import get_semantics_version
 from app.assets.semantics import run_pending_semantics_steps
 from app.assets.semantics.reproject_derived import reproject_derived_state
-from app.assets.semantics.step import SemanticsStep, SemanticsStepInterrupted
+from app.assets.semantics.step import (
+    SemanticsStep,
+    SemanticsStepInterrupted,
+    StepResult,
+)
 from app.assets.services.file_utils import get_mtime_ns
 
 
@@ -419,6 +423,9 @@ class TestFileState:
         assert ref.is_missing is True
         assert ref.loader_path == "stale/gone.safetensors"
         assert summary.absent_files == 1
+        assert summary.complete, (
+            "a file that is simply gone is the scanner's business, not unfinished work"
+        )
 
     def test_path_outside_every_known_root_is_left_alone(self, session, comfy_dirs):
         path = _write(comfy_dirs["elsewhere"], "model.safetensors")
@@ -439,6 +446,9 @@ class TestFileState:
             "model_type:checkpoints": "automatic",
         }, "a root missing from the config must not strip tags off its assets"
         assert summary.unclassified_paths == 1
+        assert not summary.complete, (
+            "the row is unrepaired, so the step has not finished its work"
+        )
 
 
 class TestIdempotence:
@@ -542,6 +552,70 @@ class TestRunner:
         assert get_semantics_version(session) == semantics.CURRENT_SEMANTICS_VERSION
         assert session.get(AssetReference, "ref-1").loader_path == "model.safetensors"
 
+    def test_unclassified_row_withholds_the_stamp(self, session, comfy_dirs):
+        """Skipping a row must not also stamp past it -- nothing else repairs one."""
+        _register(
+            session,
+            _write(comfy_dirs["elsewhere"], "unconfigured.safetensors"),
+            "ref-outside",
+            loader_path=None,
+        )
+        _register(
+            session,
+            _write(comfy_dirs["checkpoints"], "configured.safetensors"),
+            "ref-inside",
+            loader_path=None,
+        )
+
+        assert run_pending_semantics_steps() == 0
+
+        session.expire_all()
+        assert get_semantics_version(session) == 0, (
+            "a pass that could not classify every row must run again"
+        )
+        assert (
+            session.get(AssetReference, "ref-inside").loader_path
+            == "configured.safetensors"
+        ), "the rows it could classify are still repaired"
+
+    def test_restoring_a_root_repairs_the_rows_it_had_hidden(
+        self, session, comfy_dirs
+    ):
+        """The point of withholding the stamp: a re-added root gets reprojected."""
+        hidden = _write(comfy_dirs["elsewhere"], "unconfigured.safetensors")
+        _register(session, hidden, "ref-outside", loader_path=None)
+
+        run_pending_semantics_steps()
+
+        with patch(
+            "app.assets.services.path_utils.get_comfy_models_folders",
+            return_value=[
+                ("checkpoints", [str(comfy_dirs["checkpoints"])], {".safetensors"}),
+                ("loras", [str(comfy_dirs["loras"])], {".safetensors"}),
+                ("vae", [str(comfy_dirs["elsewhere"])], {".safetensors"}),
+            ],
+        ):
+            assert run_pending_semantics_steps() == 1
+
+        session.expire_all()
+        assert get_semantics_version(session) == 1
+        assert (
+            session.get(AssetReference, "ref-outside").loader_path
+            == "unconfigured.safetensors"
+        )
+
+    def test_fully_classified_pass_stamps(self, session, comfy_dirs):
+        _register(
+            session,
+            _write(comfy_dirs["checkpoints"], "model.safetensors"),
+            "ref-1",
+            loader_path=None,
+        )
+
+        assert run_pending_semantics_steps() == 1
+        session.expire_all()
+        assert get_semantics_version(session) == 1
+
     def test_stamped_database_does_not_walk_again(self, session, comfy_dirs):
         run_pending_semantics_steps()
 
@@ -586,7 +660,7 @@ class TestRunner:
         self, session, comfy_dirs
     ):
         def _ok(_interrupt_check):
-            return "fine"
+            return StepResult()
 
         def _explode(_interrupt_check):
             raise RuntimeError("step failed")
@@ -610,7 +684,7 @@ class TestRunner:
         def _record(version):
             def _apply(_interrupt_check):
                 applied.append(version)
-                return version
+                return StepResult()
 
             return _apply
 

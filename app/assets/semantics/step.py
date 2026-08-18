@@ -5,6 +5,15 @@ from typing import Callable
 InterruptCheck = Callable[[], bool]
 
 
+@dataclass
+class StepResult:
+    """What a step did. A falsy ``complete`` withholds the stamp, so the step runs again."""
+
+    @property
+    def complete(self) -> bool:
+        return True
+
+
 class SemanticsStepInterrupted(Exception):
     """A step stopped early on request.
 
@@ -19,4 +28,4 @@ class SemanticsStep:
 
     version: int
     description: str
-    apply: Callable[[InterruptCheck | None], object]
+    apply: Callable[[InterruptCheck | None], StepResult]

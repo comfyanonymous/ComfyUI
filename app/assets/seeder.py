@@ -550,7 +550,15 @@ class _AssetSeeder:
                 return
 
             # Must precede the prune and the scan: both read and extend these rows.
-            run_pending_semantics_steps(interrupt_check=self._is_cancelled)
+            # _check_pause_and_cancel, not _is_cancelled: a pause has to suspend
+            # the walk between batches, or it keeps statting the whole table
+            # while the seeder reports PAUSED and a prompt runs.
+            run_pending_semantics_steps(interrupt_check=self._check_pause_and_cancel)
+
+            if self._is_cancelled():
+                logging.info("Asset scan cancelled during semantics reset")
+                cancelled = True
+                return
 
             if self._prune_first:
                 all_prefixes = get_owned_prefixes()

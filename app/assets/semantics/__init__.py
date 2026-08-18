@@ -19,6 +19,7 @@ from app.assets.semantics.step import (
     InterruptCheck,
     SemanticsStep,
     SemanticsStepInterrupted,
+    StepResult,
 )
 from app.database.db import can_create_session, create_session
 
@@ -28,6 +29,7 @@ __all__ = [
     "InterruptCheck",
     "SemanticsStep",
     "SemanticsStepInterrupted",
+    "StepResult",
     "run_pending_semantics_steps",
 ]
 
@@ -85,6 +87,17 @@ def run_pending_semantics_steps(interrupt_check: InterruptCheck | None = None) -
                 step.version,
                 step.description,
                 stored_version + applied,
+            )
+            return applied
+
+        if not summary.complete:
+            logging.info(
+                "Asset semantics step %d (%s) left work unfinished, staying at "
+                "version %d so it runs again: %s",
+                step.version,
+                step.description,
+                stored_version + applied,
+                summary,
             )
             return applied
 
