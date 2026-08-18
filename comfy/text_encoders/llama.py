@@ -832,6 +832,10 @@ class Llama2_(nn.Module):
         past_len = 0
         if past_key_values is not None and len(past_key_values) > 0:
             past_len = self.get_past_len(past_key_values)
+        fixed_kv = past_key_values is not None and len(past_key_values) > 0 and isinstance(past_key_values[0], FixedKV)
+        fixed_kv_decode = fixed_kv and past_len > 0 and seq_len == 1
+        if fixed_kv_decode:
+            attention_mask = None
 
         if position_ids is None:
             position_ids = torch.arange(past_len, past_len + seq_len, device=x.device).unsqueeze(0)
@@ -852,8 +856,7 @@ class Llama2_(nn.Module):
 
         optimized_attention = optimized_attention_for_device(x.device, mask=mask is not None, small_input=True)
 
-        fixed_kv = past_key_values is not None and len(past_key_values) > 0 and isinstance(past_key_values[0], FixedKV)
-        enable_graph = self.graph_dynamic_vbar_blocks and fixed_kv and seq_len == 1 and mask is None
+        enable_graph = self.graph_dynamic_vbar_blocks and fixed_kv_decode
         if enable_graph:
             freqs_cis_groups = freqs_cis if isinstance(freqs_cis, list) else [freqs_cis]
             cross_step_state_key = [(x.shape, x.stride(), x.dtype, x.device)]
