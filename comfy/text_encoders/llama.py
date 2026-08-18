@@ -26,8 +26,8 @@ class FixedKV:
     seqlen: torch.Tensor
 
     def prepare(self, num_tokens):
-        self.position.fill_(self.index)
-        self.seqlen.fill_(self.index + num_tokens)
+        self.position.copy_(self.seqlen)
+        self.seqlen.add_(num_tokens)
 
     def advance(self, num_tokens):
         self.index += num_tokens
@@ -571,17 +571,25 @@ class Attention(nn.Module):
             xq = xq.transpose(1, 2)
             xk = xk.transpose(1, 2)
             xv = xv.transpose(1, 2)
-            if seq_length == 1:
+            if seq_length == 1 and fixed_cache.index > 0:
                 # CUDA-graphable decode path.
-                fixed_cache.key.index_copy_(1, fixed_cache.position, xk)
-                fixed_cache.value.index_copy_(1, fixed_cache.position, xv)
+                position = fixed_cache.position.view(batch_size, 1, 1, 1).expand_as(xk)
+                fixed_cache.key.scatter_(1, position, xk)
+                fixed_cache.value.scatter_(1, position, xv)
                 output = comfy_kitchen.flash_attention_decode(xq, fixed_cache.key, fixed_cache.value, fixed_cache.seqlen)
                 return self.o_proj(output.view(batch_size, seq_length, self.inner_size)), fixed_cache
 
-            fixed_cache.key[:, fixed_cache.index:fixed_cache.index + seq_length].copy_(xk)
-            fixed_cache.value[:, fixed_cache.index:fixed_cache.index + seq_length].copy_(xv)
-            xk = fixed_cache.key[:, :fixed_cache.index + seq_length]
-            xv = fixed_cache.value[:, :fixed_cache.index + seq_length]
+            if attention_mask is None or attention_mask.ndim < 4:
+                fixed_cache.key[:, :seq_length].copy_(xk)
+                fixed_cache.value[:, :seq_length].copy_(xv)
+            else:
+                valid = attention_mask[:, 0, -1, -seq_length:] == 0
+                indices = torch.arange(seq_length, device=xk.device).expand(batch_size, -1)
+                indices = indices.masked_fill(~valid, seq_length).sort(dim=1).values.clamp_max_(seq_length - 1)
+                indices = indices.view(batch_size, seq_length, 1, 1).expand_as(xk)
+                fixed_cache.key[:, :seq_length].copy_(xk.gather(1, indices))
+                fixed_cache.value[:, :seq_length].copy_(xv.gather(1, indices))
+                fixed_cache.seqlen.copy_(valid.sum(dim=1))
 
             xq = xq.transpose(1, 2)
             xk = xk.transpose(1, 2)
@@ -796,8 +804,8 @@ class Llama2_(nn.Module):
             if fixed_kv:
                 key = torch.empty((batch, capacity, self.config.num_key_value_heads, self.config.head_dim), device=device, dtype=dtype)
                 value = torch.empty_like(key)
-                position = torch.empty((1,), device=device, dtype=torch.int64)
-                seqlen = torch.empty((batch,), device=device, dtype=torch.int32)
+                position = torch.empty((batch,), device=device, dtype=torch.int64)
+                seqlen = torch.zeros((batch,), device=device, dtype=torch.int32)
                 caches.append(FixedKV(key, value, 0, position, seqlen))
             else:
                 key = torch.empty((batch, self.config.num_key_value_heads, capacity, self.config.head_dim), device=device, dtype=dtype)
@@ -824,6 +832,10 @@ class Llama2_(nn.Module):
         past_len = 0
         if past_key_values is not None and len(past_key_values) > 0:
             past_len = self.get_past_len(past_key_values)
+        fixed_kv = past_key_values is not None and len(past_key_values) > 0 and isinstance(past_key_values[0], FixedKV)
+        fixed_kv_decode = fixed_kv and past_len > 0 and seq_len == 1
+        if fixed_kv_decode:
+            attention_mask = None
 
         if position_ids is None:
             position_ids = torch.arange(past_len, past_len + seq_len, device=x.device).unsqueeze(0)
@@ -844,8 +856,7 @@ class Llama2_(nn.Module):
 
         optimized_attention = optimized_attention_for_device(x.device, mask=mask is not None, small_input=True)
 
-        fixed_kv = past_key_values is not None and len(past_key_values) > 0 and isinstance(past_key_values[0], FixedKV)
-        enable_graph = self.graph_dynamic_vbar_blocks and fixed_kv and seq_len == 1 and mask is None
+        enable_graph = self.graph_dynamic_vbar_blocks and fixed_kv_decode
         if enable_graph:
             freqs_cis_groups = freqs_cis if isinstance(freqs_cis, list) else [freqs_cis]
             cross_step_state_key = [(x.shape, x.stride(), x.dtype, x.device)]
