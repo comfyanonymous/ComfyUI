@@ -29,7 +29,7 @@ from app.assets.database.queries.semantics import (
     bulk_remove_automatic_tags,
     bulk_set_loader_paths,
     get_file_backed_references_page,
-    get_tags_by_reference,
+    get_tag_origins_by_reference,
 )
 from app.assets.helpers import normalize_tags
 from app.assets.semantics.step import InterruptCheck, SemanticsStepInterrupted
@@ -41,7 +41,7 @@ from app.assets.services.path_utils import (
 )
 from app.database.db import create_session
 
-_BATCH_SIZE = 500
+_ROWS_PER_TRANSACTION = 500
 
 
 @dataclass
@@ -86,7 +86,7 @@ def reproject_derived_state(
 
         with create_session() as session:
             rows = get_file_backed_references_page(
-                session, after_id=after_id, limit=_BATCH_SIZE
+                session, after_id=after_id, limit=_ROWS_PER_TRANSACTION
             )
             if not rows:
                 return summary
@@ -101,7 +101,9 @@ def _reproject_batch(
     vocabulary: set[str],
     summary: ReprojectionSummary,
 ) -> None:
-    stored_tags = get_tags_by_reference(session, [row.reference_id for row in rows])
+    stored_tags = get_tag_origins_by_reference(
+        session, [row.reference_id for row in rows]
+    )
 
     loader_paths: dict[str, str | None] = {}
     tags_to_add: list[tuple[str, str]] = []

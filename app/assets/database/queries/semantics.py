@@ -19,22 +19,22 @@ from app.assets.database.queries.common import (
 from app.assets.database.queries.tags import ensure_tags_exist
 from app.assets.helpers import get_utc_now
 
-_VERSION_ROW_ID = 1
+_SINGLETON_ROW_ID = 1
 
 AUTOMATIC_TAG_ORIGIN = "automatic"
 
 
 def get_semantics_version(session: Session) -> int:
-    row = session.get(AssetSemanticsVersion, _VERSION_ROW_ID)
+    row = session.get(AssetSemanticsVersion, _SINGLETON_ROW_ID)
     return int(row.version) if row is not None else 0
 
 
 def set_semantics_version(session: Session, version: int) -> None:
-    row = session.get(AssetSemanticsVersion, _VERSION_ROW_ID)
+    row = session.get(AssetSemanticsVersion, _SINGLETON_ROW_ID)
     if row is None:
         session.add(
             AssetSemanticsVersion(
-                id=_VERSION_ROW_ID, version=int(version), updated_at=get_utc_now()
+                id=_SINGLETON_ROW_ID, version=int(version), updated_at=get_utc_now()
             )
         )
     else:
@@ -93,7 +93,7 @@ def get_file_backed_references_page(
     ]
 
 
-def get_tags_by_reference(
+def get_tag_origins_by_reference(
     session: Session, reference_ids: list[str]
 ) -> dict[str, dict[str, str]]:
     if not reference_ids:

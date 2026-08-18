@@ -60,7 +60,7 @@ from app.assets.database.queries.semantics import (
     bulk_set_loader_paths,
     get_file_backed_references_page,
     get_semantics_version,
-    get_tags_by_reference,
+    get_tag_origins_by_reference,
     set_semantics_version,
 )
 from app.assets.database.queries.tags import (
@@ -122,7 +122,7 @@ __all__ = [
     "get_references_by_paths_and_asset_ids",
     "get_references_for_prefixes",
     "get_semantics_version",
-    "get_tags_by_reference",
+    "get_tag_origins_by_reference",
     "get_unenriched_references",
     "get_unreferenced_unhashed_asset_ids",
     "insert_reference",

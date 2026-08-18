@@ -33,15 +33,19 @@ def autoclean_unit_test_assets():
     yield
 
 
-@pytest.fixture
-def session_factory():
+def _engine_shared_across_sessions():
     engine = create_engine(
         "sqlite:///:memory:",
         poolclass=StaticPool,
         connect_args={"check_same_thread": False},
     )
     Base.metadata.create_all(engine)
-    factory = sessionmaker(bind=engine)
+    return engine
+
+
+@pytest.fixture
+def session_factory():
+    factory = sessionmaker(bind=_engine_shared_across_sessions())
     with (
         patch("app.assets.semantics.reproject_derived.create_session", factory),
         patch("app.assets.semantics.create_session", factory),
@@ -82,6 +86,9 @@ def comfy_dirs():
             yield dirs
 
 
+ANY_UNIQUE_HASH = "<any unique hash>"
+
+
 def _write(directory: Path, name: str, content: bytes = b"\x00" * 100) -> str:
     path = directory / name
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -95,7 +102,7 @@ def _register(
     ref_id: str,
     *,
     loader_path: str | None = None,
-    asset_hash: str | None = "",
+    asset_hash: str | None = ANY_UNIQUE_HASH,
     size_bytes: int = 100,
     mtime_ns: int | None = None,
     is_missing: bool = False,
@@ -106,7 +113,7 @@ def _register(
     job_id: str | None = None,
     tags: dict[str, str] | None = None,
 ) -> AssetReference:
-    if asset_hash == "":
+    if asset_hash == ANY_UNIQUE_HASH:
         asset_hash = f"blake3:{ref_id}"
     if mtime_ns is None:
         mtime_ns = get_mtime_ns(os.stat(file_path, follow_symlinks=True))
@@ -151,7 +158,7 @@ def _tags(session: Session, ref_id: str) -> dict[str, str]:
     return {name: origin for name, origin in rows}
 
 
-def _snapshot(session: Session) -> list[tuple]:
+def _state_the_reset_could_touch(session: Session) -> list[tuple]:
     session.expire_all()
     refs = session.execute(select(AssetReference).order_by(AssetReference.id)).scalars()
     rows = [
@@ -185,7 +192,9 @@ class TestLoaderPathReprojection:
 
         session.expire_all()
         ref = session.get(AssetReference, "ref-1")
-        assert ref.loader_path == "flux/model.safetensors"
+        assert ref.loader_path == "flux/model.safetensors", (
+            "0006 added the column with no backfill, and nothing has filled it since"
+        )
 
     def test_stale_loader_path_is_rewritten(self, session, comfy_dirs):
         path = _write(comfy_dirs["input"], "sub/photo.png")
@@ -212,7 +221,9 @@ class TestLoaderPathReprojection:
         reproject_derived_state()
 
         session.expire_all()
-        assert session.get(AssetReference, "ref-1").loader_path is None
+        assert session.get(AssetReference, "ref-1").loader_path is None, (
+            "a file its category cannot load must not advertise a loader path"
+        )
 
     def test_reference_without_file_path_is_skipped(self, session, comfy_dirs):
         session.add(Asset(id="asset-api", hash="blake3:abc", size_bytes=10))
@@ -265,7 +276,9 @@ class TestHashPreservation:
         session.expire_all()
         assert session.get(Asset, "asset-ref-1").hash == "blake3:original"
         assert session.get(Asset, "asset-ref-1").size_bytes == 100
-        assert session.get(AssetReference, "ref-1").needs_verify is True
+        assert session.get(AssetReference, "ref-1").needs_verify is True, (
+            "a file that moved on goes to the verify path rather than being re-read"
+        )
         assert summary.changed_files == 1
 
     def test_changed_file_still_gets_its_path_state_reprojected(
@@ -315,7 +328,9 @@ class TestIntentIsPreserved:
         tags = _tags(session, "ref-1")
         assert tags["favourite"] == "manual"
         assert tags["uploaded"] == "upload"
-        assert ref.loader_path == "curated.safetensors"
+        assert ref.loader_path == "curated.safetensors", (
+            "preserving intent must not cost the reprojection around it"
+        )
 
     def test_manual_tag_inside_the_derived_vocabulary_is_not_removed(
         self, session, comfy_dirs
@@ -325,7 +340,9 @@ class TestIntentIsPreserved:
 
         reproject_derived_state()
 
-        assert _tags(session, "ref-1")["models"] == "manual"
+        assert _tags(session, "ref-1")["models"] == "manual", (
+            "a person may tag an input file 'models'; that is their business"
+        )
 
 
 class TestTagReprojection:
@@ -355,7 +372,9 @@ class TestTagReprojection:
 
         reproject_derived_state()
 
-        assert "model_type:loras" not in _tags(session, "ref-1")
+        assert "model_type:loras" not in _tags(session, "ref-1"), (
+            "an older rule tagged by directory alone; extensions now gate the tag"
+        )
         assert "model_type:checkpoints" in _tags(session, "ref-1")
 
     def test_automatic_tag_outside_the_vocabulary_is_left_alone(
@@ -366,7 +385,9 @@ class TestTagReprojection:
 
         reproject_derived_state()
 
-        assert "missing" in _tags(session, "ref-1")
+        assert "missing" in _tags(session, "ref-1"), (
+            "'missing' is automatic but not path-derived, so the scanner owns it"
+        )
 
 
 class TestFileState:
@@ -416,7 +437,7 @@ class TestFileState:
         assert _tags(session, "ref-1") == {
             "models": "automatic",
             "model_type:checkpoints": "automatic",
-        }
+        }, "a root missing from the config must not strip tags off its assets"
         assert summary.unclassified_paths == 1
 
 
@@ -451,10 +472,12 @@ class TestIdempotence:
         )
 
         reproject_derived_state()
-        after_first = _snapshot(session)
+        after_first = _state_the_reset_could_touch(session)
 
         second = reproject_derived_state()
-        assert _snapshot(session) == after_first
+        assert _state_the_reset_could_touch(session) == after_first, (
+            "a second pass must be indistinguishable from one"
+        )
         assert second.loader_paths_rewritten == 0
         assert second.tags_added == 0
         assert second.tags_removed == 0
@@ -481,7 +504,7 @@ class TestIdempotence:
             assert _tags(session, f"ref-{index}") == {
                 "models": "automatic",
                 "model_type:checkpoints": "automatic",
-            }
+            }, "chunking by bind-param limit must not drop or duplicate a tag"
 
     def test_walk_crosses_batch_boundaries(self, session, comfy_dirs):
         for index in range(7):
@@ -492,7 +515,7 @@ class TestIdempotence:
                 loader_path=None,
             )
 
-        with patch("app.assets.semantics.reproject_derived._BATCH_SIZE", 2):
+        with patch("app.assets.semantics.reproject_derived._ROWS_PER_TRANSACTION", 2):
             summary = reproject_derived_state()
 
         assert summary.scanned == 7
@@ -620,7 +643,7 @@ class TestRunner:
             return calls["n"] > 1
 
         with (
-            patch("app.assets.semantics.reproject_derived._BATCH_SIZE", 2),
+            patch("app.assets.semantics.reproject_derived._ROWS_PER_TRANSACTION", 2),
             patch.object(
                 semantics,
                 "SEMANTICS_STEPS",
