@@ -24,6 +24,7 @@ import comfy.diffusers_load
 import comfy.samplers
 import comfy.sample
 import comfy.sd
+import comfy.nested_tensor
 import comfy.utils
 import comfy.controlnet
 from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict, FileLocator
@@ -549,8 +550,14 @@ class SaveLatent:
 
         file = os.path.join(full_output_folder, file)
 
+        latent_tensor = samples["samples"]
         output = {}
-        output["latent_tensor"] = samples["samples"].contiguous()
+        if getattr(latent_tensor, "is_nested", False):
+            latent_tensor, latent_shapes = comfy.utils.pack_latents(latent_tensor.unbind())
+            for i, shape in enumerate(latent_shapes):
+                output[f"latent_shape_{i}"] = torch.tensor(shape, dtype=torch.int64)
+
+        output["latent_tensor"] = latent_tensor.contiguous()
         output["latent_format_version_0"] = torch.tensor([])
 
         comfy.utils.save_torch_file(output, file, metadata=metadata)
@@ -577,7 +584,18 @@ class LoadLatent:
         multiplier = 1.0
         if "latent_format_version_0" not in latent:
             multiplier = 1.0 / 0.18215
-        samples = {"samples": latent["latent_tensor"].float() * multiplier}
+        latent_tensor = latent["latent_tensor"].float() * multiplier
+        shape_keys = sorted(
+            (key for key in latent if key.startswith("latent_shape_")),
+            key=lambda key: int(key.rsplit("_", 1)[1]),
+        )
+        if shape_keys:
+            latent_shapes = [tuple(int(size) for size in latent[key]) for key in shape_keys]
+            latent_tensor = comfy.nested_tensor.NestedTensor(
+                comfy.utils.unpack_latents(latent_tensor, latent_shapes)
+            )
+
+        samples = {"samples": latent_tensor}
         return (samples, )
 
     @classmethod
