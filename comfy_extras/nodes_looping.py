@@ -396,7 +396,7 @@ class _IntOperations(io.ComfyNode):
         return io.Schema(
             node_id="_IntOperations",
             display_name="Int Operations",
-            category="looping/logic",
+            category="advanced/looping",
             is_dev_only=True,
             inputs=[
                 io.Int.Input("a", default=0, min=-0xffffffffffffffff, max=0xffffffffffffffff, step=1),
