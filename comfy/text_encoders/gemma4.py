@@ -228,8 +228,9 @@ class Gemma4Attention(nn.Module):
             if fixed_cache is not None:
                 if seq_length == 1:
                     # CUDA-graphable decode: write at the device-side ring/linear position
-                    fixed_cache.key.index_copy_(2, fixed_cache.position, xk)
-                    fixed_cache.value.index_copy_(2, fixed_cache.position, xv)
+                    position = fixed_cache.position.view(batch_size, 1, 1, 1).expand_as(xk)
+                    fixed_cache.key.scatter_(2, position, xk)
+                    fixed_cache.value.scatter_(2, position, xv)
                     output = self._decode_attention(xq, fixed_cache, attention_mask)
                     return self.o_proj(output), fixed_cache, None
 
@@ -705,7 +706,7 @@ class Gemma4Base(BaseLlama, BaseGenerate, torch.nn.Module):
             cache_cls = RingKV if sliding else FixedKV
             tracker = trackers.get((cache_cls, length))
             if tracker is None:
-                tracker = (torch.empty((1,), device=device, dtype=torch.int64),
+                tracker = (torch.empty((batch,), device=device, dtype=torch.int64),
                            torch.empty((batch,), device=device, dtype=torch.int32))
                 trackers[(cache_cls, length)] = tracker
             # zero-init: decode attends full capacity with masked tails, 0*0 stays finite
