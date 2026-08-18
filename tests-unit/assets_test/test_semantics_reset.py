@@ -392,7 +392,7 @@ class TestTagReprojection:
             tags={"model_type:loras": "automatic"},
         )
 
-        for registered in (" loras", "loras "):
+        for position, registered in (("leading", " loras"), ("trailing", "loras ")):
             with patch(
                 "app.assets.services.path_utils.get_comfy_models_folders",
                 return_value=[
@@ -407,7 +407,7 @@ class TestTagReprojection:
                 reproject_derived_state()
 
             assert "model_type:loras" not in _tags(session, "ref-1"), (
-                f"a category registered as {registered!r} must not smuggle an "
+                f"{position} whitespace in {registered!r} must not smuggle an "
                 "entry past the vocabulary and leave the stale tag in place"
             )
 
