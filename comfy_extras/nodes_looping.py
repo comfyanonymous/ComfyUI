@@ -645,7 +645,7 @@ class _ImageAccumStatePack(io.ComfyNode):
         return io.Schema(
             node_id="_ImageAccumStatePack",
             display_name="Image Accum State Pack",
-            category="looping/accumulation",
+            category="advanced/looping",
             is_dev_only=True,
             inputs=[
                 io.AnyType.Input("remaining"),
