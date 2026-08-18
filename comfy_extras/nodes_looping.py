@@ -133,7 +133,7 @@ class TensorLoopClose(io.ComfyNode):
         return io.Schema(
             node_id="TensorLoopClose",
             display_name="Close Tensor Loop",
-            category="advanced/looping/accumulation",
+            category="advanced/looping",
             inputs=[
                 io.FlowControl.Input("flow_control", raw_link=True),
                 io.MatchType.Input("processed", template=cls.MATCHTYPE, raw_link=True, tooltip="Output generated this iteration."),
