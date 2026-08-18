@@ -26,8 +26,8 @@ class FixedKV:
     seqlen: torch.Tensor
 
     def prepare(self, num_tokens):
-        self.position.fill_(self.index)
-        self.seqlen.fill_(self.index + num_tokens)
+        self.position.copy_(self.seqlen)
+        self.seqlen.add_(num_tokens)
 
     def advance(self, num_tokens):
         self.index += num_tokens
@@ -571,7 +571,7 @@ class Attention(nn.Module):
             xq = xq.transpose(1, 2)
             xk = xk.transpose(1, 2)
             xv = xv.transpose(1, 2)
-            if seq_length == 1:
+            if seq_length == 1 and fixed_cache.index > 0:
                 # CUDA-graphable decode path.
                 position = fixed_cache.position.view(batch_size, 1, 1, 1).expand_as(xk)
                 fixed_cache.key.scatter_(1, position, xk)
@@ -579,10 +579,17 @@ class Attention(nn.Module):
                 output = comfy_kitchen.flash_attention_decode(xq, fixed_cache.key, fixed_cache.value, fixed_cache.seqlen)
                 return self.o_proj(output.view(batch_size, seq_length, self.inner_size)), fixed_cache
 
-            fixed_cache.key[:, fixed_cache.index:fixed_cache.index + seq_length].copy_(xk)
-            fixed_cache.value[:, fixed_cache.index:fixed_cache.index + seq_length].copy_(xv)
-            xk = fixed_cache.key[:, :fixed_cache.index + seq_length]
-            xv = fixed_cache.value[:, :fixed_cache.index + seq_length]
+            if attention_mask is None or attention_mask.ndim < 4:
+                fixed_cache.key[:, :seq_length].copy_(xk)
+                fixed_cache.value[:, :seq_length].copy_(xv)
+            else:
+                valid = attention_mask[:, 0, -1, -seq_length:] == 0
+                indices = torch.arange(seq_length, device=xk.device).expand(batch_size, -1)
+                indices = indices.masked_fill(~valid, seq_length).sort(dim=1).values.clamp_max_(seq_length - 1)
+                indices = indices.view(batch_size, seq_length, 1, 1).expand_as(xk)
+                fixed_cache.key[:, :seq_length].copy_(xk.gather(1, indices))
+                fixed_cache.value[:, :seq_length].copy_(xv.gather(1, indices))
+                fixed_cache.seqlen.copy_(valid.sum(dim=1))
 
             xq = xq.transpose(1, 2)
             xk = xk.transpose(1, 2)
@@ -798,7 +805,7 @@ class Llama2_(nn.Module):
                 key = torch.empty((batch, capacity, self.config.num_key_value_heads, self.config.head_dim), device=device, dtype=dtype)
                 value = torch.empty_like(key)
                 position = torch.empty((batch,), device=device, dtype=torch.int64)
-                seqlen = torch.empty((batch,), device=device, dtype=torch.int32)
+                seqlen = torch.zeros((batch,), device=device, dtype=torch.int32)
                 caches.append(FixedKV(key, value, 0, position, seqlen))
             else:
                 key = torch.empty((batch, self.config.num_key_value_heads, capacity, self.config.head_dim), device=device, dtype=dtype)
