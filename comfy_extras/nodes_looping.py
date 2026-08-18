@@ -613,7 +613,7 @@ class _ConditionalSelect(io.ComfyNode):
         return io.Schema(
             node_id="_ConditionalSelect",
             display_name="Conditional Select",
-            category="looping/logic",
+            category="advanced/looping",
             is_dev_only=True,
             inputs=[
                 io.Boolean.Input("condition"),
