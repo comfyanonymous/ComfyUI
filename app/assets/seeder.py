@@ -23,6 +23,7 @@ from app.assets.scanner import (
     sync_root_safely,
     sync_temp_references_safely,
 )
+from app.assets.semantics import run_pending_semantics_steps
 from app.database.db import dependencies_available
 
 
@@ -547,6 +548,11 @@ class _AssetSeeder:
                     {"message": "Database dependencies not available"},
                 )
                 return
+
+            # Stale rows are brought forward before anything reads or extends
+            # them. A database already at the current semantics version costs a
+            # single row read here.
+            run_pending_semantics_steps(interrupt_check=self._is_cancelled)
 
             if self._prune_first:
                 all_prefixes = get_owned_prefixes()
