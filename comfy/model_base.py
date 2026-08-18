@@ -2181,14 +2181,8 @@ class MiniMaxH3(BaseModel):
         payload["audio_scale"] = self.audio_scale()
 
         denoise_mask = kwargs.get("denoise_mask", None)
-        if denoise_mask is not None and latent_shapes is not None and len(latent_shapes) > 1:
-            # quantize to 1/256 to limit the number of row timestep values
-            denoise_mask = torch.round(denoise_mask * 256.0) / 256.0
-            masks = utils.unpack_latents(denoise_mask, latent_shapes)
-            if torch.amin(masks[0]).item() < 1.0 - 1e-3:
-                out['denoise_mask'] = comfy.conds.CONDRegular(masks[0][:1, :1].clone())
-            if torch.amin(masks[1]).item() < 1.0 - 1e-3:
-                out['audio_denoise_mask'] = comfy.conds.CONDRegular(masks[1][:1].amax(dim=1, keepdim=True))
+        if denoise_mask is not None:
+            out.update(self._denoise_mask_conds(denoise_mask, latent_shapes))
 
         if cross_attn is not None and latent_shapes is not None and len(latent_shapes) > 1:
             # packed layout built once per sampling run, h/w rounded up to the DiT's 2x2 patch
@@ -2215,6 +2209,24 @@ class MiniMaxH3(BaseModel):
             pooled.append(audio_mask.expand_as(masks[1]).contiguous())
         return pooled
 
+    def _token_grid_masks(self, denoise_mask, latent_shapes):
+        masks = utils.unpack_latents(denoise_mask, latent_shapes)
+        return [torch.ceil(mask * 256.0) / 256.0 for mask in self._pool_masks_to_token_grid(masks)]
+
+    def _denoise_mask_values(self, denoise_mask, latent_shapes):
+        if latent_shapes is None or len(latent_shapes) < 2:
+            return {}
+        masks = self._token_grid_masks(denoise_mask, latent_shapes)
+        out = {}
+        if torch.amin(masks[0]).item() < 1.0 - 1e-3:
+            out['denoise_mask'] = masks[0][:1, :1].clone()
+        if torch.amin(masks[1]).item() < 1.0 - 1e-3:
+            out['audio_denoise_mask'] = masks[1][:1].amax(dim=1, keepdim=True)
+        return out
+
+    def _denoise_mask_conds(self, denoise_mask, latent_shapes):
+        return {name: comfy.conds.CONDRegular(value) for name, value in self._denoise_mask_values(denoise_mask, latent_shapes).items()}
+
     def scale_latent_inpaint(self, sigma, noise, latent_image, x=None, denoise_mask=None, **kwargs):
         # preserved regions run at the cond timestep, inject them at cond strength
         shapes = self.latent_shapes
@@ -2236,11 +2248,8 @@ class MiniMaxH3(BaseModel):
         injected = utils.pack_latents(cleans)[0]
         if x is None or denoise_mask is None:
             return injected
-        # return the value that makes the sampler's per-pixel blend land every pixel at its token's pooled strength
-        masks = utils.unpack_latents(denoise_mask, shapes)
-        pooled_token_grid = utils.pack_latents(self._pool_masks_to_token_grid(masks))[0]
-        pooled_token_grid = torch.round(pooled_token_grid * 256.0) / 256.0  # match the label quantization
-        x_blend_weight = (pooled_token_grid - denoise_mask) / (1.0 - denoise_mask).clamp(min=1e-6)  # fraction to move from injected toward x
+        token_grid_mask = utils.pack_latents(self._token_grid_masks(denoise_mask, shapes))[0]
+        x_blend_weight = (token_grid_mask - denoise_mask) / (1.0 - denoise_mask).clamp(min=1e-6)
         x_blend_weight = torch.where(denoise_mask < 1.0, x_blend_weight.clamp(0.0, 1.0), torch.zeros_like(x_blend_weight))
         return injected + x_blend_weight.to(injected.dtype) * (x - injected)
 
