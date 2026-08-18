@@ -11,7 +11,7 @@ import logging
 default_preview_method = args.preview_method
 
 MAX_PREVIEW_RESOLUTION = args.preview_size
-VIDEO_TAES = ["taehv", "lighttaew2_2", "lighttaew2_1", "lighttaehy1_5", "taeltx_2"]
+VIDEO_TAES = ["taehv", "lighttaew2_2", "lighttaew2_1", "lighttaehy1_5", "taeltx_2", "taeh3"]
 
 def preview_to_image(latent_image, do_scale=True):
         if do_scale:
@@ -136,4 +136,3 @@ def set_preview_method(override: str = None):
             args.preview_method = method
             return
     args.preview_method = default_preview_method
-
