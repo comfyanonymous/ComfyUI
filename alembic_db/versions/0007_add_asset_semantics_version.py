@@ -1,11 +1,6 @@
 """
 Add asset_semantics_version table.
 
-Alembic records the *shape* of the assets tables. This table records the
-*meaning* of their contents: which generation of the derivation logic produced
-the values currently stored in them. The two move independently, so they are
-tracked independently.
-
 Revision ID: 0007_add_asset_semantics_version
 Revises: 0006_add_loader_path
 Create Date: 2026-08-18

@@ -549,9 +549,7 @@ class _AssetSeeder:
                 )
                 return
 
-            # Stale rows are brought forward before anything reads or extends
-            # them. A database already at the current semantics version costs a
-            # single row read here.
+            # Must precede the prune and the scan: both read and extend these rows.
             run_pending_semantics_steps(interrupt_check=self._is_cancelled)
 
             if self._prune_first:

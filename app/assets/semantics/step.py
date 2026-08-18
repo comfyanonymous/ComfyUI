@@ -1,4 +1,3 @@
-"""What a semantics reset step is. See ``app.assets.semantics`` for the why."""
 
 from dataclasses import dataclass
 from typing import Callable
@@ -16,12 +15,7 @@ class SemanticsStepInterrupted(Exception):
 
 @dataclass(frozen=True)
 class SemanticsStep:
-    """One numbered reset step.
-
-    ``apply`` takes an optional interrupt check and returns a summary of what it
-    did, which is logged. It must be idempotent and must raise
-    ``SemanticsStepInterrupted`` rather than return if it stops early.
-    """
+    """``apply`` must be idempotent, and must raise SemanticsStepInterrupted rather than return early."""
 
     version: int
     description: str

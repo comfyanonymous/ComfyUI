@@ -326,13 +326,7 @@ def get_path_derived_tags_from_path(path: str) -> list[str]:
 
 
 def get_path_derived_tag_vocabulary() -> set[str]:
-    """Every tag get_path_derived_tags_from_path can emit under the current config.
-
-    Bounds which tags a re-derivation may take away: a stored automatic tag
-    inside this vocabulary that the current rules no longer emit was produced
-    by a superseded rule, while one outside it came from somewhere else and is
-    none of the derivation's business.
-    """
+    """Bounds which stored tags a re-derivation may take away; one outside this set came from elsewhere."""
     vocabulary = {"input", "output", "temp", "models"}
     vocabulary.update(_KNOWN_SUBFOLDER_TAGS)
     for folder_name, _bases, _extensions in get_comfy_models_folders():

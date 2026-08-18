@@ -24,14 +24,7 @@ from app.database.models import Base
 
 
 class AssetSemanticsVersion(Base):
-    """Which generation of the derivation logic produced this database's rows.
-
-    Alembic tracks the *shape* of the assets tables; this tracks the *meaning*
-    of what is stored in them. A row can be structurally current and still hold
-    values a superseded rule computed, so the two versions move independently.
-    Reset steps in ``app.assets.semantics`` bring such rows forward and then
-    advance this stamp. Always a single row, keyed on id 1.
-    """
+    """Which generation of the derivation logic wrote these rows -- deliberately not the Alembic version, which tracks shape rather than meaning."""
 
     __tablename__ = "asset_semantics_version"
 

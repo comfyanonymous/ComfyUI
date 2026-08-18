@@ -1,9 +1,4 @@
-"""Tests for the asset semantics reset (app/assets/semantics).
-
-Runs standalone against in-memory SQLite:
-
-    pytest tests-unit/assets_test/test_semantics_reset.py --noconftest
-"""
+"""Tests for the asset semantics reset (app/assets/semantics)."""
 
 import os
 import tempfile
@@ -34,17 +29,12 @@ from app.assets.services.file_utils import get_mtime_ns
 
 @pytest.fixture(autouse=True)
 def autoclean_unit_test_assets():
-    """Override the package autouse fixture; these tests need no server."""
+    """Override parent autouse fixture - these tests don't need server cleanup."""
     yield
 
 
 @pytest.fixture
 def session_factory():
-    """A session factory over one shared in-memory database.
-
-    StaticPool keeps every session on the same connection, so the batching walk
-    sees its own committed writes across sessions.
-    """
     engine = create_engine(
         "sqlite:///:memory:",
         poolclass=StaticPool,
@@ -62,14 +52,12 @@ def session_factory():
 
 @pytest.fixture
 def session(session_factory) -> Session:
-    """A session for the test's own reads and writes."""
     with session_factory() as sess:
         yield sess
 
 
 @pytest.fixture
 def comfy_dirs():
-    """Point every asset root at a throwaway tree with one model category."""
     with tempfile.TemporaryDirectory() as base:
         dirs = {
             name: Path(base) / name
@@ -118,10 +106,6 @@ def _register(
     job_id: str | None = None,
     tags: dict[str, str] | None = None,
 ) -> AssetReference:
-    """Insert an Asset + AssetReference (+ tags as {name: origin}) and commit.
-
-    ``asset_hash=""`` means "any unique hash"; assets.hash is unique-indexed.
-    """
     if asset_hash == "":
         asset_hash = f"blake3:{ref_id}"
     if mtime_ns is None:
@@ -168,7 +152,6 @@ def _tags(session: Session, ref_id: str) -> dict[str, str]:
 
 
 def _snapshot(session: Session) -> list[tuple]:
-    """Every field the reset could plausibly touch, for equality across runs."""
     session.expire_all()
     refs = session.execute(select(AssetReference).order_by(AssetReference.id)).scalars()
     rows = [
@@ -195,7 +178,6 @@ def _snapshot(session: Session) -> list[tuple]:
 
 class TestLoaderPathReprojection:
     def test_null_loader_path_is_backfilled(self, session, comfy_dirs):
-        """The drift 0006 left behind: a column added with no backfill."""
         path = _write(comfy_dirs["checkpoints"], "flux/model.safetensors")
         _register(session, path, "ref-1", loader_path=None)
 
@@ -224,7 +206,6 @@ class TestLoaderPathReprojection:
         assert summary.loader_paths_rewritten == 0
 
     def test_unloadable_extension_loses_its_loader_path(self, session, comfy_dirs):
-        """The current rule gives no loader path to a file its category cannot load."""
         path = _write(comfy_dirs["checkpoints"], "notes.txt")
         _register(session, path, "ref-1", loader_path="notes.txt")
 
@@ -269,7 +250,6 @@ class TestHashPreservation:
     def test_changed_file_keeps_its_hash_and_is_flagged_for_verify(
         self, session, comfy_dirs
     ):
-        """A file that moved on is handed to the existing verify path, not re-read."""
         path = _write(comfy_dirs["checkpoints"], "big.safetensors")
         _register(
             session,
@@ -335,13 +315,11 @@ class TestIntentIsPreserved:
         tags = _tags(session, "ref-1")
         assert tags["favourite"] == "manual"
         assert tags["uploaded"] == "upload"
-        # ...while the derived state around them was still brought forward.
         assert ref.loader_path == "curated.safetensors"
 
     def test_manual_tag_inside_the_derived_vocabulary_is_not_removed(
         self, session, comfy_dirs
     ):
-        """A person may tag an input file 'models'; that is their business."""
         path = _write(comfy_dirs["input"], "photo.png")
         _register(session, path, "ref-1", tags={"models": "manual"})
 
@@ -363,7 +341,6 @@ class TestTagReprojection:
         }
 
     def test_superseded_automatic_tag_is_removed(self, session, comfy_dirs):
-        """An older rule tagged by directory alone; extensions now gate the tag."""
         path = _write(comfy_dirs["checkpoints"], "model.safetensors")
         _register(
             session,
@@ -384,7 +361,6 @@ class TestTagReprojection:
     def test_automatic_tag_outside_the_vocabulary_is_left_alone(
         self, session, comfy_dirs
     ):
-        """'missing' is automatic but not path-derived; the scanner owns it."""
         path = _write(comfy_dirs["checkpoints"], "model.safetensors")
         _register(session, path, "ref-1", tags={"missing": "automatic"})
 
@@ -424,7 +400,6 @@ class TestFileState:
         assert summary.absent_files == 1
 
     def test_path_outside_every_known_root_is_left_alone(self, session, comfy_dirs):
-        """A root missing from the config must not strip tags off its assets."""
         path = _write(comfy_dirs["elsewhere"], "model.safetensors")
         _register(
             session,
@@ -488,7 +463,6 @@ class TestIdempotence:
     def test_statements_chunked_by_bind_param_limit_stay_correct(
         self, session, comfy_dirs
     ):
-        """The bind-param chunking must not drop or duplicate a tag."""
         for index in range(4):
             _register(
                 session,

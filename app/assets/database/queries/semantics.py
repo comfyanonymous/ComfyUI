@@ -1,4 +1,3 @@
-"""Queries backing the asset semantics reset (see ``app.assets.semantics``)."""
 
 from dataclasses import dataclass
 
@@ -20,21 +19,17 @@ from app.assets.database.queries.common import (
 from app.assets.database.queries.tags import ensure_tags_exist
 from app.assets.helpers import get_utc_now
 
-# The version table holds exactly one row; the id is a constant, not a sequence.
 _VERSION_ROW_ID = 1
 
-# Tags this subsystem derives from the filesystem rather than being told.
 AUTOMATIC_TAG_ORIGIN = "automatic"
 
 
 def get_semantics_version(session: Session) -> int:
-    """Return the stored semantics version, or 0 if none has been stamped."""
     row = session.get(AssetSemanticsVersion, _VERSION_ROW_ID)
     return int(row.version) if row is not None else 0
 
 
 def set_semantics_version(session: Session, version: int) -> None:
-    """Stamp the semantics version. Caller commits."""
     row = session.get(AssetSemanticsVersion, _VERSION_ROW_ID)
     if row is None:
         session.add(
@@ -50,7 +45,6 @@ def set_semantics_version(session: Session, version: int) -> None:
 
 @dataclass(frozen=True)
 class DerivedStateRow:
-    """A file-backed reference and the state a reprojection may rewrite."""
 
     reference_id: str
     file_path: str
@@ -66,13 +60,7 @@ def get_file_backed_references_page(
     after_id: str | None,
     limit: int,
 ) -> list[DerivedStateRow]:
-    """Return up to ``limit`` file-backed references ordered by id, after ``after_id``.
-
-    Keyset pagination on the primary key so a reprojection can walk the whole
-    table in bounded transactions without holding one open across the walk.
-    Soft-deleted references are included: their derived columns are as stale as
-    anyone else's, and an undelete would serve them.
-    """
+    """Soft-deleted references are deliberately included: their derived columns are as stale as anyone else's."""
     query = (
         sa.select(
             AssetReference.id,
@@ -108,7 +96,6 @@ def get_file_backed_references_page(
 def get_tags_by_reference(
     session: Session, reference_ids: list[str]
 ) -> dict[str, dict[str, str]]:
-    """Return {reference_id: {tag_name: origin}} for the given references."""
     if not reference_ids:
         return {}
 
@@ -129,7 +116,6 @@ def get_tags_by_reference(
 def bulk_set_loader_paths(
     session: Session, loader_paths: dict[str, str | None]
 ) -> None:
-    """Set loader_path on the given references. Caller commits."""
     if not loader_paths:
         return
     session.execute(
@@ -142,7 +128,6 @@ def bulk_set_loader_paths(
 
 
 def bulk_add_automatic_tags(session: Session, links: list[tuple[str, str]]) -> None:
-    """Attach (reference_id, tag_name) links with automatic origin. Caller commits."""
     if not links:
         return
 
@@ -171,12 +156,7 @@ def bulk_add_automatic_tags(session: Session, links: list[tuple[str, str]]) -> N
 
 
 def bulk_remove_automatic_tags(session: Session, links: list[tuple[str, str]]) -> None:
-    """Detach (reference_id, tag_name) links, but only automatic ones.
-
-    The origin is re-asserted in the statement rather than trusted from the
-    caller's snapshot, so a manual tag can never be removed by this path.
-    Caller commits.
-    """
+    """The origin is re-asserted below rather than trusted from the caller's snapshot."""
     if not links:
         return
 

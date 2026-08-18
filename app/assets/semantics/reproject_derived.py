@@ -1,30 +1,17 @@
 """Semantics step 1: re-derive the reference state that comes from the path.
 
-Three columns are pure functions of a file's location and whether it is there:
-``loader_path``, the backend tags a path implies, and ``is_missing``. Every one
-of them was computed once, when the reference was first written, by whatever
-rules were current that day. ``loader_path`` in particular was added to existing
-databases as a NULL column and no path has ever filled it in, so references
-older than that column serve a null loader path forever.
+Recomputes ``loader_path``, the backend tags a path implies, and ``is_missing``.
 
-This step recomputes those three from the filesystem as it stands now. It reads
-no file contents: ``verify_file_unchanged`` answers whether a file still matches
-what the database recorded, and the only thing that answer is used for is
-deciding *not* to touch content-derived state. Nothing here re-hashes, so a
-library of untouched 500GB models costs one ``stat`` each.
+It must keep reading no file contents, so an untouched model library costs one
+``stat`` per file. That rules out repairing anything derived from content --
+``hash``, ``size_bytes``, mime -- so a file that has changed underneath its row
+goes to the existing ``needs_verify`` path instead.
 
-What the step will not touch:
-
-- ``hash`` and ``size_bytes`` -- content facts, unrecoverable without reading
-  the file. A file that has changed underneath its row is handed to the existing
-  ``needs_verify`` path instead, exactly as the scanner would flag it.
-- Anything a person chose: manual and upload-origin tags, ``user_metadata``,
-  ``preview_id``, ``deleted_at``, ``job_id``, ``name``.
-- References whose file is gone, or whose path is not under any root this
-  install currently knows about. Retiring the former is the scanner's job under
-  its own rules; the latter cannot be classified at all, and a misconfigured
-  ``extra_model_paths.yaml`` must not be able to strip tags off assets that are
-  merely out of view.
+It must also leave alone anything a person chose (manual and upload-origin tags,
+``user_metadata``, ``preview_id``, ``deleted_at``, ``job_id``, ``name``),
+references whose file is gone, and references whose path is under no root this
+install currently knows about -- a misconfigured ``extra_model_paths.yaml`` must
+not be able to strip tags off assets that are merely out of view.
 """
 
 import logging
@@ -54,14 +41,11 @@ from app.assets.services.path_utils import (
 )
 from app.database.db import create_session
 
-# Bounds each transaction. Small enough that an interrupt loses little work,
-# large enough that the walk is not dominated by session setup.
 _BATCH_SIZE = 500
 
 
 @dataclass
 class ReprojectionSummary:
-    """What a reprojection pass did, for the log line."""
 
     scanned: int = 0
     unchanged_files: int = 0
@@ -89,12 +73,7 @@ class ReprojectionSummary:
 def reproject_derived_state(
     interrupt_check: InterruptCheck | None = None,
 ) -> ReprojectionSummary:
-    """Re-derive path-derived state for every file-backed reference.
-
-    Walks the reference table in keyset-paginated batches, committing each one,
-    so a kill mid-walk leaves committed batches reprojected and the rest
-    untouched -- both states the step handles on its next run.
-    """
+    """Each batch commits on its own, so a kill mid-walk is safe to resume."""
     summary = ReprojectionSummary()
     vocabulary = get_path_derived_tag_vocabulary()
     after_id: str | None = None
@@ -142,9 +121,7 @@ def _reproject_batch(
         if unchanged:
             summary.unchanged_files += 1
         else:
-            # The file moved on from what the row records, so its hash, size and
-            # mime no longer describe it. Re-deriving those means reading the
-            # file, which this step does not do; flag it for the path that does.
+            # Hand it to the verify path rather than re-read the file for hash and size.
             summary.changed_files += 1
             if not row.needs_verify:
                 set_needs_verify.append(row.reference_id)
@@ -174,8 +151,8 @@ def _reproject_batch(
                 tags_to_remove.append((row.reference_id, tag_name))
 
         if row.is_missing:
-            # The file is right there. Nothing else un-flags this: the scanner
-            # excludes already-missing references from its temp reconciliation.
+            # Nothing else un-flags this: the scanner excludes already-missing
+            # references from its temp reconciliation.
             clear_missing.append(row.reference_id)
 
     bulk_set_loader_paths(session, loader_paths)
@@ -191,12 +168,7 @@ def _reproject_batch(
 
 
 def _classify_file(row: DerivedStateRow) -> tuple[bool, bool]:
-    """Return (file is present, file still matches what the row recorded).
-
-    Mirrors the scanner's stat handling so the two agree about what counts as a
-    present file: a permission error means the file is there but unreadable, any
-    other OS error means treat it as gone.
-    """
+    """Mirrors the scanner's stat handling: permission denied means present-but-unreadable, any other OS error means gone."""
     try:
         stat_result = os.stat(row.file_path, follow_symlinks=True)
     except FileNotFoundError:

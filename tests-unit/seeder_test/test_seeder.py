@@ -498,7 +498,6 @@ class TestSeederMarkMissing:
 
 
 class TestSeederSemanticsReset:
-    """The scan brings stale rows forward before it reads or extends them."""
 
     def test_semantics_reset_runs_before_any_scan_work(
         self, fresh_seeder: _AssetSeeder
