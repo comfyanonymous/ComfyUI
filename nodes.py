@@ -768,7 +768,7 @@ class LoraLoaderModelOnly(LoraLoader):
         return (self.load_lora(model, None, lora_name, strength_model, 0)[0],)
 
 class VAELoader:
-    video_taes = ["taehv", "lighttaew2_2", "lighttaew2_1", "lighttaehy1_5", "taeltx_2"]
+    video_taes = ["taehv", "lighttaew2_2", "lighttaew2_1", "lighttaehy1_5", "taeltx_2", "taeh3"]
     image_taes = ["taesd", "taesdxl", "taesd3", "taef1", "taef2"]
 
     @staticmethod
