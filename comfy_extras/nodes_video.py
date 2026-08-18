@@ -312,8 +312,10 @@ class ResampledVideo(Input.Video):
         self.__frame_rate = frame_rate
 
     def __output_frame_count(self, source_count: int, source_rate: Fraction) -> int:
-        if source_count == 0 or source_rate <= 0:
-            return source_count
+        if source_count == 0:
+            return 0
+        if source_rate <= 0:
+            raise ValueError("Video frame rate must be positive")
         return max(1, round(source_count * self.__frame_rate / source_rate))
 
     def get_components(self) -> Types.VideoComponents:
