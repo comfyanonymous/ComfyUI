@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Literal
 
 import folder_paths
-from app.assets.helpers import normalize_tags
 
 
 _NON_MODEL_FOLDER_NAMES = frozenset({"configs", "custom_nodes"})
@@ -331,10 +330,11 @@ def get_path_derived_tag_vocabulary() -> set[str]:
     vocabulary = {"input", "output", "temp", "models"}
     vocabulary.update(_KNOWN_SUBFOLDER_TAGS)
     for folder_name, _bases, _extensions in get_comfy_models_folders():
-        vocabulary.add(f"model_type:{folder_name}")
-    # Stored names reach the database through normalize_tags, so an un-normalized
-    # entry would never match the tag it exists to authorise removing.
-    return set(normalize_tags(list(vocabulary)))
+        # Strip the name, not the finished tag: whitespace landing after
+        # "model_type:" survives the strip that stored names are put through,
+        # so the entry would never match the tag it authorises removing.
+        vocabulary.add(f"model_type:{folder_name.strip()}")
+    return vocabulary
 
 
 def get_name_and_tags_from_asset_path(file_path: str) -> tuple[str, list[str]]:

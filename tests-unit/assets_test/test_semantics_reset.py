@@ -392,19 +392,26 @@ class TestTagReprojection:
             tags={"model_type:loras": "automatic"},
         )
 
-        with patch(
-            "app.assets.services.path_utils.get_comfy_models_folders",
-            return_value=[
-                ("checkpoints", [str(comfy_dirs["checkpoints"])], {".safetensors"}),
-                ("loras ", [str(comfy_dirs["loras"])], {".safetensors"}),
-            ],
-        ):
-            reproject_derived_state()
+        # Leading whitespace lands after "model_type:", where a strip of the
+        # finished tag cannot reach it; trailing whitespace a strip would catch.
+        for registered in (" loras", "loras "):
+            with patch(
+                "app.assets.services.path_utils.get_comfy_models_folders",
+                return_value=[
+                    (
+                        "checkpoints",
+                        [str(comfy_dirs["checkpoints"])],
+                        {".safetensors"},
+                    ),
+                    (registered, [str(comfy_dirs["loras"])], {".safetensors"}),
+                ],
+            ):
+                reproject_derived_state()
 
-        assert "model_type:loras" not in _tags(session, "ref-1"), (
-            "a category name with stray whitespace must not smuggle an entry "
-            "past the vocabulary and leave the stale tag in place"
-        )
+            assert "model_type:loras" not in _tags(session, "ref-1"), (
+                f"a category registered as {registered!r} must not smuggle an "
+                "entry past the vocabulary and leave the stale tag in place"
+            )
 
     def test_automatic_tag_outside_the_vocabulary_is_left_alone(
         self, session, comfy_dirs
