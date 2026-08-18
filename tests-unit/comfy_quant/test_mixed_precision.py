@@ -3,6 +3,7 @@ import torch
 import sys
 import os
 import json
+from unittest import mock
 
 # Add comfy to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -283,6 +284,80 @@ class TestMixedPrecisionOps(unittest.TestCase):
         saved = model.state_dict()
         saved_conf = json.loads(saved["layer.comfy_quant"].numpy().tobytes())
         self.assertTrue(saved_conf["convrot"])
+
+    def _int8_embedding_layer(self, weight):
+        layer = ops.mixed_precision_ops({}).Embedding(
+            weight.shape[0], weight.shape[1], device="cpu", dtype=torch.bfloat16
+        )
+        layer.weight = torch.nn.Parameter(weight, requires_grad=False)
+        layer.weight_function = []
+        layer.bias_function = []
+        layer.quant_format = "int8_tensorwise"
+        layer.layout_type = weight._layout_cls
+        return layer
+
+    def test_int8_embedding_uses_layout_while_weight_is_quantized(self):
+        weight = torch.arange(18, dtype=torch.float32).reshape(6, 3).to(torch.bfloat16)
+        quantized_weight = QuantizedTensor.from_float(weight, "TensorWiseINT8Layout")
+        layer = self._int8_embedding_layer(quantized_weight)
+        indices = torch.tensor([[0, 2], [3, 5]])
+        layout_output = torch.full((2, 2, 3), 7.0, dtype=torch.bfloat16)
+        calls = []
+
+        class Layout:
+            @staticmethod
+            def dequantize_embedding(qdata, params, input):
+                calls.append((qdata.dtype, params is quantized_weight._params, input is indices))
+                return layout_output
+
+        class QuantizedCastContext:
+            def __init__(self, *_args, **_kwargs):
+                pass
+
+            def __enter__(self):
+                return quantized_weight, None
+
+            def __exit__(self, *_args):
+                return None
+
+        with mock.patch.object(ops, "CastBiasWeightContext", QuantizedCastContext):
+            with mock.patch.object(ops, "get_layout_class", lambda _layout_type: Layout):
+                output = layer.forward_comfy_cast_weights(indices)
+
+        self.assertTrue(torch.equal(output, layout_output))
+        self.assertEqual(calls, [(torch.int8, True, True)])
+
+    def test_int8_embedding_handles_weight_dequantized_by_offload(self):
+        weight = torch.arange(18, dtype=torch.float32).reshape(6, 3).to(torch.bfloat16)
+        quantized_weight = QuantizedTensor.from_float(weight, "TensorWiseINT8Layout")
+        dequantized_weight = quantized_weight.dequantize().to(torch.bfloat16)
+        layer = self._int8_embedding_layer(quantized_weight)
+        indices = torch.tensor([[0, 2], [3, 5]])
+        expected = torch.nn.functional.embedding(indices, dequantized_weight)
+        calls = []
+
+        class Layout:
+            @staticmethod
+            def dequantize_embedding(qdata, params, input):
+                calls.append((qdata.dtype, params is quantized_weight._params))
+                return torch.full_like(expected, 7.0)
+
+        class DequantizedCastContext:
+            def __init__(self, *_args, **_kwargs):
+                pass
+
+            def __enter__(self):
+                return dequantized_weight, None
+
+            def __exit__(self, *_args):
+                return None
+
+        with mock.patch.object(ops, "CastBiasWeightContext", DequantizedCastContext):
+            with mock.patch.object(ops, "get_layout_class", lambda _layout_type: Layout):
+                output = layer.forward_comfy_cast_weights(indices)
+
+        self.assertEqual(calls, [])
+        self.assertTrue(torch.equal(output, expected))
 
     def test_convrot_w4a4_loads_into_params(self):
         """ConvRot W4A4 checkpoints must load as the dedicated kitchen layout."""

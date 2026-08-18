@@ -1621,13 +1621,17 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 # Optimized path: lookup in fp8/int8, dequantize only the selected rows.
                 if isinstance(weight, QuantizedTensor) and len(self.weight_function) == 0:
                     with CastBiasWeightContext(self, device=input.device, dtype=weight.dtype, offloadable=True) as (qdata, _bias):
-                        if isinstance(qdata, QuantizedTensor):
-                            params = qdata._params
-                            scale = params.scale
-                            qdata = qdata._qdata
-                        else:
-                            params = weight._params
-                            scale = None
+                        if not isinstance(qdata, QuantizedTensor):
+                            # Dynamic VRAM can dequantize while moving the weight to the
+                            # execution device. The returned tensor already contains the scale.
+                            x = torch.nn.functional.embedding(
+                                input, qdata, self.padding_idx, self.max_norm,
+                                self.norm_type, self.scale_grad_by_freq, self.sparse)
+                            return x if out_dtype is None else x.to(dtype=out_dtype)
+
+                        params = qdata._params
+                        scale = params.scale
+                        qdata = qdata._qdata
 
                         # int8: per-row scale possible ConvRot, so let the layout do the gather
                         if self.quant_format == "int8_tensorwise":
