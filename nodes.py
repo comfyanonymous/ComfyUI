@@ -591,8 +591,11 @@ class LoadLatent:
         )
         if shape_keys:
             latent_shapes = [tuple(int(size) for size in latent[key]) for key in shape_keys]
+            unpacked_latents = comfy.utils.unpack_latents(latent_tensor, latent_shapes)
+            if len(latent_shapes) == 1:
+                unpacked_latents[0] = unpacked_latents[0].reshape(latent_shapes[0])
             latent_tensor = comfy.nested_tensor.NestedTensor(
-                comfy.utils.unpack_latents(latent_tensor, latent_shapes)
+                unpacked_latents
             )
 
         samples = {"samples": latent_tensor}
