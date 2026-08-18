@@ -429,6 +429,13 @@ class VideoFromFile(VideoInput):
                     else:
                         audio_frames.append(frame.to_ndarray())
 
+        # Multi-picture still images can expose embedded thumbnails as ragged frames.
+        if len(frames) > 1 and not audio_frames and any(frame.shape != frames[0].shape for frame in frames[1:]):
+            main_frame = max(range(len(frames)), key=lambda i: frames[i].shape[0] * frames[i].shape[1])
+            frames = [frames[main_frame]]
+            if alphas is not None:
+                alphas = [alphas[main_frame]]
+
         images = process_image_format(torch.stack(frames)) if len(frames) > 0 else torch.zeros(0, 0, 0, 3)
         if alphas is not None:
             alphas = process_image_format(torch.stack(alphas)) if len(alphas) > 0 else torch.zeros(0, 0, 0, 1)

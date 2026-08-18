@@ -6,6 +6,7 @@ import sys
 import av
 import io
 from fractions import Fraction
+from PIL import Image
 from comfy_api.input_impl.video_types import VideoFromFile, VideoFromComponents
 from comfy_api.util.video_types import VideoComponents, VideoContainer, VideoCodec
 from comfy_api.input.basic_types import AudioInput
@@ -122,6 +123,18 @@ def test_video_from_file_get_duration(simple_video_file):
     video = VideoFromFile(simple_video_file)
     duration = video.get_duration()
     assert duration == pytest.approx(0.1, abs=0.01)
+
+
+def test_mpo_without_extension_loads_main_image(tmp_path):
+    """An extensionless MPO keeps its main image even when its thumbnail decodes."""
+    path = tmp_path / "multi_picture_image"
+    main_image = Image.new("RGB", (1360, 768), (200, 30, 30))
+    thumbnail = Image.new("RGB", (512, 289), (30, 30, 200))
+    main_image.save(path, format="MPO", append_images=[thumbnail], save_all=True)
+
+    components = VideoFromFile(str(path)).get_components()
+
+    assert components.images.shape == (1, 768, 1360, 3)
 
 
 def test_video_from_file_get_dimensions(simple_video_file):
