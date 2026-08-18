@@ -843,6 +843,22 @@ class PromptExecutor:
             self._notify_prompt_lifecycle("end", prompt_id)
 
 
+def _mark_validation_cycle(unique_id, prompt, visiting, validated):
+    cycle_path_nodes = visiting[visiting.index(unique_id):] + [unique_id]
+    cycle_nodes = list(dict.fromkeys(cycle_path_nodes))
+    cycle_path = " -> ".join(f"{node_id} ({prompt[node_id]['class_type']})" for node_id in cycle_path_nodes)
+    for node_id in cycle_nodes:
+        validated[node_id] = (False, [{
+            "type": "dependency_cycle",
+            "message": "Dependency cycle detected",
+            "details": cycle_path,
+            "extra_info": {
+                "node_id": node_id,
+                "cycle_nodes": cycle_nodes,
+            }
+        }], node_id)
+
+
 async def validate_inputs(prompt_id, prompt, item, validated, visiting=None):
     if visiting is None:
         visiting = []
@@ -852,21 +868,59 @@ async def validate_inputs(prompt_id, prompt, item, validated, visiting=None):
         return validated[unique_id]
 
     if unique_id in visiting:
-        cycle_path_nodes = visiting[visiting.index(unique_id):] + [unique_id]
-        cycle_nodes = list(dict.fromkeys(cycle_path_nodes))
-        cycle_path = " -> ".join(f"{node_id} ({prompt[node_id]['class_type']})" for node_id in cycle_path_nodes)
-        for node_id in cycle_nodes:
-            validated[node_id] = (False, [{
-                "type": "dependency_cycle",
-                "message": "Dependency cycle detected",
-                "details": cycle_path,
-                "extra_info": {
-                    "node_id": node_id,
-                    "cycle_nodes": cycle_nodes,
-                }
-            }], node_id)
+        _mark_validation_cycle(unique_id, prompt, visiting, validated)
         return validated[unique_id]
 
+    stack = [_validate_node(prompt_id, prompt, unique_id, validated, visiting)]
+    stack_nodes = {stack[0]: unique_id}
+    send_value = None
+    throw_value = None
+
+    # _validate_node yields the ID of each dependency that needs validation.  The
+    # driver injects that dependency's result back into the generator, keeping the
+    # Python call stack flat for arbitrarily deep acyclic prompts.
+    while stack:
+        generator = stack[-1]
+        try:
+            if throw_value is None:
+                dependency = await generator.asend(send_value)
+            else:
+                dependency = await generator.athrow(*throw_value)
+            throw_value = None
+        except StopAsyncIteration:
+            finished = stack.pop()
+            finished_node = stack_nodes.pop(finished)
+            result = validated[finished_node]
+            if not stack:
+                return result
+            send_value = result
+            continue
+        except BaseException as ex:
+            stack.pop()
+            stack_nodes.pop(generator)
+            if not stack:
+                raise
+            throw_value = (type(ex), ex, ex.__traceback__)
+            send_value = None
+            continue
+
+        if dependency in validated:
+            send_value = validated[dependency]
+        elif dependency in visiting:
+            _mark_validation_cycle(dependency, prompt, visiting, validated)
+            send_value = validated[dependency]
+        else:
+            child = _validate_node(prompt_id, prompt, dependency, validated, visiting)
+            stack.append(child)
+            stack_nodes[child] = dependency
+            send_value = None
+
+    return validated[unique_id]
+
+
+# Async generators cannot return a value. The driver reads the result from
+# validated[unique_id] after StopAsyncIteration.
+async def _validate_node(prompt_id, prompt, unique_id, validated, visiting):
     inputs = prompt[unique_id]['inputs']
     class_type = prompt[unique_id]['class_type']
     obj_class = nodes.NODE_CLASS_MAPPINGS[class_type]
@@ -952,7 +1006,7 @@ async def validate_inputs(prompt_id, prompt, item, validated, visiting=None):
             try:
                 visiting.append(unique_id)
                 try:
-                    r = await validate_inputs(prompt_id, prompt, o_id, validated, visiting)
+                    r = yield o_id
                 finally:
                     visiting.pop()
                 if r[0] is False:
@@ -1117,7 +1171,7 @@ async def validate_inputs(prompt_id, prompt, item, validated, visiting=None):
     )
 
     validated[unique_id] = ret
-    return ret
+    return
 
 def full_type_name(klass):
     module = klass.__module__
