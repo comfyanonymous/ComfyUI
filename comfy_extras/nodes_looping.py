@@ -545,7 +545,7 @@ class _AccumulationToImageBatch(io.ComfyNode):
         return io.Schema(
             node_id="_AccumulationToImageBatch",
             display_name="Accumulation to Batch",
-            category="looping/accumulation",
+            category="advanced/looping",
             is_dev_only=True,
             inputs=[
                 io.Accumulation.Input("accumulation"),
