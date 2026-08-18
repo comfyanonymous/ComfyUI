@@ -103,11 +103,10 @@ def test_final_channel_prompt_stops_at_channel_close(monkeypatch):
     # Generate LTX2 Prompt primes final output with these tokens when thinking is disabled.
     prompt = [105, 106, *gemma4.FINAL_CHANNEL_PROMPT_TOKEN_IDS]
     stop_tokens = run_generate(prompt, monkeypatch)
-    assert stop_tokens is not None
-    assert gemma4.CHANNEL_CLOSE_TOKEN_ID in stop_tokens
+    assert stop_tokens == [1, 50, 106, gemma4.CHANNEL_CLOSE_TOKEN_ID]
 
 
 def test_thinking_prompt_does_not_stop_at_channel_close(monkeypatch):
     # In thinking mode, a channel close can end the reasoning channel before
     # the final answer is generated, so it must not become a stop token.
-    assert gemma4.CHANNEL_CLOSE_TOKEN_ID not in run_generate([105, 106], monkeypatch)
+    assert run_generate([105, 106], monkeypatch) == [1, 50, 106]
