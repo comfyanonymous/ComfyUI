@@ -188,10 +188,14 @@ class Attention(nn.Module):
         else:
             q = self.q_norm(q.view(s, self.heads, self.head_dim))
             k = self.k_norm(k.view(s, self.heads, self.head_dim))
-        v = v.clone()
         q = AttentionTensorContainer(q.transpose(0, 1).unsqueeze(0))
         k = AttentionTensorContainer(k.transpose(0, 1).unsqueeze(0))
-        v = AttentionTensorContainer(v.transpose(0, 1).unsqueeze(0))
+        # Detach v from the fused qkv buffer (#15486) with exactly ONE copy:
+        # materialize the [1, heads, seq, head_dim] layout the attention
+        # backends already require. v.clone() forced a second full-size copy on
+        # top of the .contiguous() every backend applies to the transposed
+        # view, doubling v's memory traffic per layer per step (#15665).
+        v = AttentionTensorContainer(v.transpose(0, 1).unsqueeze(0).contiguous())
         out = optimized_attention(q, k, v, self.heads, mask=None, skip_reshape=True, transformer_options=transformer_options)
         return self.out_proj(out.squeeze(0))
 
