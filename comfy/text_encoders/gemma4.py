@@ -1667,6 +1667,10 @@ class Gemma4UnifiedTokenizer(Gemma4Tokenizer):
 
 
 # Model wrappers
+FINAL_CHANNEL_PROMPT_TOKEN_IDS = (100, 10218, 107)  # <|channel>final\n
+CHANNEL_CLOSE_TOKEN_ID = 101  # <channel|>
+
+
 class Gemma4Model(sd1_clip.SDClipModel):
     model_class = None
     def __init__(self, device="cpu", layer="all", layer_idx=None, dtype=None, attention_mask=True, model_options={}):
@@ -1698,7 +1702,12 @@ class Gemma4Model(sd1_clip.SDClipModel):
                 expanded_idx += 1
         initial_token_ids = [ids]
         input_ids = torch.tensor(initial_token_ids, device=self.execution_device)
-        return self.transformer.generate(embeds, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, initial_tokens=initial_token_ids[0], presence_penalty=presence_penalty, initial_input_ids=input_ids, embeds_info=embeds_info)
+        stop_tokens = self.model.config.stop_tokens
+        # A prompt primed with a final channel is complete when that channel closes. Waiting
+        # for the turn close lets sampling start another final channel and repeat the output.
+        if tuple(initial_token_ids[0][-len(FINAL_CHANNEL_PROMPT_TOKEN_IDS):]) == FINAL_CHANNEL_PROMPT_TOKEN_IDS:
+            stop_tokens = [*stop_tokens, CHANNEL_CLOSE_TOKEN_ID]
+        return self.transformer.generate(embeds, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, stop_tokens=stop_tokens, initial_tokens=initial_token_ids[0], presence_penalty=presence_penalty, initial_input_ids=input_ids, embeds_info=embeds_info)
 
 
 def gemma4_clip_model(model_class):
