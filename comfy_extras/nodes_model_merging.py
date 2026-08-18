@@ -86,7 +86,7 @@ class CLIPMergeSimple:
         for k in kp:
             if k.endswith(".position_ids") or k.endswith(".logit_scale"):
                 continue
-            m.add_patches({k: kp[k]}, 1.0 - ratio, ratio)
+            m.add_patches({k: kp[k]}, ratio, 1.0 - ratio)
         return (m, )
 
 
