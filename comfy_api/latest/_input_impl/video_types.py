@@ -62,6 +62,11 @@ def video_stream_bit_depth(stream) -> int:
     return max(component.bits for component in stream.format.components)
 
 
+def frame_rotation(frame):
+    """Some PyAV versions do not expose rotation on every decoded frame."""
+    return getattr(frame, "rotation", 0)
+
+
 def last_decodable_audio_stream(container: InputContainer):
     """Streams FFmpeg has no decoder for have no codec context, and decoding their
     packets crashes the process (e.g. APAC spatial-audio track in iPhone)."""
@@ -397,8 +402,9 @@ class VideoFromFile(VideoInput):
                             img = np.ascontiguousarray(align_graph[2].pull().to_ndarray(format=image_format)[:frame.height, :frame.width])
                         else:
                             img = frame.to_ndarray(format=image_format)
-                        if frame.rotation != 0:
-                            k = int(round(frame.rotation // 90))
+                        rotation = frame_rotation(frame)
+                        if rotation != 0:
+                            k = int(round(rotation // 90))
                             img = np.rot90(img, k=k, axes=(0, 1)).copy()
                         if alphas is None:
                             frames.append(torch.from_numpy(img))
@@ -649,7 +655,8 @@ class VideoFromFile(VideoInput):
                         if end_pts is not None and frame.pts is not None:
                             frame_duration = min(frame_duration, end_pts - frame.pts)
                         if output is None:
-                            rotation_k = int(round(frame.rotation // 90)) % 4 if frame.rotation else 0
+                            rotation = frame_rotation(frame)
+                            rotation_k = int(round(rotation // 90)) % 4 if rotation else 0
                             if rotation_k % 2:
                                 out_width, out_height = frame.height, frame.width
                             else:

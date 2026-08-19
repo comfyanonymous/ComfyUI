@@ -124,6 +124,46 @@ def test_video_from_file_get_duration(simple_video_file):
     assert duration == pytest.approx(0.1, abs=0.01)
 
 
+def test_get_components_handles_frames_without_rotation_attribute(monkeypatch):
+    """Frames decoded by PyAV versions without VideoFrame.rotation still load."""
+    class LegacyFrame:
+        format = type("Format", (), {"name": "rgb24", "components": ()})()
+        pts = 0
+        width = 2
+        height = 2
+
+        def to_ndarray(self, format="rgb24"):
+            assert format == "rgb24"
+            return torch.full((self.height, self.width, 3), 7, dtype=torch.uint8).numpy()
+
+    class LegacyPacket:
+        stream = type("Stream", (), {"type": "video"})()
+
+        def decode(self):
+            return [LegacyFrame()]
+
+    class LegacyContainer:
+        streams = type("Streams", (), {"audio": ()})()
+        metadata = {}
+        streams.video = [type("VideoStream", (), {
+            "type": "video",
+            "time_base": Fraction(1, 30),
+            "average_rate": Fraction(30, 1),
+        })()]
+
+        def demux(self, *streams):
+            assert streams
+            return [LegacyPacket()]
+
+    video = VideoFromFile("legacy-frame.mp4")
+    monkeypatch.setattr(video, "get_active_trim_window", lambda: (0.0, 1.0))
+
+    components = video.get_components_internal(LegacyContainer())
+
+    assert components.images.shape == (1, 2, 2, 3)
+    assert torch.all(components.images == 7 / 255)
+
+
 def test_video_from_file_get_dimensions(simple_video_file):
     """Dimensions read from stream without decoding frames"""
     video = VideoFromFile(simple_video_file)
