@@ -90,8 +90,9 @@ def test_positive_offsets_continue_to_clip_to_destination(composite):
 def test_non_overlapping_composite_returns_destination_unchanged(composite):
     destination = torch.arange(16, dtype=torch.float32).reshape(1, 1, 4, 4)
     source = torch.ones(1, 1, 2, 2)
+    mask = torch.ones_like(source)
 
-    result = composite(destination.clone(), source, -2, -4, multiplier=1)
+    result = composite(destination.clone(), source, -2, -4, mask=mask, multiplier=1)
 
     assert torch.equal(result, destination)
 
