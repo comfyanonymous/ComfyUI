@@ -932,6 +932,21 @@ async def validate_inputs(prompt_id, prompt, item, validated, visiting=None):
             o_id = val[0]
             o_class_type = prompt[o_id]['class_type']
             r = nodes.NODE_CLASS_MAPPINGS[o_class_type].RETURN_TYPES
+            if val[1] < 0 or val[1] >= len(r):
+                error = {
+                    "type": "return_slot_out_of_range",
+                    "message": "Linked output slot is out of range",
+                    "details": f"{x}, slot_index({val[1]}) not in range of {len(r)} output(s)",
+                    "extra_info": {
+                        "input_name": x,
+                        "input_config": info,
+                        "received_value": val,
+                        "linked_node": val,
+                        "output_count": len(r),
+                    }
+                }
+                errors.append(error)
+                continue
             received_type = r[val[1]]
             received_types[x] = received_type
             if 'input_types' not in validate_function_inputs and not validate_node_input(received_type, input_type):
