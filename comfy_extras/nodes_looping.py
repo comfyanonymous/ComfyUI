@@ -260,7 +260,7 @@ class _AccumulateNode(io.ComfyNode):
         return io.Schema(
             node_id="_AccumulateNode",
             display_name="Accumulate",
-            category="looping/accumulation",
+            category="advanced/looping",
             is_dev_only=True,
             inputs=[
                 io.AnyType.Input("to_add"),
