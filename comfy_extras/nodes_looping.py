@@ -692,7 +692,7 @@ class _ImageAccumStateUnpack(io.ComfyNode):
         return io.Schema(
             node_id="_ImageAccumStateUnpack",
             display_name="Image Accum State Unpack",
-            category="looping/accumulation",
+            category="advanced/looping",
             is_dev_only=True,
             inputs=[io.AnyType.Input("loop_state")],
             outputs=[
