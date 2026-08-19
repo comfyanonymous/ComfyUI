@@ -305,6 +305,20 @@ class VideoFromFile(VideoInput):
         with av.open(self.__file, mode='r') as container:
             return container.format.name
 
+    @staticmethod
+    def _is_multi_picture_still(
+        frames: list[torch.Tensor],
+        codec_name: str,
+        has_audio_stream: bool,
+    ) -> bool:
+        """Return whether decoded frames represent an embedded multi-picture still."""
+        return (
+            len(frames) > 1
+            and not has_audio_stream
+            and codec_name == "mjpeg"
+            and any(frame.shape != frames[0].shape for frame in frames[1:])
+        )
+
     def get_components_internal(self, container: InputContainer) -> VideoComponents:
         video_stream = self._get_first_video_stream(container)
         start_time, duration = self.get_active_trim_window()
@@ -430,7 +444,11 @@ class VideoFromFile(VideoInput):
                         audio_frames.append(frame.to_ndarray())
 
         # Multi-picture still images can expose embedded thumbnails as ragged frames.
-        if len(frames) > 1 and not audio_frames and any(frame.shape != frames[0].shape for frame in frames[1:]):
+        if self._is_multi_picture_still(
+            frames,
+            video_stream.codec_context.name,
+            audio_stream is not None,
+        ):
             main_frame = max(range(len(frames)), key=lambda i: frames[i].shape[0] * frames[i].shape[1])
             frames = [frames[main_frame]]
             if alphas is not None:

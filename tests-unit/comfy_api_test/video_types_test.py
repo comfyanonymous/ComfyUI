@@ -137,6 +137,18 @@ def test_mpo_without_extension_loads_main_image(tmp_path):
     assert components.images.shape == (1, 768, 1360, 3)
 
 
+def test_multi_picture_guard_rejects_ragged_video():
+    frames = [torch.zeros((8, 16, 3)), torch.zeros((4, 8, 3))]
+
+    assert not VideoFromFile._is_multi_picture_still(frames, "h264", False)
+
+
+def test_multi_picture_guard_rejects_audio_streams():
+    frames = [torch.zeros((8, 16, 3)), torch.zeros((4, 8, 3))]
+
+    assert not VideoFromFile._is_multi_picture_still(frames, "mjpeg", True)
+
+
 def test_video_from_file_get_dimensions(simple_video_file):
     """Dimensions read from stream without decoding frames"""
     video = VideoFromFile(simple_video_file)
