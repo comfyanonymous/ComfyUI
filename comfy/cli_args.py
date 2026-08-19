@@ -265,10 +265,7 @@ parser.add_argument(
     help="Set the base URL for the ComfyUI API.  (default: https://api.comfy.org)",
 )
 
-database_default_path = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "user", "comfyui.db")
-)
-parser.add_argument("--database-url", type=str, default=f"sqlite:///{database_default_path}", help="Specify the database URL, e.g. for an in-memory database you can use 'sqlite:///:memory:'.")
+parser.add_argument("--database-url", type=str, default=None, help="Specify the database URL, e.g. for an in-memory database you can use 'sqlite:///:memory:'.")
 parser.add_argument("--enable-assets", action="store_true", help="Enable the assets system (API routes, database synchronization, and background scanning).")
 parser.add_argument("--enable-asset-hashing", action="store_true", help="Compute blake3 content hashes when scanning assets. Hashing enables future asset-portability features (deduplication, cross-machine model resolution) but adds startup cost and per-output cost on large models directories. Off by default; enable to opt in.")
 parser.add_argument("--feature-flag", type=str, action='append', default=[], metavar="KEY[=VALUE]", help="Set a server feature flag. Use KEY=VALUE to set an explicit value, or bare KEY to set it to true. Can be specified multiple times. Boolean values (true/false) and numbers are auto-converted. Examples: --feature-flag show_signin_button=true  or  --feature-flag show_signin_button")
@@ -278,6 +275,19 @@ if comfy.options.args_parsing:
     args = parser.parse_args()
 else:
     args = parser.parse_args([])
+
+def get_default_database_url(base_directory: str | None = None, user_directory: str | None = None) -> str:
+    """Resolve the default SQLite database URL inside the effective user directory."""
+    if user_directory is not None:
+        user_dir = os.path.abspath(user_directory)
+    elif base_directory is not None:
+        user_dir = os.path.join(os.path.abspath(base_directory), "user")
+    else:
+        user_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "user"))
+    return f"sqlite:///{os.path.join(user_dir, 'comfyui.db')}"
+
+if args.database_url is None:
+    args.database_url = get_default_database_url(args.base_directory, args.user_directory)
 
 if args.cache_ram is not None and len(args.cache_ram) > 2:
     parser.error("--cache-ram accepts at most two values: active GB and inactive GB")
