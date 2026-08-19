@@ -1,11 +1,18 @@
 """Gemma4 tokenization regression tests."""
 
 import importlib
-import importlib.util
 
 import torch
 
 from comfy.cli_args import args
+
+
+def optional_torch_backend_available(module_name, backend_name):
+    try:
+        importlib.import_module(module_name)
+        return getattr(torch, backend_name).is_available()
+    except (AttributeError, ImportError, RuntimeError):
+        return False
 
 
 def supported_accelerator_available():
@@ -26,8 +33,8 @@ def supported_accelerator_available():
     if hasattr(torch, "corex"):
         return True
     return any(
-        importlib.util.find_spec(package) is not None
-        for package in ("torch_npu", "torch_mlu")
+        optional_torch_backend_available(module_name, backend_name)
+        for module_name, backend_name in (("torch_npu", "npu"), ("torch_mlu", "mlu"))
     )
 
 
