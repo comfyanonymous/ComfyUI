@@ -240,6 +240,7 @@ class KeypointDraw:
             canvas: The canvas with keypoints drawn
         """
         H, W, C = canvas.shape
+        finite_keypoints = np.isfinite(np.asarray(keypoints)[:, :2]).all(axis=1)
 
         # Draw body limbs & head connections
         if (draw_body or draw_head) and len(keypoints) >= 18:
@@ -256,6 +257,8 @@ class KeypointDraw:
                 idx1, idx2 = limb[0] - 1, limb[1] - 1
 
                 if idx1 >= 18 or idx2 >= 18:
+                    continue
+                if not finite_keypoints[idx1] or not finite_keypoints[idx2]:
                     continue
 
                 if scores is not None:
@@ -285,6 +288,8 @@ class KeypointDraw:
                     continue
                 if not draw_body and i not in head_keypoints and i != neck_point:
                     continue
+                if not finite_keypoints[i]:
+                    continue
                 if scores is not None and scores[i] < threshold:
                     continue
                 x, y = int(keypoints[i][0]), int(keypoints[i][1])
@@ -294,6 +299,8 @@ class KeypointDraw:
         # Draw foot keypoints (18-23, 6 keypoints)
         if draw_feet and len(keypoints) >= 24:
             for i in range(18, 24):
+                if not finite_keypoints[i]:
+                    continue
                 if scores is not None and scores[i] < threshold:
                     continue
                 x, y = int(keypoints[i][0]), int(keypoints[i][1])
@@ -305,6 +312,8 @@ class KeypointDraw:
             eps = 0.01
             for ie, edge in enumerate(self.hand_edges):
                 idx1, idx2 = 92 + edge[0], 92 + edge[1]
+                if not finite_keypoints[idx1] or not finite_keypoints[idx2]:
+                    continue
                 if scores is not None:
                     if scores[idx1] < threshold or scores[idx2] < threshold:
                         continue
@@ -321,6 +330,8 @@ class KeypointDraw:
 
             # Draw right hand keypoints
             for i in range(92, 113):
+                if not finite_keypoints[i]:
+                    continue
                 if scores is not None and scores[i] < threshold:
                     continue
                 x, y = int(keypoints[i][0]), int(keypoints[i][1])
@@ -332,6 +343,8 @@ class KeypointDraw:
             eps = 0.01
             for ie, edge in enumerate(self.hand_edges):
                 idx1, idx2 = 113 + edge[0], 113 + edge[1]
+                if not finite_keypoints[idx1] or not finite_keypoints[idx2]:
+                    continue
                 if scores is not None:
                     if scores[idx1] < threshold or scores[idx2] < threshold:
                         continue
@@ -348,6 +361,8 @@ class KeypointDraw:
 
             # Draw left hand keypoints
             for i in range(113, 134):
+                if not finite_keypoints[i]:
+                    continue
                 if scores is not None and i < len(scores) and scores[i] < threshold:
                     continue
                 x, y = int(keypoints[i][0]), int(keypoints[i][1])
@@ -358,6 +373,8 @@ class KeypointDraw:
         if draw_face and len(keypoints) >= 92:
             eps = 0.01
             for i in range(24, 92):
+                if not finite_keypoints[i]:
+                    continue
                 if scores is not None and scores[i] < threshold:
                     continue
                 x, y = int(keypoints[i][0]), int(keypoints[i][1])
