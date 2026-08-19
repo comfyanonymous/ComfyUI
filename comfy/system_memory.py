@@ -26,9 +26,9 @@ CGROUP_V1_MEMORY_ROOT = "/sys/fs/cgroup/memory"
 # cgroup v1 spells "unlimited" as a large sentinel rather than a keyword.
 CGROUP_V1_UNLIMITED = 1 << 62
 
-# Probed once; the cgroup layout and limit do not change while we run.
-# Usage is deliberately not cached -- it is the value that moves.
-_SCOPE = None
+# The discovered hierarchy is intentionally not cached. A process can be moved
+# between cgroups and an orchestrator can resize a cgroup while ComfyUI runs.
+# Tests may set this to avoid touching the real /proc filesystem.
 _HIERARCHY_DIRS = None
 
 
@@ -121,22 +121,21 @@ def _hierarchy_dirs():
     on a host cgroup namespace reports host-wide usage and can drive the
     available figure to zero.
     """
-    global _HIERARCHY_DIRS
-    if _HIERARCHY_DIRS is None:
-        dirs = []
-        for root, own in _own_cgroup_scopes():
-            for directory in _ancestors(root, own):
-                if directory not in dirs:
-                    dirs.append(directory)
+    if _HIERARCHY_DIRS is not None:
+        return _HIERARCHY_DIRS
 
-        # /proc/self/cgroup unreadable (or no memory controller): fall back to
-        # the well-known roots so a namespaced container still works.
-        for root in (CGROUP_V2_ROOT, CGROUP_V1_MEMORY_ROOT):
-            if root not in dirs:
-                dirs.append(root)
+    dirs = []
+    for root, own in _own_cgroup_scopes():
+        for directory in _ancestors(root, own):
+            if directory not in dirs:
+                dirs.append(directory)
 
-        _HIERARCHY_DIRS = dirs
-    return _HIERARCHY_DIRS
+    # /proc/self/cgroup unreadable (or no memory controller): fall back to the
+    # well-known roots so a namespaced container still works.
+    if not dirs:
+        dirs.extend((CGROUP_V2_ROOT, CGROUP_V1_MEMORY_ROOT))
+
+    return dirs
 
 
 def _limit_from_dir(directory):
@@ -168,10 +167,6 @@ def _resolve_scope():
     smallest one found walking up. Returning the directory alongside it lets
     usage be read from the same level, which is what keeps the two consistent.
     """
-    global _SCOPE
-    if _SCOPE is not None:
-        return _SCOPE
-
     limit = None
     directory = None
 
@@ -189,8 +184,7 @@ def _resolve_scope():
         if limit is not None:
             logging.info("Detected cgroup memory limit {:0.0f} MB".format(limit / (1024 * 1024)))
 
-    _SCOPE = (limit, directory)
-    return _SCOPE
+    return limit, directory
 
 
 def cgroup_memory_limit():
@@ -248,11 +242,11 @@ def virtual_memory_available():
     over-reporting.
     """
     available = psutil.virtual_memory().available
-    limit = cgroup_memory_limit()
+    limit, directory = _resolve_scope()
     if limit is None:
         return available
 
-    usage = cgroup_memory_usage()
+    usage = None if directory is None else _usage_from_dir(directory)
     if usage is None:
         return min(available, limit)
 

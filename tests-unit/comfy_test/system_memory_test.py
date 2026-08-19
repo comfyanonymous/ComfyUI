@@ -7,12 +7,11 @@ from comfy import system_memory
 
 
 @pytest.fixture(autouse=True)
-def reset_probe_cache():
-    """The module probes the cgroup layout once and caches it."""
-    system_memory._SCOPE = None
+def reset_probe_cache(monkeypatch):
+    """Run cgroup behavior tests as Linux tests on every host."""
+    monkeypatch.setattr(system_memory.sys, "platform", "linux")
     system_memory._HIERARCHY_DIRS = None
     yield
-    system_memory._SCOPE = None
     system_memory._HIERARCHY_DIRS = None
 
 
@@ -117,6 +116,8 @@ def test_reclaimable_page_cache_is_not_counted_as_used(monkeypatch, tmp_path):
     sitting at 89.9 GiB current, of which 46 GiB is reclaimable page cache.
     """
     limit, current, inactive_file = 96636764160, 96570064896, 49504276480
+    monkeypatch.setattr(psutil, "virtual_memory",
+                        lambda: _fake_vmem(total=128 * 1024 ** 3, available=128 * 1024 ** 3))
     write(tmp_path, "memory.max", str(limit))
     write(tmp_path, "memory.current", str(current))
     write(tmp_path, "memory.stat", "anon 45096034304\ninactive_file {}\n".format(inactive_file))
@@ -164,15 +165,19 @@ def test_usage_unreadable_still_clamps_total(monkeypatch, tmp_path):
 
 @pytest.mark.parametrize("value", ["", "garbage", "12 34", "-"])
 def test_malformed_limit_does_not_raise(monkeypatch, tmp_path, value):
+    fixed_memory = _fake_vmem(total=64 * 1024 ** 3, available=32 * 1024 ** 3)
+    monkeypatch.setattr(psutil, "virtual_memory", lambda: fixed_memory)
     write(tmp_path, "memory.max", value)
     use_dirs(monkeypatch, tmp_path)
 
     assert system_memory.cgroup_memory_limit() is None
-    assert system_memory.virtual_memory_available() == psutil.virtual_memory().available
+    assert system_memory.virtual_memory_available() == fixed_memory.available
 
 
 def test_trailing_newline_is_handled(monkeypatch, tmp_path):
     """cgroup files end in a newline; the value must still parse."""
+    monkeypatch.setattr(psutil, "virtual_memory",
+                        lambda: _fake_vmem(total=64 * 1024 ** 3, available=32 * 1024 ** 3))
     write(tmp_path, "memory.max", "34359738368\n")
     use_dirs(monkeypatch, tmp_path)
 
@@ -275,6 +280,37 @@ def test_ancestors_walk_stops_at_the_mount_root(tmp_path):
     assert system_memory._ancestors(str(root), str(deep)) == [
         str(deep), str(root / "docker"), str(root)
     ]
+
+
+def test_limit_is_reread_after_cgroup_resize(monkeypatch, tmp_path):
+    cgroup_limit = tmp_path / "cgroup" / "container"
+    cgroup_limit.mkdir(parents=True)
+    monkeypatch.setattr(psutil, "virtual_memory",
+                        lambda: _fake_vmem(total=64 * 1024 ** 3, available=32 * 1024 ** 3))
+    use_dirs(monkeypatch, cgroup_limit)
+
+    write(cgroup_limit, "memory.max", str(8 * 1024 ** 3))
+    assert system_memory.cgroup_memory_limit() == 8 * 1024 ** 3
+
+    write(cgroup_limit, "memory.max", str(4 * 1024 ** 3))
+    assert system_memory.cgroup_memory_limit() == 4 * 1024 ** 3
+
+
+def test_unrelated_root_is_not_used_when_process_scope_exists(monkeypatch, tmp_path):
+    v2_root = tmp_path / "cgroup"
+    process_scope = v2_root / "container"
+    unrelated_root = tmp_path / "memory"
+    process_scope.mkdir(parents=True)
+    unrelated_root.mkdir()
+
+    write(process_scope, "memory.max", str(8 * 1024 ** 3))
+    write(unrelated_root, "memory.max", str(1 * 1024 ** 3))
+    monkeypatch.setattr(system_memory, "CGROUP_V2_ROOT", str(v2_root))
+    monkeypatch.setattr(system_memory, "CGROUP_V1_MEMORY_ROOT", str(unrelated_root))
+    monkeypatch.setattr(system_memory, "_own_cgroup_scopes",
+                        lambda: [(str(v2_root), str(process_scope))])
+
+    assert system_memory.cgroup_memory_limit() == 8 * 1024 ** 3
 
 
 # --- malformed data ----------------------------------------------------------
