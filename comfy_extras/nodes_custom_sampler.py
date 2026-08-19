@@ -1098,6 +1098,9 @@ class AddNoise(io.ComfyNode):
 
         latent = latent_image
         latent_image = latent["samples"]
+        latent = latent.copy()
+        latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image, latent.get("downscale_ratio_spacial", None), latent.get("downscale_ratio_temporal", None))
+        latent["samples"] = latent_image
 
         noisy = noise.generate_noise(latent)
 
