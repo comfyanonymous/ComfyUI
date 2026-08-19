@@ -29,21 +29,26 @@ def composite(destination, source, x, y, mask = None, multiplier = 8, resize_sou
         mask = torch.nn.functional.interpolate(mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])), size=(source.shape[-2], source.shape[-1]), mode="bilinear")
         mask = comfy.utils.repeat_to_batch_size(mask, source.shape[0])
 
-    # calculate the bounds of the source that will be overlapping the destination
-    # this prevents the source trying to overwrite latent pixels that are out of bounds
-    # of the destination
-    visible_width, visible_height = (destination.shape[-1] - left + min(0, x), destination.shape[-2] - top + min(0, y),)
+    source_left = max(0, -left)
+    source_top = max(0, -top)
+    source_right = min(source.shape[-1], destination.shape[-1] - left)
+    source_bottom = min(source.shape[-2], destination.shape[-2] - top)
 
-    mask = mask[:, :, :visible_height, :visible_width]
+    destination_left = max(0, left)
+    destination_top = max(0, top)
+    destination_right = min(destination.shape[-1], right)
+    destination_bottom = min(destination.shape[-2], bottom)
+
+    mask = mask[..., source_top:source_bottom, source_left:source_right]
     if mask.ndim < source.ndim:
         mask = mask.unsqueeze(1)
 
     inverse_mask = torch.ones_like(mask) - mask
 
-    source_portion = mask * source[..., :visible_height, :visible_width]
-    destination_portion = inverse_mask  * destination[..., top:bottom, left:right]
+    source_portion = mask * source[..., source_top:source_bottom, source_left:source_right]
+    destination_portion = inverse_mask * destination[..., destination_top:destination_bottom, destination_left:destination_right]
 
-    destination[..., top:bottom, left:right] = source_portion + destination_portion
+    destination[..., destination_top:destination_bottom, destination_left:destination_right] = source_portion + destination_portion
     return destination
 
 
@@ -58,8 +63,8 @@ class LatentCompositeMasked(IO.ComfyNode):
             inputs=[
                 IO.Latent.Input("destination"),
                 IO.Latent.Input("source"),
-                IO.Int.Input("x", default=0, min=0, max=nodes.MAX_RESOLUTION, step=8),
-                IO.Int.Input("y", default=0, min=0, max=nodes.MAX_RESOLUTION, step=8),
+                IO.Int.Input("x", default=0, min=-nodes.MAX_RESOLUTION, max=nodes.MAX_RESOLUTION, step=8, tooltip="Negative values move the source left."),
+                IO.Int.Input("y", default=0, min=-nodes.MAX_RESOLUTION, max=nodes.MAX_RESOLUTION, step=8, tooltip="Negative values move the source up."),
                 IO.Boolean.Input("resize_source", default=False),
                 IO.Mask.Input("mask", optional=True),
             ],
@@ -88,8 +93,8 @@ class ImageCompositeMasked(IO.ComfyNode):
             inputs=[
                 IO.Image.Input("destination"),
                 IO.Image.Input("source"),
-                IO.Int.Input("x", default=0, min=0, max=nodes.MAX_RESOLUTION, step=1),
-                IO.Int.Input("y", default=0, min=0, max=nodes.MAX_RESOLUTION, step=1),
+                IO.Int.Input("x", default=0, min=-nodes.MAX_RESOLUTION, max=nodes.MAX_RESOLUTION, step=1, tooltip="Negative values move the source left."),
+                IO.Int.Input("y", default=0, min=-nodes.MAX_RESOLUTION, max=nodes.MAX_RESOLUTION, step=1, tooltip="Negative values move the source up."),
                 IO.Boolean.Input("resize_source", default=False),
                 IO.Mask.Input("mask", optional=True),
             ],
