@@ -4,11 +4,24 @@ import sys
 import os
 import shutil
 import filecmp
+import subprocess
+
+
+def _fetch_remote(repo, remote, branch):
+    try:
+        remote.fetch()
+    except pygit2.GitError as error:
+        # Some libgit2 builds do not include SSH support. Let the system Git
+        # client handle those remotes so users can keep their SSH configuration.
+        if "unsupported URL protocol" not in str(error):
+            raise
+        refspec = "+refs/heads/%s:refs/remotes/%s/%s" % (branch, remote.name, branch)
+        subprocess.run(["git", "-C", repo.workdir, "fetch", "--", remote.name, refspec], check=True)
 
 def pull(repo, remote_name='origin', branch='master'):
     for remote in repo.remotes:
         if remote.name == remote_name:
-            remote.fetch()
+            _fetch_remote(repo, remote, branch)
             remote_master_id = repo.lookup_reference('refs/remotes/origin/%s' % (branch)).target
             merge_result, _ = repo.merge_analysis(remote_master_id)
             # Up to date, do nothing
@@ -79,7 +92,7 @@ if branch is None:
         print("fetching.")  # noqa: T201
         for remote in repo.remotes:
             if remote.name == "origin":
-                remote.fetch()
+                _fetch_remote(repo, remote, "master")
         ref = repo.lookup_reference('refs/remotes/origin/master')
     repo.checkout(ref)
     branch = repo.lookup_branch('master')
