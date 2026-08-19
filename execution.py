@@ -2,6 +2,7 @@ import copy
 import heapq
 import inspect
 import logging
+import math
 import psutil
 import sys
 import threading
@@ -57,6 +58,13 @@ class ExecutionResult(Enum):
 class DuplicateNodeError(Exception):
     pass
 
+def _json_compatible_float(value):
+    if isinstance(value, float) and not math.isfinite(value):
+        if math.isnan(value):
+            return "NaN"
+        return "Infinity" if value > 0 else "-Infinity"
+    return value
+
 class IsChangedCache:
     def __init__(self, prompt_id: str, dynprompt: DynamicPrompt, outputs_cache: BasicCache):
         self.prompt_id = prompt_id
@@ -92,12 +100,13 @@ class IsChangedCache:
         try:
             is_changed = await _async_map_node_over_list(self.prompt_id, node_id, class_def, input_data_all, is_changed_name, v3_data=v3_data)
             is_changed = await resolve_map_node_over_list_results(is_changed)
-            node["is_changed"] = [None if isinstance(x, ExecutionBlocker) else x for x in is_changed]
+            self.is_changed[node_id] = [None if isinstance(x, ExecutionBlocker) else x for x in is_changed]
+            node["is_changed"] = [_json_compatible_float(x) for x in self.is_changed[node_id]]
         except Exception as e:
             logging.warning("WARNING: {}".format(e))
             node["is_changed"] = float("NaN")
-        finally:
             self.is_changed[node_id] = node["is_changed"]
+            node["is_changed"] = "NaN"
         return self.is_changed[node_id]
 
 
