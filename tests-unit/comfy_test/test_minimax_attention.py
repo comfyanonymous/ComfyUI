@@ -1,5 +1,6 @@
 import types
 
+import pytest
 import torch
 
 from comfy.cli_args import args
@@ -37,10 +38,10 @@ class FakeRMSNorm:
         return x
 
 
-def make_attention(qkv):
+def make_attention(qkv, heads=2):
     attention = minimax_model.Attention(
         hidden=8,
-        heads=2,
+        heads=heads,
         head_dim=4,
         eps=1e-5,
         operations=FakeOperations,
@@ -109,6 +110,48 @@ def test_minimax_attention_value_is_detached_and_preformatted(monkeypatch):
         "v must not pin the 3x-wide fused qkv buffer through attention (#15486)"
     )
     torch.testing.assert_close(output, expected_v.transpose(1, 2).reshape(1, sequence_length, inner_dim).squeeze(0), rtol=0, atol=0)
+
+
+@pytest.mark.parametrize(("sequence_length", "heads"), [(1, 2), (5, 1)])
+def test_minimax_attention_value_is_independent_for_degenerate_shapes(monkeypatch, sequence_length, heads):
+    """Degenerate transposed views must still allocate independent storage."""
+    head_dim = 4
+    inner_dim = heads * head_dim
+    qkv = torch.arange(sequence_length * inner_dim * 3, dtype=torch.float32).reshape(
+        sequence_length, inner_dim * 3
+    )
+    backend_v = (
+        qkv[:, inner_dim * 2 :]
+        .view(sequence_length, heads, head_dim)
+        .transpose(0, 1)
+        .unsqueeze(0)
+    )
+    captured = {}
+
+    def fake_optimized_attention(q, k, v, heads, **kwargs):
+        captured["v"] = v.take()
+        q.take()
+        k.take()
+        return captured["v"].transpose(1, 2).reshape(1, sequence_length, inner_dim)
+
+    monkeypatch.setattr(minimax_model, "optimized_attention", fake_optimized_attention)
+    clones = count_tensor_clones(monkeypatch)
+    attention = make_attention(qkv, heads=heads)
+
+    output = attention(torch.zeros(sequence_length, 8))
+
+    assert clones == []
+    v = captured["v"]
+    assert v.shape == backend_v.shape
+    assert v.is_contiguous()
+    assert v.untyped_storage().data_ptr() != qkv.untyped_storage().data_ptr()
+    torch.testing.assert_close(v, backend_v.contiguous(), rtol=0, atol=0)
+    torch.testing.assert_close(
+        output,
+        backend_v.transpose(1, 2).reshape(1, sequence_length, inner_dim).squeeze(0),
+        rtol=0,
+        atol=0,
+    )
 
 
 def test_minimax_attention_value_is_isolated_from_inplace_rope_writes(monkeypatch):

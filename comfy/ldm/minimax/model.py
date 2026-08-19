@@ -195,7 +195,10 @@ class Attention(nn.Module):
         # backends already require. v.clone() forced a second full-size copy on
         # top of the .contiguous() every backend applies to the transposed
         # view, doubling v's memory traffic per layer per step (#15665).
-        v = AttentionTensorContainer(v.transpose(0, 1).unsqueeze(0).contiguous())
+        backend_v = v.transpose(0, 1).unsqueeze(0)
+        v = AttentionTensorContainer(
+            torch.empty_like(backend_v, memory_format=torch.contiguous_format).copy_(backend_v)
+        )
         out = optimized_attention(q, k, v, self.heads, mask=None, skip_reshape=True, transformer_options=transformer_options)
         return self.out_proj(out.squeeze(0))
 
