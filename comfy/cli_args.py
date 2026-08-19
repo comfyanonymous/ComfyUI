@@ -73,6 +73,8 @@ parser.add_argument("--output-directory", type=str, default=None, help="Set the 
 parser.add_argument("--temp-directory", type=str, default=None, help="Set the ComfyUI temp directory (default is in the ComfyUI directory). Overrides --base-directory.")
 parser.add_argument("--input-directory", type=str, default=None, help="Set the ComfyUI input directory. Overrides --base-directory.")
 parser.add_argument("--auto-launch", action="store_true", help="Automatically launch ComfyUI in the default browser.")
+parser.add_argument("--browser-path", type=str, default=None, metavar="BROWSER", help="Browser executable or command to use with --auto-launch instead of the system default.")
+parser.add_argument("--browser-profile", type=str, default=None, metavar="PROFILE_DIRECTORY", help="Chromium profile directory to use with --browser-path.")
 parser.add_argument("--disable-auto-launch", action="store_true", help="Disable auto launching the browser.")
 parser.add_argument("--cuda-device", type=str, default=None, metavar="DEVICE_ID", help="Set the ids of cuda devices this instance will use, as a comma-separated list (e.g. '0' or '0,1'). All other devices will not be visible.")
 parser.add_argument("--default-device", type=int, default=None, metavar="DEFAULT_DEVICE_ID", help="Set the id of the default device, all other devices will stay visible.")
