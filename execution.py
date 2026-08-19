@@ -156,6 +156,35 @@ class CacheSet:
 
 SENSITIVE_EXTRA_DATA_KEYS = ("auth_token_comfy_org", "api_key_comfy_org")
 
+def entry_function(class_def):
+    if issubclass(class_def, _ComfyNodeInternal):
+        return class_def.execute
+    return getattr(class_def, class_def.FUNCTION, None)
+
+def fill_omitted_optional_inputs(input_data_all, valid_inputs, class_def):
+    """Pass the schema default for optional inputs the prompt left out.
+
+    An API-format prompt saved before an input was added does not carry it, and
+    get_input_data only passes keys the prompt has, so the node is called
+    without the argument. Only fill in inputs the function itself has no
+    default for, so nodes that use a sentinel default still see them missing.
+    """
+    function = entry_function(class_def)
+    if function is None:
+        return
+    try:
+        parameters = inspect.signature(function).parameters
+    except (TypeError, ValueError):
+        return
+    for name, input_info in valid_inputs.get("optional", {}).items():
+        if name in input_data_all or not isinstance(input_info, (list, tuple)) or len(input_info) < 2:
+            continue
+        if not isinstance(input_info[1], dict) or "default" not in input_info[1]:
+            continue
+        parameter = parameters.get(name)
+        if parameter is not None and parameter.default is inspect.Parameter.empty:
+            input_data_all[name] = [input_info[1]["default"]]
+
 def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=None, extra_data={}):
     is_v3 = issubclass(class_def, _ComfyNodeInternal)
     v3_data: io.V3Data = {}
@@ -188,6 +217,8 @@ def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=
             input_data_all[x] = obj
         elif input_category is not None or (is_v3 and class_def.ACCEPT_ALL_INPUTS):
             input_data_all[x] = [input_data]
+
+    fill_omitted_optional_inputs(input_data_all, valid_inputs, class_def)
 
     if is_v3:
         if hidden is not None:
