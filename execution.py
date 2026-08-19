@@ -76,6 +76,10 @@ class IsChangedCache:
         if node_id in self.is_changed:
             return self.is_changed[node_id]
 
+        if node_id in self.dynprompt.raw_is_changed:
+            self.is_changed[node_id] = self.dynprompt.raw_is_changed[node_id]
+            return self.is_changed[node_id]
+
         node = self.dynprompt.get_node(node_id)
         class_type = node["class_type"]
         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
@@ -100,12 +104,15 @@ class IsChangedCache:
         try:
             is_changed = await _async_map_node_over_list(self.prompt_id, node_id, class_def, input_data_all, is_changed_name, v3_data=v3_data)
             is_changed = await resolve_map_node_over_list_results(is_changed)
-            self.is_changed[node_id] = [None if isinstance(x, ExecutionBlocker) else x for x in is_changed]
+            raw_is_changed = [None if isinstance(x, ExecutionBlocker) else x for x in is_changed]
+            self.dynprompt.raw_is_changed[node_id] = raw_is_changed
+            self.is_changed[node_id] = raw_is_changed
             node["is_changed"] = [_json_compatible_float(x) for x in self.is_changed[node_id]]
         except Exception as e:
             logging.warning("WARNING: {}".format(e))
             node["is_changed"] = float("NaN")
             self.is_changed[node_id] = node["is_changed"]
+            self.dynprompt.raw_is_changed[node_id] = node["is_changed"]
             node["is_changed"] = "NaN"
         return self.is_changed[node_id]
 

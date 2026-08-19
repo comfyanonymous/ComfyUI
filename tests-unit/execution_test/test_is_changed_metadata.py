@@ -53,6 +53,13 @@ def test_is_changed_metadata_is_valid_json(monkeypatch, value, expected):
     metadata = json.dumps(prompt, allow_nan=False)
     assert json.loads(metadata)["node"]["is_changed"] == [expected]
 
+    reused_cache = execution.IsChangedCache("prompt", cache.dynprompt, None)
+    reused_value = asyncio.run(reused_cache.get("node"))
+    if expected == "NaN":
+        assert math.isnan(reused_value[0])
+    else:
+        assert reused_value[0] == value
+
 
 def test_is_changed_evaluation_error_metadata_is_valid_json(monkeypatch):
     prompt = {"node": {"class_type": "TestNode", "inputs": {}}}

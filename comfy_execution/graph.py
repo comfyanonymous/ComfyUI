@@ -22,6 +22,7 @@ class DynamicPrompt:
     def __init__(self, original_prompt):
         # The original prompt provided by the user
         self.original_prompt = original_prompt
+        self.raw_is_changed = {}
         # Any extra pieces of the graph created during execution
         self.ephemeral_prompt = {}
         self.ephemeral_parents = {}
