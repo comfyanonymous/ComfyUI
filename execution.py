@@ -899,7 +899,18 @@ async def validate_inputs(prompt_id, prompt, item, validated, visiting=None):
         input_type, input_category, extra_info = get_input_info(obj_class, x, class_inputs)
         assert extra_info is not None
         if x not in inputs:
-            if input_category == "required":
+            if input_category != "required":
+                continue
+
+            if "default" in extra_info:
+                default_value = extra_info["default"]
+                if isinstance(default_value, list):
+                    # List widget values use this wrapper so validation does not
+                    # mistake them for links to another node.
+                    inputs[x] = {"__value__": default_value}
+                else:
+                    inputs[x] = default_value
+            else:
                 details = f"{x}" if not v3_data else x.split(".")[-1]
                 error = {
                     "type": "required_input_missing",
@@ -910,7 +921,7 @@ async def validate_inputs(prompt_id, prompt, item, validated, visiting=None):
                     }
                 }
                 errors.append(error)
-            continue
+                continue
 
         val = inputs[x]
         info = (input_type, extra_info)
