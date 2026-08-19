@@ -726,7 +726,7 @@ class _BatchOps(io.ComfyNode):
         return io.Schema(
             node_id="_BatchOps",
             display_name="Batch Ops",
-            category="looping/accumulation",
+            category="advanced/looping",
             is_dev_only=True,
             inputs=[
                 io.AnyType.Input("batch"),
