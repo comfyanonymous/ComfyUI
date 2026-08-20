@@ -3767,7 +3767,8 @@ class ByteDanceVideoEnhanceNode(IO.ComfyNode):
                     ],
                     tooltip="Output resolution. The short side is set to the chosen level and the long side "
                     "follows the source aspect ratio. 'source' keeps the source size, 'custom' sets "
-                    "the short side in pixels.",
+                    "the short side in pixels. Sources wider or taller than about 2.2:1 are billed one "
+                    "resolution tier higher.",
                 ),
                 IO.Combo.Input(
                     "fps",
@@ -3806,12 +3807,16 @@ class ByteDanceVideoEnhanceNode(IO.ComfyNode):
                        $s <= 720 ? 1 : $s <= 1080 ? 2 : $s <= 1440 ? 4 : $s <= 2160 ? 8 : 32)
                     : $lookup($tiers, $res);
                   $fpsMul := $fps = "source" ? 1 : ($number($fps) <= 30 ? 1 : ($number($fps) <= 60 ? 2 : 4));
-                  $perSec := 0.2066 * 1.43 / 60 * ($tv = "professional" ? 10 : 1) * $fpsMul;
-                  $res = "source"
-                    ? {"type": "range_usd", "min_usd": $perSec, "max_usd": $perSec * 8,
-                       "format": {"approximate": true, "suffix": "/second", "note": "(720p-4K, by source size)"}}
-                    : {"type": "usd", "usd": $perSec * $tier,
-                       "format": {"suffix": "/second", "approximate": $fps = "source"}}
+                  $base := 0.2066 * 1.43 / 60 * ($tv = "professional" ? 10 : 1);
+                  $min := $base * ($res = "source" ? 1 : $tier) * ($fps = "source" ? 1 : $fpsMul);
+                  $max := $base * ($res = "source" ? 4 : $tier) * ($fps = "source" ? 4 : $fpsMul);
+                  $min = $max
+                    ? {"type": "usd", "usd": $min, "format": {"suffix": "/second"}}
+                    : {"type": "range_usd", "min_usd": $min, "max_usd": $max,
+                       "format": {"approximate": true, "suffix": "/second",
+                                  "note": $res = "source"
+                                    ? ($fps = "source" ? "(by source size and frame rate)" : "(720p-2K, by source size)")
+                                    : "(by source frame rate)"}}
                 )
                 """,
             ),
