@@ -29,6 +29,13 @@ def _concat_view_plane_uv(x: torch.Tensor, aspect_ratio: float) -> torch.Tensor:
     return torch.cat([x, uv], dim=1)
 
 
+def _interpolate_antialias_safe(input: torch.Tensor, *args, **kwargs) -> torch.Tensor:
+    """Run antialiased interpolation in fp32 when half precision is unsupported."""
+    if kwargs.get("antialias") and input.dtype in (torch.float16, torch.bfloat16):
+        return F.interpolate(input.float(), *args, **kwargs).to(dtype=input.dtype)
+    return F.interpolate(input, *args, **kwargs)
+
+
 class ResidualConvBlock(nn.Module):
     def __init__(self, channels: int, hidden_channels: Optional[int] = None, in_norm: str = "layer_norm", hidden_norm: str = "group_norm",
                  dtype=None, device=None, operations=comfy.ops.manual_cast):
@@ -135,7 +142,7 @@ class DINOv2Encoder(nn.Module):
 
     def forward(self, image: torch.Tensor, token_rows: int, token_cols: int,
                 return_class_token: bool = False) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-        image_14 = F.interpolate(image, (token_rows * 14, token_cols * 14), mode="bilinear", align_corners=False, antialias=True)
+        image_14 = _interpolate_antialias_safe(image, (token_rows * 14, token_cols * 14), mode="bilinear", align_corners=False, antialias=True)
         image_14 = (image_14 - self.image_mean) / self.image_std
         feats = self.backbone.get_intermediate_layers(image_14, self.intermediate_layers, apply_norm=True)
         x = torch.stack([
