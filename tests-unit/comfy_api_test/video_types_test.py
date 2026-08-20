@@ -262,6 +262,7 @@ def test_save_to_replaces_nonfinite_audio_with_silence(tmp_path):
     waveform = torch.zeros(1, 2, 2048, dtype=torch.float32)
     waveform[0, 0, 1:4] = torch.tensor([float("nan"), float("inf"), float("-inf")])
     waveform[0, 1, 4:1028] = torch.linspace(0.2, 0.4, 1024, dtype=torch.float32)
+    original_waveform = waveform.clone()
     components = VideoComponents(
         images=torch.zeros(2, 2, 2, 3),
         audio=AudioInput({"waveform": waveform, "sample_rate": 24000}),
@@ -271,7 +272,7 @@ def test_save_to_replaces_nonfinite_audio_with_silence(tmp_path):
 
     VideoFromComponents(components).save_to(str(path))
 
-    assert torch.isnan(waveform[0, 0, 1]).item()
+    torch.testing.assert_close(waveform, original_waveform, equal_nan=True)
     with av.open(str(path)) as container:
         decoded = torch.cat(
             [torch.from_numpy(frame.to_ndarray()) for frame in container.decode(container.streams.audio[0])],
