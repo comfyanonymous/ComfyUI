@@ -47,10 +47,7 @@ if __name__ == "__main__":
         cuda_visibility = os.environ.get("CUDA_VISIBLE_DEVICES")
         device_selection = args.cuda_device
 
-        try:
-            gpu_count = sum("NVIDIA" in name.upper() for name in cuda_malloc.get_gpu_names())
-        except OSError:
-            gpu_count = 0
+        gpu_count = len(cuda_malloc.get_nvidia_gpu_names())
 
         if gpu_count > 1:
             warning = None

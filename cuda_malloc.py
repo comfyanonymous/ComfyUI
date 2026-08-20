@@ -4,6 +4,17 @@ from comfy.cli_args import args, PerformanceFeature
 import subprocess
 import re
 
+def get_nvidia_gpu_names():
+    gpu_names = []
+    try:
+        out = subprocess.check_output(['nvidia-smi', '-L'])
+    except (OSError, subprocess.SubprocessError):
+        return gpu_names
+    for line in out.split(b'\n'):
+        if line.startswith(b'GPU '):
+            gpu_names.append(line.decode('utf-8').split(': ', 1)[1].split(' (UUID', 1)[0])
+    return gpu_names
+
 #Can't use pytorch to get the GPU names because the cuda malloc has to be set before the first import.
 def get_gpu_names():
     if os.name == 'nt':
@@ -36,12 +47,7 @@ def get_gpu_names():
             return gpu_names
         return enum_display_devices()
     else:
-        gpu_names = []
-        out = subprocess.check_output(['nvidia-smi', '-L'])
-        for l in out.split(b'\n'):
-            if len(l) > 0:
-                gpu_names.append(l.decode('utf-8').split(' (UUID')[0])
-        return gpu_names
+        return get_nvidia_gpu_names()
 
 blacklist = {"GeForce GTX TITAN X", "GeForce GTX 980", "GeForce GTX 970", "GeForce GTX 960", "GeForce GTX 950", "GeForce 945M",
                 "GeForce 940M", "GeForce 930M", "GeForce 920M", "GeForce 910M", "GeForce GTX 750", "GeForce GTX 745", "Quadro K620",
