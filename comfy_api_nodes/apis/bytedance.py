@@ -18,7 +18,8 @@ class Seedream4Options(BaseModel):
 
 
 class Seedream5OptimizePromptOptions(BaseModel):
-    thinking: Literal["auto", "enabled", "disabled"] = Field(...)
+    thinking: Literal["auto", "enabled", "disabled"] | None = Field(None)
+    mode: Literal["standard", "fast"] | None = Field(None)
 
 
 class Seedream4TaskCreationRequest(BaseModel):
