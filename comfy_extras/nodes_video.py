@@ -167,7 +167,7 @@ class SaveVideo(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, video: Input.Video, filename_prefix, format: io.DynamicCombo.Type | str, codec: io.DynamicCombo.Type | None = None) -> io.NodeOutput:
+    def execute(cls, video: Input.Video, filename_prefix, format: io.DynamicCombo.Type | str, codec: io.DynamicCombo.Type | str | None = None) -> io.NodeOutput:
         if isinstance(format, dict):
             format_name = format["format"]
             codec = format.get("codec") or codec
@@ -175,6 +175,8 @@ class SaveVideo(io.ComfyNode):
             format_name = format
         if codec is None:
             codec = {"codec": "auto"}
+        elif isinstance(codec, str):
+            codec = {"codec": codec}
         codec_name = codec["codec"]
         encoding = codec.get("encoding") or {}
         color_space = encoding.get("color_space")
@@ -197,14 +199,15 @@ class SaveVideo(io.ComfyNode):
             if len(metadata) > 0:
                 saved_metadata = metadata
         file = f"{filename}_{counter:05}_.{Types.VideoContainer.get_extension(format_name)}"
-        video.save_to(
-            os.path.join(full_output_folder, file),
-            format=Types.VideoContainer(format_name),
-            codec=Types.VideoCodec(codec_name),
-            metadata=saved_metadata,
-            crf=encoding.get("crf"),
-            color_space=color_space,
-        )
+        save_options = {
+            "format": Types.VideoContainer(format_name),
+            "codec": Types.VideoCodec(codec_name),
+            "metadata": saved_metadata,
+            "crf": encoding.get("crf"),
+        }
+        if color_space is not None:
+            save_options["color_space"] = color_space
+        video.save_to(os.path.join(full_output_folder, file), **save_options)
 
         return io.NodeOutput(video, ui=ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)]))
 

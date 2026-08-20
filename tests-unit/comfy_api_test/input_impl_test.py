@@ -29,14 +29,12 @@ def test_container_to_output_format_single():
     assert container_to_output_format("mp4") == "mp4"
 
 
-def test_get_open_write_kwargs_filepath_no_format():
-    """Test that 'format' kwarg is NOT set when dest is a file path."""
+def test_get_open_write_kwargs_filepath_format():
     kwargs_auto = get_open_write_kwargs("output.mp4", "mp4", VideoContainer.AUTO)
-    assert "format" not in kwargs_auto, "Format should not be set for file paths (AUTO)"
+    assert "format" not in kwargs_auto
 
     kwargs_specific = get_open_write_kwargs("output.avi", "mp4", "avi")
-    fail_msg = "Format should not be set for file paths (Specific)"
-    assert "format" not in kwargs_specific, fail_msg
+    assert kwargs_specific["format"] == "avi"
     assert "options" not in kwargs_specific
 
 

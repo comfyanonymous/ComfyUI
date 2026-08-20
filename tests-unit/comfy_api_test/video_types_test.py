@@ -355,6 +355,48 @@ def create_hdr_av1_video(path, transfer, color_range):
         container.mux(stream.encode(None))
 
 
+def create_full_range_srgb_video(path):
+    images = np.random.default_rng(29).integers(0, 256, (3, 64, 64, 3), dtype=np.uint8)
+    with av.open(path, mode="w") as container:
+        stream = container.add_stream("mjpeg", rate=30)
+        stream.width = 64
+        stream.height = 64
+        stream.pix_fmt = "yuvj420p"
+        stream.color_primaries = ColorPrimaries.BT709
+        stream.color_trc = ColorTrc.BT709
+        stream.colorspace = 1
+        stream.color_range = ColorRange.JPEG
+        for image in images:
+            frame = av.VideoFrame.from_ndarray(image, format="rgb24").reformat(format="yuvj420p")
+            frame.color_primaries = ColorPrimaries.BT709
+            frame.color_trc = ColorTrc.BT709
+            frame.colorspace = 1
+            frame.color_range = ColorRange.JPEG
+            container.mux(stream.encode(frame))
+        container.mux(stream.encode(None))
+
+
+def test_save_loaded_srgb_converts_full_range_to_limited(tmp_path):
+    source = str(tmp_path / "source.mov")
+    output = str(tmp_path / "output.mp4")
+    create_full_range_srgb_video(source)
+    with av.open(source) as container:
+        source_stream = container.streams.video[0]
+        source_color = (source_stream.color_primaries, source_stream.color_trc)
+
+    VideoFromFile(source).save_to(
+        output,
+        format=VideoContainer.MP4,
+        codec=VideoCodec.H264,
+        crf=0,
+    )
+
+    with av.open(output) as container:
+        stream = container.streams.video[0]
+        assert (stream.color_primaries, stream.color_trc) == source_color
+        assert stream.color_range == ColorRange.MPEG
+
+
 def test_save_to_av1_crf_controls_quality(tmp_path):
     generator = torch.Generator().manual_seed(11)
     components = VideoComponents(
@@ -822,6 +864,16 @@ def test_save_to_auto_still_remuxes_a_compatible_codec(tmp_path):
     with av.open(destination) as container:
         assert container.streams.video[0].codec.name == "vp9"
         assert decoded_counts(container)[0] == 6
+
+
+def test_save_to_explicit_format_overrides_destination_suffix(simple_video_file, tmp_path):
+    destination = str(tmp_path / "saved.mkv")
+
+    VideoFromFile(simple_video_file).save_to(destination, format=VideoContainer.MP4)
+
+    with av.open(destination) as container:
+        assert "mp4" in container.format.name.split(",")
+        assert decoded_counts(container)[0] == 3
 
 
 def test_save_to_buffer_transcodes_codec_the_container_cannot_store(tmp_path):
@@ -1348,13 +1400,11 @@ def test_save_to_transcode_bakes_rotation():
 
 
 def mov_text_payload(text: str) -> bytes:
-    """A mov_text sample is a 16-bit big-endian length followed by the UTF-8 text."""
     encoded = text.encode("utf-8")
     return len(encoded).to_bytes(2, "big") + encoded
 
 
 def create_subtitled_source(subtitle_codec="mov_text", container_format="mp4", frames=90, fps=30):
-    """mpeg4 video (so save_to must transcode) alongside a subtitle track carrying three cues."""
     buffer = io.BytesIO()
     with av.open(buffer, mode="w", format=container_format) as container:
         video_stream = container.add_stream("mpeg4", rate=fps)
@@ -1380,7 +1430,6 @@ def create_subtitled_source(subtitle_codec="mov_text", container_format="mp4", f
 
 
 def subtitle_cues(buffer):
-    """(seconds, text) for every non-empty cue; the mp4 muxer pads gaps with 2-byte empties."""
     buffer.seek(0)
     with av.open(buffer) as container:
         if not container.streams.subtitles:
@@ -1393,7 +1442,6 @@ def subtitle_cues(buffer):
 
 
 def test_save_to_transcode_keeps_subtitles_the_container_can_store():
-    """Transcoding video must not silently drop a subtitle track the output can hold."""
     output = io.BytesIO()
     VideoFromFile(create_subtitled_source()).save_to(
         output, format=VideoContainer.MP4, codec=VideoCodec.H264
@@ -1407,7 +1455,6 @@ def test_save_to_transcode_keeps_subtitles_the_container_can_store():
 
 
 def test_save_to_transcode_trims_subtitles_with_the_video():
-    """Kept cues rebase onto the trimmed timeline; cues outside the window are dropped."""
     output = io.BytesIO()
     VideoFromFile(create_subtitled_source(), start_time=1, duration=1).save_to(
         output, format=VideoContainer.MP4, codec=VideoCodec.H264
@@ -1417,8 +1464,6 @@ def test_save_to_transcode_trims_subtitles_with_the_video():
 
 
 def test_save_to_transcode_drops_unstorable_subtitles_with_a_warning(caplog):
-    """There is no subtitle encoder binding, so subrip cannot become mov_text: drop it, but
-    name the stream instead of letting the track vanish silently."""
     output = io.BytesIO()
     with caplog.at_level(logging.WARNING):
         VideoFromFile(create_subtitled_source(subtitle_codec="subrip", container_format="matroska")).save_to(
@@ -1437,7 +1482,6 @@ def test_save_to_transcode_drops_unstorable_subtitles_with_a_warning(caplog):
 
 
 def test_save_to_remux_fallback_keeps_subtitles():
-    """The audio-triggered fallback into the transcode path must keep subtitles too."""
     buffer = io.BytesIO()
     with av.open(buffer, mode="w", format="mov") as container:
         video_stream = container.add_stream("mpeg4", rate=30)

@@ -71,8 +71,7 @@ def get_open_write_kwargs(
     is_write_to_buffer = isinstance(dest, io.BytesIO)
     open_kwargs = {"mode": "w"}
 
-    if is_write_to_buffer:
-        # Set output format explicitly, since it cannot be inferred from file extension
+    if is_write_to_buffer or to_format != VideoContainer.AUTO:
         if to_format == VideoContainer.AUTO:
             to_format = container_format.lower()
         elif isinstance(to_format, VideoContainer):
@@ -81,7 +80,7 @@ def get_open_write_kwargs(
             to_format = to_format.lower()
         open_kwargs["format"] = container_to_output_format(to_format)
 
-    output_format = open_kwargs["format"] if is_write_to_buffer else os.path.splitext(dest)[1].lower().lstrip(".")
+    output_format = open_kwargs["format"] if "format" in open_kwargs else os.path.splitext(dest)[1].lower().lstrip(".")
     if output_format in ("mov", "mp4"):
         # Preserve custom metadata tags (workflow, prompt, extra_pnginfo) in isobmff.
         movflags = "use_metadata_tags" if is_write_to_buffer else "use_metadata_tags+faststart"
@@ -617,10 +616,8 @@ class VideoFromFile(VideoInput):
     ) -> bool:
         streams = container.streams
         with av.open(path, **open_kwargs) as output_container:
-            # Add metadata before writing any streams
             write_output_metadata(container, output_container, metadata)
 
-            # Add streams to the new container. Streams with no codec context cannot be used as an output template.
             stream_map = {}
             for stream in streams:
                 if isinstance(stream, (av.VideoStream, av.AudioStream, SubtitleStream)):
@@ -647,7 +644,6 @@ class VideoFromFile(VideoInput):
                         return False
                     stream_map[stream] = out_stream
 
-            # Write packets to the new container
             for packet in container.demux():
                 if packet.stream in stream_map and packet.dts is not None:
                     packet.stream = stream_map[packet.stream]
@@ -683,6 +679,7 @@ class VideoFromFile(VideoInput):
         audio_stream = last_decodable_audio_stream(container)
         source_color_space = video_stream_color_space(video_stream)
         preserve_source_color = source_color_space is not None
+        normalize_color_range = video_stream.color_range == ColorRange.JPEG and source_color_space not in HDR_COLOR_TRANSFERS
         if color_space in HDR_COLOR_TRANSFERS or source_color_space in HDR_COLOR_TRANSFERS:
             bit_depth = max(bit_depth, 10)
         pix_fmt = "yuv420p10le" if bit_depth >= 10 else "yuv420p"
@@ -712,15 +709,10 @@ class VideoFromFile(VideoInput):
             if duration:
                 duration_cap = math.ceil(duration * sample_rate)
 
-        # Subtitles are remuxed untouched: there is no subtitle encoder binding, so a stream the
-        # output container cannot store as-is is dropped with a warning naming it, exactly like
-        # the remux path does. Streams FFmpeg has no decoder for cannot template a new stream.
         subtitle_streams = [s for s in container.streams.subtitles if s.codec_context is not None]
         streams = [video_stream] if audio_stream is None else [video_stream, audio_stream]
         streams += subtitle_streams
         subtitle_map = {}
-        # Subtitle packets that arrive before the first kept video frame: the output is not open
-        # yet and the pts rebase offset is not known, so they wait here rather than being lost.
         pending_subtitles = []
         pts_step = max(1, int(round((1 / rate) / video_stream.time_base)))
         video_done = False
@@ -780,15 +772,12 @@ class VideoFromFile(VideoInput):
             return cap
 
         def mux_subtitle(packet):
-            """Remux one subtitle packet, rebased onto the trimmed timeline the video was rebased to."""
             out_stream = subtitle_map.get(packet.stream)
             if out_stream is None or packet.dts is None or packet.pts is None or packet.time_base is None:
                 return
             start = float(packet.pts * packet.time_base)
             if start < start_time or (duration and start >= start_time + duration):
                 return
-            # the video's own rebase offset, so subtitles stay in sync with it rather than
-            # with the requested start (a seek lands on the preceding keyframe)
             offset_ticks = video_pts_offset if video_pts_offset is not None else start_pts
             shift = int(round(float(offset_ticks * video_stream.time_base) / packet.time_base))
             packet.pts -= shift
@@ -799,7 +788,6 @@ class VideoFromFile(VideoInput):
             output.mux(packet)
 
         def flush_subtitles():
-            # only once the first video frame fixed the rebase offset
             if output is None or not pending_subtitles or last_video_pts is None:
                 return
             while pending_subtitles:
@@ -853,6 +841,8 @@ class VideoFromFile(VideoInput):
                             out_video.options = video_encoder_options(output_codec, crf)
                             if preserve_source_color:
                                 copy_color_properties(video_stream, out_video.codec_context)
+                                if normalize_color_range:
+                                    out_video.codec_context.color_range = ColorRange.MPEG
                             elif color_space is not None:
                                 set_video_color_properties(out_video.codec_context, color_space)
                             # source pts pass through (rebased to 0), so variable frame rate survives
@@ -897,13 +887,14 @@ class VideoFromFile(VideoInput):
                                 rotation_filter = (g_src, g_sink)
                             rotation_filter[0].push(frame)
                             frame = rotation_filter[1].pull()
-                        if frame.color_range == ColorRange.JPEG and not preserve_source_color:
-                            # compress full-range sources (yuvj/MJPEG) to limited range
+                        if frame.color_range == ColorRange.JPEG and normalize_color_range:
                             frame = frame.reformat(format=pix_fmt, src_color_range="JPEG", dst_color_range="MPEG")
                         else:
                             frame = frame.reformat(format=pix_fmt)
                         if preserve_source_color:
                             copy_color_properties(video_stream, frame)
+                            if normalize_color_range:
+                                frame.color_range = ColorRange.MPEG
                         elif color_space is not None:
                             set_video_color_properties(frame, color_space)
                         frame_output_end = None
