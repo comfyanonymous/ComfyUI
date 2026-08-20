@@ -38,12 +38,8 @@ def _module():
         dtype=torch.float32,
         ops=comfy.ops.manual_cast,
     )
-    with torch.no_grad():
-        for index, parameter in enumerate(module.parameters()):
-            values = torch.arange(parameter.numel(), dtype=torch.float32).reshape(
-                parameter.shape
-            )
-            parameter.copy_((values.remainder(17) - 8) * (0.002 + index * 0.0001))
+    for index, parameter in enumerate(module.parameters()):
+        torch.nn.init.constant_(parameter, (index + 1) * 0.001)
     return module.eval()
 
 
@@ -63,8 +59,7 @@ def test_gated_delta_net_casts_unmanaged_parameters_for_forward(monkeypatch):
     monkeypatch.setattr(comfy.model_management, "cast_to_device", capture_cast)
     x = torch.linspace(-0.25, 0.25, steps=24, dtype=torch.float32).reshape(1, 3, 8)
 
-    with torch.inference_mode():
-        output, present_state = module(x)
+    output, present_state = module(x)
 
     assert present_state is None
     assert output.shape == x.shape
