@@ -23,12 +23,11 @@ import argparse
 import asyncio
 import inspect
 import json
-import logging
 import sys
 
-from comfy.cli_args import args
+from comfy.cli_args import args as comfy_args
 
-args.cpu = True  # reading schemas never touches a device, and CI torch has no CUDA
+comfy_args.cpu = True  # reading schemas never touches a device, and CI torch has no CUDA
 
 import nodes
 from comfy_api.internal import _ComfyNodeInternal
@@ -111,14 +110,10 @@ def node_snapshot(node_class):
 
 
 def collect_snapshot():
+    # A node that cannot be read is left out of the snapshot, which would hide any
+    # breaking change to it, so let it fail here instead.
     asyncio.run(nodes.init_extra_nodes(init_api_nodes=True))
-    snapshot = {}
-    for name, node_class in nodes.NODE_CLASS_MAPPINGS.items():
-        try:
-            snapshot[name] = node_snapshot(node_class)
-        except Exception:
-            logging.warning("Skipping %s, could not read its input schema", name, exc_info=True)
-    return snapshot
+    return {name: node_snapshot(node_class) for name, node_class in nodes.NODE_CLASS_MAPPINGS.items()}
 
 
 def accepted_types(input_type):

@@ -320,7 +320,8 @@
   and execution fills it in. An optional input with no default in its schema is
   a nullable value, so its parameter in the entry function must carry the
   default for the not-connected case. The Node Input Compatibility workflow
-  checks both against the base branch.
+  diffs the input surface against the base branch, and checks the nullable rule
+  on the branch itself.
 - Model implementations should add the minimal number of ComfyUI nodes required
   to run the model. Reuse existing nodes as much as possible; adapting the model
   to work with existing nodes is strongly preferred over creating new nodes.
