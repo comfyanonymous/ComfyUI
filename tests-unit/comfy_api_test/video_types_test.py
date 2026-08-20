@@ -1404,13 +1404,19 @@ def mov_text_payload(text: str) -> bytes:
     return len(encoded).to_bytes(2, "big") + encoded
 
 
+def add_test_subtitle_stream(container, codec):
+    if not hasattr(container, "add_mux_stream"):
+        pytest.skip("PyAV 17 or newer is required to synthesize subtitle packets")
+    return container.add_mux_stream(codec)
+
+
 def create_subtitled_source(subtitle_codec="mov_text", container_format="mp4", frames=90, fps=30):
     buffer = io.BytesIO()
     with av.open(buffer, mode="w", format=container_format) as container:
         video_stream = container.add_stream("mpeg4", rate=fps)
         video_stream.width = video_stream.height = 64
         video_stream.pix_fmt = "yuv420p"
-        subtitle_stream = container.add_mux_stream(subtitle_codec)
+        subtitle_stream = add_test_subtitle_stream(container, subtitle_codec)
         subtitle_stream.time_base = Fraction(1, 1000)
         for i in range(frames):
             frame = av.VideoFrame.from_ndarray(
@@ -1489,7 +1495,7 @@ def test_save_to_remux_fallback_keeps_subtitles():
         video_stream.pix_fmt = "yuv420p"
         audio_stream = container.add_stream("pcm_u8", rate=44100)
         audio_stream.sample_rate = 44100
-        subtitle_stream = container.add_mux_stream("mov_text")
+        subtitle_stream = add_test_subtitle_stream(container, "mov_text")
         subtitle_stream.time_base = Fraction(1, 1000)
         for i in range(30):
             frame = av.VideoFrame.from_ndarray(

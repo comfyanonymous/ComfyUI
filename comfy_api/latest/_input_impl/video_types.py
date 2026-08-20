@@ -636,7 +636,7 @@ class VideoFromFile(VideoInput):
                             )
                             continue
                         logging.warning(
-                            "The %s container cannot store %s, so the whole file is being re-encoded to H.264/AAC. "
+                            "The %s container cannot store %s, so the whole file is being re-encoded. "
                             "Any additional audio streams will be dropped; subtitles the output container "
                             "can store are kept.",
                             format_name, codec_name,
