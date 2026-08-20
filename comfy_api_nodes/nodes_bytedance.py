@@ -3804,7 +3804,7 @@ class ByteDanceVideoEnhanceNode(IO.ComfyNode):
                   $tiers := {"720p": 1, "1080p": 2, "2k": 4, "4k": 8, "8k": 32};
                   $tier := $res = "custom"
                     ? ($s := $number($lookup(widgets, "resolution.short_side"));
-                       $s <= 720 ? 1 : $s <= 1080 ? 2 : $s <= 1440 ? 4 : $s <= 2160 ? 8 : 32)
+                       $s < 1080 ? 1 : $s < 1440 ? 2 : $s < 2160 ? 4 : $s < 4320 ? 8 : 32)
                     : $lookup($tiers, $res);
                   $fpsMul := $fps = "source" ? 1 : ($number($fps) <= 30 ? 1 : ($number($fps) <= 60 ? 2 : 4));
                   $base := 0.2066 * 1.43 / 60 * ($tv = "professional" ? 10 : 1);
