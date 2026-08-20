@@ -258,6 +258,30 @@ def test_save_to_h264_crf_controls_quality(tmp_path):
     assert os.path.getsize(transcoded) < os.path.getsize(high_quality)
 
 
+def test_save_to_replaces_nonfinite_audio_with_silence(tmp_path):
+    waveform = torch.zeros(1, 2, 2048, dtype=torch.float32)
+    waveform[0, 0, 1:4] = torch.tensor([float("nan"), float("inf"), float("-inf")])
+    waveform[0, 1, 4:1028] = torch.linspace(0.2, 0.4, 1024, dtype=torch.float32)
+    components = VideoComponents(
+        images=torch.zeros(2, 2, 2, 3),
+        audio=AudioInput({"waveform": waveform, "sample_rate": 24000}),
+        frame_rate=Fraction(1),
+    )
+    path = tmp_path / "nonfinite-audio.mp4"
+
+    VideoFromComponents(components).save_to(str(path))
+
+    assert torch.isnan(waveform[0, 0, 1]).item()
+    with av.open(str(path)) as container:
+        decoded = torch.cat(
+            [torch.from_numpy(frame.to_ndarray()) for frame in container.decode(container.streams.audio[0])],
+            dim=1,
+        )
+    assert decoded.shape[0] == 2
+    assert torch.isfinite(decoded).all()
+    assert decoded.abs().max() > 0.1
+
+
 def test_save_to_mp4_writes_metadata_before_media(video_components, tmp_path):
     encoded = tmp_path / "encoded.mp4"
     remuxed = tmp_path / "remuxed.mp4"

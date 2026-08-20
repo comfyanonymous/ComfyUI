@@ -868,6 +868,7 @@ class VideoFromComponents(VideoInput):
                 audio_sample_rate = int(self.__components.audio['sample_rate'])
                 waveform = self.__components.audio['waveform']
                 waveform = waveform[0, :, :math.ceil((audio_sample_rate / frame_rate) * self.__components.images.shape[0])]
+                waveform = waveform.float().nan_to_num(nan=0.0, posinf=0.0, neginf=0.0)
                 layout = {1: 'mono', 2: 'stereo', 6: '5.1'}.get(waveform.shape[0], 'stereo')
                 audio_stream = output.add_stream('aac', rate=audio_sample_rate, layout=layout)
 
