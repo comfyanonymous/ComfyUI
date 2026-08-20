@@ -47,7 +47,7 @@ if __name__ == "__main__":
         cuda_visibility = os.environ.get("CUDA_VISIBLE_DEVICES")
         device_selection = args.cuda_device
 
-        gpu_count = len(cuda_malloc.get_nvidia_gpu_names())
+        gpu_count = cuda_malloc.get_nvidia_gpu_count()
 
         if gpu_count > 1:
             warning = None

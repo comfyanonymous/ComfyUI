@@ -4,16 +4,39 @@ from comfy.cli_args import args, PerformanceFeature
 import subprocess
 import re
 
+def _get_nvidia_smi_path():
+    """Resolve nvidia-smi across supported Windows driver layouts."""
+    if os.name == 'nt':
+        system_root = os.environ.get('SystemRoot')
+        program_files = os.environ.get('ProgramW6432') or os.environ.get('ProgramFiles')
+        paths = []
+        if system_root:
+            paths.append(os.path.join(system_root, 'System32', 'nvidia-smi.exe'))
+        if program_files:
+            paths.append(os.path.join(program_files, 'NVIDIA Corporation', 'NVSMI', 'nvidia-smi.exe'))
+        for path in paths:
+            if os.path.isfile(path):
+                return path
+    return 'nvidia-smi'
+
 def get_nvidia_gpu_names():
+    """Return physical NVIDIA GPU names, or None when detection fails."""
     gpu_names = []
     try:
-        out = subprocess.check_output(['nvidia-smi', '-L'])
+        out = subprocess.check_output([_get_nvidia_smi_path(), '-L'], timeout=5)
     except (OSError, subprocess.SubprocessError):
-        return gpu_names
-    for line in out.split(b'\n'):
+        return None
+    for line in out.splitlines():
         if line.startswith(b'GPU '):
-            gpu_names.append(line.decode('utf-8').split(': ', 1)[1].split(' (UUID', 1)[0])
-    return gpu_names
+            _, separator, gpu = line.partition(b': ')
+            name, uuid_separator, _ = gpu.partition(b' (UUID')
+            if not separator or not uuid_separator:
+                return None
+            try:
+                gpu_names.append(name.decode('utf-8'))
+            except UnicodeDecodeError:
+                return None
+    return gpu_names or None
 
 #Can't use pytorch to get the GPU names because the cuda malloc has to be set before the first import.
 def get_gpu_names():
@@ -47,7 +70,17 @@ def get_gpu_names():
             return gpu_names
         return enum_display_devices()
     else:
-        return get_nvidia_gpu_names()
+        return get_nvidia_gpu_names() or []
+
+def get_nvidia_gpu_count():
+    """Count physical NVIDIA GPUs, falling back to Windows display devices."""
+    gpu_names = get_nvidia_gpu_names()
+    if gpu_names is not None:
+        return len(gpu_names)
+    try:
+        return sum("NVIDIA" in name.upper() for name in get_gpu_names())
+    except (OSError, UnicodeError):
+        return 0
 
 blacklist = {"GeForce GTX TITAN X", "GeForce GTX 980", "GeForce GTX 970", "GeForce GTX 960", "GeForce GTX 950", "GeForce 945M",
                 "GeForce 940M", "GeForce 930M", "GeForce 920M", "GeForce 910M", "GeForce GTX 750", "GeForce GTX 745", "Quadro K620",
