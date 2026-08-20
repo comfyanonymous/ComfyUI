@@ -1,6 +1,6 @@
 from av.container import InputContainer
 from av.subtitles.stream import SubtitleStream
-from av.video.reformatter import ColorRange
+from av.video.reformatter import ColorPrimaries, ColorRange, ColorTrc
 from fractions import Fraction
 from typing import Optional
 from .._input import AudioInput, VideoInput
@@ -14,6 +14,38 @@ import os
 import torch
 from .._util import VideoContainer, VideoCodec, VideoComponents
 import logging
+
+
+VIDEO_ENCODERS = {
+    VideoCodec.H264: "h264",
+    VideoCodec.AV1: "libsvtav1",
+}
+VIDEO_CONTAINER_FORMATS = {
+    VideoContainer.MP4: "mp4",
+    VideoContainer.MKV: "matroska",
+    VideoContainer.WEBM: "webm",
+}
+WEBM_STREAM_CODECS = {
+    "video": {"av1", "vp8", "vp9"},
+    "audio": {"opus", "vorbis"},
+    "subtitle": {"webvtt"},
+}
+BT2020_NCL = 9
+BT709_NCL = 1
+HDR_COLOR_TRANSFERS = {
+    "HDR": ColorTrc.ARIB_STD_B67,
+    "HDR PQ": ColorTrc.SMPTE2084,
+}
+VIDEO_COLOR_TRANSFERS = {
+    "sRGB": ColorTrc.IEC61966_2_1,
+    **HDR_COLOR_TRANSFERS,
+}
+VIDEO_TRANSFER_COLOR_SPACES = {
+    ColorTrc.BT709: "sRGB",
+    ColorTrc.IEC61966_2_1: "sRGB",
+    ColorTrc.ARIB_STD_B67: "HDR",
+    ColorTrc.SMPTE2084: "HDR PQ",
+}
 
 
 def container_to_output_format(container_format: str | None) -> str | None:
@@ -37,21 +69,23 @@ def get_open_write_kwargs(
 ) -> dict:
     """Get kwargs for writing a `VideoFromFile` to a file/stream with `av.open`"""
     is_write_to_buffer = isinstance(dest, io.BytesIO)
-    is_mp4_file = not is_write_to_buffer and os.path.splitext(dest)[1].lower() == ".mp4"
-    movflags = "use_metadata_tags+faststart" if is_mp4_file else "use_metadata_tags"
-    open_kwargs = {
-        "mode": "w",
-        # If isobmff, preserve custom metadata tags (workflow, prompt, extra_pnginfo)
-        "options": {"movflags": movflags},
-    }
+    open_kwargs = {"mode": "w"}
 
     if is_write_to_buffer:
         # Set output format explicitly, since it cannot be inferred from file extension
         if to_format == VideoContainer.AUTO:
             to_format = container_format.lower()
+        elif isinstance(to_format, VideoContainer):
+            to_format = VIDEO_CONTAINER_FORMATS[to_format]
         elif isinstance(to_format, str):
             to_format = to_format.lower()
         open_kwargs["format"] = container_to_output_format(to_format)
+
+    output_format = open_kwargs["format"] if is_write_to_buffer else os.path.splitext(dest)[1].lower().lstrip(".")
+    if output_format in ("mov", "mp4"):
+        # Preserve custom metadata tags (workflow, prompt, extra_pnginfo) in isobmff.
+        movflags = "use_metadata_tags" if is_write_to_buffer else "use_metadata_tags+faststart"
+        open_kwargs["options"] = {"movflags": movflags}
 
     return open_kwargs
 
@@ -100,19 +134,66 @@ def write_output_metadata(container: InputContainer, output, metadata: dict | No
             output.metadata[key] = value if isinstance(value, str) else json.dumps(value)
 
 
-def mp4_output_open_kwargs(path: str | io.BytesIO, format: VideoContainer, codec: VideoCodec) -> dict:
-    if format != VideoContainer.AUTO and format != VideoContainer.MP4:
-        raise ValueError("Only MP4 format is supported for now")
-    if codec != VideoCodec.AUTO and codec != VideoCodec.H264:
-        raise ValueError("Only H264 codec is supported for now")
+def video_output_config(path: str | io.BytesIO, format: VideoContainer, codec: VideoCodec) -> tuple[dict, VideoContainer, VideoCodec]:
+    if isinstance(format, str):
+        format = VideoContainer(format)
+    if isinstance(codec, str):
+        codec = VideoCodec(codec)
+
+    if format == VideoContainer.AUTO:
+        extension = os.path.splitext(os.fspath(path))[1].lower() if isinstance(path, (str, os.PathLike)) else ""
+        format = {
+            ".mkv": VideoContainer.MKV,
+            ".webm": VideoContainer.WEBM,
+        }.get(extension, VideoContainer.MP4)
+    if codec == VideoCodec.AUTO:
+        codec = VideoCodec.AV1 if format == VideoContainer.WEBM else VideoCodec.H264
+    if format == VideoContainer.WEBM and codec != VideoCodec.AV1:
+        raise ValueError("WebM output requires the AV1 codec")
+
     # FFmpeg's faststart pass reopens the output by filename, so it cannot be used with file-like objects.
-    movflags = "use_metadata_tags+faststart" if isinstance(path, (str, os.PathLike)) else "use_metadata_tags"
-    open_kwargs = {"mode": "w", "options": {"movflags": movflags}}
-    if isinstance(format, VideoContainer) and format != VideoContainer.AUTO:
-        open_kwargs["format"] = format.value
-    elif isinstance(path, io.BytesIO):
-        open_kwargs["format"] = "mp4"  # no file extension to infer the format from
-    return open_kwargs
+    open_kwargs = {"mode": "w", "format": VIDEO_CONTAINER_FORMATS[format]}
+    if format == VideoContainer.MP4:
+        movflags = "use_metadata_tags+faststart" if isinstance(path, (str, os.PathLike)) else "use_metadata_tags"
+        open_kwargs["options"] = {"movflags": movflags}
+    return open_kwargs, format, codec
+
+
+def set_video_color_properties(target, color_space):
+    is_hdr = color_space in HDR_COLOR_TRANSFERS
+    target.color_primaries = ColorPrimaries.BT2020 if is_hdr else ColorPrimaries.BT709
+    target.color_trc = VIDEO_COLOR_TRANSFERS[color_space]
+    target.colorspace = BT2020_NCL if is_hdr else BT709_NCL
+    target.color_range = ColorRange.MPEG
+
+
+def copy_color_properties(source, target):
+    target.color_primaries = source.color_primaries
+    target.color_trc = source.color_trc
+    target.colorspace = source.colorspace
+    target.color_range = source.color_range
+
+
+def video_stream_color_space(stream) -> str | None:
+    if stream is None:
+        return None
+    return VIDEO_TRANSFER_COLOR_SPACES.get(stream.color_trc)
+
+
+def video_encoder_options(codec: VideoCodec, crf: float | None) -> dict[str, str]:
+    if crf is None:
+        return {}
+    if codec == VideoCodec.AV1 and crf == 0:
+        return {"svtav1-params": "lossless=1"}
+    return {"crf": str(crf)}
+
+
+def webm_streams_compatible(streams) -> bool:
+    for stream in streams:
+        allowed_codecs = WEBM_STREAM_CODECS.get(stream.type)
+        if allowed_codecs is not None and stream.codec_context is not None and stream.codec.canonical_name not in allowed_codecs:
+            return False
+    return True
 
 
 class VideoFromFile(VideoInput):
@@ -166,6 +247,13 @@ class VideoFromFile(VideoInput):
         with av.open(self.__file, mode="r") as container:
             video_stream = container.streams.video[0] if len(container.streams.video) > 0 else None
             return video_stream_bit_depth(video_stream)
+
+    def get_color_space(self) -> str:
+        if isinstance(self.__file, io.BytesIO):
+            self.__file.seek(0)
+        with av.open(self.__file, mode="r") as container:
+            video_stream = container.streams.video[0] if len(container.streams.video) > 0 else None
+            return video_stream_color_space(video_stream) or "sRGB"
 
     def get_duration(self) -> float:
         """
@@ -465,16 +553,28 @@ class VideoFromFile(VideoInput):
         metadata: Optional[dict] = None,
         bit_depth: int | None = None,
         crf: float | None = None,
+        color_space: str | None = None,
     ):
+        if color_space is not None and color_space not in VIDEO_COLOR_TRANSFERS:
+            raise ValueError(f"Unsupported video color space: {color_space}")
+        _, output_format, _ = video_output_config(path, format, codec)
         if isinstance(self.__file, io.BytesIO):
             self.__file.seek(0)  # Reset the BytesIO object to the beginning
         with av.open(self.__file, mode='r') as container:
             container_format = container.format.name
             video_stream = container.streams.video[0] if len(container.streams.video) > 0 else None
-            video_encoding = video_stream.codec.name if video_stream is not None else None
+            video_encoding = video_stream.codec.canonical_name if video_stream is not None else None
             source_bit_depth = video_stream_bit_depth(video_stream)
+            source_color_space = video_stream_color_space(video_stream)
+            if source_color_space is not None and color_space is not None and source_color_space != color_space:
+                raise ValueError(
+                    f"Cannot save {source_color_space} video as {color_space} without color conversion; "
+                    f"use auto or {source_color_space}"
+                )
             reuse_streams = True
-            if format != VideoContainer.AUTO and format not in container_format.split(","):
+            if format != VideoContainer.AUTO and VIDEO_CONTAINER_FORMATS[VideoContainer(format)] not in container_format.split(","):
+                reuse_streams = False
+            if output_format == VideoContainer.WEBM and not webm_streams_compatible(container.streams):
                 reuse_streams = False
             if codec != VideoCodec.AUTO and codec != video_encoding and video_encoding is not None:
                 reuse_streams = False
@@ -482,13 +582,15 @@ class VideoFromFile(VideoInput):
                 reuse_streams = False
             if crf is not None:
                 reuse_streams = False
+            if color_space is not None:
+                reuse_streams = False
             if self.__start_time or self.__duration:
                 reuse_streams = False
 
             if not reuse_streams:
                 if bit_depth is None:
                     bit_depth = source_bit_depth
-                return self._save_transcoded(container, path, format=format, codec=codec, metadata=metadata, bit_depth=bit_depth, crf=crf)
+                return self._save_transcoded(container, path, format=format, codec=codec, metadata=metadata, bit_depth=bit_depth, crf=crf, color_space=color_space)
 
             streams = container.streams
 
@@ -522,9 +624,10 @@ class VideoFromFile(VideoInput):
         metadata: dict | None,
         bit_depth: int,
         crf: float | None = None,
+        color_space: str | None = None,
     ):
-        """Re-encode to H.264/AAC one frame at a time; peak memory does not scale with video length."""
-        open_kwargs = mp4_output_open_kwargs(path, format, codec)
+        """Re-encode one frame at a time; peak memory does not scale with video length."""
+        open_kwargs, output_format, output_codec = video_output_config(path, format, codec)
         video_stream = self._get_first_video_stream(container)
         start_time, duration = self.get_active_trim_window()
         start_pts = int(start_time / video_stream.time_base)
@@ -539,6 +642,10 @@ class VideoFromFile(VideoInput):
             container.seek(start_pts, stream=video_stream)
 
         audio_stream = last_decodable_audio_stream(container)
+        source_color_space = video_stream_color_space(video_stream)
+        preserve_source_color = source_color_space is not None
+        if color_space in HDR_COLOR_TRANSFERS or source_color_space in HDR_COLOR_TRANSFERS:
+            bit_depth = max(bit_depth, 10)
         pix_fmt = "yuv420p10le" if bit_depth >= 10 else "yuv420p"
         rate = Fraction(video_stream.average_rate) if video_stream.average_rate else Fraction(1)
 
@@ -558,6 +665,8 @@ class VideoFromFile(VideoInput):
                     logging.warning("Audio stream parameters could not be determined; ignoring audio.")
                     audio_stream = None
         if audio_stream is not None:
+            if output_format == VideoContainer.WEBM:
+                sample_rate = 48000
             audio_time_base = Fraction(1, sample_rate)
             layout = {1: "mono", 2: "stereo", 6: "5.1"}.get(channels, "stereo")
             resampler = av.audio.resampler.AudioResampler(format="fltp", layout=layout, rate=sample_rate)
@@ -655,24 +764,28 @@ class VideoFromFile(VideoInput):
                             else:
                                 out_width, out_height = frame.width, frame.height
                             if out_width % 2 or out_height % 2:
-                                raise ValueError(f"H.264 output requires even dimensions, got {out_width}x{out_height}")
+                                raise ValueError(f"{output_codec.value.upper()} output requires even dimensions, got {out_width}x{out_height}")
                             source_size = (frame.width, frame.height)
                             output = av.open(path, **open_kwargs)
                             # Add metadata before writing any streams
                             write_output_metadata(container, output, metadata)
-                            out_video = output.add_stream("h264", rate=rate)
+                            out_video = output.add_stream(VIDEO_ENCODERS[output_codec], rate=rate)
                             # no B-frames: reordering makes mp4 sample durations follow decode order,
                             # so irregular-VFR spans and trim windows land wrong
                             out_video.codec_context.max_b_frames = 0
                             out_video.width = out_width
                             out_video.height = out_height
                             out_video.pix_fmt = pix_fmt
-                            if crf is not None:
-                                out_video.options = {"crf": str(crf)}
+                            out_video.options = video_encoder_options(output_codec, crf)
+                            if preserve_source_color:
+                                copy_color_properties(video_stream, out_video.codec_context)
+                            elif color_space is not None:
+                                set_video_color_properties(out_video.codec_context, color_space)
                             # source pts pass through (rebased to 0), so variable frame rate survives
                             out_video.codec_context.time_base = video_stream.time_base
                             if audio_stream is not None:
-                                out_audio = output.add_stream("aac", rate=sample_rate, layout=layout)
+                                audio_codec = "libopus" if output_format == VideoContainer.WEBM else "aac"
+                                out_audio = output.add_stream(audio_codec, rate=sample_rate, layout=layout)
                         if (frame.width, frame.height) != source_size:
                             # encoding would silently rescale the new geometry into the old one
                             raise ValueError(
@@ -697,11 +810,15 @@ class VideoFromFile(VideoInput):
                                 rotation_filter = (g_src, g_sink)
                             rotation_filter[0].push(frame)
                             frame = rotation_filter[1].pull()
-                        if frame.color_range == ColorRange.JPEG:
+                        if frame.color_range == ColorRange.JPEG and not preserve_source_color:
                             # compress full-range sources (yuvj/MJPEG) to limited range
                             frame = frame.reformat(format=pix_fmt, src_color_range="JPEG", dst_color_range="MPEG")
                         else:
                             frame = frame.reformat(format=pix_fmt)
+                        if preserve_source_color:
+                            copy_color_properties(video_stream, frame)
+                        elif color_space is not None:
+                            set_video_color_properties(frame, color_space)
                         frame_output_end = None
                         if frame.pts is not None:
                             if video_pts_offset is None:
@@ -830,6 +947,9 @@ class VideoFromComponents(VideoInput):
     def get_bit_depth(self) -> int:
         return self.__bit_depth
 
+    def get_color_space(self) -> str:
+        return "sRGB"
+
     def save_to(
         self,
         path: str,
@@ -838,12 +958,19 @@ class VideoFromComponents(VideoInput):
         metadata: Optional[dict] = None,
         bit_depth: int | None = None,
         crf: float | None = None,
+        color_space: str | None = None,
     ):
         """Save the video to a file path or BytesIO buffer."""
-        open_kwargs = mp4_output_open_kwargs(path, format, codec)
+        if color_space is None:
+            color_space = "sRGB"
+        if color_space is not None and color_space not in VIDEO_COLOR_TRANSFERS:
+            raise ValueError(f"Unsupported video color space: {color_space}")
+        open_kwargs, output_format, output_codec = video_output_config(path, format, codec)
         # None means "use the depth this video was created with" (CreateVideo's choice).
         if bit_depth is None:
             bit_depth = self.__bit_depth
+        if color_space in HDR_COLOR_TRANSFERS:
+            bit_depth = max(bit_depth, 10)
         is_10bit = bit_depth >= 10
         with av.open(path, **open_kwargs) as output:
             # Add metadata before writing any streams
@@ -854,22 +981,28 @@ class VideoFromComponents(VideoInput):
             frame_rate = Fraction(round(self.__components.frame_rate * 1000), 1000)
             # Create a video stream
             pix_fmt = "yuv420p10le" if is_10bit else "yuv420p"
-            video_stream = output.add_stream('h264', rate=frame_rate)
+            video_stream = output.add_stream(VIDEO_ENCODERS[output_codec], rate=frame_rate)
             video_stream.width = self.__components.images.shape[2]
             video_stream.height = self.__components.images.shape[1]
             video_stream.pix_fmt = pix_fmt
-            if crf is not None:
-                video_stream.options = {"crf": str(crf)}
+            video_stream.options = video_encoder_options(output_codec, crf)
+            if color_space is not None:
+                set_video_color_properties(video_stream.codec_context, color_space)
 
             # Create an audio stream
             audio_sample_rate = 1
+            audio_resampler = None
             audio_stream: Optional[av.AudioStream] = None
             if self.__components.audio:
-                audio_sample_rate = int(self.__components.audio['sample_rate'])
+                source_audio_sample_rate = int(self.__components.audio['sample_rate'])
+                audio_sample_rate = 48000 if output_format == VideoContainer.WEBM else source_audio_sample_rate
                 waveform = self.__components.audio['waveform']
-                waveform = waveform[0, :, :math.ceil((audio_sample_rate / frame_rate) * self.__components.images.shape[0])]
+                waveform = waveform[0, :, :math.ceil((source_audio_sample_rate / frame_rate) * self.__components.images.shape[0])]
                 layout = {1: 'mono', 2: 'stereo', 6: '5.1'}.get(waveform.shape[0], 'stereo')
-                audio_stream = output.add_stream('aac', rate=audio_sample_rate, layout=layout)
+                audio_codec = "libopus" if output_format == VideoContainer.WEBM else "aac"
+                audio_stream = output.add_stream(audio_codec, rate=audio_sample_rate, layout=layout)
+                if audio_sample_rate != source_audio_sample_rate:
+                    audio_resampler = av.audio.resampler.AudioResampler(format="fltp", layout=layout, rate=audio_sample_rate)
 
             # Encode video
             for i, frame in enumerate(self.__components.images):
@@ -880,7 +1013,14 @@ class VideoFromComponents(VideoInput):
                 else:
                     img = (frame * 255).clamp(0, 255).byte().cpu().numpy() # shape: (H, W, 3)
                     frame = av.VideoFrame.from_ndarray(img, format='rgb24')
-                frame = frame.reformat(format=pix_fmt)
+                dst_colorspace = None
+                if color_space == "sRGB":
+                    dst_colorspace = BT709_NCL
+                elif color_space in HDR_COLOR_TRANSFERS:
+                    dst_colorspace = BT2020_NCL
+                frame = frame.reformat(format=pix_fmt, dst_colorspace=dst_colorspace)
+                if color_space is not None:
+                    set_video_color_properties(frame, color_space)
                 packet = video_stream.encode(frame)
                 output.mux(packet)
 
@@ -890,9 +1030,14 @@ class VideoFromComponents(VideoInput):
 
             if audio_stream and self.__components.audio:
                 frame = av.AudioFrame.from_ndarray(waveform.float().cpu().contiguous().numpy(), format='fltp', layout=layout)
-                frame.sample_rate = audio_sample_rate
+                frame.sample_rate = source_audio_sample_rate
                 frame.pts = 0
-                output.mux(audio_stream.encode(frame))
+                frames = [frame] if audio_resampler is None else audio_resampler.resample(frame)
+                for frame in frames:
+                    output.mux(audio_stream.encode(frame))
+                if audio_resampler is not None:
+                    for frame in audio_resampler.resample(None):
+                        output.mux(audio_stream.encode(frame))
 
                 # Flush encoder
                 output.mux(audio_stream.encode(None))
