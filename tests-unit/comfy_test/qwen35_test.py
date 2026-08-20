@@ -2,8 +2,6 @@ import importlib
 
 import torch
 
-from comfy.cli_args import args
-
 
 def _tiny_config(qwen35):
     return qwen35.Qwen35Config(
@@ -40,12 +38,15 @@ def _module():
 
 
 def test_gated_delta_net_casts_unmanaged_parameters_for_forward(monkeypatch):
+    args = importlib.import_module("comfy.cli_args").args
     if not torch.cuda.is_available():
         monkeypatch.setattr(args, "cpu", True)
     module, model_management = _module()
     a_log_id = id(module.A_log)
     dt_bias_id = id(module.dt_bias)
-    state_keys = tuple(module.state_dict())
+    state_before = {
+        name: value.detach().clone() for name, value in module.state_dict().items()
+    }
     calls = []
     original_cast = model_management.cast_to_device
 
@@ -55,13 +56,23 @@ def test_gated_delta_net_casts_unmanaged_parameters_for_forward(monkeypatch):
         return original_cast(tensor, device, dtype, copy=copy)
 
     monkeypatch.setattr(model_management, "cast_to_device", capture_cast)
-    x = torch.linspace(-0.25, 0.25, steps=24, dtype=torch.float32).reshape(1, 3, 8)
+    execution_device = (
+        torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    )
+    x = torch.linspace(
+        -0.25,
+        0.25,
+        steps=24,
+        dtype=torch.float32,
+        device=execution_device,
+    ).reshape(1, 3, 8)
 
     output, present_state = module(x)
 
     assert present_state is None
     assert output.shape == x.shape
     assert output.dtype == x.dtype
+    assert output.device == x.device
     assert torch.isfinite(output).all()
     assert calls == [
         (a_log_id, x.device, torch.float32, False),
@@ -71,4 +82,7 @@ def test_gated_delta_net_casts_unmanaged_parameters_for_forward(monkeypatch):
     assert id(module.dt_bias) == dt_bias_id
     assert module.A_log.device.type == "cpu"
     assert module.dt_bias.device.type == "cpu"
-    assert tuple(module.state_dict()) == state_keys
+    state_after = module.state_dict()
+    assert tuple(state_after) == tuple(state_before)
+    for name, value in state_before.items():
+        assert torch.equal(state_after[name], value)
