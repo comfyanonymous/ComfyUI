@@ -169,6 +169,15 @@ def fill_omitted_optional_inputs(input_data_all, valid_inputs, class_def):
     without the argument. Only fill in inputs the function itself has no
     default for, so nodes that use a sentinel default still see them missing.
     """
+    omitted = {}
+    for name, input_info in valid_inputs.get("optional", {}).items():
+        if name in input_data_all or not isinstance(input_info, (list, tuple)) or len(input_info) < 2:
+            continue
+        if isinstance(input_info[1], dict) and "default" in input_info[1]:
+            omitted[name] = input_info[1]["default"]
+    if not omitted:
+        return
+
     function = entry_function(class_def)
     if function is None:
         return
@@ -176,14 +185,10 @@ def fill_omitted_optional_inputs(input_data_all, valid_inputs, class_def):
         parameters = inspect.signature(function).parameters
     except (TypeError, ValueError):
         return
-    for name, input_info in valid_inputs.get("optional", {}).items():
-        if name in input_data_all or not isinstance(input_info, (list, tuple)) or len(input_info) < 2:
-            continue
-        if not isinstance(input_info[1], dict) or "default" not in input_info[1]:
-            continue
+    for name, default in omitted.items():
         parameter = parameters.get(name)
         if parameter is not None and parameter.default is inspect.Parameter.empty:
-            input_data_all[name] = [input_info[1]["default"]]
+            input_data_all[name] = [default]
 
 def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=None, extra_data={}):
     is_v3 = issubclass(class_def, _ComfyNodeInternal)
