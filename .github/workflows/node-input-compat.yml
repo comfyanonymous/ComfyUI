@@ -32,7 +32,10 @@ jobs:
     - name: Snapshot the base branch
       run: |
         cp .github/scripts/node_input_compat.py ${{ runner.temp }}/
+        # A pinned dependency the PR bumps can leave the base checkout unimportable
+        git diff --quiet ${{ github.event.pull_request.base.sha }} HEAD -- requirements.txt && same_reqs=1 || same_reqs=0
         git checkout ${{ github.event.pull_request.base.sha }}
+        if [ "$same_reqs" = "0" ]; then pip install -r requirements.txt; fi
         python ${{ runner.temp }}/node_input_compat.py snapshot --output ${{ runner.temp }}/base.json
     - name: Compare against the base branch
       run: python ${{ runner.temp }}/node_input_compat.py diff ${{ runner.temp }}/base.json ${{ runner.temp }}/head.json
