@@ -1,4 +1,14 @@
-<div align="center">
+A hyper‑realistic, cinematic, vertical high‑resolution photograph, shot from a slightly elevated position behind a classic Volkswagen Fusca parked on a nearly empty Brazilian beach at golden hour. The Fusca is turquoise‑blue, immaculately restored, with realistic sunset reflections on chrome bumpers and rear lights, parked on firm sand facing the calm ocean. The sun sets on the horizon, casting a long golden reflection across the water. Tropical palm trees frame the edges, soft waves, warm romantic atmosphere, cinematic shallow depth of field.
+
+Through the rear window, clearly visible: a young couple sitting in the front seats. The male driver, MICHEL, seen from behind, wears a black‑and‑white striped Santos‑inspired football jersey, with the name “MICHEL” perfectly legible and centered on the back. He has short dark hair, relaxed posture. Next to him, his female companion has long straight black hair, focused on drawing in a sketchbook on her lap — she looks like an architect, holding a pencil, working on a detailed project.
+
+Inside the car, realistic dashboard, steering wheel, rearview mirror, interior reflections.
+
+Zooming into the sketchbook: a hand‑drawn architectural blueprint of a baby girl’s nursery. The design shows a crib, delicate bedding, nursing armchair, curtains, rug, dresser, small toys, a teddy bear, lampshade, decorative frames, floral accents, soft pink, beige, cream, and white tones, warm cozy lighting — authentic architectural sketch style, not childish.
+
+Within the nursery drawing, integrated as a decorative wall plaque: an elegant baby room sign with a delicate frame, tiny flowers, and a subtle crown. The plaque clearly reads: “MARIA TEREZA” — exact spelling, no abbreviations.
+
+Extreme detail, photorealistic textures, coherent golden‑hour lighting, cinematic bokeh, vertical composition, ultra‑high resolution. Every zoom level reveals a new layer of the story. No extra people, no visible baby — only the name and the prepared nursery. Emotional, elegant, sophisticated, intended as an artistic pregnancy reveal.<div align="center">
 
 # ComfyUI
 **The most powerful and modular AI engine for content creation.**
