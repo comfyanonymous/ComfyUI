@@ -85,7 +85,7 @@ class LokrDiff(WeightAdapterTrainBase):
         # Unsqueeze w1 to match w2 dims for proper kron product (like LyCORIS make_kron)
         for _ in range(w2.dim() - w1.dim()):
             w1 = w1.unsqueeze(-1)
-        diff = torch.kron(w1, w2)
+        diff = torch.kron(w1, w2.contiguous())
         return w + diff.reshape(w.shape).to(w)
 
     def h(self, x: torch.Tensor, base_out: torch.Tensor) -> torch.Tensor:
@@ -346,7 +346,8 @@ class LoKrAdapter(WeightAdapterBase):
             alpha = 1.0
 
         try:
-            lora_diff = torch.kron(w1, w2).reshape(weight.shape)
+            # Tucker convolutions produce a non-contiguous right operand.
+            lora_diff = torch.kron(w1, w2.contiguous()).reshape(weight.shape)
             if dora_scale is not None:
                 weight = weight_decompose(
                     dora_scale,
