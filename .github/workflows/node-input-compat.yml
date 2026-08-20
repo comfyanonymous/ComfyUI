@@ -8,6 +8,8 @@ jobs:
   node-input-compat:
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'breaking-node-change') }}
     runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: .
     steps:
     - uses: actions/checkout@v4
       with:
