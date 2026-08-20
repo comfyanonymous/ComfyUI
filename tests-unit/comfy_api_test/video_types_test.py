@@ -1275,6 +1275,146 @@ def test_save_to_transcode_bakes_rotation():
         os.unlink(file_path)
 
 
+def hevc_encoder_available():
+    try:
+        av.Codec("libx265", "w")
+        return True
+    except av.codec.codec.UnknownCodecError:
+        return False
+
+
+def create_hevc_mp4(codec_tag=None, inband_parameter_sets=False):
+    """In-memory HEVC mp4; FFmpeg's mp4 muxer tags it 'hev1' unless codec_tag is given."""
+    buffer = io.BytesIO()
+    options = {"x265-params": "repeat-headers=1"} if inband_parameter_sets else {}
+    with av.open(buffer, mode="w", format="mp4") as container:
+        stream = container.add_stream("libx265", rate=30, options=options)
+        stream.width = 64
+        stream.height = 64
+        stream.pix_fmt = "yuv420p"
+        if codec_tag is not None:
+            stream.codec_context.codec_tag = codec_tag
+        for i in range(3):
+            frame = av.VideoFrame.from_ndarray(
+                torch.ones(64, 64, 3, dtype=torch.uint8).numpy() * (i * 85),
+                format="rgb24",
+            ).reformat(format="yuv420p")
+            for packet in stream.encode(frame):
+                container.mux(packet)
+        for packet in stream.encode():
+            container.mux(packet)
+    buffer.seek(0)
+    return buffer
+
+
+def filter_hvcc_arrays(source: io.BytesIO, keep_nal_types: tuple = (), extra_copies: dict | None = None) -> io.BytesIO:
+    """hev1 whose hvcC keeps only the given NAL array types (32=VPS, 33=SPS, 34=PPS, 39=SEI),
+    as written by packagers that keep some or all parameter sets in-band only. extra_copies
+    maps a NAL type to a number of additional copies of its array, to build streams with
+    duplicated parameter sets."""
+    output = io.BytesIO()
+    with av.open(source) as container, av.open(output, mode="w", format="mp4") as output_container:
+        stream = container.streams.video[0]
+        extradata = stream.codec_context.extradata
+        rebuilt, pos = bytearray(extradata[:22] + b"\x00"), 23
+        for _ in range(extradata[22]):
+            array_start = pos
+            num_nalus = int.from_bytes(extradata[pos + 1:pos + 3], "big")
+            pos += 3
+            for _ in range(num_nalus):
+                pos += 2 + int.from_bytes(extradata[pos:pos + 2], "big")
+            nal_type = extradata[array_start] & 0x3F
+            copies = (nal_type in keep_nal_types) + (extra_copies or {}).get(nal_type, 0)
+            for _ in range(copies):
+                rebuilt += extradata[array_start:pos]
+                rebuilt[22] += 1
+        out_stream = output_container.add_stream_from_template(template=stream, opaque=True)
+        out_stream.codec_context.extradata = bytes(rebuilt)
+        for packet in container.demux(stream):
+            if packet.dts is not None:
+                packet.stream = out_stream
+                output_container.mux(packet)
+    output.seek(0)
+    return output
+
+
+def remux_and_probe(source: io.BytesIO, **save_kwargs) -> dict:
+    output = io.BytesIO()
+    source.seek(0)
+    VideoFromFile(source).save_to(output, **save_kwargs)
+    output.seek(0)
+    with av.open(output) as container:
+        stream = container.streams.video[0]
+        return {
+            "tag": stream.codec_context.codec_tag,
+            "frames": sum(1 for packet in container.demux(stream) for _ in packet.decode()),
+        }
+
+
+REMUX_CONTAINERS = [
+    pytest.param({}, id="mov"),
+    pytest.param({"format": VideoContainer.MP4}, id="mp4"),
+]
+
+
+@pytest.mark.skipif(not hevc_encoder_available(), reason="libx265 encoder not available")
+@pytest.mark.parametrize("save_kwargs", REMUX_CONTAINERS)
+def test_save_to_remux_retags_hevc_as_hvc1(save_kwargs):
+    """Remuxed HEVC gets the 'hvc1' sample entry instead of FFmpeg's default 'hev1',
+    which Apple players refuse to play."""
+    source = create_hevc_mp4()
+    with av.open(source) as container:
+        assert container.streams.video[0].codec_context.codec_tag == "hev1"
+    assert remux_and_probe(source, **save_kwargs) == {"tag": "hvc1", "frames": 3}
+
+
+@pytest.mark.skipif(not hevc_encoder_available(), reason="libx265 encoder not available")
+def test_save_to_remux_leaves_dolby_vision_untagged():
+    """Dolby Vision streams keep the muxer default tag: forcing 'dvh1' without its DV
+    config boxes makes the mov muxer reject the stream, and 'hvc1' would mislabel it."""
+    assert remux_and_probe(create_hevc_mp4(codec_tag="dvh1")) == {"tag": "hev1", "frames": 3}
+
+
+@pytest.mark.skipif(not hevc_encoder_available(), reason="libx265 encoder not available")
+@pytest.mark.parametrize("save_kwargs", REMUX_CONTAINERS)
+def test_save_to_remux_keeps_hev1_without_out_of_band_parameter_sets(save_kwargs):
+    """Retagging a stream whose hvcC carries no VPS/SPS/PPS makes the muxer write an empty hvcC
+    and an unreadable file, so in-band-only streams stay hev1."""
+    source = filter_hvcc_arrays(create_hevc_mp4(inband_parameter_sets=True))
+    assert remux_and_probe(source, **save_kwargs) == {"tag": "hev1", "frames": 3}
+
+
+@pytest.mark.skipif(not hevc_encoder_available(), reason="libx265 encoder not available")
+@pytest.mark.parametrize(
+    "keep_nal_types",
+    [
+        pytest.param((33, 34), id="missing-vps"),
+        pytest.param((39,), id="sei-only"),
+    ],
+)
+def test_save_to_remux_keeps_hev1_with_incomplete_parameter_sets(keep_nal_types):
+    """An hvcC with arrays but missing any of VPS/SPS/PPS (e.g. only SEI stored out-of-band)
+    also makes strict 'hvc1' muxing silently write an unreadable file, so it stays hev1."""
+    source = filter_hvcc_arrays(create_hevc_mp4(inband_parameter_sets=True), keep_nal_types)
+    assert remux_and_probe(source) == {"tag": "hev1", "frames": 3}
+
+
+@pytest.mark.skipif(not hevc_encoder_available(), reason="libx265 encoder not available")
+@pytest.mark.parametrize(
+    "extra_copies",
+    [
+        pytest.param({32: 16}, id="17-vps"),
+        pytest.param({33: 16}, id="17-sps"),
+        pytest.param({34: 64}, id="65-pps"),
+    ],
+)
+def test_save_to_remux_keeps_hev1_with_over_limit_parameter_sets(extra_copies):
+    """Strict 'hvc1' muxing also fails silently when an hvcC carries more than 16 VPS,
+    16 SPS or 64 PPS entries, so streams with duplicated parameter sets stay hev1."""
+    source = filter_hvcc_arrays(create_hevc_mp4(), (32, 33, 34), extra_copies)
+    assert remux_and_probe(source) == {"tag": "hev1", "frames": 3}
+
+
 def test_save_to_transcode_skips_undecodable_audio():
     """Streaming transcode keeps the decodable audio track and drops undecodable ones;
     with no decodable audio at all the output is video-only instead of crashing."""

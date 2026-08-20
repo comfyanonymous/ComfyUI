@@ -96,6 +96,46 @@ def video_stream_bit_depth(stream) -> int:
     return max(component.bits for component in stream.format.components)
 
 
+def hvcc_carries_parameter_sets(extradata: bytes | None) -> bool:
+    """True when extradata is an hvcC record whose VPS, SPS and PPS arrays satisfy the mp4
+    muxer's strict 'hvc1' mode: present and within its 16/16/64 count limits. Anything else
+    (SEI-only, in-band parameter sets, duplicated arrays) must keep 'hev1', because the
+    muxer silently writes a broken sample entry instead of failing."""
+    if not extradata or len(extradata) < 23 or extradata[0] != 1:
+        return False
+    counts = {32: 0, 33: 0, 34: 0}  # VPS, SPS, PPS
+    pos = 23
+    for _ in range(extradata[22]):
+        if pos + 3 > len(extradata):
+            return False
+        nal_type = extradata[pos] & 0x3F
+        num_nalus = int.from_bytes(extradata[pos + 1:pos + 3], "big")
+        pos += 3
+        for _ in range(num_nalus):
+            if pos + 2 > len(extradata):
+                return False
+            pos += 2 + int.from_bytes(extradata[pos:pos + 2], "big")
+        if pos > len(extradata):
+            return False
+        if nal_type in counts:
+            counts[nal_type] += num_nalus
+    return 1 <= counts[32] <= 16 and 1 <= counts[33] <= 16 and 1 <= counts[34] <= 64
+
+
+def apply_isobmff_hevc_tag(output_container, out_stream, template) -> None:
+    """Retag HEVC from FFmpeg's default 'hev1' to 'hvc1' so Apple players accept it. Skips
+    Dolby Vision tags (they need DV config boxes to be muxed) and streams whose hvcC lacks
+    complete parameter set arrays, since forcing hvc1 there makes the muxer write an
+    unreadable file."""
+    if output_container.format.name not in ("mp4", "mov"):
+        return
+    codec_context = template.codec_context
+    if codec_context.name != "hevc" or codec_context.codec_tag in ("dvh1", "dvhe"):
+        return
+    if hvcc_carries_parameter_sets(codec_context.extradata):
+        out_stream.codec_context.codec_tag = "hvc1"
+
+
 def last_decodable_audio_stream(container: InputContainer):
     """Streams FFmpeg has no decoder for have no codec context, and decoding their
     packets crashes the process (e.g. APAC spatial-audio track in iPhone)."""
@@ -607,6 +647,7 @@ class VideoFromFile(VideoInput):
                             logging.warning("Skipping %s stream %d with unsupported codec", stream.type, stream.index)
                             continue
                         out_stream = output_container.add_stream_from_template(template=stream, opaque=True)
+                        apply_isobmff_hevc_tag(output_container, out_stream, stream)
                         stream_map[stream] = out_stream
 
                 # Write packets to the new container
