@@ -486,7 +486,10 @@ class ImageCompositor(io.ComfyNode):
             node_id="ImageCompositor",
             display_name="Create Layered Image",
             category="image",
+            search_aliases=["compositor", "composite", "layer", "layers", "layer editor", "psd"],
             is_experimental=True,
+            # both flags on purpose: terminal compositor graphs must execute (the
+            # editor needs a run to open), and cache hits must replay the layer UI
             is_output_node=True,
             has_intermediate_output=True,
             inputs=[
@@ -605,7 +608,7 @@ class AddLayer(io.ComfyNode):
                     options=list(_LAYER_MODES),
                     default="normal",
                     optional=True,
-                    tooltip="Initial blend mode.",
+                    tooltip="Initial blend mode, applied against the layers below. On the bottom layer over the default transparent background, non-normal modes produce transparency.",
                 ),
                 io.Float.Input(
                     "rotation",
