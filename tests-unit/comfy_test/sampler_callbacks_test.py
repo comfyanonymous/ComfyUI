@@ -49,6 +49,14 @@ def _failing_sampler_function(model, noise, sigmas, extra_args=None, callback=No
     raise RuntimeError("sampling failed")
 
 
+class _SamplerAbort(BaseException):
+    pass
+
+
+def _aborting_sampler_function(model, noise, sigmas, extra_args=None, callback=None, disable=False, **kwargs):
+    raise _SamplerAbort("sampling aborted")
+
+
 @pytest.fixture
 def extra_args():
     return {"model_options": {}}
@@ -75,16 +83,36 @@ def test_sampling_unchanged_without_lifecycle_callbacks(extra_args):
 
 def test_start_step_end_callbacks_are_delivered(extra_args):
     started, stepped, ended = [], [], []
-    _register(extra_args, patcher_extension.CallbacksMP.ON_SAMPLER_START, started.append)
-    _register(extra_args, patcher_extension.CallbacksMP.ON_SAMPLER_STEP, stepped.append)
-    _register(extra_args, patcher_extension.CallbacksMP.ON_SAMPLER_END, ended.append)
+    events = []
+
+    def start_callback(info):
+        events.append("start")
+        started.append(info)
+
+    def step_callback(info):
+        events.append(f"step:{info['step']}")
+        stepped.append(info)
+
+    def end_callback(info):
+        events.append("end")
+        ended.append(info)
+
+    def legacy_callback(i, denoised, x, total_steps):
+        events.append(f"legacy:{i}")
+
+    _register(extra_args, patcher_extension.CallbacksMP.ON_SAMPLER_START, start_callback)
+    _register(extra_args, patcher_extension.CallbacksMP.ON_SAMPLER_STEP, step_callback)
+    _register(extra_args, patcher_extension.CallbacksMP.ON_SAMPLER_END, end_callback)
 
     KSAMPLER(_sampler_function).sample(
-        _ModelWrap(), SIGMAS, extra_args, None, NOISE, latent_image=LATENT,
+        _ModelWrap(), SIGMAS, extra_args, legacy_callback, NOISE, latent_image=LATENT,
     )
+
+    assert events == ["start", "legacy:0", "step:0", "legacy:1", "step:1", "end"]
 
     assert len(started) == 1
     assert started[0]["total_steps"] == 2
+    assert started[0]["sample_sigmas"] == tuple(float(sigma) for sigma in SIGMAS)
     assert started[0]["noise_shape"] == tuple(NOISE.shape)
     assert started[0]["latent_shape"] == tuple(LATENT.shape)
     assert started[0]["sampler_function"] == "_sampler_function"
@@ -94,18 +122,25 @@ def test_start_step_end_callbacks_are_delivered(extra_args):
     assert float(stepped[0]["sigma"]) == pytest.approx(float(SIGMAS[0]))
     assert float(stepped[0]["sigma_next"]) == pytest.approx(float(SIGMAS[1]))
     assert float(stepped[1]["sigma_next"]) == pytest.approx(float(SIGMAS[2]))
+    assert stepped[0]["sample_sigmas"] == tuple(float(sigma) for sigma in SIGMAS)
     assert stepped[0]["x_shape"] == tuple(NOISE.shape)
     assert stepped[0]["denoised_shape"] == tuple(NOISE.shape)
 
     assert len(ended) == 1
     assert ended[0]["total_steps"] == 2
+    assert ended[0]["sample_sigmas"] == tuple(float(sigma) for sigma in SIGMAS)
     assert ended[0]["samples_shape"] == tuple(NOISE.shape)
     assert ended[0]["sampler_function"] == "_sampler_function"
 
 
 def test_end_callback_runs_when_sampling_raises(extra_args):
     ended = []
-    _register(extra_args, patcher_extension.CallbacksMP.ON_SAMPLER_END, ended.append)
+
+    def end_callback(info):
+        ended.append(info)
+        raise RuntimeError("end callback failed")
+
+    _register(extra_args, patcher_extension.CallbacksMP.ON_SAMPLER_END, end_callback)
 
     with pytest.raises(RuntimeError, match="sampling failed"):
         KSAMPLER(_failing_sampler_function).sample(
@@ -116,3 +151,42 @@ def test_end_callback_runs_when_sampling_raises(extra_args):
     assert ended[0]["samples_shape"] is None
     assert ended[0]["total_steps"] == 2
     assert ended[0]["sampler_function"] == "_failing_sampler_function"
+
+
+def test_end_callback_runs_when_sampling_aborts(extra_args):
+    ended = []
+    _register(extra_args, patcher_extension.CallbacksMP.ON_SAMPLER_END, ended.append)
+
+    with pytest.raises(_SamplerAbort, match="sampling aborted"):
+        KSAMPLER(_aborting_sampler_function).sample(
+            _ModelWrap(), SIGMAS, extra_args, None, NOISE, latent_image=LATENT,
+        )
+
+    assert len(ended) == 1
+    assert ended[0]["samples_shape"] is None
+    assert ended[0]["total_steps"] == 2
+    assert ended[0]["sampler_function"] == "_aborting_sampler_function"
+
+
+def test_end_callback_runs_when_start_callback_raises(extra_args):
+    ended = []
+
+    def start_callback(info):
+        raise RuntimeError("start callback failed")
+
+    def end_callback(info):
+        ended.append(info)
+        raise RuntimeError("end callback failed")
+
+    _register(extra_args, patcher_extension.CallbacksMP.ON_SAMPLER_START, start_callback)
+    _register(extra_args, patcher_extension.CallbacksMP.ON_SAMPLER_END, end_callback)
+
+    with pytest.raises(RuntimeError, match="start callback failed"):
+        KSAMPLER(_sampler_function).sample(
+            _ModelWrap(), SIGMAS, extra_args, None, NOISE, latent_image=LATENT,
+        )
+
+    assert len(ended) == 1
+    assert ended[0]["samples_shape"] is None
+    assert ended[0]["total_steps"] == 2
+    assert ended[0]["sampler_function"] == "_sampler_function"
