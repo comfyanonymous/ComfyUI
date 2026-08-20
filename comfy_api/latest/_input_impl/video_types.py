@@ -71,8 +71,7 @@ def get_open_write_kwargs(
     is_write_to_buffer = isinstance(dest, io.BytesIO)
     open_kwargs = {"mode": "w"}
 
-    if is_write_to_buffer:
-        # Set output format explicitly, since it cannot be inferred from file extension
+    if is_write_to_buffer or to_format != VideoContainer.AUTO:
         if to_format == VideoContainer.AUTO:
             to_format = container_format.lower()
         elif isinstance(to_format, VideoContainer):
@@ -81,7 +80,7 @@ def get_open_write_kwargs(
             to_format = to_format.lower()
         open_kwargs["format"] = container_to_output_format(to_format)
 
-    output_format = open_kwargs["format"] if is_write_to_buffer else os.path.splitext(dest)[1].lower().lstrip(".")
+    output_format = open_kwargs["format"] if "format" in open_kwargs else os.path.splitext(dest)[1].lower().lstrip(".")
     if output_format in ("mov", "mp4"):
         # Preserve custom metadata tags (workflow, prompt, extra_pnginfo) in isobmff.
         movflags = "use_metadata_tags" if is_write_to_buffer else "use_metadata_tags+faststart"
@@ -592,28 +591,64 @@ class VideoFromFile(VideoInput):
                     bit_depth = source_bit_depth
                 return self._save_transcoded(container, path, format=format, codec=codec, metadata=metadata, bit_depth=bit_depth, crf=crf, color_space=color_space)
 
-            streams = container.streams
-
             open_kwargs = get_open_write_kwargs(path, container_format, format)
-            with av.open(path, **open_kwargs) as output_container:
-                # Add metadata before writing any streams
-                write_output_metadata(container, output_container, metadata)
+            if self._save_remuxed(container, path, open_kwargs, metadata):
+                return
 
-                # Add streams to the new container. Streams with no codec context cannot be used as an output template.
-                stream_map = {}
-                for stream in streams:
-                    if isinstance(stream, (av.VideoStream, av.AudioStream, SubtitleStream)):
-                        if stream.codec_context is None:
-                            logging.warning("Skipping %s stream %d with unsupported codec", stream.type, stream.index)
-                            continue
+            if video_stream is None:
+                raise ValueError(
+                    f"Cannot store the audio of '{self.__file}' in this container, and there is no video "
+                    "stream to re-encode it alongside."
+                )
+            if bit_depth is None:
+                bit_depth = source_bit_depth
+            if isinstance(path, io.BytesIO):
+                path.seek(0)
+                path.truncate()
+            return self._save_transcoded(container, path, format=format, codec=codec, metadata=metadata, bit_depth=bit_depth, crf=crf, color_space=color_space)
+
+    def _save_remuxed(
+        self,
+        container: InputContainer,
+        path: str | io.BytesIO,
+        open_kwargs: dict,
+        metadata: dict | None,
+    ) -> bool:
+        streams = container.streams
+        with av.open(path, **open_kwargs) as output_container:
+            write_output_metadata(container, output_container, metadata)
+
+            stream_map = {}
+            for stream in streams:
+                if isinstance(stream, (av.VideoStream, av.AudioStream, SubtitleStream)):
+                    if stream.codec_context is None:
+                        logging.warning("Skipping %s stream %d with unsupported codec", stream.type, stream.index)
+                        continue
+                    try:
                         out_stream = output_container.add_stream_from_template(template=stream, opaque=True)
-                        stream_map[stream] = out_stream
+                    except ValueError:
+                        codec_name = stream.codec_context.name
+                        format_name = output_container.format.name
+                        if isinstance(stream, SubtitleStream):
+                            logging.warning(
+                                "Dropping %s subtitle stream %d: the %s container cannot store it.",
+                                codec_name, stream.index, format_name,
+                            )
+                            continue
+                        logging.warning(
+                            "The %s container cannot store %s, so the whole file is being re-encoded. "
+                            "Any additional audio streams will be dropped; subtitles the output container "
+                            "can store are kept.",
+                            format_name, codec_name,
+                        )
+                        return False
+                    stream_map[stream] = out_stream
 
-                # Write packets to the new container
-                for packet in container.demux():
-                    if packet.stream in stream_map and packet.dts is not None:
-                        packet.stream = stream_map[packet.stream]
-                        output_container.mux(packet)
+            for packet in container.demux():
+                if packet.stream in stream_map and packet.dts is not None:
+                    packet.stream = stream_map[packet.stream]
+                    output_container.mux(packet)
+        return True
 
     def _save_transcoded(
         self,
@@ -644,6 +679,7 @@ class VideoFromFile(VideoInput):
         audio_stream = last_decodable_audio_stream(container)
         source_color_space = video_stream_color_space(video_stream)
         preserve_source_color = source_color_space is not None
+        normalize_color_range = video_stream.color_range == ColorRange.JPEG and source_color_space not in HDR_COLOR_TRANSFERS
         if color_space in HDR_COLOR_TRANSFERS or source_color_space in HDR_COLOR_TRANSFERS:
             bit_depth = max(bit_depth, 10)
         pix_fmt = "yuv420p10le" if bit_depth >= 10 else "yuv420p"
@@ -673,7 +709,11 @@ class VideoFromFile(VideoInput):
             if duration:
                 duration_cap = math.ceil(duration * sample_rate)
 
+        subtitle_streams = [s for s in container.streams.subtitles if s.codec_context is not None]
         streams = [video_stream] if audio_stream is None else [video_stream, audio_stream]
+        streams += subtitle_streams
+        subtitle_map = {}
+        pending_subtitles = []
         pts_step = max(1, int(round((1 / rate) / video_stream.time_base)))
         video_done = False
         audio_done = audio_stream is None
@@ -731,6 +771,28 @@ class VideoFromFile(VideoInput):
                 audio_done = True
             return cap
 
+        def mux_subtitle(packet):
+            out_stream = subtitle_map.get(packet.stream)
+            if out_stream is None or packet.dts is None or packet.pts is None or packet.time_base is None:
+                return
+            start = float(packet.pts * packet.time_base)
+            if start < start_time or (duration and start >= start_time + duration):
+                return
+            offset_ticks = video_pts_offset if video_pts_offset is not None else start_pts
+            shift = int(round(float(offset_ticks * video_stream.time_base) / packet.time_base))
+            packet.pts -= shift
+            packet.dts -= shift
+            if packet.pts < 0:
+                return
+            packet.stream = out_stream
+            output.mux(packet)
+
+        def flush_subtitles():
+            if output is None or not pending_subtitles or last_video_pts is None:
+                return
+            while pending_subtitles:
+                mux_subtitle(pending_subtitles.pop(0))
+
         try:
             for packet in container.demux(*streams):
                 if video_done and audio_done:
@@ -779,6 +841,8 @@ class VideoFromFile(VideoInput):
                             out_video.options = video_encoder_options(output_codec, crf)
                             if preserve_source_color:
                                 copy_color_properties(video_stream, out_video.codec_context)
+                                if normalize_color_range:
+                                    out_video.codec_context.color_range = ColorRange.MPEG
                             elif color_space is not None:
                                 set_video_color_properties(out_video.codec_context, color_space)
                             # source pts pass through (rebased to 0), so variable frame rate survives
@@ -786,6 +850,19 @@ class VideoFromFile(VideoInput):
                             if audio_stream is not None:
                                 audio_codec = "libopus" if output_format == VideoContainer.WEBM else "aac"
                                 out_audio = output.add_stream(audio_codec, rate=sample_rate, layout=layout)
+                            for subtitle_stream in subtitle_streams:
+                                try:
+                                    subtitle_map[subtitle_stream] = output.add_stream_from_template(
+                                        template=subtitle_stream, opaque=True
+                                    )
+                                except ValueError:
+                                    logging.warning(
+                                        "Dropping %s subtitle stream %d: the %s container cannot store it, "
+                                        "and subtitles cannot be re-encoded.",
+                                        subtitle_stream.codec_context.name,
+                                        subtitle_stream.index,
+                                        output.format.name,
+                                    )
                         if (frame.width, frame.height) != source_size:
                             # encoding would silently rescale the new geometry into the old one
                             raise ValueError(
@@ -810,13 +887,14 @@ class VideoFromFile(VideoInput):
                                 rotation_filter = (g_src, g_sink)
                             rotation_filter[0].push(frame)
                             frame = rotation_filter[1].pull()
-                        if frame.color_range == ColorRange.JPEG and not preserve_source_color:
-                            # compress full-range sources (yuvj/MJPEG) to limited range
+                        if frame.color_range == ColorRange.JPEG and normalize_color_range:
                             frame = frame.reformat(format=pix_fmt, src_color_range="JPEG", dst_color_range="MPEG")
                         else:
                             frame = frame.reformat(format=pix_fmt)
                         if preserve_source_color:
                             copy_color_properties(video_stream, frame)
+                            if normalize_color_range:
+                                frame.color_range = ColorRange.MPEG
                         elif color_space is not None:
                             set_video_color_properties(frame, color_space)
                         frame_output_end = None
@@ -851,6 +929,7 @@ class VideoFromFile(VideoInput):
                         for out_packet in out_video.encode(frame):
                             out_packet.duration = video_frame_durations.pop(out_packet.pts, 0)
                             output.mux(out_packet)
+                        flush_subtitles()
                         drain_audio()
 
                 elif packet.stream == audio_stream and not audio_done:
@@ -886,6 +965,12 @@ class VideoFromFile(VideoInput):
                                 audio_done = True
                                 break
 
+                elif packet.stream in subtitle_map:
+                    mux_subtitle(packet)
+                elif packet.stream in subtitle_streams and output is None:
+                    pending_subtitles.append(packet)
+
+            flush_subtitles()
             if output is None:
                 raise ValueError(f"No decodable video frames found in file '{self.__file}'")
             if out_audio is not None and not audio_done:

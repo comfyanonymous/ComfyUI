@@ -1,3 +1,4 @@
+import logging
 import pytest
 import torch
 import tempfile
@@ -352,6 +353,48 @@ def create_hdr_av1_video(path, transfer, color_range):
             frame.color_range = color_range
             container.mux(stream.encode(frame))
         container.mux(stream.encode(None))
+
+
+def create_full_range_srgb_video(path):
+    images = np.random.default_rng(29).integers(0, 256, (3, 64, 64, 3), dtype=np.uint8)
+    with av.open(path, mode="w") as container:
+        stream = container.add_stream("mjpeg", rate=30)
+        stream.width = 64
+        stream.height = 64
+        stream.pix_fmt = "yuvj420p"
+        stream.color_primaries = ColorPrimaries.BT709
+        stream.color_trc = ColorTrc.BT709
+        stream.colorspace = 1
+        stream.color_range = ColorRange.JPEG
+        for image in images:
+            frame = av.VideoFrame.from_ndarray(image, format="rgb24").reformat(format="yuvj420p")
+            frame.color_primaries = ColorPrimaries.BT709
+            frame.color_trc = ColorTrc.BT709
+            frame.colorspace = 1
+            frame.color_range = ColorRange.JPEG
+            container.mux(stream.encode(frame))
+        container.mux(stream.encode(None))
+
+
+def test_save_loaded_srgb_converts_full_range_to_limited(tmp_path):
+    source = str(tmp_path / "source.mov")
+    output = str(tmp_path / "output.mp4")
+    create_full_range_srgb_video(source)
+    with av.open(source) as container:
+        source_stream = container.streams.video[0]
+        source_color = (source_stream.color_primaries, source_stream.color_trc)
+
+    VideoFromFile(source).save_to(
+        output,
+        format=VideoContainer.MP4,
+        codec=VideoCodec.H264,
+        crf=0,
+    )
+
+    with av.open(output) as container:
+        stream = container.streams.video[0]
+        assert (stream.color_primaries, stream.color_trc) == source_color
+        assert stream.color_range == ColorRange.MPEG
 
 
 def test_save_to_av1_crf_controls_quality(tmp_path):
@@ -727,6 +770,128 @@ def test_save_to_mp4_writes_metadata_before_media(video_components, tmp_path):
         assert data.index(b"moov") < data.index(b"mdat")
 
 
+def require_encoder(name):
+    try:
+        av.codec.Codec(name, "w")
+    except av.codec.codec.UnknownCodecError:
+        pytest.skip(f"{name} encoder not available in this PyAV build")
+
+
+def decoded_counts(container):
+    video = sum(len(packet.decode()) for packet in container.demux(container.streams.video[0]))
+    audio = 0
+    if container.streams.audio:
+        container.seek(0)
+        audio = sum(
+            frame.samples
+            for packet in container.demux(container.streams.audio[0])
+            for frame in packet.decode()
+        )
+    return video, audio
+
+
+def create_matroska_source(
+    tmp_path, video_codec="libvpx", audio_codec=None, frames=6, fps=10, container_format="webm"
+):
+    require_encoder(video_codec)
+    if audio_codec is not None:
+        require_encoder(audio_codec)
+    path = str(tmp_path / f"source_{video_codec}.{container_format}")
+    with av.open(path, mode="w", format=container_format) as container:
+        video_stream = container.add_stream(video_codec, rate=fps)
+        video_stream.width = 32
+        video_stream.height = 32
+        video_stream.pix_fmt = "yuv420p"
+        audio_stream = None
+        if audio_codec is not None:
+            audio_stream = container.add_stream(audio_codec, rate=48000)
+            audio_stream.sample_rate = 48000
+
+        for i in range(frames):
+            frame = av.VideoFrame.from_ndarray(
+                torch.full((32, 32, 3), (i * 40) % 256, dtype=torch.uint8).numpy(),
+                format="rgb24",
+            )
+            container.mux(video_stream.encode(frame.reformat(format="yuv420p")))
+        if audio_stream is not None:
+            for offset in range(0, 48000 * frames // fps, 960):
+                audio_frame = av.AudioFrame.from_ndarray(
+                    torch.zeros(1, 960, dtype=torch.int16).numpy(), format="s16", layout="mono"
+                )
+                audio_frame.sample_rate = 48000
+                audio_frame.pts = offset
+                container.mux(audio_stream.encode(audio_frame))
+        for stream in [video_stream, audio_stream]:
+            if stream is not None:
+                container.mux(stream.encode(None))
+    return path
+
+
+def test_save_to_auto_transcodes_codec_the_container_cannot_store(tmp_path):
+    source = create_matroska_source(tmp_path)
+    destination = str(tmp_path / "saved.mp4")
+
+    VideoFromFile(source).save_to(destination)
+
+    with av.open(destination) as container:
+        assert "mp4" in container.format.name.split(",")
+        assert container.streams.video[0].codec.name == "h264"
+        assert decoded_counts(container)[0] == 6
+
+
+def test_save_to_auto_transcodes_when_only_audio_is_unsupported(tmp_path):
+    source = create_matroska_source(
+        tmp_path, video_codec="mpeg4", audio_codec="pcm_u8", container_format="matroska"
+    )
+    destination = str(tmp_path / "saved.mp4")
+
+    VideoFromFile(source).save_to(destination)
+
+    with av.open(destination) as container:
+        assert container.streams.video[0].codec.name == "h264"
+        assert container.streams.audio[0].codec.name == "aac"
+        video_frames, audio_samples = decoded_counts(container)
+        assert video_frames == 6
+        assert audio_samples > 0
+
+
+def test_save_to_auto_still_remuxes_a_compatible_codec(tmp_path):
+    source = create_matroska_source(tmp_path, video_codec="libvpx-vp9")
+    destination = str(tmp_path / "saved.mp4")
+
+    VideoFromFile(source).save_to(destination)
+
+    with av.open(destination) as container:
+        assert container.streams.video[0].codec.name == "vp9"
+        assert decoded_counts(container)[0] == 6
+
+
+def test_save_to_explicit_format_overrides_destination_suffix(simple_video_file, tmp_path):
+    destination = str(tmp_path / "saved.mkv")
+
+    VideoFromFile(simple_video_file).save_to(destination, format=VideoContainer.MP4)
+
+    with av.open(destination) as container:
+        assert "mp4" in container.format.name.split(",")
+        assert decoded_counts(container)[0] == 3
+
+
+def test_save_to_buffer_transcodes_codec_the_container_cannot_store(tmp_path):
+    source = create_matroska_source(
+        tmp_path, video_codec="mpeg4", audio_codec="pcm_u8", container_format="mov"
+    )
+    buffer = io.BytesIO()
+    buffer.write(b"\x00" * 4096)
+
+    VideoFromFile(source).save_to(buffer, format=VideoContainer.MP4)
+
+    buffer.seek(0)
+    with av.open(buffer) as container:
+        assert container.streams.video[0].codec.name == "h264"
+        assert container.streams.audio[0].codec.name == "aac"
+        assert decoded_counts(container)[0] == 6
+
+
 def create_transcode_source(
     width=64, height=64, frames=30, fps=30, audio_streams=1, undecodable_audio=0, rotation=False,
     container_format="mov", audio_codec="pcm_s16le",
@@ -1089,6 +1254,7 @@ def test_save_to_transcode_clamps_final_pts_to_declared_stream_duration():
         def __init__(self, video_stream):
             self.video = [video_stream]
             self.audio = []
+            self.subtitles = []
 
     class _PacketProxy:
         def __init__(self, packet, stream):
@@ -1231,6 +1397,137 @@ def test_save_to_transcode_bakes_rotation():
         assert result["frames"] == 30
     finally:
         os.unlink(file_path)
+
+
+def mov_text_payload(text: str) -> bytes:
+    encoded = text.encode("utf-8")
+    return len(encoded).to_bytes(2, "big") + encoded
+
+
+def add_test_subtitle_stream(container, codec):
+    if not hasattr(container, "add_mux_stream"):
+        pytest.skip("PyAV 17 or newer is required to synthesize subtitle packets")
+    return container.add_mux_stream(codec)
+
+
+def create_subtitled_source(subtitle_codec="mov_text", container_format="mp4", frames=90, fps=30):
+    buffer = io.BytesIO()
+    with av.open(buffer, mode="w", format=container_format) as container:
+        video_stream = container.add_stream("mpeg4", rate=fps)
+        video_stream.width = video_stream.height = 64
+        video_stream.pix_fmt = "yuv420p"
+        subtitle_stream = add_test_subtitle_stream(container, subtitle_codec)
+        subtitle_stream.time_base = Fraction(1, 1000)
+        for i in range(frames):
+            frame = av.VideoFrame.from_ndarray(
+                torch.full((64, 64, 3), (i * 7) % 256, dtype=torch.uint8).numpy(), format="rgb24"
+            ).reformat(format="yuv420p")
+            container.mux(video_stream.encode(frame))
+        container.mux(video_stream.encode(None))
+        for start_ms, text in ((0, "one"), (1000, "two"), (2000, "three")):
+            packet = av.Packet(mov_text_payload(text))
+            packet.stream = subtitle_stream
+            packet.pts = packet.dts = start_ms
+            packet.duration = 900
+            packet.time_base = Fraction(1, 1000)
+            container.mux(packet)
+    buffer.seek(0)
+    return buffer
+
+
+def subtitle_cues(buffer):
+    buffer.seek(0)
+    with av.open(buffer) as container:
+        if not container.streams.subtitles:
+            return None
+        return [
+            (float(packet.pts * packet.time_base), bytes(packet)[2:].decode("utf-8"))
+            for packet in container.demux(container.streams.subtitles[0])
+            if packet.dts is not None and packet.size > 2
+        ]
+
+
+def test_save_to_transcode_keeps_subtitles_the_container_can_store():
+    output = io.BytesIO()
+    VideoFromFile(create_subtitled_source()).save_to(
+        output, format=VideoContainer.MP4, codec=VideoCodec.H264
+    )
+
+    output.seek(0)
+    with av.open(output) as container:
+        assert container.streams.video[0].codec_context.name == "h264"
+        assert [s.codec_context.name for s in container.streams.subtitles] == ["mov_text"]
+    assert subtitle_cues(output) == [(0.0, "one"), (1.0, "two"), (2.0, "three")]
+
+
+def test_save_to_transcode_trims_subtitles_with_the_video():
+    output = io.BytesIO()
+    VideoFromFile(create_subtitled_source(), start_time=1, duration=1).save_to(
+        output, format=VideoContainer.MP4, codec=VideoCodec.H264
+    )
+
+    assert subtitle_cues(output) == [(0.0, "two")]
+
+
+def test_save_to_transcode_drops_unstorable_subtitles_with_a_warning(caplog):
+    output = io.BytesIO()
+    with caplog.at_level(logging.WARNING):
+        VideoFromFile(create_subtitled_source(subtitle_codec="subrip", container_format="matroska")).save_to(
+            output, format=VideoContainer.MP4, codec=VideoCodec.H264
+        )
+
+    assert subtitle_cues(output) is None
+    assert any(
+        "subtitle stream" in record.message and "cannot store it" in record.message
+        for record in caplog.records
+    )
+    output.seek(0)
+    with av.open(output) as container:
+        assert container.streams.video[0].codec_context.name == "h264"
+        assert len([f for p in container.demux(container.streams.video[0]) for f in p.decode()]) == 90
+
+
+def test_save_to_remux_fallback_keeps_subtitles():
+    buffer = io.BytesIO()
+    with av.open(buffer, mode="w", format="mov") as container:
+        video_stream = container.add_stream("mpeg4", rate=30)
+        video_stream.width = video_stream.height = 64
+        video_stream.pix_fmt = "yuv420p"
+        audio_stream = container.add_stream("pcm_u8", rate=44100)
+        audio_stream.sample_rate = 44100
+        subtitle_stream = add_test_subtitle_stream(container, "mov_text")
+        subtitle_stream.time_base = Fraction(1, 1000)
+        for i in range(30):
+            frame = av.VideoFrame.from_ndarray(
+                torch.full((64, 64, 3), (i * 7) % 256, dtype=torch.uint8).numpy(), format="rgb24"
+            ).reformat(format="yuv420p")
+            container.mux(video_stream.encode(frame))
+        for offset in range(0, 44100, 1024):
+            audio_frame = av.AudioFrame.from_ndarray(
+                torch.zeros(1, min(1024, 44100 - offset), dtype=torch.int16).numpy(),
+                format="s16", layout="mono",
+            )
+            audio_frame.sample_rate = 44100
+            audio_frame.pts = offset
+            container.mux(audio_stream.encode(audio_frame))
+        for stream in (video_stream, audio_stream):
+            container.mux(stream.encode(None))
+        packet = av.Packet(mov_text_payload("one"))
+        packet.stream = subtitle_stream
+        packet.pts = packet.dts = 0
+        packet.duration = 900
+        packet.time_base = Fraction(1, 1000)
+        container.mux(packet)
+
+    buffer.seek(0)
+    output = io.BytesIO()
+    VideoFromFile(buffer).save_to(output, format=VideoContainer.MP4)
+
+    output.seek(0)
+    with av.open(output) as container:
+        assert container.streams.video[0].codec_context.name == "h264"
+        assert container.streams.audio[0].codec_context.name == "aac"
+    assert subtitle_cues(output) == [(0.0, "one")]
 
 
 def test_save_to_transcode_skips_undecodable_audio():
