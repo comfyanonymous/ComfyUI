@@ -131,7 +131,7 @@ def _save_video_codec_input(supported_codecs: list[str], *, optional=False, hidd
         "codec",
         options=codec_options,
         optional=optional,
-        tooltip="The codec to use for the video.",
+        tooltip="The output video codec. Auto preserves a compatible source stream; H.264 and AV1 can be re-encoded with custom settings.",
         extra_dict={"hidden": True} if hidden else None,
     )
 
@@ -157,13 +157,13 @@ class SaveVideo(io.ComfyNode):
                         io.DynamicCombo.Option("mkv", [_save_video_codec_input(["auto", "h264", "av1"])]),
                         io.DynamicCombo.Option("webm", [_save_video_codec_input(["auto", "av1"])]),
                     ],
-                    tooltip="The format to save the video as.",
+                    tooltip="The output container. Auto preserves the source container when possible; MP4, MKV, and WebM select a specific container.",
                 ),
                 _save_video_codec_input(["auto", "h264", "av1"], optional=True, hidden=True),
             ],
             hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
             is_output_node=True,
-            outputs=[io.Video.Output("video")],
+            outputs=[io.Video.Output("video", tooltip="The input video, unchanged.")],
         )
 
     @classmethod
