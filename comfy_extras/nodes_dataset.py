@@ -785,7 +785,7 @@ class TextProcessingNode(io.ComfyNode):
         description: Node description (optional)
         extra_inputs: List of additional io.Input objects beyond "texts" (optional)
         is_group_process: None (auto-detect), True (group), or False (individual) (optional)
-        is_output_list: True (list output) or False (single output) (optional, default True)
+        is_output_list: True (list output) or False (single output) (optional; defaults to the processing mode)
         is_deprecated: True if the node is deprecated (optional, default False)
 
     Child classes must implement ONE of:
@@ -801,6 +801,7 @@ class TextProcessingNode(io.ComfyNode):
     is_group_process = None  # None = auto-detect, True/False = explicit
     is_output_list = None  # None = auto-detect based on processing mode
     is_deprecated = False
+
     @classmethod
     def _detect_processing_mode(cls):
         """Detect whether this node uses group or individual processing.
@@ -851,6 +852,7 @@ class TextProcessingNode(io.ComfyNode):
             raise NotImplementedError(f"{cls.__name__} must set node_id class variable")
 
         is_group = cls._detect_processing_mode()
+        is_output_list = is_group if cls.is_output_list is None else cls.is_output_list
 
         inputs = [
             io.String.Input(
@@ -873,7 +875,7 @@ class TextProcessingNode(io.ComfyNode):
             outputs=[
                 io.String.Output(
                     display_name="texts",
-                    is_output_list=cls.is_output_list,
+                    is_output_list=is_output_list,
                     tooltip="Processed texts",
                 )
             ],
@@ -883,6 +885,7 @@ class TextProcessingNode(io.ComfyNode):
     def execute(cls, texts, **kwargs):
         """Execute the node. Routes to _process or _group_process based on mode."""
         is_group = cls._detect_processing_mode()
+        is_output_list = is_group if cls.is_output_list is None else cls.is_output_list
 
         # Extract scalar values from lists for parameters
         params = {}
@@ -899,13 +902,11 @@ class TextProcessingNode(io.ComfyNode):
             # Individual processing: texts is single item, call _process
             result = cls._process(texts, **params)
 
-        # Wrap result based on is_output_list
-        if cls.is_output_list:
-            # Result should already be a list (or will be for individual)
+        # NodeOutput receives each output value directly. List outputs contain
+        # multiple values; scalar outputs must not be nested in a list.
+        if is_output_list:
             return io.NodeOutput(result if is_group else [result])
-        else:
-            # Single output - wrap in list for NodeOutput
-            return io.NodeOutput([result])
+        return io.NodeOutput(result)
 
     @classmethod
     def _process(cls, text, **kwargs):

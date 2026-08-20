@@ -54,3 +54,19 @@ def test_class_attributes_are_forwarded_to_schema(node_cls):
 def test_node_classes_are_discovered():
     """Guard against the parametrization above collapsing to zero cases."""
     assert _node_classes()
+
+
+def test_single_text_processing_output_is_scalar():
+    output = nodes_dataset.AddTextPrefixNode.execute("caption", prefix="prefix ")
+
+    assert output.result == ("prefix caption",)
+
+
+def test_group_text_processing_output_is_list():
+    node_cls = nodes_dataset.MergeTextListsNode
+
+    schema = node_cls.define_schema()
+    output = node_cls.execute(["first", "second"])
+
+    assert schema.outputs[0].is_output_list is True
+    assert output.result == (["first", "second"],)
