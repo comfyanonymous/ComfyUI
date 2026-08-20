@@ -131,7 +131,7 @@ def _save_video_codec_input(supported_codecs: list[str], *, optional=False, hidd
         "codec",
         options=codec_options,
         optional=optional,
-        tooltip="The output video codec. Auto preserves a compatible source stream; H.264 and AV1 can be re-encoded with custom settings.",
+        tooltip="The output video codec. Auto preserves a compatible source stream. H.264 re-encoding supports SDR; AV1 re-encoding supports SDR, HDR (HLG), and HDR PQ.",
         extra_dict={"hidden": True} if hidden else None,
     )
 
