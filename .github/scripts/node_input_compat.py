@@ -26,6 +26,10 @@ import json
 import logging
 import sys
 
+from comfy.cli_args import args
+
+args.cpu = True  # reading schemas never touches a device, and CI torch has no CUDA
+
 import nodes
 from comfy_api.internal import _ComfyNodeInternal
 
