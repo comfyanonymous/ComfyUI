@@ -395,7 +395,7 @@ class MediaKitVideoEnhanceRequest(BaseModel):
     enhance_style: str | None = Field(None)
     resolution: str | None = Field(None)
     resolution_limit: int | None = Field(None)
-    fps: float = Field(...)
+    fps: float | None = Field(None)
     bitrate_level: str = Field(...)
 
 

@@ -3684,10 +3684,6 @@ _VCUBE_RESOLUTION_PRESETS = ["1080p", "720p", "2k", "4k", "8k"]
 _VCUBE_FPS_PRESETS = ["source", "24", "25", "30", "48", "50", "60", "120"]
 
 
-def _vcube_clamp(value: float, low: float, high: float) -> float:
-    return max(low, min(high, value))
-
-
 class ByteDanceVideoEnhanceNode(IO.ComfyNode):
 
     @classmethod
@@ -3775,7 +3771,8 @@ class ByteDanceVideoEnhanceNode(IO.ComfyNode):
                     options=_VCUBE_FPS_PRESETS,
                     default="source",
                     tooltip="Output frame rate. A higher rate than the source enables AI frame interpolation; "
-                    "a lower one drops frames. Rates above 30 fps cost 2x, above 60 fps 4x.",
+                    "a lower one drops frames. 'source' keeps the source rate, up to 120 fps. "
+                    "Rates above 30 fps cost 2x, above 60 fps 4x.",
                 ),
                 IO.Combo.Input(
                     "bitrate_level",
@@ -3839,17 +3836,17 @@ class ByteDanceVideoEnhanceNode(IO.ComfyNode):
                 f"(2K), got {width}x{height}. Scale the video down before enhancing it."
             )
         if fps == "source":
-            output_fps = round(_vcube_clamp(float(video.get_frame_rate()), _VCUBE_MIN_FPS, _VCUBE_MAX_FPS), 3)
+            source_fps = float(video.get_frame_rate())
+            output_fps = round(min(source_fps, _VCUBE_MAX_FPS), 3) if source_fps >= _VCUBE_MIN_FPS else None
         else:
             output_fps = float(fps)
         target = resolution["resolution"]
         resolution_preset = target if target in _VCUBE_RESOLUTION_PRESETS else None
+        short_side = None
         if target == "custom":
             short_side = resolution["short_side"]
-        elif target == "source":
-            short_side = int(_vcube_clamp(min(width, height), _VCUBE_MIN_SHORT_SIDE, _VCUBE_MAX_SHORT_SIDE))
-        else:
-            short_side = None
+        elif target == "source" and min(width, height) >= _VCUBE_MIN_SHORT_SIDE:
+            short_side = min(width, height)
         url = await upload_video_to_comfyapi(cls, video, wait_label="Uploading source video")
         request = MediaKitVideoEnhanceRequest(
             video_url=url,
