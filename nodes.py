@@ -1759,7 +1759,8 @@ class LoadImage:
 
         components = InputImpl.VideoFromFile(image_path).get_components()
         if components.images.shape[0] > 0:
-            return (components.images.to(device=device, dtype=dtype), (1.0 - components.alpha[..., -1]).to(device=device, dtype=dtype) if components.alpha is not None else torch.zeros((components.images.shape[0], 64, 64), dtype=dtype, device=device))
+            empty_mask = torch.zeros(components.images.shape[:-1], dtype=dtype, device=device)
+            return (components.images.to(device=device, dtype=dtype), (1.0 - components.alpha[..., -1]).to(device=device, dtype=dtype) if components.alpha is not None else empty_mask)
 
         # This code is left here to handle animated webp which pyav does not support loading
         img = node_helpers.pillow(Image.open, image_path)
@@ -1786,7 +1787,7 @@ class LoadImage:
                 mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
                 mask = 1. - torch.from_numpy(mask)
             else:
-                mask = torch.zeros((64, 64), dtype=torch.float32, device="cpu")
+                mask = torch.zeros(image.shape[1:3], dtype=torch.float32, device="cpu")
             output_images.append(image.to(dtype=dtype))
             output_masks.append(mask.unsqueeze(0).to(dtype=dtype))
 
