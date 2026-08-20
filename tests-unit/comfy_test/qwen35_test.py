@@ -1,19 +1,12 @@
+import importlib
+
 import torch
 
 from comfy.cli_args import args
 
-if not torch.cuda.is_available():
-    args.cpu = True
 
-import comfy.ops  # noqa: E402
-from comfy.text_encoders.qwen35 import (  # noqa: E402
-    GatedDeltaNet,
-    Qwen35Config,
-)
-
-
-def _tiny_config():
-    return Qwen35Config(
+def _tiny_config(qwen35):
+    return qwen35.Qwen35Config(
         vocab_size=32,
         hidden_size=8,
         intermediate_size=16,
@@ -32,31 +25,36 @@ def _tiny_config():
 
 
 def _module():
-    module = GatedDeltaNet(
-        _tiny_config(),
+    operations = importlib.import_module("comfy.ops")
+    qwen35 = importlib.import_module("comfy.text_encoders.qwen35")
+    model_management = importlib.import_module("comfy.model_management")
+    module = qwen35.GatedDeltaNet(
+        _tiny_config(qwen35),
         device=torch.device("cpu"),
         dtype=torch.float32,
-        ops=comfy.ops.manual_cast,
+        ops=operations.manual_cast,
     )
     for index, parameter in enumerate(module.parameters()):
         torch.nn.init.constant_(parameter, (index + 1) * 0.001)
-    return module.eval()
+    return module.eval(), model_management
 
 
 def test_gated_delta_net_casts_unmanaged_parameters_for_forward(monkeypatch):
-    module = _module()
+    if not torch.cuda.is_available():
+        monkeypatch.setattr(args, "cpu", True)
+    module, model_management = _module()
     a_log_id = id(module.A_log)
     dt_bias_id = id(module.dt_bias)
     state_keys = tuple(module.state_dict())
     calls = []
-    original_cast = comfy.model_management.cast_to_device
+    original_cast = model_management.cast_to_device
 
     def capture_cast(tensor, device, dtype, copy=False):
         if tensor is module.A_log or tensor is module.dt_bias:
             calls.append((id(tensor), torch.device(device), dtype, copy))
         return original_cast(tensor, device, dtype, copy=copy)
 
-    monkeypatch.setattr(comfy.model_management, "cast_to_device", capture_cast)
+    monkeypatch.setattr(model_management, "cast_to_device", capture_cast)
     x = torch.linspace(-0.25, 0.25, steps=24, dtype=torch.float32).reshape(1, 3, 8)
 
     output, present_state = module(x)
