@@ -171,6 +171,27 @@ def test_get_save_image_path_trailing_separator_resolves_like_the_plain_prefix(t
     assert plain[3] == trailing[3]
 
 
+def test_get_save_image_path_trailing_separator_continues_the_plain_prefix_counter(temp_dir):
+    """The load-bearing case: "out/" must continue the run "out" already started.
+
+    Comparing the two on an EMPTY directory is not enough — both return 1 there,
+    so that assertion holds even with the bug present. What the bug actually does
+    is reset the counter, so the switch has to happen with files on disk.
+    """
+    with patch("folder_paths.output_directory", temp_dir):
+        assert _save_three("out", temp_dir) == [
+            "out_00001_.png",
+            "out_00002_.png",
+            "out_00003_.png",
+        ]
+        # Same folder, same filename, written through the trailing-separator form.
+        assert _save_three("out/", temp_dir) == [
+            "out_00004_.png",
+            "out_00005_.png",
+            "out_00006_.png",
+        ]
+
+
 def test_base_path_changes(set_base_dir):
     test_dir = os.path.abspath("/test/dir")
     set_base_dir(test_dir)
