@@ -72,6 +72,16 @@ class SaveWEBM(io.ComfyNode):
 
         return io.NodeOutput(images, ui=ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)]))
 
+def _save_video_color_space_input():
+    return io.Combo.Input(
+        "color_space",
+        options=["auto", "sRGB", "HDR", "HDR PQ"],
+        default="auto",
+        display_name="color space",
+        tooltip="Auto uses sRGB for videos created from images and preserves recognized colors on loaded videos. sRGB writes SDR BT.709/sRGB. HDR writes 10-bit BT.2020/HLG; HDR PQ writes BT.2020/PQ. Other input pixels must already use the selected color space.",
+    )
+
+
 def _save_video_codec_input(supported_codecs: list[str], *, optional=False, hidden=False):
     codec_options = []
     if "auto" in supported_codecs:
@@ -88,11 +98,14 @@ def _save_video_codec_input(supported_codecs: list[str], *, optional=False, hidd
                             io.DynamicCombo.Option("auto", []),
                             io.DynamicCombo.Option(
                                 "re-encode",
-                                [io.Float.Input("crf", default=23.0, min=0.0, max=51.0, step=1.0, tooltip="Lower values produce higher quality and larger files.")],
+                                [
+                                    io.Float.Input("crf", default=23.0, min=0.0, max=51.0, step=1.0, tooltip="Lower values produce higher quality and larger files."),
+                                    _save_video_color_space_input(),
+                                ],
                             ),
                         ],
                         optional=True,
-                        tooltip="Automatic preserves compatible H.264 streams. Re-encode applies a custom CRF.",
+                        tooltip="Automatic preserves compatible H.264 streams. Re-encode applies custom encoding options.",
                     ),
                 ],
             )
@@ -111,13 +124,7 @@ def _save_video_codec_input(supported_codecs: list[str], *, optional=False, hidd
                                 "re-encode",
                                 [
                                     io.Float.Input("crf", default=30.0, min=0.0, max=63.0, step=1.0, tooltip="Lower values produce higher quality and larger files."),
-                                    io.Combo.Input(
-                                        "color_space",
-                                        options=["auto", "sRGB", "HDR", "HDR PQ"],
-                                        default="auto",
-                                        display_name="color space",
-                                        tooltip="Auto uses sRGB for videos created from images and preserves recognized colors on loaded videos. sRGB writes SDR BT.709/sRGB. HDR writes 10-bit BT.2020/HLG; HDR PQ writes BT.2020/PQ. Other input pixels must already use the selected color space.",
-                                    ),
+                                    _save_video_color_space_input(),
                                 ],
                             ),
                         ],
@@ -131,7 +138,7 @@ def _save_video_codec_input(supported_codecs: list[str], *, optional=False, hidd
         "codec",
         options=codec_options,
         optional=optional,
-        tooltip="The output video codec. Auto preserves a compatible source stream. H.264 re-encoding supports SDR; AV1 re-encoding supports SDR, HDR (HLG), and HDR PQ.",
+        tooltip="The output video codec. Auto preserves a compatible source stream. H.264 and AV1 re-encoding support SDR, HDR (HLG), and HDR PQ.",
         extra_dict={"hidden": True} if hidden else None,
     )
 
