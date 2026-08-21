@@ -27,6 +27,7 @@ from comfy_api_nodes.util import (
     ApiEndpoint,
     bytesio_to_image_tensor,
     download_url_as_bytesio,
+    pad_images_to_common_channels,
     resize_mask_to_image,
     sync_op,
     tensor_to_bytesio,
@@ -399,7 +400,7 @@ class RecraftTextToImageNode(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="RecraftTextToImageNode",
-            display_name="Recraft Text to Image",
+            display_name="Recraft V3 Text to Image",
             category="partner/image/Recraft",
             description="Generates images synchronously based on prompt and resolution.",
             inputs=[
@@ -511,7 +512,7 @@ class RecraftImageToImageNode(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="RecraftImageToImageNode",
-            display_name="Recraft Image to Image",
+            display_name="Recraft V3 Image to Image",
             category="partner/image/Recraft",
             description="Modify image based on prompt and strength.",
             inputs=[
@@ -621,7 +622,7 @@ class RecraftImageToImageNode(IO.ComfyNode):
                 images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
             pbar.update(1)
 
-        return IO.NodeOutput(torch.cat(images, dim=0))
+        return IO.NodeOutput(torch.cat(pad_images_to_common_channels(images), dim=0))
 
 
 class RecraftImageInpaintingNode(IO.ComfyNode):
@@ -723,7 +724,7 @@ class RecraftImageInpaintingNode(IO.ComfyNode):
                 images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
             pbar.update(1)
 
-        return IO.NodeOutput(torch.cat(images, dim=0))
+        return IO.NodeOutput(torch.cat(pad_images_to_common_channels(images), dim=0))
 
 
 class RecraftTextToVectorNode(IO.ComfyNode):
@@ -731,7 +732,7 @@ class RecraftTextToVectorNode(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="RecraftTextToVectorNode",
-            display_name="Recraft Text to Vector",
+            display_name="Recraft V3 Text to Vector",
             category="partner/image/Recraft",
             description="Generates SVG synchronously based on prompt and resolution.",
             inputs=[
@@ -954,7 +955,7 @@ class RecraftReplaceBackgroundNode(IO.ComfyNode):
             images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
             pbar.update(1)
 
-        return IO.NodeOutput(torch.cat(images, dim=0))
+        return IO.NodeOutput(torch.cat(pad_images_to_common_channels(images), dim=0))
 
 
 class RecraftRemoveBackgroundNode(IO.ComfyNode):
@@ -995,7 +996,7 @@ class RecraftRemoveBackgroundNode(IO.ComfyNode):
                 image=image[i],
                 path="/proxy/recraft/images/removeBackground",
             )
-            images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
+            images.append(torch.cat([bytesio_to_image_tensor(x, mode="RGBA") for x in sub_bytes], dim=0))
             pbar.update(1)
 
         images_tensor = torch.cat(images, dim=0)
@@ -1047,7 +1048,7 @@ class RecraftCrispUpscaleNode(IO.ComfyNode):
             images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
             pbar.update(1)
 
-        return IO.NodeOutput(torch.cat(images, dim=0))
+        return IO.NodeOutput(torch.cat(pad_images_to_common_channels(images), dim=0))
 
 
 class RecraftCreativeUpscaleNode(RecraftCrispUpscaleNode):
@@ -1087,7 +1088,7 @@ class RecraftV4TextToImageNode(IO.ComfyNode):
             node_id="RecraftV4TextToImageNode",
             display_name="Recraft V4 Text to Image",
             category="partner/image/Recraft",
-            description="Generates images using Recraft V4 or V4 Pro models.",
+            description="Generates images using Recraft V4 and V4.1 models.",
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -1097,11 +1098,56 @@ class RecraftV4TextToImageNode(IO.ComfyNode):
                 IO.String.Input(
                     "negative_prompt",
                     multiline=True,
-                    tooltip="An optional text description of undesired elements on an image.",
+                    tooltip="This input is ignored: negative prompt is not supported by "
+                    "Recraft V4 and V4.1 models.",
                 ),
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
+                        IO.DynamicCombo.Option(
+                            "recraftv4_1",
+                            [
+                                IO.Combo.Input(
+                                    "size",
+                                    options=RECRAFT_V4_SIZES,
+                                    default="1024x1024",
+                                    tooltip="The size of the generated image.",
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
+                            "recraftv4_1_utility",
+                            [
+                                IO.Combo.Input(
+                                    "size",
+                                    options=RECRAFT_V4_SIZES,
+                                    default="1024x1024",
+                                    tooltip="The size of the generated image.",
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
+                            "recraftv4_1_pro",
+                            [
+                                IO.Combo.Input(
+                                    "size",
+                                    options=RECRAFT_V4_PRO_SIZES,
+                                    default="2048x2048",
+                                    tooltip="The size of the generated image.",
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
+                            "recraftv4_1_utility_pro",
+                            [
+                                IO.Combo.Input(
+                                    "size",
+                                    options=RECRAFT_V4_PRO_SIZES,
+                                    default="2048x2048",
+                                    tooltip="The size of the generated image.",
+                                ),
+                            ],
+                        ),
                         IO.DynamicCombo.Option(
                             "recraftv4",
                             [
@@ -1162,7 +1208,14 @@ class RecraftV4TextToImageNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["model", "n"]),
                 expr="""
                 (
-                    $prices := {"recraftv4": 0.04, "recraftv4_pro": 0.25};
+                    $prices := {
+                        "recraftv4_1": 0.035,
+                        "recraftv4_1_utility": 0.035,
+                        "recraftv4_1_pro": 0.21,
+                        "recraftv4_1_utility_pro": 0.21,
+                        "recraftv4": 0.04,
+                        "recraftv4_pro": 0.25
+                    };
                     {"type":"usd","usd": $lookup($prices, widgets.model) * widgets.n}
                 )
                 """,
@@ -1179,14 +1232,13 @@ class RecraftV4TextToImageNode(IO.ComfyNode):
         seed: int,
         recraft_controls: RecraftControls | None = None,
     ) -> IO.NodeOutput:
-        validate_string(prompt, strip_whitespace=False, min_length=1, max_length=10000)
+        validate_string(prompt, strip_whitespace=True, min_length=1, max_length=10000)
         response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/recraft/image_generation", method="POST"),
             response_model=RecraftImageGenerationResponse,
             data=RecraftImageGenerationRequest(
                 prompt=prompt,
-                negative_prompt=negative_prompt if negative_prompt else None,
                 model=model["model"],
                 size=model["size"],
                 n=n,
@@ -1211,7 +1263,7 @@ class RecraftV4TextToVectorNode(IO.ComfyNode):
             node_id="RecraftV4TextToVectorNode",
             display_name="Recraft V4 Text to Vector",
             category="partner/image/Recraft",
-            description="Generates SVG using Recraft V4 or V4 Pro models.",
+            description="Generates SVG using Recraft V4 and V4.1 models.",
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -1221,11 +1273,56 @@ class RecraftV4TextToVectorNode(IO.ComfyNode):
                 IO.String.Input(
                     "negative_prompt",
                     multiline=True,
-                    tooltip="An optional text description of undesired elements on an image.",
+                    tooltip="This input is ignored: negative prompt is not supported by "
+                    "Recraft V4 and V4.1 models.",
                 ),
                 IO.DynamicCombo.Input(
                     "model",
                     options=[
+                        IO.DynamicCombo.Option(
+                            "recraftv4_1_vector",
+                            [
+                                IO.Combo.Input(
+                                    "size",
+                                    options=RECRAFT_V4_SIZES,
+                                    default="1024x1024",
+                                    tooltip="The size of the generated image.",
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
+                            "recraftv4_1_utility_vector",
+                            [
+                                IO.Combo.Input(
+                                    "size",
+                                    options=RECRAFT_V4_SIZES,
+                                    default="1024x1024",
+                                    tooltip="The size of the generated image.",
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
+                            "recraftv4_1_pro_vector",
+                            [
+                                IO.Combo.Input(
+                                    "size",
+                                    options=RECRAFT_V4_PRO_SIZES,
+                                    default="2048x2048",
+                                    tooltip="The size of the generated image.",
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
+                            "recraftv4_1_utility_pro_vector",
+                            [
+                                IO.Combo.Input(
+                                    "size",
+                                    options=RECRAFT_V4_PRO_SIZES,
+                                    default="2048x2048",
+                                    tooltip="The size of the generated image.",
+                                ),
+                            ],
+                        ),
                         IO.DynamicCombo.Option(
                             "recraftv4",
                             [
@@ -1286,7 +1383,14 @@ class RecraftV4TextToVectorNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["model", "n"]),
                 expr="""
                 (
-                    $prices := {"recraftv4": 0.08, "recraftv4_pro": 0.30};
+                    $prices := {
+                        "recraftv4_1_vector": 0.08,
+                        "recraftv4_1_utility_vector": 0.08,
+                        "recraftv4_1_pro_vector": 0.30,
+                        "recraftv4_1_utility_pro_vector": 0.30,
+                        "recraftv4": 0.08,
+                        "recraftv4_pro": 0.30
+                    };
                     {"type":"usd","usd": $lookup($prices, widgets.model) * widgets.n}
                 )
                 """,
@@ -1303,18 +1407,17 @@ class RecraftV4TextToVectorNode(IO.ComfyNode):
         seed: int,
         recraft_controls: RecraftControls | None = None,
     ) -> IO.NodeOutput:
-        validate_string(prompt, strip_whitespace=False, min_length=1, max_length=10000)
+        validate_string(prompt, strip_whitespace=True, min_length=1, max_length=10000)
         response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/recraft/image_generation", method="POST"),
             response_model=RecraftImageGenerationResponse,
             data=RecraftImageGenerationRequest(
                 prompt=prompt,
-                negative_prompt=negative_prompt if negative_prompt else None,
                 model=model["model"],
                 size=model["size"],
                 n=n,
-                style="vector_illustration",
+                style=None if model["model"].endswith("_vector") else "vector_illustration",
                 substyle=None,
                 controls=recraft_controls.create_api_model() if recraft_controls else None,
             ),
