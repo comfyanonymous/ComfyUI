@@ -6,7 +6,6 @@ from PIL import Image
 import math
 from enum import Enum
 from typing import TypedDict, Literal
-import kornia
 
 import comfy.utils
 import comfy.model_management
@@ -697,7 +696,9 @@ class ColorTransfer(io.ComfyNode):
 
     @staticmethod
     def _to_lab(images, i, device):
-        return kornia.color.rgb_to_lab(
+        from kornia.color import rgb_to_lab
+
+        return rgb_to_lab(
             images[i:i+1].to(device, dtype=torch.float32).permute(0, 3, 1, 2))
 
     @staticmethod
@@ -873,15 +874,17 @@ class ColorTransfer(io.ComfyNode):
                 out[i] = result.permute(1, 2, 0).clamp_(0, 1).to(device=intermediate_device, dtype=intermediate_dtype)
                 pbar.update(1)
         else:
+            from kornia.color import lab_to_rgb
+
             transform = cls._build_lab_transform(image_target, image_ref, device, stats_mode, target_index, is_reinhard=method == "reinhard_lab")
 
             for i in range(B):
                 src_frame = cls._to_lab(image_target, i, device)
                 corrected = transform(src_frame.view(C, -1), frame_idx=i)
                 if strength == 1.0:
-                    result = kornia.color.lab_to_rgb(corrected.view(1, C, H, W))
+                    result = lab_to_rgb(corrected.view(1, C, H, W))
                 else:
-                    result = kornia.color.lab_to_rgb(torch.lerp(src_frame, corrected.view(1, C, H, W), strength))
+                    result = lab_to_rgb(torch.lerp(src_frame, corrected.view(1, C, H, W), strength))
                 out[i] = result.squeeze(0).permute(1, 2, 0).clamp_(0, 1).to(device=intermediate_device, dtype=intermediate_dtype)
                 pbar.update(1)
 

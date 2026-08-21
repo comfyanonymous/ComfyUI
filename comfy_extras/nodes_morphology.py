@@ -3,9 +3,6 @@ import comfy.model_management
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
 
-from kornia.morphology import dilation, erosion, opening, closing, gradient, top_hat, bottom_hat
-import kornia.color
-
 
 class Morphology(io.ComfyNode):
     @classmethod
@@ -30,6 +27,8 @@ class Morphology(io.ComfyNode):
 
     @classmethod
     def execute(cls, image, operation, kernel_size) -> io.NodeOutput:
+        from kornia.morphology import dilation, erosion, opening, closing, gradient, top_hat, bottom_hat
+
         device = comfy.model_management.get_torch_device()
         kernel = torch.ones(kernel_size, kernel_size, device=device)
         image_k = image.to(device).movedim(-1, 1)
@@ -73,7 +72,9 @@ class ImageRGBToYUV(io.ComfyNode):
 
     @classmethod
     def execute(cls, image) -> io.NodeOutput:
-        out = kornia.color.rgb_to_ycbcr(image.movedim(-1, 1)).movedim(1, -1)
+        from kornia.color import rgb_to_ycbcr
+
+        out = rgb_to_ycbcr(image.movedim(-1, 1)).movedim(1, -1)
         return io.NodeOutput(out[..., 0:1].expand_as(image), out[..., 1:2].expand_as(image), out[..., 2:3].expand_as(image))
 
 class ImageYUVToRGB(io.ComfyNode):
@@ -96,8 +97,10 @@ class ImageYUVToRGB(io.ComfyNode):
 
     @classmethod
     def execute(cls, Y, U, V) -> io.NodeOutput:
+        from kornia.color import ycbcr_to_rgb
+
         image = torch.cat([torch.mean(Y, dim=-1, keepdim=True), torch.mean(U, dim=-1, keepdim=True), torch.mean(V, dim=-1, keepdim=True)], dim=-1)
-        out = kornia.color.ycbcr_to_rgb(image.movedim(-1, 1)).movedim(1, -1)
+        out = ycbcr_to_rgb(image.movedim(-1, 1)).movedim(1, -1)
         return io.NodeOutput(out)
 
 
