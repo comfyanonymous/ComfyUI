@@ -2,7 +2,6 @@ import copy
 import heapq
 import inspect
 import logging
-import psutil
 import sys
 import threading
 import time

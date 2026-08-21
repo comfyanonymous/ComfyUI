@@ -1,7 +1,6 @@
 import asyncio
 import bisect
 import itertools
-import psutil
 import time
 import torch
 from typing import Sequence, Mapping, Dict
