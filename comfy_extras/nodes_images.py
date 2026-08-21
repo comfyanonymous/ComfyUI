@@ -139,8 +139,8 @@ def _crop_image_with_mask(item_image, item_mask, max_image_size=1024, pad_factor
         y_min, x_min = fg_pixels.min(dim=0).values.tolist()
         y_max, x_max = fg_pixels.max(dim=0).values.tolist()
         center_y, center_x = (y_min + y_max) / 2.0, (x_min + x_max) / 2.0
-        bw = x_max - x_min
-        bh = y_max - y_min
+        bw = x_max - x_min + 1
+        bh = y_max - y_min + 1
         # Grow the bbox so its aspect matches `aspect_ratio` (width/height),
         # anchored on the max side. Then apply pad_factor.
         if bw / max(bh, 1) >= aspect_ratio:
@@ -149,7 +149,7 @@ def _crop_image_with_mask(item_image, item_mask, max_image_size=1024, pad_factor
         else:
             crop_h = int(bh * pad_factor)
             crop_w = int(bh * aspect_ratio * pad_factor)
-        half_w, half_h = crop_w // 2, crop_h // 2
+        half_w, half_h = math.ceil(crop_w / 2), math.ceil(crop_h / 2)
         crop_x1 = int(center_x - half_w)
         crop_y1 = int(center_y - half_h)
         crop_x2 = crop_x1 + 2 * half_w

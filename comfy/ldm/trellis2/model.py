@@ -1,6 +1,8 @@
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
+import comfy.model_management
+import comfy.ops
 from comfy.ldm.trellis2.vae import SparseTensor, SparseLinear, sparse_cat, VarLenTensor
 from typing import Optional, Tuple, Literal, Union, List
 from comfy.ldm.modules.attention import optimized_attention
@@ -17,24 +19,34 @@ def dense_attention(q, k, v, **kwargs):
     return out.permute(0, 2, 1, 3)
 
 
-def _to_rect(t):
-    # Single object (optionally CFG-duplicated) => packed layout is rectangular,
-    # so we can fold it into a batch dim and use dense attention.
+def _to_padded(t):
     if not isinstance(t, VarLenTensor):
-        return t
-    B = t.shape[0]
-    seqlens = [t.layout[i].stop - t.layout[i].start for i in range(B)]
-    if len(set(seqlens)) != 1:
-        raise ValueError(
-            "trellis2 sparse attention expects equal sequence lengths per batch "
-            f"(single object, optionally CFG-duplicated); got {seqlens}."
-        )
-    return t.feats.view(B, seqlens[0], *t.feats.shape[1:])
+        return t, None
+    seqlens = [item.stop - item.start for item in t.layout]
+    if len(set(seqlens)) == 1:
+        return t.feats.view(len(t.layout), seqlens[0], *t.feats.shape[1:]), None
+    max_seqlen = max(seqlens)
+    padded = t.feats.new_zeros((len(t.layout), max_seqlen, *t.feats.shape[1:]))
+    valid = torch.zeros((len(t.layout), max_seqlen), dtype=torch.bool, device=t.device)
+    for i, (item, seqlen) in enumerate(zip(t.layout, seqlens)):
+        padded[i, :seqlen] = t.feats[item]
+        valid[i, :seqlen] = True
+    return padded, valid
 
 
 def sparse_attention(q, k, v, **kwargs):
-    out = dense_attention(_to_rect(q), _to_rect(k), _to_rect(v), **kwargs)
+    q_padded, q_valid = _to_padded(q)
+    k_padded, k_valid = _to_padded(k)
+    v_padded, _ = _to_padded(v)
+    if k_valid is not None:
+        mask = torch.zeros((k_valid.shape[0], 1, 1, k_valid.shape[1]),
+                           dtype=q_padded.dtype, device=q_padded.device)
+        mask.masked_fill_(~k_valid[:, None, None, :], -torch.finfo(q_padded.dtype).max)
+        kwargs["mask"] = mask
+    out = dense_attention(q_padded, k_padded, v_padded, **kwargs)
     if isinstance(q, VarLenTensor):
+        if q_valid is not None:
+            return q.replace(out[q_valid])
         return q.replace(out.reshape(-1, *out.shape[2:]))
     return out
 
@@ -64,8 +76,8 @@ class MultiHeadRMSNorm(nn.Module):
 
     def forward(self, x: Union[VarLenTensor, torch.Tensor]) -> Union[VarLenTensor, torch.Tensor]:
         if isinstance(x, VarLenTensor):
-            return x.replace(F.rms_norm(x.feats, (x.feats.shape[-1],)) * self.gamma)
-        return F.rms_norm(x, (x.shape[-1],)) * self.gamma
+            return x.replace(F.rms_norm(x.feats, (x.feats.shape[-1],)) * comfy.ops.cast_to_input(self.gamma, x.feats))
+        return F.rms_norm(x, (x.shape[-1],)) * comfy.ops.cast_to_input(self.gamma, x)
 
 class SparseRotaryPositionEmbedder(nn.Module):
     def __init__(self, head_dim: int, dim: int = 3, rope_freq: Tuple[float, float] = (1.0, 10000.0), device=None):
@@ -75,7 +87,7 @@ class SparseRotaryPositionEmbedder(nn.Module):
         self.rope_freq = rope_freq
         self.freq_dim = head_dim // 2 // dim
         self.freqs = torch.arange(self.freq_dim, dtype=torch.float32, device=device) / self.freq_dim
-        self.freqs = rope_freq[0] / (rope_freq[1] ** (self.freqs))
+        self.freqs = rope_freq[0] / (rope_freq[1] ** self.freqs)
 
     def _get_freqs_cis(self, coords: torch.Tensor) -> torch.Tensor:
         phases_list = []
@@ -227,7 +239,7 @@ class ProjectAttentionSparse(nn.Module):
         global_out = self.cross_attn_block(x, global_ctx, transformer_options=transformer_options)
         if isinstance(proj_in, tuple):
             proj_in = torch.cat([proj_in[0], proj_in[1]], dim=-1)
-        proj_out = self.proj_linear(proj_in.to(self.proj_linear.weight.dtype))
+        proj_out = self.proj_linear(proj_in)
         return global_out.replace(global_out.feats + proj_out.to(global_out.feats.dtype))
 
 
@@ -244,7 +256,7 @@ class ProjectAttentionDense(nn.Module):
         global_out = self.cross_attn_block(x, global_ctx, transformer_options=transformer_options)
         if isinstance(proj_in, tuple):
             proj_in = torch.cat([proj_in[0], proj_in[1]], dim=-1)
-        proj_out = self.proj_linear(proj_in.to(self.proj_linear.weight.dtype))
+        proj_out = self.proj_linear(proj_in)
         return global_out + proj_out.to(global_out.dtype)
 
 
@@ -313,7 +325,8 @@ class ModulatedSparseTransformerCrossBlock(nn.Module):
 
     def _forward(self, x: SparseTensor, mod: torch.Tensor, context, transformer_options=None) -> SparseTensor:
         if self.share_mod:
-            shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (self.modulation + mod).type(mod.dtype).chunk(6, dim=1)
+            modulation = comfy.ops.cast_to_input(self.modulation, mod)
+            shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (modulation + mod).chunk(6, dim=1)
         else:
             shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaLN_modulation(mod).chunk(6, dim=1)
         # Fuse the (mul + add) and (mul + residual) pairs into addcmul
@@ -491,7 +504,7 @@ class MultiHeadAttention(nn.Module):
             assert phases is not None, "Phases must be provided for RoPE"
             # phases is [L, head_dim/2, 2, 2]; broadcast to [1, L, 1, ...]
             # to align with q/k of shape [B, L, H, head_dim].
-            f_cis = phases.unsqueeze(0).unsqueeze(2)
+            f_cis = comfy.model_management.cast_to(phases, device=q.device).unsqueeze(0).unsqueeze(2)
             q, k = apply_rope(q, k, f_cis)
             h = dense_attention(q, k, v, transformer_options=transformer_options)
         else:
@@ -569,7 +582,7 @@ class ModulatedTransformerCrossBlock(nn.Module):
     def _forward(self, x: torch.Tensor, mod: torch.Tensor, context,
                  phases: Optional[torch.Tensor] = None, transformer_options=None) -> torch.Tensor:
         if self.share_mod:
-            mod = (self.modulation + mod).type(mod.dtype)
+            mod = comfy.ops.cast_to_input(self.modulation, mod) + mod
         else:
             mod = self.adaLN_modulation(mod)
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = mod.unsqueeze(1).chunk(6, dim=-1)
@@ -880,8 +893,7 @@ def _shape_proj_cond(global_cond: torch.Tensor, image_attn_mode: str,
                      logical_batch: Optional[int] = None,
                      proj_in_channels: Optional[int] = None,
                      stage: Optional[str] = None,
-                     cond_or_uncond: Optional[list] = None,
-                     has_hr: bool = False):
+                     cond_or_uncond: Optional[list] = None):
     """Take pre-computed per-token proj features (from compute_stage_proj_feats),
     apply CFG-batch duplication + uncond-slot zeroing, and wrap into the
     ``{"global", "proj"}`` context dict consumed by ProjectAttention.
@@ -897,10 +909,9 @@ def _shape_proj_cond(global_cond: torch.Tensor, image_attn_mode: str,
                          f"the stage setup node (or Pixal3DConditioning for SS) should have computed it.")
     if proj_in_channels is not None and proj_feats.shape[-1] != proj_in_channels:
         hint = ""
-        if not has_hr and proj_feats.shape[-1] < proj_in_channels:
-            hint = (" — feature_map_hr is missing for this stage. Connect a NAFModel "
-                    "input to Pixal3DConditioning; the shape/texture stages of this "
-                    "checkpoint need a NAF-upsampled HR feature map.")
+        if proj_feats.shape[-1] < proj_in_channels:
+            hint = (" — the shape/texture stages need the NAF-upsampled feature map from "
+                    "a Pixal3D DINOv3 checkpoint containing naf. weights.")
         raise ValueError(
             f"proj_feats for stage {stage!r} has {proj_feats.shape[-1]} channels, "
             f"sub-model expects {proj_in_channels}.{hint}"
@@ -918,7 +929,11 @@ def _shape_proj_cond(global_cond: torch.Tensor, image_attn_mode: str,
     if cond_or_uncond is not None and eval_batch is not None:
         uncond_slots = [i for i, v in enumerate(cond_or_uncond) if v == 1]
         if uncond_slots:
-            uncond_idx = torch.tensor(uncond_slots, device=proj_feats.device, dtype=torch.long)
+            uncond_batches = [batch_idx
+                              for slot in uncond_slots
+                              for batch_idx in range(slot * logical_batch,
+                                                     min((slot + 1) * logical_batch, eval_batch))]
+            uncond_idx = torch.tensor(uncond_batches, device=proj_feats.device, dtype=torch.long)
             if batch_ids is None:
                 proj_feats = proj_feats.clone()
                 proj_feats[uncond_idx] = 0
@@ -985,7 +1000,6 @@ class Trellis2(nn.Module):
         coords = kwargs.get("trellis2_coords")
         coord_counts = kwargs.get("trellis2_coord_counts")
         mode = kwargs.get("trellis2_generation_mode", "structure_generation")
-        proj_feat_pack = kwargs.get("proj_feat_pack")
         # Pre-computed per-stage back-projected features
         proj_feats = kwargs.get("trellis2_proj_feats")
 
@@ -1058,7 +1072,7 @@ class Trellis2(nn.Module):
 
             x_st = SparseTensor(
                 feats=feats_flat,
-                coords=batched_coords.to(torch.int32),
+                coords=batched_coords.to(device=x.device, dtype=torch.int32),
                 shape=torch.Size([B] + list(feats_flat.shape[1:])),
             )
 
@@ -1071,15 +1085,12 @@ class Trellis2(nn.Module):
                 # batch_ids drive uncond-slot masking inside _shape_proj_cond.
                 batch_ids = batched_coords[:, 0].long()
                 logical_batch = coord_counts.shape[0] if coord_counts is not None else B
-                has_hr = bool(proj_feat_pack and proj_feat_pack.get("stages", {})
-                              .get(stage_name, {}).get("feature_map_hr") is not None)
                 c_eval = _shape_proj_cond(c_eval, shape_attn, proj_feats,
                                           batch_ids=batch_ids,
                                           eval_batch=B, logical_batch=logical_batch,
                                           proj_in_channels=sub_model.proj_in_channels,
                                           stage=stage_name,
-                                          cond_or_uncond=cond_or_uncond,
-                                          has_hr=has_hr)
+                                          cond_or_uncond=cond_or_uncond)
             if is_first_shape_pass:
                 out = self.img2shape_512(x_st, t_eval, c_eval, transformer_options=transformer_options)
             else:
@@ -1095,7 +1106,7 @@ class Trellis2(nn.Module):
             slat_feats = slat
             # Duplicate shape context if CFG is active
             if coord_counts is not None and B > coord_counts.shape[0]:
-                slat_feats = torch.cat([slat_feats, slat_feats], dim=0)
+                slat_feats = slat_feats.repeat(B // coord_counts.shape[0], 1)
             elif coord_counts is None:
                 slat_feats = slat_feats[:N].repeat(B, 1)
 
@@ -1104,26 +1115,17 @@ class Trellis2(nn.Module):
             if tex_attn != "global":
                 batch_ids = batched_coords[:, 0].long()
                 logical_batch = coord_counts.shape[0] if coord_counts is not None else B
-                has_hr = bool(proj_feat_pack and proj_feat_pack.get("stages", {})
-                              .get("tex_1024", {}).get("feature_map_hr") is not None)
                 c_eval = _shape_proj_cond(c_eval, tex_attn, proj_feats,
                                           batch_ids=batch_ids,
                                           eval_batch=B, logical_batch=logical_batch,
                                           proj_in_channels=self.shape2txt.proj_in_channels,
                                           stage="tex_1024",
-                                          cond_or_uncond=cond_or_uncond,
-                                          has_hr=has_hr)
+                                          cond_or_uncond=cond_or_uncond)
             out = self.shape2txt(x_st, t_eval, c_eval, transformer_options=transformer_options)
 
         else: # structure
             struct_attn = self.image_attn_mode_structure
-            has_hr_ss = bool(proj_feat_pack and proj_feat_pack.get("stages", {})
-                             .get("ss", {}).get("feature_map_hr") is not None)
-            logical_batch_ss = (
-                proj_feat_pack["mesh_scale"].shape[0]
-                if (proj_feat_pack is not None and torch.is_tensor(proj_feat_pack.get("mesh_scale")))
-                else x.shape[0]
-            )
+            logical_batch_ss = proj_feats.shape[0] if proj_feats is not None else x.shape[0]
             struct_cond = context
             if struct_attn != "global":
                 struct_cond = _shape_proj_cond(context, struct_attn, proj_feats,
@@ -1131,8 +1133,7 @@ class Trellis2(nn.Module):
                                                eval_batch=x.shape[0], logical_batch=logical_batch_ss,
                                                proj_in_channels=self.structure_model.proj_in_channels,
                                                stage="ss",
-                                               cond_or_uncond=cond_or_uncond,
-                                               has_hr=has_hr_ss)
+                                               cond_or_uncond=cond_or_uncond)
             out = self.structure_model(x, timestep, struct_cond, transformer_options=transformer_options)
 
         if is_sparse_mode:

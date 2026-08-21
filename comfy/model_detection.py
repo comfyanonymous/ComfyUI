@@ -132,11 +132,13 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             "txt_only": has_tex and not has_shape,
         }
         # Per-submodel projection head (Pixal3D adds `proj_linear`; Trellis2 doesn't).
-        for sub, name in (("img2shape", "shape"), ("shape2txt", "texture"), ("structure_model", "structure")):
+        for sub, name, proj_in_channels in (("img2shape", "shape", 2048),
+                                            ("shape2txt", "texture", 2048),
+                                            ("structure_model", "structure", 1024)):
             key = '{}{}.blocks.0.cross_attn.proj_linear.weight'.format(key_prefix, sub)
             if key in state_dict_keys:
                 unet_config["image_attn_mode_{}".format(name)] = "proj"
-                unet_config["proj_in_channels_{}".format(name)] = int(state_dict[key].shape[1])
+                unet_config["proj_in_channels_{}".format(name)] = proj_in_channels
         return unet_config
 
     if '{}transformer.rotary_pos_emb.inv_freq'.format(key_prefix) in state_dict_keys: #stable audio dit

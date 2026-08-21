@@ -348,7 +348,7 @@ def lscm_charts_batch(
                 dsc = 1e-12 * np.nan_to_num(np.nanmedian(dpos, axis=1), nan=1e-8).clip(min=1e-20)
             dg += np.where(con, 1.0, dsc[:, None])
             Atb2 = np.where(con, cval, Atb)
-            x = np.linalg.solve(AtA, Atb2)
+            x = np.linalg.solve(AtA, Atb2[..., None])[..., 0]
         for i2, c2 in enumerate(cids):
             vc3 = int(vcs[i2])
             out[int(c2)] = np.stack([x[i2, :vc3], x[i2, Vmax:Vmax + vc3]], 1).astype(np.float32)

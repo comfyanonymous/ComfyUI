@@ -161,8 +161,8 @@ def load_clipvision_from_sd(sd, prefix="", convert_keys=False):
     naf_keys = [k for k in sd if k.startswith("naf.")]
     if naf_keys:
         naf_sd = {k[len("naf."):]: sd.pop(k) for k in naf_keys}
-        naf = NAF().eval()
-        naf.load_state_dict(naf_sd, strict=False)
+        naf = NAF(operations=comfy.ops.manual_cast).eval()
+        naf.load_state_dict(naf_sd)
         naf.to(comfy.model_management.text_encoder_dtype(clip.load_device))
         clip.naf = comfy.model_patcher.CoreModelPatcher(naf, load_device=clip.load_device, offload_device=comfy.model_management.text_encoder_offload_device())
     return clip

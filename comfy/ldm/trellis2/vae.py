@@ -1,4 +1,3 @@
-import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -40,12 +39,6 @@ def sparse_conv3d_init(self, in_channels, out_channels, kernel_size, stride=1, d
         self.bias = nn.Parameter(torch.empty(out_channels))
     else:
         self.register_parameter("bias", None)
-
-    if self.bias is not None:
-        fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.weight)
-        if fan_in != 0:
-            bound = 1 / math.sqrt(fan_in)
-            torch.nn.init.uniform_(self.bias, -bound, bound)
 
     # Permute weight (Co, Ci, Kd, Kh, Kw) -> (Co, Kd, Kh, Kw, Ci)
     self.weight = nn.Parameter(self.weight.permute(0, 2, 3, 4, 1).contiguous())
@@ -115,7 +108,10 @@ class SparseSpatial2Channel(nn.Module):
             subidx = sum([subidx[..., i] * self.factor ** i for i in range(DIM)])
 
             MAX = [(s + self.factor - 1) // self.factor for s in x.spatial_shape]
-            OFFSET = torch.cumprod(torch.tensor(MAX[::-1]), 0).tolist()[::-1] + [1]
+            OFFSET = [1]
+            for size in reversed(MAX):
+                OFFSET.append(OFFSET[-1] * size)
+            OFFSET.reverse()
             code = sum([c * o for c, o in zip(coord, OFFSET)])
             code, idx = code.unique(return_inverse=True)
 
@@ -258,15 +254,6 @@ class VarLenTensor:
         return self._cache['seqlen']
 
     @property
-    def cum_seqlen(self) -> torch.LongTensor:
-        if 'cum_seqlen' not in self._cache:
-            self._cache['cum_seqlen'] = torch.cat([
-                torch.tensor([0], dtype=torch.long, device=self.device),
-                self.seqlen.cumsum(dim=0)
-            ], dim=0)
-        return self._cache['cum_seqlen']
-
-    @property
     def batch_boardcast_map(self) -> torch.LongTensor:
         """
         Get the broadcast map for the varlen tensor.
@@ -352,13 +339,13 @@ class VarLenTensor:
 
     def __elemwise__(self, other: Union[torch.Tensor, 'VarLenTensor'], op: callable) -> 'VarLenTensor':
         if isinstance(other, torch.Tensor):
-            # Try per-batch [B, C] -> per-token [T, C] broadcast. RuntimeError
-            # fires for incompatible shapes; fall through and let op() handle.
-            try:
+            can_broadcast_batch = other.ndim <= self.ndim and all(
+                source == 1 or source == target
+                for source, target in zip(reversed(other.shape), reversed(self.shape))
+            )
+            if can_broadcast_batch:
                 other = torch.broadcast_to(other, self.shape)
                 other = other[self.batch_boardcast_map]
-            except RuntimeError:
-                pass
         if isinstance(other, VarLenTensor):
             other = other.feats
         new_feats = op(self.feats, other)
@@ -560,17 +547,6 @@ class SparseTensor(VarLenTensor):
             seqlen = torch.tensor([l.stop - l.start for l in self.layout], dtype=torch.long, device=self.device)
             self.register_spatial_cache('seqlen', seqlen)
         return seqlen
-
-    @property
-    def cum_seqlen(self) -> torch.LongTensor:
-        cum_seqlen = self.get_spatial_cache('cum_seqlen')
-        if cum_seqlen is None:
-            cum_seqlen = torch.cat([
-                torch.tensor([0], dtype=torch.long, device=self.device),
-                self.seqlen.cumsum(dim=0)
-            ], dim=0)
-            self.register_spatial_cache('cum_seqlen', cum_seqlen)
-        return cum_seqlen
 
     @property
     def batch_boardcast_map(self) -> torch.LongTensor:

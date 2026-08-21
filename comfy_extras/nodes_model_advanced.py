@@ -281,14 +281,14 @@ class RescaleCFG:
 
     def patch(self, model, multiplier):
         model_sampling = model.get_model_object("model_sampling")
-        is_x0_space = not isinstance(model_sampling, comfy.model_sampling.EPS)
+        is_flow = isinstance(model_sampling, comfy.model_sampling.CONST)
 
         def rescale_cfg(args):
             x_orig = args["input"]
             cond_scale = args["cond_scale"]
 
-            if is_x0_space:
-                # Flow-matching / X0 models: cond_denoised/uncond_denoised are x_0 estimates,
+            if is_flow:
+                # Flow-matching models: cond_denoised/uncond_denoised are x_0 estimates,
                 # so the eps↔v conversion below would be wrong. Rescale directly in x_0 space.
                 x_0_cond = args["cond_denoised"]
                 x_0_uncond = args["uncond_denoised"]

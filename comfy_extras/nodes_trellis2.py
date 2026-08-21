@@ -44,11 +44,12 @@ def infer_batched_coord_layout(coords):
 def split_batched_coords(coords, coord_counts):
     if coord_counts.ndim != 1:
         raise ValueError(f"Trellis2 coord_counts must be 1D, got shape {tuple(coord_counts.shape)}")
-    if (coord_counts < 0).any():
-        raise ValueError(f"Trellis2 coord_counts must be non-negative, got {coord_counts.tolist()}")
-    if int(coord_counts.sum().item()) != coords.shape[0]:
+    counts = [int(count) for count in coord_counts.tolist()]
+    if any(count < 0 for count in counts):
+        raise ValueError(f"Trellis2 coord_counts must be non-negative, got {counts}")
+    if sum(counts) != coords.shape[0]:
         raise ValueError(
-            f"Trellis2 coord_counts total {int(coord_counts.sum().item())} does not match coords rows {coords.shape[0]}"
+            f"Trellis2 coord_counts total {sum(counts)} does not match coords rows {coords.shape[0]}"
         )
 
     batch_ids = coords[:, 0].to(torch.int64)
@@ -56,16 +57,15 @@ def split_batched_coords(coords, coord_counts):
     sorted_coords = coords.index_select(0, order)
     sorted_batch_ids = batch_ids.index_select(0, order)
 
-    offsets = coord_counts.cumsum(0) - coord_counts
     items = []
-    for i in range(coord_counts.shape[0]):
-        count = int(coord_counts[i].item())
-        start = int(offsets[i].item())
+    start = 0
+    for i, count in enumerate(counts):
         coords_i = sorted_coords[start:start + count]
         ids_i = sorted_batch_ids[start:start + count]
         if coords_i.shape[0] != count or not torch.all(ids_i == i):
             raise ValueError(f"Trellis2 coords rows for batch {i} expected {count}, got {coords_i.shape[0]}")
         items.append(coords_i)
+        start += count
     return items
 
 def flatten_batched_sparse_latent(samples, coords, coord_counts):
@@ -77,7 +77,7 @@ def flatten_batched_sparse_latent(samples, coords, coord_counts):
     feat_list = []
     coord_list = []
     for i, coords_i in enumerate(coords_items):
-        count = int(coord_counts[i].item())
+        count = coords_i.shape[0]
         feat_list.append(samples[i, :count])
         coord_list.append(coords_i)
 
@@ -92,7 +92,7 @@ def split_batched_sparse_latent(samples, coords, coord_counts):
     coords_items = split_batched_coords(coords, coord_counts)
     items = []
     for i, coords_i in enumerate(coords_items):
-        count = int(coord_counts[i].item())
+        count = coords_i.shape[0]
         items.append((samples[i, :count], coords_i))
     return items
 
@@ -560,7 +560,7 @@ class Trellis2TextureStage(IO.ComfyNode):
 
         shape_slat = shape_latent["samples"]
         if shape_slat.ndim == 4:
-            shape_slat = shape_slat.squeeze(-1).transpose(1, 2).reshape(-1, channels)
+            shape_slat, _ = flatten_batched_sparse_latent(shape_slat, coords, counts)
 
         latent = torch.zeros(batch_size, channels, max_tokens, 1)
         proj_pack = _proj_pack_from_conditioning(positive)
@@ -631,6 +631,7 @@ def _dino_encode_batch(clip_vision_model, image, out_device, *, want_patches=Fal
     the 2D patch grids and the per-item BCHW composites that the Pixal3D NAF path needs."""
     image = image[..., :3]
     batch_size = image.shape[0]
+    comfy.model_management.load_model_gpu(clip_vision_model.patcher)
 
     cond_512_list, cond_1024_list = [], []
     patches_512_list, patches_1024_list = [], []
@@ -708,7 +709,8 @@ class Pixal3DConditioning(IO.ComfyNode):
                 img_i = comfy.utils.common_upscale(c, image_size, image_size, "lanczos", "disabled")\
                     .to(compute_device).to(model_dtype)
                 lr_i = lr_feat[i:i + 1].to(compute_device).to(model_dtype)
-                hr_i = inner(img_i, lr_i, naf_target, output_device=out_device)
+                output = torch.empty((1, lr_i.shape[1], *naf_target), device=out_device, dtype=model_dtype)
+                hr_i = inner(img_i, lr_i, naf_target, output=output)
                 hrs.append(hr_i)
             return torch.cat(hrs, dim=0)
 

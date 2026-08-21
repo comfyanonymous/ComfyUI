@@ -764,9 +764,6 @@ class MergeMeshes(IO.ComfyNode):
         if not meshes:
             raise ValueError("MergeMeshes: need at least one mesh")
 
-        def _b0(t):
-            return t[0] if t.ndim == 3 else t
-
         any_uvs = any(m.uvs is not None for m in meshes)
         any_colors = any(m.vertex_colors is not None for m in meshes)
 
@@ -775,17 +772,16 @@ class MergeMeshes(IO.ComfyNode):
         offset = 0
         for m in meshes:
             # Coerce to CPU so CUDA-side (MoGe) meshes merge cleanly with our outputs.
-            v = _b0(m.vertices).cpu()
-            f = _b0(m.faces).cpu()
+            v, f, mc, mu, _ = get_mesh_batch_item(m, 0)
+            v = v.cpu()
+            f = f.cpu()
             verts_list.append(v)
             faces_list.append(f + offset)
             offset += v.shape[0]
             if any_uvs:
-                mu = m.uvs
-                uvs_list.append(_b0(mu).cpu() if mu is not None else v.new_zeros((v.shape[0], 2)))
+                uvs_list.append(mu.cpu() if mu is not None else v.new_zeros((v.shape[0], 2)))
             if any_colors:
-                mc = m.vertex_colors
-                c = _b0(mc).cpu() if mc is not None else v.new_ones((v.shape[0], 3))
+                c = mc.cpu() if mc is not None else v.new_ones((v.shape[0], 3))
                 colors_list.append(c)
             mt = m.texture
             if mt is not None:

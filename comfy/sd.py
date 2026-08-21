@@ -578,13 +578,13 @@ class VAE:
                 self.latent_channels = 16
             elif "shape_dec.blocks.1.16.to_subdiv.weight" in sd: # trellis2 shape vae (struct_dec + shape_dec)
                 self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
-                self.memory_used_decode = lambda shape, dtype: (2500 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
-                self.memory_used_encode = lambda shape, dtype: (2500 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
+                self.memory_used_decode = lambda shape, dtype: (2500 * math.prod(shape[2:])) * model_management.dtype_size(dtype)
+                self.memory_used_encode = lambda shape, dtype: (2500 * math.prod(shape[2:])) * model_management.dtype_size(dtype)
                 self.first_stage_model = comfy.ldm.trellis2.vae.ShapeVae()
             elif "txt_dec.blocks.3.4.conv2.weight" in sd: # trellis2 texture vae
                 self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
-                self.memory_used_decode = lambda shape, dtype: (2500 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
-                self.memory_used_encode = lambda shape, dtype: (2500 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
+                self.memory_used_decode = lambda shape, dtype: (2500 * math.prod(shape[2:])) * model_management.dtype_size(dtype)
+                self.memory_used_encode = lambda shape, dtype: (2500 * math.prod(shape[2:])) * model_management.dtype_size(dtype)
                 self.first_stage_model = comfy.ldm.trellis2.vae.TextureVae()
             elif "decoder.up_blocks.2.upsamplers.0.upscale_conv.weight" in sd: # seedvr2
                 self.first_stage_model = comfy.ldm.seedvr.vae.VideoAutoencoderKLWrapper()

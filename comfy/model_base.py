@@ -1936,10 +1936,6 @@ class Trellis2(BaseModel):
             v = kwargs.get(k)
             if v is not None:
                 out[k] = comfy.conds.CONDConstant(v)
-        # Pixal3D's per-stage feature maps + camera params travel as a dict
-        proj_feat_pack = kwargs.get("proj_feat_pack")
-        if proj_feat_pack is not None:
-            out["proj_feat_pack"] = comfy.conds.CONDConstant(proj_feat_pack)
         return out
 
 class WAN21_FlowRVS(WAN21):

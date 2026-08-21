@@ -892,6 +892,24 @@ def _camera_basis(eye, center, up_hint):
     return f, r, torch.cross(r, f, dim=-1)
 
 
+def _apply_model_transform(values, transform, is_normal=False):
+    def _vec(data):
+        return values.new_tensor([data["x"], data["y"], data["z"]])
+
+    scale = _vec(transform["scale"])
+    position = _vec(transform["position"])
+    quaternion = transform["quaternion"]
+    x, y, z, w = (values.new_tensor(quaternion[key]) for key in ("x", "y", "z", "w"))
+    rotation = torch.stack((
+        torch.stack((1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w))),
+        torch.stack((2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w))),
+        torch.stack((2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y))),
+    ))
+    if is_normal:
+        return torch.nn.functional.normalize((values / scale) @ rotation.T, dim=-1, eps=1e-6)
+    return (values * scale) @ rotation.T + position
+
+
 def _sample_image01(img_hwc, uv01):
     """Bilinear-sample img [H,W,C] at uv01 [K,2] in [0,1] (u=x/col, v=y/row). Returns [K,C]."""
     g = (uv01 * 2.0 - 1.0).view(1, 1, -1, 2)
@@ -1384,11 +1402,14 @@ class BakeTextureFromVoxel(IO.ComfyNode):
                 if item_coords.shape[0] == 0 or f_i.numel() == 0:
                     logging.warning(f"BakeTextureFromVoxel: skipping batch {i} (empty voxel/mesh)")
                     pbar.update(5)
+                    out_tex.append(torch.zeros((texture_size, texture_size, 3)))
+                    out_mr.append(None)
                     continue
                 ev_i = mesh_uvs[i, :v_i.shape[0]]
                 ref_i = None
                 if reference_mesh is not None:
-                    rv_i, rf_i, *_ = get_mesh_batch_item(reference_mesh, i)
+                    ref_index = i if reference_mesh.vertices.shape[0] > 1 else 0
+                    rv_i, rf_i, *_ = get_mesh_batch_item(reference_mesh, ref_index)
                     ref_i = (rv_i, rf_i)
                 _bv, _bf, _bu, bt, bmr = bake_texture_from_voxel_fn(
                     v_i, f_i, item_coords, item_colors,
@@ -1747,7 +1768,8 @@ class RenderMesh(IO.ComfyNode):
             search_aliases=["mesh to image", "render mesh", "preview textured mesh"],
             category="3d/mesh",
             description=(
-                "Ray-casts a single view of a mesh. The camera comes from a camera_info (Load3D / Preview3D viewer, or a Create Camera Info node)"
+                "Ray-casts a single view of a mesh. The camera and optional model transform can come "
+                "from a Load3D / Preview3D viewer."
             ),
             inputs=[
                 IO.Mesh.Input("mesh"),
@@ -1756,6 +1778,9 @@ class RenderMesh(IO.ComfyNode):
                 IO.Int.Input("width", default=1024, min=64, max=4096, step=8),
                 IO.Int.Input("height", default=1024, min=64, max=4096, step=8),
                 IO.Color.Input("background", default="#000000"),
+                IO.Load3DModelInfo.Input("model_3d_info", optional=True,
+                                         tooltip="Model transform from the same Load3D / Preview3D viewer. "
+                                                 "Connect it with camera_info to match the viewer framing."),
                 IO.Load3DCamera.Input("camera_info", optional=True,
                                       tooltip="Camera from a Load3D / Preview3D viewer or a Create Camera Info "
                                               "node. If none is connected, a default front view is auto-framed."),
@@ -1764,7 +1789,7 @@ class RenderMesh(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, mesh, mode, width, height, background, camera_info=None):
+    def execute(cls, mesh, mode, width, height, background, model_3d_info=None, camera_info=None):
         if int(mesh.vertices.shape[0]) > 1:
             logging.warning("RenderMesh: one item per batch only; using the first of %d.", int(mesh.vertices.shape[0]))
         dev = comfy.model_management.get_torch_device()
@@ -1772,6 +1797,9 @@ class RenderMesh(IO.ComfyNode):
         n = int(v_i.shape[0])
         lv = v_i.to(dev).float()
         lf = f_i.to(dev).long()
+        model_transform = model_3d_info[0] if model_3d_info else None
+        if model_transform is not None:
+            lv = _apply_model_transform(lv, model_transform)
 
         def _item(attr):  # first-item, length-n view of a mesh attr
             a = getattr(mesh, attr, None)
@@ -1797,6 +1825,8 @@ class RenderMesh(IO.ComfyNode):
         elif resolved == "normal":
             render_normal = True
             vnorms = _item("normals")  # smooth if present, else face normals
+            if vnorms is not None and model_transform is not None:
+                vnorms = _apply_model_transform(vnorms, model_transform, is_normal=True)
 
         tri = lv[lf]
         bvh = _build_triangle_bvh(tri)
@@ -2143,11 +2173,14 @@ def _process_mesh_batch(mesh, per_item_fn):
         bar = comfy.utils.ProgressBar(bsz)
 
         for i in range(bsz):
-            v_i = mesh.vertices[i]
-            f_i = mesh.faces[i]
-            c_i = None
-            if hasattr(mesh, 'vertex_colors') and mesh.vertex_colors is not None:
-                c_i = mesh.vertex_colors[i] if (isinstance(mesh.vertex_colors, list) or mesh.vertex_colors.ndim == 3) else mesh.vertex_colors
+            if is_batched_tensor:
+                v_i, f_i, c_i, _, _ = get_mesh_batch_item(mesh, i)
+            else:
+                v_i = mesh.vertices[i]
+                f_i = mesh.faces[i]
+                c_i = None
+                if mesh.vertex_colors is not None:
+                    c_i = mesh.vertex_colors[i] if isinstance(mesh.vertex_colors, list) else mesh.vertex_colors
 
             v_i, f_i, c_i = process_single(v_i, f_i, c_i, bar)
 
@@ -2156,7 +2189,17 @@ def _process_mesh_batch(mesh, per_item_fn):
             if c_i is not None:
                 out_c.append(c_i)
 
-        if all(v.shape == out_v[0].shape for v in out_v) and all(f.shape == out_f[0].shape for f in out_f):
+        if is_batched_tensor:
+            packed = pack_variable_mesh_batch(out_v, out_f, out_c if len(out_c) == bsz else None)
+            mesh.vertices = packed.vertices
+            mesh.faces = packed.faces
+            mesh.vertex_colors = packed.vertex_colors
+            mesh.vertex_counts = packed.vertex_counts
+            mesh.face_counts = packed.face_counts
+            mesh.uvs = None
+            mesh.normals = None
+            mesh.tangents = None
+        elif all(v.shape == out_v[0].shape for v in out_v) and all(f.shape == out_f[0].shape for f in out_f):
             mesh.vertices = torch.stack(out_v)
             mesh.faces = torch.stack(out_f)
             if out_c:
@@ -2257,19 +2300,15 @@ class DecimateMesh(IO.ComfyNode):
         def _fn(v, f, c):
             counts["in"] += int(f.shape[0])
             if target_face_count > 0 and f.shape[0] > target_face_count:
-                try:
-                    src_device = v.device
-                    rv, rf, rc, _rn, _rs = qem_decimate_simplify(
-                        v.to(compute_device), f.to(compute_device), int(target_face_count),
-                        colors=(c.to(compute_device) if c is not None else None),
-                        config=cfg)
-                    v = rv.to(src_device)
-                    f = rf.to(src_device)
-                    if rc is not None:
-                        c = rc.to(src_device)
-                except Exception as e:
-                    comfy.model_management.raise_non_oom(e)  # surface real errors; only OOM passes through
-                    logging.warning(f"DecimateMesh: QEM simplify ran out of memory, passing mesh through unchanged: {e!r}")
+                src_device = v.device
+                rv, rf, rc, _rn, _rs = qem_decimate_simplify(
+                    v.to(compute_device), f.to(compute_device), int(target_face_count),
+                    colors=(c.to(compute_device) if c is not None else None),
+                    config=cfg)
+                v = rv.to(src_device)
+                f = rf.to(src_device)
+                if rc is not None:
+                    c = rc.to(src_device)
             counts["out"] += int(f.shape[0])
             return v, f, c
 
@@ -2355,39 +2394,35 @@ class RemeshMesh(IO.ComfyNode):
 
         def _fn(v, f, c):
             counts["in"] += int(f.shape[0])
-            try:
-                src_device = v.device
-                vv = v.to(compute_device).float()
-                ff = f.to(compute_device).to(torch.int64)
-                cc = c.to(compute_device).float() if c is not None else None
+            src_device = v.device
+            vv = v.to(compute_device).float()
+            ff = f.to(compute_device).to(torch.int64)
+            cc = c.to(compute_device).float() if c is not None else None
 
-                # cluster-decimate very large inputs before field queries
-                if precluster_max_verts > 0 and vv.shape[0] > precluster_max_verts:
-                    vv, ff, cc = qem_cluster_decimate(
-                        vv, ff, target_verts=int(precluster_max_verts), colors=cc)
+            # cluster-decimate very large inputs before field queries
+            if precluster_max_verts > 0 and vv.shape[0] > precluster_max_verts:
+                vv, ff, cc = qem_cluster_decimate(
+                    vv, ff, target_verts=int(precluster_max_verts), colors=cc)
 
-                # Fixed [-0.5,0.5] cube domain (matches cumesh/TRELLIS2); scale ≈ 1.0 any resolution.
-                rs_scale = (resolution + 3.0 * band) / resolution
-                rs_center = torch.zeros(3, dtype=vv.dtype, device=compute_device)
+            # Fixed [-0.5,0.5] cube domain (matches cumesh/TRELLIS2); scale ≈ 1.0 any resolution.
+            rs_scale = (resolution + 3.0 * band) / resolution
+            rs_center = torch.zeros(3, dtype=vv.dtype, device=compute_device)
 
-                rv, rf, rc = remesh_narrow_band_dc(
-                    vv, ff,
-                    resolution=int(resolution),
-                    band=float(band), project_back=float(project_back),
-                    qef=qef, sign_mode=mode,
-                    manifold=manifold, fix_poles=bool(fix_poles),
-                    smooth_iters=int(smooth_iters),
-                    drop_small_components=float(drop_small_components),
-                    drop_inverted_components=drop_inverted_components,
-                    drop_enclosed_components=drop_enclosed_components,
-                    scale=rs_scale, center=rs_center, colors=cc)
+            rv, rf, rc = remesh_narrow_band_dc(
+                vv, ff,
+                resolution=int(resolution),
+                band=float(band), project_back=float(project_back),
+                qef=qef, sign_mode=mode,
+                manifold=manifold, fix_poles=bool(fix_poles),
+                smooth_iters=int(smooth_iters),
+                drop_small_components=float(drop_small_components),
+                drop_inverted_components=drop_inverted_components,
+                drop_enclosed_components=drop_enclosed_components,
+                scale=rs_scale, center=rs_center, colors=cc)
 
-                v = rv.to(src_device)
-                f = rf.to(src_device)
-                c = rc.to(src_device) if rc is not None else None
-            except Exception as e:
-                comfy.model_management.raise_non_oom(e)  # surface real errors; only OOM passes through
-                logging.warning(f"RemeshMesh: remesh ran out of memory, passing mesh through unchanged: {e!r}")
+            v = rv.to(src_device)
+            f = rf.to(src_device)
+            c = rc.to(src_device) if rc is not None else None
             counts["out"] += int(f.shape[0])
             return v, f, c
 

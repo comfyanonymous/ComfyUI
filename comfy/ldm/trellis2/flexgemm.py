@@ -146,7 +146,7 @@ def sparse_submanifold_conv3d(
         chunk_idx = torch.where(neighbor[start:end] < 0, N_pts, neighbor[start:end])  # -1 -> zero row
         gathered = feats_padded[chunk_idx]                  # (chunk, V, Ci)
         gathered_flat = gathered.view(actual_chunk, V * Ci)
-        torch.matmul(gathered_flat, weight_T, out=output[start:end])  # (chunk, V*Ci) @ (V*Ci, Co)
+        output[start:end] = torch.matmul(gathered_flat, weight_T)  # (chunk, V*Ci) @ (V*Ci, Co)
 
     if bias is not None:
         output += bias.unsqueeze(0).to(output.dtype)

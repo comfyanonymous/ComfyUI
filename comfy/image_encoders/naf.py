@@ -13,6 +13,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import comfy.ops
+
 
 # Pure-torch neighborhood attention (replaces natten.na2d / na2d_qk + na2d_av).
 
@@ -142,7 +144,7 @@ class CrossAttention(nn.Module):
         return x.view(B, num_heads, C // num_heads, H, W).permute(0, 3, 4, 1, 2).contiguous()
 
     def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor,
-                output_device=None) -> torch.Tensor:
+                output=None) -> torch.Tensor:
         hq, wq = q.shape[-2:]
         hk, wk = k.shape[-2:]
         dilation = (hq // hk, wq // wk)
@@ -150,11 +152,7 @@ class CrossAttention(nn.Module):
         q = q.view(B, self.num_heads, C // self.num_heads, hq, wq).permute(0, 3, 4, 1, 2).contiguous()
         k_lr = self._split_heads_lr(k, self.num_heads).to(q.dtype)
         v_lr = self._split_heads_lr(v, self.num_heads).to(q.dtype)
-        out_buf = None
-        if output_device is not None:
-            n = self.num_heads
-            d_v = v.shape[1] // n
-            out_buf = torch.empty(B, n, d_v, hq, wq, device=output_device, dtype=q.dtype)
+        out_buf = output.view(B, self.num_heads, v.shape[1] // self.num_heads, hq, wq) if output is not None else None
         out = na2d_pure(q, k_lr, v_lr, self.kernel_size, dilation, self.scale, output=out_buf)
         return out.view(B, -1, hq, wq)
 
@@ -175,17 +173,17 @@ class RoPE(nn.Module):
         self.base = base
         self.register_buffer("periods", torch.empty(self.D_head // 4), persistent=True) # loaded from the checkpoint
 
-    def _cos_sin(self, H: int, W: int, dtype: torch.dtype):
+    def _cos_sin(self, H: int, W: int, x: torch.Tensor):
         """cos/sin depend only on (H, W, dtype) and the checkpoint-fixed periods; recomputed per forward."""
-        device = self.periods.device
-        coords_h = torch.arange(0.5, H, device=device, dtype=torch.float32) / H
-        coords_w = torch.arange(0.5, W, device=device, dtype=torch.float32) / W
+        periods = comfy.ops.cast_to_input(self.periods, x)
+        coords_h = torch.arange(0.5, H, device=x.device, dtype=torch.float32) / H
+        coords_w = torch.arange(0.5, W, device=x.device, dtype=torch.float32) / W
         coords = torch.stack(torch.meshgrid(coords_h, coords_w, indexing="ij"), dim=-1)  # [H, W, 2]
         coords = coords.flatten(0, 1) * 2.0 - 1.0  # [HW, 2]
-        angles = 2 * math.pi * coords[:, :, None] / self.periods.to(coords.dtype)[None, None, :]  # [HW, 2, D//4]
+        angles = 2 * math.pi * coords[:, :, None] / periods.to(coords.dtype)[None, None, :]  # [HW, 2, D//4]
         angles = angles.flatten(1, 2).tile(2)  # [HW, D]
-        cos = torch.cos(angles).to(dtype)
-        sin = torch.sin(angles).to(dtype)
+        cos = torch.cos(angles).to(x.dtype)
+        sin = torch.sin(angles).to(x.dtype)
         return cos, sin
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -194,7 +192,7 @@ class RoPE(nn.Module):
         n = self.num_heads
         D = C // n
         x = x.view(B, n, D, H, W).permute(0, 1, 3, 4, 2).reshape(B, n, H * W, D)
-        cos, sin = self._cos_sin(H, W, x.dtype)
+        cos, sin = self._cos_sin(H, W, x)
         x = (x * cos) + (rope_rotate_half(x) * sin)
         x = x.view(B, n, H, W, D).permute(0, 1, 4, 2, 3).reshape(B, n * D, H, W)
         return x
@@ -203,13 +201,13 @@ class RoPE(nn.Module):
 # Image encoder
 
 class EncBlock(nn.Module):
-    def __init__(self, channels: int, kernel_size: int, num_groups: int = 8):
+    def __init__(self, channels: int, kernel_size: int, operations, num_groups: int = 8):
         super().__init__()
-        self.norm1 = nn.GroupNorm(num_groups=num_groups, num_channels=channels)
-        self.conv1 = nn.Conv2d(channels, channels, kernel_size=kernel_size,
+        self.norm1 = operations.GroupNorm(num_groups=num_groups, num_channels=channels)
+        self.conv1 = operations.Conv2d(channels, channels, kernel_size=kernel_size,
                                padding=kernel_size // 2, padding_mode="reflect", bias=True)
-        self.norm2 = nn.GroupNorm(num_groups=num_groups, num_channels=channels)
-        self.conv2 = nn.Conv2d(channels, channels, kernel_size=kernel_size,
+        self.norm2 = operations.GroupNorm(num_groups=num_groups, num_channels=channels)
+        self.conv2 = operations.Conv2d(channels, channels, kernel_size=kernel_size,
                                padding=kernel_size // 2, padding_mode="reflect", bias=True)
         self.activation_fn = nn.SiLU()
 
@@ -223,10 +221,10 @@ class EncBlock(nn.Module):
         return x  # no skip connection
 
 
-def _encoder(in_dim: int, hidden_dim: int, kernel_size: int = 1, ks_res: int = 1, num_layers: int = 2) -> nn.Sequential:
+def _encoder(in_dim: int, hidden_dim: int, operations, kernel_size: int = 1, ks_res: int = 1, num_layers: int = 2) -> nn.Sequential:
     return nn.Sequential(
-        nn.Conv2d(in_dim, hidden_dim, kernel_size=kernel_size, padding=kernel_size // 2, padding_mode="reflect", bias=True),
-        *[EncBlock(hidden_dim, kernel_size=ks_res) for _ in range(num_layers)],
+        operations.Conv2d(in_dim, hidden_dim, kernel_size=kernel_size, padding=kernel_size // 2, padding_mode="reflect", bias=True),
+        *[EncBlock(hidden_dim, kernel_size=ks_res, operations=operations) for _ in range(num_layers)],
     )
 
 
@@ -234,12 +232,12 @@ class ImageEncoder(nn.Module):
     """Two parallel conv stacks (1x1 + 3x3) producing dim/2 channels each, then concat,
     spatial average-pool to target size, RoPE-embed positions."""
 
-    def __init__(self, in_channels: int = 3, out_channels: int = 256,
+    def __init__(self, operations, in_channels: int = 3, out_channels: int = 256,
                  heads_rope: int = 4, rope_base: float = 100.0, img_layers: int = 2):
         super().__init__()
         half = out_channels // 2
-        self.encoder = _encoder(in_channels, half, kernel_size=1, ks_res=1, num_layers=img_layers)
-        self.sem_encoder = _encoder(in_channels, half, kernel_size=3, ks_res=3, num_layers=img_layers)
+        self.encoder = _encoder(in_channels, half, operations=operations, kernel_size=1, ks_res=1, num_layers=img_layers)
+        self.sem_encoder = _encoder(in_channels, half, operations=operations, kernel_size=3, ks_res=3, num_layers=img_layers)
         self.rope = RoPE(embed_dim=out_channels, num_heads=heads_rope, base=rope_base)
 
     def forward(self, x: torch.Tensor, output_size: Tuple[int, int]) -> torch.Tensor:
@@ -259,15 +257,16 @@ class NAF(nn.Module):
     """NAF feature upsampler."""
 
     def __init__(
-            self, dim: int = 256,       # internal channel dimension of the ImageEncoder
+            self, operations,
+            dim: int = 256,             # internal channel dimension of the ImageEncoder
             heads_attn: int = 4,        # attention heads in the windowed cross-attn
             heads_rope: int = 4,        # heads for RoPE position encoding (must divide dim)
             kernel_size: int = 9,       # square kernel for the neighborhood attention window
             rope_base: float = 100.0,   # base for RoPE frequency periods
-            img_layers: int = 2         # number of EncBlocks in each conv stack
+            img_layers: int = 2,        # number of EncBlocks in each conv stack
         ):
         super().__init__()
-        self.image_encoder = ImageEncoder(in_channels=3, out_channels=dim, heads_rope=heads_rope, rope_base=rope_base, img_layers=img_layers)
+        self.image_encoder = ImageEncoder(operations=operations, in_channels=3, out_channels=dim, heads_rope=heads_rope, rope_base=rope_base, img_layers=img_layers)
         self.upsampler = CrossAttention(dim=dim, num_heads=heads_attn, kernel_size=(kernel_size, kernel_size))
 
     def forward(
@@ -275,9 +274,9 @@ class NAF(nn.Module):
             image: torch.Tensor,            # [B, 3, H_img, W_img] in [0, 1].
             features: torch.Tensor,         # [B, C, H_feat, W_feat] low-resolution features (any C).
             output_size: Tuple[int, int],   # (H_out, W_out) target spatial resolution for the upsampled features.
-            output_device=None,
+            output=None,
         ) -> torch.Tensor:                  # [B, C, H_out, W_out] upsampled features.
         """Upsample low-res feature map to output_size, guided by the image."""
         q = self.image_encoder(image, output_size=output_size)
         k = F.adaptive_avg_pool2d(q, output_size=features.shape[-2:])
-        return self.upsampler(q, k, features, output_device=output_device)
+        return self.upsampler(q, k, features, output=output)
