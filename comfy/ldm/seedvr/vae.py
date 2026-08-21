@@ -54,6 +54,196 @@ def _seedvr2_clamped_spatial_overlap(overlap, tile_size):
     return min(overlap, tile_size - 1)
 
 
+def _seedvr2_tiled_decode_streaming(
+    x,
+    vae_model,
+    tile_size=(512, 512),
+    tile_overlap=(64, 64),
+    temporal_size=16,
+    temporal_overlap=0,
+):
+    """Decode spatial tiles while streaming causal temporal slices off the VAE device."""
+    if x.ndim != 5:
+        x = x.unsqueeze(2)
+
+    _, _, d, h, w = x.shape
+    sf_s = getattr(vae_model, "spatial_downsample_factor", BYTEDANCE_VAE_SPATIAL_DOWNSAMPLE)
+    sf_t = getattr(vae_model, "temporal_downsample_factor", BYTEDANCE_VAE_TEMPORAL_DOWNSAMPLE)
+
+    ti_h = max(1, tile_size[0] // sf_s)
+    ti_w = max(1, tile_size[1] // sf_s)
+    ov_h = _seedvr2_clamped_spatial_overlap(tile_overlap[0] // sf_s, ti_h)
+    ov_w = _seedvr2_clamped_spatial_overlap(tile_overlap[1] // sf_s, ti_w)
+    blend_ov_h = ov_h * sf_s
+    blend_ov_w = ov_w * sf_s
+
+    target_d = max(1, d * sf_t - (sf_t - 1))
+    target_h = h * sf_s
+    target_w = w * sf_s
+
+    stride_h = max(1, ti_h - ov_h)
+    stride_w = max(1, ti_w - ov_w)
+
+    # Keep the full decoded result off the VAE execution device. The outer VAE
+    # wrapper already copies owned tiled outputs to its configured output device.
+    storage_device = comfy.model_management.intermediate_device()
+    result = None
+    count = torch.zeros(
+        (1, 1, 1, target_h, target_w),
+        device=storage_device,
+        dtype=torch.float32,
+    )
+
+    slicing_min_size = _seedvr2_temporal_slicing_min_size(
+        temporal_size, temporal_overlap, sf_t
+    )
+
+    ramp_cache = {}
+
+    def get_ramp(steps, device):
+        key = (steps, device)
+        if key not in ramp_cache:
+            t = torch.linspace(0, 1, steps=steps, device=device, dtype=torch.float32)
+            ramp_cache[key] = 0.5 - 0.5 * torch.cos(t * torch.pi)
+        return ramp_cache[key]
+
+    tile_ranges = []
+    for y_idx in range(0, h, stride_h):
+        y_end = min(y_idx + ti_h, h)
+        if y_idx > 0 and (y_end - y_idx) <= ov_h:
+            continue
+        for x_idx in range(0, w, stride_w):
+            x_end = min(x_idx + ti_w, w)
+            if x_idx > 0 and (x_end - x_idx) <= ov_w:
+                continue
+            tile_ranges.append((y_idx, y_end, x_idx, x_end))
+
+    bar = ProgressBar(len(tile_ranges))
+
+    for y_idx, y_end, x_idx, x_end in tile_ranges:
+        tile_x = x[:, :, :, y_idx:y_end, x_idx:x_end].contiguous()
+
+        old_device = getattr(vae_model, "device", None)
+        old_slicing_min_size = getattr(vae_model, "slicing_latent_min_size", None)
+        vae_model.device = tile_x.device
+
+        if old_slicing_min_size is not None and slicing_min_size is not None:
+            vae_model.slicing_latent_min_size = slicing_min_size
+
+        t_pos = 0
+        final_weight = None
+        ys = ye = xs = xe = None
+
+        try:
+            for tile_out in vae_model.iter_slicing_decode(tile_x):
+                if tile_out.ndim == 4:
+                    tile_out = tile_out.unsqueeze(2)
+
+                if final_weight is None:
+                    ys = y_idx * sf_s
+                    ye = ys + tile_out.shape[3]
+                    xs = x_idx * sf_s
+                    xe = xs + tile_out.shape[4]
+
+                    cur_ov_h = max(0, min(blend_ov_h, tile_out.shape[3] // 2))
+                    cur_ov_w = max(0, min(blend_ov_w, tile_out.shape[4] // 2))
+
+                    w_h = torch.ones(
+                        (tile_out.shape[3],),
+                        device=tile_out.device,
+                        dtype=torch.float32,
+                    )
+                    w_w = torch.ones(
+                        (tile_out.shape[4],),
+                        device=tile_out.device,
+                        dtype=torch.float32,
+                    )
+
+                    if cur_ov_h > 0:
+                        r = get_ramp(cur_ov_h, tile_out.device)
+                        if y_idx > 0:
+                            w_h[:cur_ov_h] = r
+                        if y_end < h:
+                            w_h[-cur_ov_h:] = 1.0 - r
+
+                    if cur_ov_w > 0:
+                        r = get_ramp(cur_ov_w, tile_out.device)
+                        if x_idx > 0:
+                            w_w[:cur_ov_w] = r
+                        if x_end < w:
+                            w_w[-cur_ov_w:] = 1.0 - r
+
+                    final_weight = (
+                        w_h.view(1, 1, 1, -1, 1)
+                        * w_w.view(1, 1, 1, 1, -1)
+                    )
+
+                    if result is None:
+                        result = torch.zeros(
+                            (
+                                tile_out.shape[0],
+                                tile_out.shape[1],
+                                target_d,
+                                target_h,
+                                target_w,
+                            ),
+                            device=storage_device,
+                            dtype=torch.float32,
+                        )
+
+                    count[:, :, :, ys:ye, xs:xe] += final_weight.to(
+                        device=storage_device, dtype=torch.float32
+                    )
+
+                valid_d = min(tile_out.shape[2], target_d - t_pos)
+                if valid_d <= 0:
+                    continue
+
+                # Match the existing tiled path: apply the spatial blend in the
+                # decoder output dtype, then accumulate in FP32.
+                tile_slice = tile_out[:, :, :valid_d]
+                tile_slice.mul_(final_weight)
+                result[
+                    :,
+                    :,
+                    t_pos : t_pos + valid_d,
+                    ys:ye,
+                    xs:xe,
+                ] += tile_slice.to(
+                    device=storage_device,
+                    dtype=torch.float32,
+                    copy=True,
+                )
+                t_pos += valid_d
+                del tile_out, tile_slice
+
+        finally:
+            if old_slicing_min_size is not None and slicing_min_size is not None:
+                vae_model.slicing_latent_min_size = old_slicing_min_size
+            if old_device is not None:
+                vae_model.device = old_device
+
+        if t_pos != target_d:
+            raise RuntimeError(
+                "SeedVR2 tiled decode produced an unexpected temporal length: "
+                f"{t_pos} != {target_d}."
+            )
+
+        del tile_x, final_weight
+        bar.update(1)
+
+    if result is None:
+        raise RuntimeError("SeedVR2 tiled decode produced no output.")
+
+    result.div_(count.clamp(min=1e-6))
+    result = result.to(dtype=x.dtype)
+
+    if x.shape[2] == 1 and sf_t == 1:
+        result = result.squeeze(2)
+
+    return result
+
+
 def tiled_vae(
     x,
     vae_model,
@@ -63,6 +253,16 @@ def tiled_vae(
     temporal_overlap=0,
     encode=True,
 ):
+    if not encode:
+        return _seedvr2_tiled_decode_streaming(
+            x,
+            vae_model,
+            tile_size=tile_size,
+            tile_overlap=tile_overlap,
+            temporal_size=temporal_size,
+            temporal_overlap=temporal_overlap,
+        )
+
     if x.ndim != 5:
         x = x.unsqueeze(2)
 
@@ -1406,25 +1606,26 @@ class VideoAutoencoderKL(nn.Module):
         else:
             return self._encode(x)
 
-    def slicing_decode(self, z: torch.Tensor) -> torch.Tensor:
+    def iter_slicing_decode(self, z: torch.Tensor):
         if self.use_slicing and (z.shape[2] - 1) > self.slicing_latent_min_size:
             memory_cache = {}
             z_slices = z[:, :, 1:].split(split_size=self.slicing_latent_min_size, dim=2)
-            decoded_slices = [
-                self._decode(
-                    torch.cat((z[:, :, :1], z_slices[0]), dim=2),
-                    memory_state=MemoryState.INITIALIZING,
+            yield self._decode(
+                torch.cat((z[:, :, :1], z_slices[0]), dim=2),
+                memory_state=MemoryState.INITIALIZING,
+                memory_cache=memory_cache,
+            )
+            for z_slice in z_slices[1:]:
+                yield self._decode(
+                    z_slice,
+                    memory_state=MemoryState.ACTIVE,
                     memory_cache=memory_cache,
                 )
-            ]
-            for z_idx in range(1, len(z_slices)):
-                decoded_slices.append(
-                    self._decode(z_slices[z_idx], memory_state=MemoryState.ACTIVE, memory_cache=memory_cache)
-                )
-            out = torch.cat(decoded_slices, dim=2)
-            return out
         else:
-            return self._decode(z)
+            yield self._decode(z)
+
+    def slicing_decode(self, z: torch.Tensor) -> torch.Tensor:
+        return torch.cat(tuple(self.iter_slicing_decode(z)), dim=2)
 
     def forward(self, x: torch.FloatTensor, mode: Literal["encode", "decode", "all"] = "all"):
         def _unwrap(value):
