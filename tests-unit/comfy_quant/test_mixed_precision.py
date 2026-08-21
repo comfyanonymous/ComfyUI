@@ -337,5 +337,51 @@ class TestMixedPrecisionOps(unittest.TestCase):
         self.assertEqual(saved_conf["linear_dtype"], "int8")
         self.assertNotIn("quant_group_size", saved_conf)
 
+    def test_quantized_apply_noop_preserves_parameter_in_inference_mode(self):
+        weight = QuantizedTensor.from_float(
+            torch.ones(4, 4), "TensorCoreFP8E4M3Layout"
+        )
+        module = torch.nn.Module()
+        parameter = torch.nn.Parameter(weight, requires_grad=False)
+        module.weight = parameter
+
+        with torch.inference_mode():
+            ops._quantized_apply(module, lambda tensor: tensor)
+
+        self.assertIs(module.weight, parameter)
+
+    def test_quantized_apply_rewraps_normal_wrapper_in_inference_mode(self):
+        original = QuantizedTensor.from_float(
+            torch.ones(4, 4), "TensorCoreFP8E4M3Layout"
+        )
+        replacement = QuantizedTensor.from_float(
+            torch.full((4, 4), 2.0), "TensorCoreFP8E4M3Layout"
+        )
+        module = torch.nn.Module()
+        module.weight = torch.nn.Parameter(original, requires_grad=False)
+
+        with torch.inference_mode():
+            ops._quantized_apply(module, lambda tensor: replacement)
+
+        self.assertIsInstance(module.weight, QuantizedTensor)
+        self.assertTrue(module.weight.is_inference())
+        self.assertTrue(
+            torch.equal(module.weight.dequantize(), replacement.dequantize())
+        )
+
+    def test_set_attr_param_rewraps_normal_wrapper_in_inference_mode(self):
+        weight = QuantizedTensor.from_float(
+            torch.ones(4, 4), "TensorCoreFP8E4M3Layout"
+        )
+        module = torch.nn.Module()
+
+        with torch.inference_mode():
+            comfy.utils.set_attr_param(module, "weight", weight)
+
+        self.assertIsInstance(module.weight, QuantizedTensor)
+        self.assertTrue(module.weight.is_inference())
+        self.assertTrue(torch.equal(module.weight.dequantize(), weight.dequantize()))
+
+
 if __name__ == "__main__":
     unittest.main()

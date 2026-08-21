@@ -970,12 +970,32 @@ def set_attr(obj, attr, value):
         setattr(obj, name, value)
     return prev
 
+def make_param(value):
+    # Custom tensor wrappers created outside inference mode cannot be detached
+    # by Parameter while inference mode is active. Recreate the wrapper in the
+    # current mode while sharing its component storage.
+    if torch.is_inference_mode_enabled():
+        if (
+            not value.is_inference()
+            and type(value) is not torch.Tensor
+            and hasattr(value, "__tensor_flatten__")
+        ):
+            attrs, unflatten_ctx = value.__tensor_flatten__()
+            components = {attr: getattr(value, attr) for attr in attrs}
+            value = type(value).__tensor_unflatten__(
+                components, unflatten_ctx, value.shape, value.stride()
+            )
+    elif value.is_inference():
+        # Inference tensors have a frozen version counter and cannot be used
+        # directly as a normal parameter.
+        value = value.clone()
+    return torch.nn.Parameter(value, requires_grad=False)
+
+
 def set_attr_param(obj, attr, value):
     # Clone inference tensors (created under torch.inference_mode) since
     # their version counter is frozen and nn.Parameter() cannot wrap them.
-    if (not torch.is_inference_mode_enabled()) and value.is_inference():
-        value = value.clone()
-    return set_attr(obj, attr, torch.nn.Parameter(value, requires_grad=False))
+    return set_attr(obj, attr, make_param(value))
 
 def set_attr_buffer(obj, attr, value):
     obj, name = resolve_attr(obj, attr)
