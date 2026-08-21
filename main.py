@@ -13,6 +13,7 @@ if args.list_feature_flags:
 import os
 import importlib.util
 import shutil
+import subprocess
 import importlib.metadata
 import folder_paths
 import time
@@ -48,8 +49,14 @@ if __name__ == "__main__":
         device_selection = args.cuda_device
 
         try:
-            gpu_count = sum("NVIDIA" in name.upper() for name in cuda_malloc.get_gpu_names())
-        except OSError:
+            output = subprocess.check_output(
+                [sys.executable, "-c", "import torch; print(torch.cuda.device_count())"],
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=30,
+            )
+            gpu_count = int(output.strip())
+        except (OSError, subprocess.SubprocessError, ValueError):
             gpu_count = 0
 
         if gpu_count > 1:
