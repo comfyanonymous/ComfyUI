@@ -13,6 +13,7 @@ decode, which is irrelevant to this bug. It is stubbed here with a class
 that reproduces only the one line that matters: resolving the ``image``
 argument through folder_paths.get_annotated_filepath().
 """
+import importlib
 import os
 import sys
 from unittest.mock import MagicMock, patch
@@ -34,8 +35,16 @@ mock_nodes = MagicMock()
 mock_nodes.MAX_RESOLUTION = 16384
 mock_nodes.LoadImage = _FakeLoadImage
 
-with patch.dict(sys.modules, {"nodes": mock_nodes}):
-    from comfy_extras.nodes_webcam import WebcamCapture
+
+@pytest.fixture
+def webcam_capture_cls():
+    with patch.dict(sys.modules, {"nodes": mock_nodes}):
+        sys.modules.pop("comfy_extras.nodes_webcam", None)
+        module = importlib.import_module("comfy_extras.nodes_webcam")
+    try:
+        yield module.WebcamCapture
+    finally:
+        sys.modules.pop("comfy_extras.nodes_webcam", None)
 
 
 @pytest.fixture
@@ -58,6 +67,6 @@ def sandbox(tmp_path):
     folder_paths.set_temp_directory(orig_temp)
 
 
-def test_load_capture_resolves_temp_annotated_image(sandbox):
-    result = WebcamCapture().load_capture(image="webcam/capture.png [temp]")
+def test_load_capture_resolves_temp_annotated_image(sandbox, webcam_capture_cls):
+    result = webcam_capture_cls().load_capture(image="webcam/capture.png [temp]")
     assert result == os.path.join(sandbox["temp"], "webcam", "capture.png")
