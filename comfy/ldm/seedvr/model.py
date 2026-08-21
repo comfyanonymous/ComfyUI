@@ -504,11 +504,13 @@ class MMModule(nn.Module):
         *args,
         shared_weights: bool = False,
         vid_only: bool = False,
+        chunkable: bool = False,
         **kwargs,
     ):
         super().__init__()
         self.shared_weights = shared_weights
         self.vid_only = vid_only
+        self.chunkable = chunkable
         if self.shared_weights:
             if get_args("vid", args) != get_args("txt", args):
                 raise ValueError("SeedVR2 shared MMModule requires matching vid/txt args.")
@@ -538,10 +540,10 @@ class MMModule(nn.Module):
         free_memory = comfy.model_management.get_free_memory(vid.device)
         usable_memory = max(0, free_memory * 0.9)
         bytes_per_token = vid.shape[-1] * 32
-        dynamic_chunk_size = max(1024, int(usable_memory / bytes_per_token))
+        dynamic_chunk_size = max(1, int(usable_memory / bytes_per_token))
         dynamic_chunk_size = min(vid.shape[0], dynamic_chunk_size)
         
-        is_linear = vid_module.__class__.__name__ in ("Linear", "MLP", "SwiGLUMLP")
+        is_linear = self.chunkable
         if is_linear and not comfy.model_management.in_training and not vid.requires_grad:
             vid_out = None
             offset = 0
@@ -559,7 +561,7 @@ class MMModule(nn.Module):
             txt_module = self.txt if not self.shared_weights else self.all
             txt = txt.to(device=vid.device, dtype=vid.dtype)
             
-            is_linear_txt = txt_module.__class__.__name__ in ("Linear", "MLP", "SwiGLUMLP")
+            is_linear_txt = self.chunkable
             if is_linear_txt and not comfy.model_management.in_training and not txt.requires_grad:
                 txt_out = None
                 offset = 0
@@ -605,9 +607,9 @@ class NaMMAttention(nn.Module):
         qkv_dim = inner_dim * 3
         self.head_dim = head_dim
         self.proj_qkv = MMModule(
-            operations.Linear, dim, qkv_dim, bias=qk_bias, shared_weights=shared_weights, device=device, dtype=dtype
+            operations.Linear, dim, qkv_dim, bias=qk_bias, shared_weights=shared_weights, chunkable=True, device=device, dtype=dtype
         )
-        self.proj_out = MMModule(operations.Linear, inner_dim, dim, shared_weights=shared_weights, device=device, dtype=dtype)
+        self.proj_out = MMModule(operations.Linear, inner_dim, dim, shared_weights=shared_weights, chunkable=True, device=device, dtype=dtype)
         self.norm_q = MMModule(
             qk_norm,
             normalized_shape=head_dim,
@@ -706,11 +708,11 @@ class NaSwinAttention(NaMMAttention):
         vid_module = self.proj_qkv.vid if not self.proj_qkv.shared_weights else self.proj_qkv.all
         txt_module = self.proj_qkv.txt if not self.proj_qkv.shared_weights else self.proj_qkv.all
 
-        if not comfy.model_management.in_training and not vid.requires_grad:
+        if not comfy.model_management.in_training and not vid.requires_grad and not txt.requires_grad:
             free_memory = comfy.model_management.get_free_memory(vid.device)
             usable_memory = max(0, free_memory * 0.9)
             bytes_per_token = vid.shape[-1] * 32
-            dynamic_chunk_size = max(1024, int(usable_memory / bytes_per_token))
+            dynamic_chunk_size = max(1, int(usable_memory / bytes_per_token))
             dynamic_chunk_size = min(vid.shape[0], dynamic_chunk_size)
             
             vid_q = vid_win.new_empty((vid_win.shape[0], self.heads, self.head_dim))
@@ -726,11 +728,11 @@ class NaSwinAttention(NaMMAttention):
                 vid_v[offset:offset + chunk.shape[0]] = v
                 offset += chunk.shape[0]
 
-            txt_q = txt.new_empty((txt.shape[0], self.heads, self.head_dim))
-            txt_k = txt.new_empty((txt.shape[0], self.heads, self.head_dim))
-            txt_v = txt.new_empty((txt.shape[0], self.heads, self.head_dim))
-            offset = 0
             txt_device = txt.to(device=vid.device, dtype=vid.dtype)
+            txt_q = txt_device.new_empty((txt.shape[0], self.heads, self.head_dim))
+            txt_k = txt_device.new_empty((txt.shape[0], self.heads, self.head_dim))
+            txt_v = txt_device.new_empty((txt.shape[0], self.heads, self.head_dim))
+            offset = 0
             for chunk in txt_device.split(dynamic_chunk_size, dim=0):
                 chunk_qkv = txt_module(chunk)
                 chunk_qkv = chunk_qkv.reshape(chunk_qkv.shape[0], 3, self.heads, self.head_dim)
@@ -903,6 +905,7 @@ class NaMMSRTransformerBlock(nn.Module):
             expand_ratio=expand_ratio,
             shared_weights=shared_weights,
             vid_only=is_last_layer,
+            chunkable=True,
             device=device, dtype=dtype, operations=operations
         )
         self.ada = MMModule(ada, dim=dim, emb_dim=emb_dim, layers=["attn", "mlp"], shared_weights=shared_weights, vid_only=is_last_layer, device=device, dtype=dtype)
@@ -922,11 +925,11 @@ class NaMMSRTransformerBlock(nn.Module):
         free_memory = comfy.model_management.get_free_memory(vid.device)
         usable_memory = max(0, free_memory * 0.9)
         bytes_per_token = vid.shape[-1] * 32
-        dynamic_chunk_size = max(1024, int(usable_memory / bytes_per_token))
+        dynamic_chunk_size = max(1, int(usable_memory / bytes_per_token))
         dynamic_chunk_size = min(vid.shape[0], dynamic_chunk_size)
         
         if comfy.model_management.in_training or vid.requires_grad:
-            vid = torch.cat([vid_module(chunk) for chunk in vid.split(dynamic_chunk_size, dim=0)], dim=0)
+            vid = vid_module(vid)
         else:
             vid_out = None
             offset = 0
