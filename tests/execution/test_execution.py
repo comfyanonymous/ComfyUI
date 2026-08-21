@@ -236,6 +236,24 @@ class TestExecution:
     def builder(self, request):
         yield GraphBuilder(prefix=request.node.name)
 
+    def test_dynamic_combo_graph_builder(self, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        mask = g.node("SolidMask", value=1.0, height=32, width=32, batch_size=1)
+        node = g.node(
+            "ResizeImageMaskNode",
+            input=mask.out(0),
+            resize_type={
+                "resize_type": "scale by multiplier",
+                "multiplier": 2.0,
+            },
+            scale_method="lanczos",
+        )
+        image = g.node("MaskToImage", mask=node.out(0))
+        g.node("PreviewImage", images=image.out(0))
+
+        result = client.run(g)
+        assert result.did_run(node)
+
     def test_lazy_input(self, client: ComfyClient, builder: GraphBuilder):
         g = builder
         input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)

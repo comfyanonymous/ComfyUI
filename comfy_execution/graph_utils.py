@@ -9,6 +9,40 @@ def is_link(obj):
         return False
     return True
 
+
+def _flatten_dynamic_input(root: str, path: str, values: dict):
+    flattened = {}
+    for key, value in values.items():
+        if key == root:
+            flattened[path] = value
+            continue
+
+        child_path = f"{path}.{key}"
+        if isinstance(value, dict) and key in value:
+            flattened.update(_flatten_dynamic_input(key, child_path, value))
+        else:
+            flattened[child_path] = value
+    return flattened
+
+
+def _flatten_dynamic_inputs(inputs: dict):
+    # DynamicCombo values contain their own selector key. Flatten those values to
+    # the dotted input names used by the prompt format while preserving regular
+    # dictionary values.
+    flattened = {}
+    for name, value in inputs.items():
+        if isinstance(value, dict) and name in value:
+            values = _flatten_dynamic_input(name, name, value)
+        else:
+            values = {name: value}
+
+        for key, item in values.items():
+            if key in flattened:
+                raise ValueError(f"conflicting input '{key}'")
+            flattened[key] = item
+    return flattened
+
+
 # The GraphBuilder is just a utility class that outputs graphs in the form expected by the ComfyUI back-end
 class GraphBuilder:
     _default_prefix_root = ""
@@ -49,7 +83,7 @@ class GraphBuilder:
         if id in self.nodes:
             return self.nodes[id]
 
-        node = Node(id, class_type, kwargs)
+        node = Node(id, class_type, _flatten_dynamic_inputs(kwargs))
         self.nodes[id] = node
         return node
 
