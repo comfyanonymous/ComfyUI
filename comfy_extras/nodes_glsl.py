@@ -25,7 +25,9 @@ def _preload_angle():
         os.add_dll_directory(angle_dir)
         os.environ["PATH"] = angle_dir + os.pathsep + os.environ.get("PATH", "")
 
-    mode = 0 if sys.platform == "win32" else ctypes.RTLD_GLOBAL
+    # Keep ANGLE's symbols local. libGLESv2 exports its own libffi symbols,
+    # and loading them globally can replace the libffi used by cffi.
+    mode = ctypes.RTLD_LOCAL
     ctypes.CDLL(str(egl_path), mode=mode)
     ctypes.CDLL(str(gles_path), mode=mode)
 
