@@ -36,6 +36,66 @@ import comfy_aimdo.host_buffer
 import comfy_aimdo.vram_buffer
 from comfy.internal_logging import detail
 
+
+# --- cgroup-aware memory reporting -------------------------------------------------
+#
+# psutil reads /proc, which reports the *host* memory even when this process runs inside a
+# container with a memory limit. Every RAM pressure decision (cache eviction, model
+# unloading, pinned memory sizing) then sees memory that this process may not use, and the
+# container gets OOM-killed instead of freeing anything. See #5625 and #14938.
+#
+# Taking the minimum of the cgroup limit and what psutil reports leaves the
+# non-containerised path untouched: outside a container the file is absent or "max".
+
+def _read_cgroup_int(path):
+    try:
+        with open(path, "r") as f:
+            raw = f.read().strip()
+    except OSError:
+        return None
+    if raw == "max":
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        return None
+
+
+def _cgroup_memory_limit():
+    limit = _read_cgroup_int("/sys/fs/cgroup/memory.max")                    # cgroup v2
+    if limit is None:
+        limit = _read_cgroup_int("/sys/fs/cgroup/memory/memory.limit_in_bytes")  # cgroup v1
+    return limit
+
+
+def _cgroup_memory_usage():
+    usage = _read_cgroup_int("/sys/fs/cgroup/memory.current")
+    if usage is None:
+        usage = _read_cgroup_int("/sys/fs/cgroup/memory/memory.usage_in_bytes")
+    return usage
+
+
+# The limit cannot change while the process runs, the usage can.
+CGROUP_MEMORY_LIMIT = _cgroup_memory_limit()
+
+
+def virtual_memory():
+    """virtual_memory() clamped to the cgroup limit when one applies."""
+    mem = psutil.virtual_memory()
+    limit = CGROUP_MEMORY_LIMIT
+    if limit is None or limit >= mem.total:
+        return mem
+    used = _cgroup_memory_usage()
+    if used is None:
+        used = max(0, mem.total - mem.available)
+    used = min(used, limit)
+    available = min(mem.available, limit - used)
+    return mem._replace(total=limit, available=available, used=used,
+                        free=min(mem.free, available),
+                        percent=round(used * 100.0 / limit, 1))
+
+# -----------------------------------------------------------------------------------
+
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from comfy.model_patcher import ModelPatcher
@@ -318,7 +378,7 @@ def get_total_memory(dev=None, torch_total_too=False):
         dev = get_torch_device()
 
     if hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps'):
-        mem_total = psutil.virtual_memory().total
+        mem_total = virtual_memory().total
         mem_total_torch = mem_total
     else:
         if directml_enabled:
@@ -361,7 +421,7 @@ def mac_version():
         return None
 
 total_vram = get_total_memory(get_torch_device()) / (1024 * 1024)
-total_ram = psutil.virtual_memory().total / (1024 * 1024)
+total_ram = virtual_memory().total / (1024 * 1024)
 logging.info("Total VRAM {:0.0f} MB, total RAM {:0.0f} MB".format(total_vram, total_ram))
 
 try:
@@ -703,7 +763,7 @@ def should_free_pins_for_ram_pressure(shortfall):
         return False
     if not WINDOWS:
         return True
-    if psutil.virtual_memory().available < WINDOWS_PIN_EVICTION_EMERGENCY_AVAILABLE:
+    if virtual_memory().available < WINDOWS_PIN_EVICTION_EMERGENCY_AVAILABLE:
         return True
     try:
         return psutil.swap_memory().percent >= WINDOWS_PIN_EVICTION_SWAP_PERCENT
@@ -717,7 +777,7 @@ def ensure_pin_budget(size, evict_active=False, loaded=False):
     if args.fast_disk:
         shortfall = TOTAL_PINNED_MEMORY + size - MAX_PINNED_MEMORY
     else:
-        shortfall = size + max(comfy.memory_management.RAM_CACHE_HEADROOM / 2, 2048 * 1024 ** 2) - psutil.virtual_memory().available
+        shortfall = size + max(comfy.memory_management.RAM_CACHE_HEADROOM / 2, 2048 * 1024 ** 2) - virtual_memory().available
     if shortfall <= 0:
         return True
 
@@ -1751,7 +1811,7 @@ def get_free_memory(dev=None, torch_free_too=False):
         dev = get_torch_device()
 
     if hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps'):
-        mem_free_total = psutil.virtual_memory().available
+        mem_free_total = virtual_memory().available
         mem_free_torch = mem_free_total
     else:
         if directml_enabled:

@@ -14,6 +14,7 @@ import asyncio
 import torch
 
 from comfy.cli_args import args, get_console_log_level
+from comfy.model_management import virtual_memory
 import comfy.memory_management
 import comfy.model_management
 import comfy.model_patcher
@@ -798,7 +799,7 @@ class PromptExecutor:
 
                     if self.cache_type == CacheType.RAM_PRESSURE:
                         ram_release_callback(ram_inactive_headroom)
-                        ram_shortfall = ram_headroom - psutil.virtual_memory().available
+                        ram_shortfall = ram_headroom - virtual_memory().available
                         if ram_shortfall > 0:
                             freed = ram_release_callback(ram_headroom, free_active=True, min_entry_size=RAM_CACHE_LARGE_INTERMEDIATE)
                             ram_shortfall -= freed
