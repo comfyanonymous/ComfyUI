@@ -45,9 +45,14 @@ from comfy.internal_logging import detail
 # container gets OOM-killed instead of freeing anything. See #5625 and #14938.
 #
 # Taking the minimum of the cgroup limit and what psutil reports leaves the
-# non-containerised path untouched: outside a container the file is absent or "max".
+# non-containerised path untouched: with no limit in effect there is nothing to read.
+
+CGROUP_V2 = ("/sys/fs/cgroup", "memory.max", "memory.current")
+CGROUP_V1 = ("/sys/fs/cgroup/memory", "memory.limit_in_bytes", "memory.usage_in_bytes")
+
 
 def _read_cgroup_int(path):
+    """Read a cgroup file holding a byte count, or None when it is absent or unlimited."""
     try:
         with open(path, "r") as f:
             raw = f.read().strip()
@@ -61,31 +66,64 @@ def _read_cgroup_int(path):
         return None
 
 
-def _cgroup_memory_limit():
-    limit = _read_cgroup_int("/sys/fs/cgroup/memory.max")                    # cgroup v2
-    if limit is None:
-        limit = _read_cgroup_int("/sys/fs/cgroup/memory/memory.limit_in_bytes")  # cgroup v1
-    return limit
+def _cgroup_self_paths():
+    """The memory hierarchies this process belongs to, as (root, limit file, usage file, path).
+
+    The mount root is not this process's cgroup: under a host cgroup namespace
+    /sys/fs/cgroup/memory.max does not exist at all, and under systemd or Kubernetes the
+    process sits several levels down. /proc/self/cgroup gives the path to walk.
+    """
+    try:
+        with open("/proc/self/cgroup", "r") as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return []
+    hierarchies = []
+    for line in lines:
+        fields = line.split(":", 2)
+        if len(fields) != 3:
+            continue
+        hierarchy_id, controllers, path = fields
+        if hierarchy_id == "0" and not controllers:
+            hierarchies.append(CGROUP_V2 + (path,))
+        elif "memory" in controllers.split(","):
+            hierarchies.append(CGROUP_V1 + (path,))
+    return hierarchies
 
 
-def _cgroup_memory_usage():
-    usage = _read_cgroup_int("/sys/fs/cgroup/memory.current")
-    if usage is None:
-        usage = _read_cgroup_int("/sys/fs/cgroup/memory/memory.usage_in_bytes")
-    return usage
+def _cgroup_memory_constraint():
+    """The smallest limit that applies to this process, with the usage file that goes with it.
+
+    A cgroup is bound by its ancestors' limits too, so every level is considered and the
+    usage is read from whichever level carries the binding limit.
+    """
+    constraint = None
+    for root, limit_file, usage_file, path in _cgroup_self_paths():
+        parts = [part for part in path.split("/") if part]
+        while True:
+            directory = os.path.join(root, *parts)
+            limit = _read_cgroup_int(os.path.join(directory, limit_file))
+            if limit is not None and (constraint is None or limit < constraint[0]):
+                constraint = (limit, os.path.join(directory, usage_file))
+            if not parts:
+                break
+            parts.pop()
+    return constraint
 
 
-# The limit cannot change while the process runs, the usage can.
-CGROUP_MEMORY_LIMIT = _cgroup_memory_limit()
+# Neither the limit nor which cgroup carries it changes while the process runs, the usage does.
+CGROUP_MEMORY = _cgroup_memory_constraint()
 
 
 def virtual_memory():
-    """virtual_memory() clamped to the cgroup limit when one applies."""
+    """psutil.virtual_memory() clamped to the cgroup limit when one applies."""
     mem = psutil.virtual_memory()
-    limit = CGROUP_MEMORY_LIMIT
-    if limit is None or limit >= mem.total:
+    if CGROUP_MEMORY is None:
         return mem
-    used = _cgroup_memory_usage()
+    limit, usage_file = CGROUP_MEMORY
+    if limit >= mem.total:
+        return mem
+    used = _read_cgroup_int(usage_file)
     if used is None:
         used = max(0, mem.total - mem.available)
     used = min(used, limit)
