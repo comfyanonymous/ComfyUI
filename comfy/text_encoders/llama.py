@@ -26,36 +26,59 @@ class FixedKV:
     seqlen: torch.Tensor
 
     def prepare(self, num_tokens):
-        self.position.fill_(self.index)
-        self.seqlen.fill_(self.index + num_tokens)
+        self.position.copy_(self.seqlen)
+        self.seqlen.add_(num_tokens)
 
     def advance(self, num_tokens):
         self.index += num_tokens
 
+    def rollback(self, discard=1):
+        # discard the rejected tail of a verify step; the stale K/V slots are
+        # overwritten by the next write, the bias by the next prepare
+        self.index -= discard
+        if self.seqlen is not None:
+            self.seqlen.sub_(discard)
+
 @dataclass
 class FixedKVBias(FixedKV):
-    # full-capacity decode bias [1, 1, 1, capacity]; position/bias/tracker are shared across layers
+    # full-capacity decode bias [1, 1, rows, capacity]; the decode slice uses the LAST
+    # `seq` rows, so row r serves query j = r - (rows - seq) and may see slots <= index + j.
+    # position/bias/tracker are shared across layers
     bias: torch.Tensor = None
     tracker: dict = None
 
     def prepare(self, num_tokens):
-        if self.tracker["step"] == self.index:
+        if self.tracker["step"] == (self.index, num_tokens):
             return
         if self.index + num_tokens > self.bias.shape[-1]:
             raise RuntimeError("KV cache capacity exceeded")
-        self.tracker["step"] = self.index
-        self.position.fill_(self.index)
-        self.bias[..., self.index:self.index + num_tokens] = 0
+        self.tracker["step"] = (self.index, num_tokens)
+        i = self.index
+        rows = self.bias.shape[-2]
+        if num_tokens <= rows:
+            min_val = torch.finfo(self.bias.dtype).min
+            lo = max(i - rows + 1, 0)
+            hi = i + rows
+            for r in range(rows):
+                self.position[r].fill_(i + r)
+                j = r - (rows - num_tokens)
+                allow = i + j if j >= 0 else i  # unused rows keep a safe (seq-1-like) staircase
+                self.bias[..., r, lo:allow + 1] = 0
+                self.bias[..., r, allow + 1:hi] = min_val
+        else:
+            self.bias[..., :, i:i + num_tokens] = 0
 
 
 def fixed_kv_bias_decode(xq, cache, num_heads, num_kv_heads, head_dim):
     # fixed-length masked attention over the full capacity, explicit math
-    batch_size = xq.shape[0]
+    batch_size, _, seq, _ = xq.shape
     groups = num_heads // num_kv_heads
-    q = xq.reshape(batch_size, num_kv_heads, groups, head_dim) * head_dim ** -0.5
-    scores = (q @ cache.key.transpose(-1, -2)).add_(cache.bias)
+    q = xq.reshape(batch_size, num_kv_heads, groups, seq, head_dim) * head_dim ** -0.5
+    bias = cache.bias[..., cache.bias.shape[-2] - seq:, :].unsqueeze(1)
+    scores = (q @ cache.key.transpose(-1, -2).unsqueeze(2)).add_(bias)
     probs = torch.softmax(scores, dim=-1, dtype=torch.float32).to(xq.dtype)
-    return (probs @ cache.value).reshape(batch_size, 1, num_heads * head_dim)
+    out = probs @ cache.value.unsqueeze(2)
+    return out.permute(0, 3, 1, 2, 4).reshape(batch_size, seq, num_heads * head_dim)
 
 @dataclass
 class Llama2Config:
@@ -597,10 +620,10 @@ class Attention(nn.Module):
 
         fixed_cache = past_key_value if isinstance(past_key_value, FixedKV) else None
         if isinstance(fixed_cache, FixedKVBias):
-            if seq_length == 1 and attention_mask is None and graph_decode:
+            if seq_length <= 3 and attention_mask is None and graph_decode:
                 # CUDA-graphable decode: device-side write position, full-capacity biased attention
-                fixed_cache.key.index_copy_(2, fixed_cache.position, xk)
-                fixed_cache.value.index_copy_(2, fixed_cache.position, xv)
+                fixed_cache.key.index_copy_(2, fixed_cache.position[:seq_length], xk)
+                fixed_cache.value.index_copy_(2, fixed_cache.position[:seq_length], xv)
                 output = fixed_kv_bias_decode(xq, fixed_cache, self.num_heads, self.num_kv_heads, self.head_dim)
                 return self.o_proj(output), fixed_cache
             fixed_cache.key[:, :, fixed_cache.index:fixed_cache.index + seq_length] = xk
@@ -611,17 +634,25 @@ class Attention(nn.Module):
             xq = xq.transpose(1, 2)
             xk = xk.transpose(1, 2)
             xv = xv.transpose(1, 2)
-            if seq_length == 1:
+            if seq_length == 1 and fixed_cache.index > 0:
                 # CUDA-graphable decode path.
-                fixed_cache.key.index_copy_(1, fixed_cache.position, xk)
-                fixed_cache.value.index_copy_(1, fixed_cache.position, xv)
+                position = fixed_cache.position.view(batch_size, 1, 1, 1).expand_as(xk)
+                fixed_cache.key.scatter_(1, position, xk)
+                fixed_cache.value.scatter_(1, position, xv)
                 output = comfy_kitchen.flash_attention_decode(xq, fixed_cache.key, fixed_cache.value, fixed_cache.seqlen)
                 return self.o_proj(output.view(batch_size, seq_length, self.inner_size)), fixed_cache
 
-            fixed_cache.key[:, fixed_cache.index:fixed_cache.index + seq_length].copy_(xk)
-            fixed_cache.value[:, fixed_cache.index:fixed_cache.index + seq_length].copy_(xv)
-            xk = fixed_cache.key[:, :fixed_cache.index + seq_length]
-            xv = fixed_cache.value[:, :fixed_cache.index + seq_length]
+            if attention_mask is None or attention_mask.ndim < 4:
+                fixed_cache.key[:, :seq_length].copy_(xk)
+                fixed_cache.value[:, :seq_length].copy_(xv)
+            else:
+                valid = attention_mask[:, 0, -1, -seq_length:] == 0
+                indices = torch.arange(seq_length, device=xk.device).expand(batch_size, -1)
+                indices = indices.masked_fill(~valid, seq_length).sort(dim=1).values.clamp_max_(seq_length - 1)
+                indices = indices.view(batch_size, seq_length, 1, 1).expand_as(xk)
+                fixed_cache.key[:, :seq_length].copy_(xk.gather(1, indices))
+                fixed_cache.value[:, :seq_length].copy_(xv.gather(1, indices))
+                fixed_cache.seqlen.copy_(valid.sum(dim=1))
 
             xq = xq.transpose(1, 2)
             xk = xk.transpose(1, 2)
@@ -843,15 +874,15 @@ class Llama2_(nn.Module):
         flash_kv = self.fixed_kv and flash is not None and flash(device)
         bias_kv = self.fixed_kv and not flash_kv
         # all layers advance in lockstep, so the bias caches share one position/bias/tracker
-        position = torch.empty((1,), device=device, dtype=torch.int64) if bias_kv else None
-        bias = torch.full((1, 1, 1, capacity), torch.finfo(dtype).min, device=device, dtype=dtype) if bias_kv else None
+        position = torch.empty((3,), device=device, dtype=torch.int64) if bias_kv else None
+        bias = torch.full((1, 1, 3, capacity), torch.finfo(dtype).min, device=device, dtype=dtype) if bias_kv else None
         tracker = {"step": -1}
         for _ in range(self.config.num_hidden_layers):
             if flash_kv:
                 key = torch.empty((batch, capacity, self.config.num_key_value_heads, self.config.head_dim), device=device, dtype=dtype)
                 value = torch.empty_like(key)
-                pos = torch.empty((1,), device=device, dtype=torch.int64)
-                seqlen = torch.empty((batch,), device=device, dtype=torch.int32)
+                pos = torch.empty((batch,), device=device, dtype=torch.int64)
+                seqlen = torch.zeros((batch,), device=device, dtype=torch.int32)
                 caches.append(FixedKV(key, value, 0, pos, seqlen))
             elif bias_kv:
                 # zero-init: decode attends full capacity with masked tails, 0*0 stays finite
@@ -882,6 +913,10 @@ class Llama2_(nn.Module):
         past_len = 0
         if past_key_values is not None and len(past_key_values) > 0:
             past_len = self.get_past_len(past_key_values)
+        fixed_kv = past_key_values is not None and len(past_key_values) > 0 and isinstance(past_key_values[0], FixedKV)
+        fixed_kv_decode = fixed_kv and past_len > 0 and seq_len == 1
+        if fixed_kv_decode:
+            attention_mask = None
 
         if position_ids is None:
             position_ids = torch.arange(past_len, past_len + seq_len, device=x.device).unsqueeze(0)
@@ -893,7 +928,8 @@ class Llama2_(nn.Module):
             mask = 1.0 - attention_mask.to(x.dtype).reshape((attention_mask.shape[0], 1, -1, attention_mask.shape[-1])).expand(attention_mask.shape[0], 1, seq_len, attention_mask.shape[-1])
             mask = mask.masked_fill(mask.to(torch.bool), torch.finfo(x.dtype).min / 4)
 
-        if seq_len > 1:
+        spec_decode = fixed_kv and seq_len in (2, 3) and past_len > 0 and attention_mask is None
+        if seq_len > 1 and not spec_decode:  # spec verify: the staircase decode bias is causal
             causal_mask = torch.empty(past_len + seq_len, past_len + seq_len, dtype=x.dtype, device=x.device).fill_(torch.finfo(x.dtype).min / 4).triu_(1)
             if mask is not None:
                 mask += causal_mask
@@ -902,8 +938,7 @@ class Llama2_(nn.Module):
 
         optimized_attention = optimized_attention_for_device(x.device, mask=mask is not None, small_input=True)
 
-        fixed_kv = past_key_values is not None and len(past_key_values) > 0 and isinstance(past_key_values[0], FixedKV)
-        enable_graph = self.graph_dynamic_vbar_blocks and fixed_kv and seq_len == 1 and mask is None
+        enable_graph = self.graph_dynamic_vbar_blocks and (fixed_kv_decode or spec_decode)
         if enable_graph:
             freqs_cis_groups = freqs_cis if isinstance(freqs_cis, list) else [freqs_cis]
             cross_step_state_key = [(x.shape, x.stride(), x.dtype, x.device)]

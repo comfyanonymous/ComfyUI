@@ -18,7 +18,8 @@ class Seedream4Options(BaseModel):
 
 
 class Seedream5OptimizePromptOptions(BaseModel):
-    thinking: Literal["auto", "enabled", "disabled"] = Field(...)
+    thinking: Literal["auto", "enabled", "disabled"] | None = Field(None)
+    mode: Literal["standard", "fast"] | None = Field(None)
 
 
 class Seedream4TaskCreationRequest(BaseModel):
@@ -301,6 +302,7 @@ SEEDANCE2_REF_VIDEO_PIXEL_LIMITS = {
     "dreamina-seedance-2-5-260628": {
         "480p": {"min": 409_600, "max": 8_295_044},
         "720p": {"min": 409_600, "max": 8_295_044},
+        "1080p": {"min": 409_600, "max": 8_295_044},
     },
 }
 

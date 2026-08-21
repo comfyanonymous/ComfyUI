@@ -226,10 +226,11 @@ class Gemma4Attention(nn.Module):
             present_key_value = None
             fixed_cache = past_key_value if isinstance(past_key_value, FixedKV) else None
             if fixed_cache is not None:
-                if seq_length == 1:
+                if seq_length == 1 and fixed_cache.index > 0:
                     # CUDA-graphable decode: write at the device-side ring/linear position
-                    fixed_cache.key.index_copy_(2, fixed_cache.position, xk)
-                    fixed_cache.value.index_copy_(2, fixed_cache.position, xv)
+                    position = fixed_cache.position.view(batch_size, 1, 1, 1).expand_as(xk)
+                    fixed_cache.key.scatter_(2, position, xk)
+                    fixed_cache.value.scatter_(2, position, xv)
                     output = self._decode_attention(xq, fixed_cache, attention_mask)
                     return self.o_proj(output), fixed_cache, None
 
@@ -515,7 +516,7 @@ class Gemma4Transformer(nn.Module):
 
         fixed_kv = (past_key_values is not None and len(past_key_values) > 0
                     and isinstance(past_key_values[0], FixedKV))
-        decode = fixed_kv and seq_len == 1
+        decode = fixed_kv and past_len > 0 and seq_len == 1
         # mirror the conditions under which prefetch_queue_pop can actually capture, so
         # eager fallbacks keep the sliced decode path instead of the full-capacity one
         enable_graph = (decode and mask is None and self.graph_dynamic_vbar_blocks
@@ -525,12 +526,13 @@ class Gemma4Transformer(nn.Module):
                         and comfy.model_management.is_device_cuda(x.device))
         decode_bias = None
         decode_masks = None
-        if decode:
+        if fixed_kv:
             prepared = set()
             for kv in past_key_values:
                 if isinstance(kv, FixedKV) and id(kv.position) not in prepared:
                     kv.prepare(seq_len)
                     prepared.add(id(kv.position))
+        if decode:
             if mask is not None:
                 decode_masks = {}
                 for kv in past_key_values:
@@ -705,8 +707,8 @@ class Gemma4Base(BaseLlama, BaseGenerate, torch.nn.Module):
             cache_cls = RingKV if sliding else FixedKV
             tracker = trackers.get((cache_cls, length))
             if tracker is None:
-                tracker = (torch.empty((1,), device=device, dtype=torch.int64),
-                           torch.empty((batch,), device=device, dtype=torch.int32))
+                tracker = (torch.empty((batch,), device=device, dtype=torch.int64),
+                           torch.zeros((batch,), device=device, dtype=torch.int32))
                 trackers[(cache_cls, length)] = tracker
             # zero-init: decode attends full capacity with masked tails, 0*0 stays finite
             key = torch.zeros((batch, kv_heads, length, head_dim), device=device, dtype=execution_dtype)
