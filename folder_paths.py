@@ -426,7 +426,9 @@ def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) 
             if d in excluded_dir_names:
                 continue
             try:
-                real_subdir = os.path.realpath(os.path.join(dirpath, d))
+                # strict=True so an unresolvable path raises here instead of
+                # returning a fabricated one that would enter the visited set.
+                real_subdir = os.path.realpath(os.path.join(dirpath, d), strict=True)
             except OSError:
                 logging.warning(f"Warning: Unable to resolve {d}. Skipping this path.")
                 continue

@@ -151,6 +151,32 @@ def test_recursive_search_still_follows_a_link_to_a_separate_tree(temp_dir, tmp_
     assert files == [os.path.join("extra", "linked.safetensors")]
 
 
+def test_recursive_search_skips_a_directory_it_cannot_resolve(temp_dir):
+    """The warn-and-skip branch has to be reachable, not decorative.
+
+    `os.path.realpath` only raises with `strict=True`; with the default it
+    invents a path for anything it cannot resolve. Forcing the failure here
+    keeps that branch covered and proves one unresolvable directory does not
+    abort the rest of the walk.
+    """
+    os.makedirs(os.path.join(temp_dir, "good"))
+    os.makedirs(os.path.join(temp_dir, "bad"))
+    open(os.path.join(temp_dir, "good", "a.txt"), "w").close()
+    open(os.path.join(temp_dir, "bad", "b.txt"), "w").close()
+
+    real_realpath = os.path.realpath
+
+    def realpath(path, *args, **kwargs):
+        if os.path.basename(path) == "bad":
+            raise OSError(2, "No such file or directory")
+        return real_realpath(path, *args, **kwargs)
+
+    with patch("folder_paths.os.path.realpath", side_effect=realpath):
+        files, _dirs = folder_paths.recursive_search(temp_dir)
+
+    assert files == [os.path.join("good", "a.txt")]
+
+
 def test_recursive_search_still_excludes_named_directories(temp_dir):
     os.makedirs(os.path.join(temp_dir, "keep"))
     os.makedirs(os.path.join(temp_dir, "skipme"))
