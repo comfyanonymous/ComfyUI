@@ -91,14 +91,19 @@ def _cgroup_self_paths():
     return hierarchies
 
 
+# Which cgroups this process belongs to does not change while it runs, so this is read once.
+CGROUP_HIERARCHIES = _cgroup_self_paths()
+
+
 def _cgroup_memory_constraint():
     """The smallest limit that applies to this process, with the usage file that goes with it.
 
     A cgroup is bound by its ancestors' limits too, so every level is considered and the
-    usage is read from whichever level carries the binding limit.
+    usage is read from whichever level carries the binding limit. The limits themselves are
+    read every time: memory.max is writable, and a pod can be resized while it runs.
     """
     constraint = None
-    for root, limit_file, usage_file, path in _cgroup_self_paths():
+    for root, limit_file, usage_file, path in CGROUP_HIERARCHIES:
         parts = [part for part in path.split("/") if part]
         while True:
             directory = os.path.join(root, *parts)
@@ -111,16 +116,15 @@ def _cgroup_memory_constraint():
     return constraint
 
 
-# Neither the limit nor which cgroup carries it changes while the process runs, the usage does.
-CGROUP_MEMORY = _cgroup_memory_constraint()
-
-
 def virtual_memory():
     """psutil.virtual_memory() clamped to the cgroup limit when one applies."""
     mem = psutil.virtual_memory()
-    if CGROUP_MEMORY is None:
+    if not CGROUP_HIERARCHIES:
         return mem
-    limit, usage_file = CGROUP_MEMORY
+    constraint = _cgroup_memory_constraint()
+    if constraint is None:
+        return mem
+    limit, usage_file = constraint
     if limit >= mem.total:
         return mem
     used = _read_cgroup_int(usage_file)

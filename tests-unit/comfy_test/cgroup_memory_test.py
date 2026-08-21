@@ -27,14 +27,14 @@ def host_psutil():
         yield
 
 
-def write_cgroup(directory, limit, usage):
+def write_cgroup(directory, limit, usage=0):
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "memory.max").write_text(f"{limit}\n")
     (directory / "memory.current").write_text(f"{usage}\n")
 
 
-def self_paths(root, path):
-    return lambda: [(str(root), "memory.max", "memory.current", path)]
+def hierarchies(root, path):
+    return [(str(root), "memory.max", "memory.current", path)]
 
 
 def test_read_cgroup_int(tmp_path):
@@ -75,8 +75,8 @@ def test_constraint_takes_the_smallest_limit_in_the_hierarchy(tmp_path):
     write_cgroup(tmp_path / "outer", 2 * 1024 ** 3, 900 * 1024 ** 2)
     write_cgroup(tmp_path / "outer" / "inner", 3 * 1024 ** 3, 100 * 1024 ** 2)
 
-    with patch.object(model_management, "_cgroup_self_paths",
-                      self_paths(tmp_path, "/outer/inner")):
+    with patch.object(model_management, "CGROUP_HIERARCHIES",
+                      hierarchies(tmp_path, "/outer/inner")):
         limit, usage_file = model_management._cgroup_memory_constraint()
 
     assert limit == 2 * 1024 ** 3
@@ -85,10 +85,10 @@ def test_constraint_takes_the_smallest_limit_in_the_hierarchy(tmp_path):
 
 def test_constraint_reads_a_cgroup_the_mount_root_does_not_expose(tmp_path):
     # Under a host cgroup namespace the mount root has no memory files at all.
-    write_cgroup(tmp_path / "docker" / "abc", CONTAINER_LIMIT, 0)
+    write_cgroup(tmp_path / "docker" / "abc", CONTAINER_LIMIT)
 
-    with patch.object(model_management, "_cgroup_self_paths",
-                      self_paths(tmp_path, "/docker/abc")):
+    with patch.object(model_management, "CGROUP_HIERARCHIES",
+                      hierarchies(tmp_path, "/docker/abc")):
         limit, _ = model_management._cgroup_memory_constraint()
 
     assert limit == CONTAINER_LIMIT
@@ -97,12 +97,12 @@ def test_constraint_reads_a_cgroup_the_mount_root_does_not_expose(tmp_path):
 def test_constraint_is_none_without_a_limit(tmp_path):
     (tmp_path / "memory.max").write_text("max\n")
 
-    with patch.object(model_management, "_cgroup_self_paths", self_paths(tmp_path, "/")):
+    with patch.object(model_management, "CGROUP_HIERARCHIES", hierarchies(tmp_path, "/")):
         assert model_management._cgroup_memory_constraint() is None
 
 
-def test_no_constraint_passes_psutil_through(host_psutil):
-    with patch.object(model_management, "CGROUP_MEMORY", None):
+def test_no_hierarchy_passes_psutil_through(host_psutil):
+    with patch.object(model_management, "CGROUP_HIERARCHIES", []):
         mem = model_management.virtual_memory()
 
     assert mem.total == HOST_TOTAL
@@ -110,7 +110,9 @@ def test_no_constraint_passes_psutil_through(host_psutil):
 
 
 def test_limit_larger_than_host_is_ignored(host_psutil, tmp_path):
-    with patch.object(model_management, "CGROUP_MEMORY", (HOST_TOTAL * 2, str(tmp_path))):
+    write_cgroup(tmp_path, HOST_TOTAL * 2)
+
+    with patch.object(model_management, "CGROUP_HIERARCHIES", hierarchies(tmp_path, "/")):
         mem = model_management.virtual_memory()
 
     assert mem.total == HOST_TOTAL
@@ -119,10 +121,9 @@ def test_limit_larger_than_host_is_ignored(host_psutil, tmp_path):
 
 def test_limit_clamps_total_and_available(host_psutil, tmp_path):
     used = 47 * 1024 ** 3
-    usage_file = tmp_path / "memory.current"
-    usage_file.write_text(f"{used}\n")
+    write_cgroup(tmp_path, CONTAINER_LIMIT, used)
 
-    with patch.object(model_management, "CGROUP_MEMORY", (CONTAINER_LIMIT, str(usage_file))):
+    with patch.object(model_management, "CGROUP_HIERARCHIES", hierarchies(tmp_path, "/")):
         mem = model_management.virtual_memory()
 
     assert mem.total == CONTAINER_LIMIT
@@ -132,11 +133,20 @@ def test_limit_clamps_total_and_available(host_psutil, tmp_path):
     assert mem.percent == pytest.approx(used * 100.0 / CONTAINER_LIMIT, abs=0.1)
 
 
-def test_usage_above_limit_does_not_go_negative(host_psutil, tmp_path):
-    usage_file = tmp_path / "memory.current"
-    usage_file.write_text(f"{CONTAINER_LIMIT * 2}\n")
+def test_limit_lowered_while_running_is_picked_up(host_psutil, tmp_path):
+    # memory.max is writable: docker update -m, or an in-place pod resize.
+    write_cgroup(tmp_path, CONTAINER_LIMIT, 1 * 1024 ** 3)
 
-    with patch.object(model_management, "CGROUP_MEMORY", (CONTAINER_LIMIT, str(usage_file))):
+    with patch.object(model_management, "CGROUP_HIERARCHIES", hierarchies(tmp_path, "/")):
+        assert model_management.virtual_memory().total == CONTAINER_LIMIT
+        (tmp_path / "memory.max").write_text(f"{CONTAINER_LIMIT // 2}\n")
+        assert model_management.virtual_memory().total == CONTAINER_LIMIT // 2
+
+
+def test_usage_above_limit_does_not_go_negative(host_psutil, tmp_path):
+    write_cgroup(tmp_path, CONTAINER_LIMIT, CONTAINER_LIMIT * 2)
+
+    with patch.object(model_management, "CGROUP_HIERARCHIES", hierarchies(tmp_path, "/")):
         mem = model_management.virtual_memory()
 
     assert mem.used == CONTAINER_LIMIT
@@ -144,9 +154,9 @@ def test_usage_above_limit_does_not_go_negative(host_psutil, tmp_path):
 
 
 def test_unreadable_usage_falls_back_to_host_figures(host_psutil, tmp_path):
-    missing = tmp_path / "memory.current"
+    (tmp_path / "memory.max").write_text(f"{CONTAINER_LIMIT}\n")  # no memory.current
 
-    with patch.object(model_management, "CGROUP_MEMORY", (CONTAINER_LIMIT, str(missing))):
+    with patch.object(model_management, "CGROUP_HIERARCHIES", hierarchies(tmp_path, "/")):
         mem = model_management.virtual_memory()
 
     assert mem.total == CONTAINER_LIMIT
