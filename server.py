@@ -490,8 +490,8 @@ class PromptServer():
                     return web.Response(status=400)
 
                 if original_ref.get("subfolder", "") != "":
-                    full_output_dir = os.path.join(output_dir, original_ref["subfolder"])
-                    if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
+                    full_output_dir = folder_paths.resolve_subfolder(output_dir, original_ref["subfolder"])
+                    if full_output_dir is None:
                         return web.Response(status=403)
                     output_dir = full_output_dir
 
@@ -547,8 +547,8 @@ class PromptServer():
                         return web.Response(status=400)
 
                     if "subfolder" in request.rel_url.query:
-                        full_output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
-                        if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
+                        full_output_dir = folder_paths.resolve_subfolder(output_dir, request.rel_url.query["subfolder"])
+                        if full_output_dir is None:
                             return web.Response(status=403)
                         output_dir = full_output_dir
 

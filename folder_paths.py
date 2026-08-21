@@ -340,6 +340,19 @@ def is_within_directory(directory: str, target: str) -> bool:
         return False
 
 
+def resolve_subfolder(base_dir: str, subfolder: str) -> str | None:
+    """Join a subfolder to a base directory while enforcing containment.
+
+    Returns ``None`` when the resulting path is outside ``base_dir``. This also
+    handles paths on different Windows drives, where ``os.path.commonpath``
+    raises instead of reporting that the paths are unrelated.
+    """
+    full_dir = os.path.join(base_dir, subfolder)
+    if not is_within_directory(base_dir, full_dir):
+        return None
+    return full_dir
+
+
 def get_annotated_filepath(name: str, default_dir: str | None=None) -> str:
     name, base_dir = annotated_filepath(name)
 
