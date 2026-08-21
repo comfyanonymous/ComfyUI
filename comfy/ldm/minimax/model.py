@@ -503,7 +503,8 @@ class MiniMaxH3Model(nn.Module):
         seed = int(payload.get("seed", 0))
         # every condition intentionally restarts the same RNG stream
         for z in payload.get("cond_video_latents", []):
-            r = patchify_video(z.to(torch.float32), self.patch_size)
+            z = comfy.ldm.common_dit.pad_to_patch_size(z.to(torch.float32), self.patch_size)
+            r = patchify_video(z, self.patch_size)
             if aug < 1.0:
                 gen = torch.Generator("cpu").manual_seed(seed)
                 noise = torch.randn(r.shape, generator=gen, dtype=torch.float32)
