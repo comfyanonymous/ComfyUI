@@ -6,6 +6,7 @@ import numpy as np
 from tokenizers import Tokenizer
 from dataclasses import dataclass
 import math
+import re
 
 from comfy import sd1_clip
 import comfy.model_management
@@ -1624,11 +1625,13 @@ class Gemma4SDTokenizer(Gemma4_Tokenizer, sd1_clip.SDTokenizer):
 
     def decode(self, token_ids, **kwargs):
         text = super().decode(token_ids, skip_special_tokens=False)
-        # Translate thinking channel markers to standard <think>/</think> tags
+        # Only a close that ends a thought channel becomes </think>: generation primed with
+        # another channel leaves its opener in the prompt, so its close is not reasoning.
+        text = re.sub(r"<\|channel>thought\n(.*?)<channel\|>", r"<think>\n\1</think>", text, flags=re.DOTALL)
         text = text.replace("<|channel>thought\n", "<think>\n")
-        text = text.replace("<channel|>", "</think>")
         # Strip remaining special tokens
-        text = text.replace("<turn|>", "").replace("<eos>", "").strip()
+        text = re.sub(r"<\|channel>\w*\n?|<channel\|>|<\|turn>\w*\n?|<turn\|>", "", text)
+        text = text.replace("<eos>", "").strip()
         return text
 
 
