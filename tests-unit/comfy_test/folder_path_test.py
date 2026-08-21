@@ -1,6 +1,7 @@
 ### 🗻 This file is created through the spirit of Mount Fuji at its peak
 # TODO(yoland): clean up this after I get back down
 import sys
+import logging
 import pytest
 import os
 import subprocess
@@ -151,7 +152,7 @@ def test_recursive_search_still_follows_a_link_to_a_separate_tree(temp_dir, tmp_
     assert files == [os.path.join("extra", "linked.safetensors")]
 
 
-def test_recursive_search_skips_a_directory_it_cannot_resolve(temp_dir):
+def test_recursive_search_skips_a_directory_it_cannot_resolve(temp_dir, caplog):
     """The warn-and-skip branch has to be reachable, not decorative.
 
     `os.path.realpath` only raises with `strict=True`; with the default it
@@ -165,16 +166,27 @@ def test_recursive_search_skips_a_directory_it_cannot_resolve(temp_dir):
     open(os.path.join(temp_dir, "bad", "b.txt"), "w").close()
 
     real_realpath = os.path.realpath
+    strict_by_name = {}
 
     def realpath(path, *args, **kwargs):
-        if os.path.basename(path) == "bad":
+        name = os.path.basename(path)
+        strict_by_name[name] = kwargs.get("strict")
+        if name == "bad":
             raise OSError(2, "No such file or directory")
         return real_realpath(path, *args, **kwargs)
 
     with patch("folder_paths.os.path.realpath", side_effect=realpath):
-        files, _dirs = folder_paths.recursive_search(temp_dir)
+        with caplog.at_level(logging.WARNING):
+            files, _dirs = folder_paths.recursive_search(temp_dir)
 
     assert files == [os.path.join("good", "a.txt")]
+    # strict=True is what makes the raise reachable at all; without it realpath
+    # invents a path for anything it cannot resolve and this branch is dead.
+    # Only the subdirectories are asserted: the root is resolved once before the
+    # walk and is already known to exist from the os.path.isdir guard.
+    assert strict_by_name["bad"] is True
+    assert strict_by_name["good"] is True
+    assert "Unable to resolve bad" in caplog.text
 
 
 def test_recursive_search_still_excludes_named_directories(temp_dir):
