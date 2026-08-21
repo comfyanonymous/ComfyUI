@@ -34,6 +34,9 @@ def get_node_id(node_cls: type[IO.ComfyNode]) -> str:
 
 
 def get_auth_header(node_cls: type[IO.ComfyNode]) -> dict[str, str]:
+    api_key = os.getenv("API_KEY_COMFY_ORG")
+    if api_key:
+        return {"X-API-KEY": api_key}
     if node_cls.hidden.auth_token_comfy_org:
         return {"Authorization": f"Bearer {node_cls.hidden.auth_token_comfy_org}"}
     if node_cls.hidden.api_key_comfy_org:
