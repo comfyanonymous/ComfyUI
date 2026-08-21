@@ -478,6 +478,48 @@ def test_save_to_av1_mkv_color_space(tmp_path, color_space, transfer, pix_fmt, p
 
 
 @pytest.mark.parametrize(
+    "format,suffix",
+    [
+        (VideoContainer.MP4, "mp4"),
+        (VideoContainer.MKV, "mkv"),
+    ],
+)
+@pytest.mark.parametrize(
+    "color_space,transfer,pix_fmt,primaries,colorspace",
+    [
+        ("sRGB", ColorTrc.IEC61966_2_1, "yuv420p", ColorPrimaries.BT709, 1),
+        ("HDR", ColorTrc.ARIB_STD_B67, "yuv420p10le", ColorPrimaries.BT2020, 9),
+        ("HDR PQ", ColorTrc.SMPTE2084, "yuv420p10le", ColorPrimaries.BT2020, 9),
+    ],
+)
+def test_save_to_h264_color_space(tmp_path, format, suffix, color_space, transfer, pix_fmt, primaries, colorspace):
+    components = VideoComponents(
+        images=torch.rand(2, 64, 64, 3),
+        frame_rate=Fraction(30),
+    )
+    path = str(tmp_path / f"h264.{suffix}")
+
+    VideoFromComponents(components).save_to(
+        path,
+        format=format,
+        codec=VideoCodec.H264,
+        crf=23,
+        color_space=color_space,
+    )
+
+    with av.open(path) as container:
+        stream = container.streams.video[0]
+        assert stream.codec.canonical_name == "h264"
+        assert stream.format.name == pix_fmt
+        assert stream.color_primaries == primaries
+        assert stream.color_trc == transfer
+        assert stream.colorspace == colorspace
+        assert stream.color_range == ColorRange.MPEG
+        assert sum(1 for _ in container.decode(video=0)) == 2
+    assert VideoFromFile(path).get_color_space() == color_space
+
+
+@pytest.mark.parametrize(
     "transfer,color_range,color_space",
     [
         (ColorTrc.SMPTE2084, ColorRange.MPEG, None),
