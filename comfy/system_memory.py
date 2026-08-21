@@ -31,6 +31,12 @@ CGROUP_V1_UNLIMITED = 1 << 62
 # Tests may set this to avoid touching the real /proc filesystem.
 _HIERARCHY_DIRS = None
 
+# Unlike the hierarchy itself, this only suppresses duplicate log messages.
+# Keep an explicit unset state so a transition from a finite limit to no limit
+# is still recorded and a later finite limit is logged again.
+_UNSET = object()
+_LOGGED_LIMIT = _UNSET
+
 
 def _read(path):
     try:
@@ -167,6 +173,8 @@ def _resolve_scope():
     smallest one found walking up. Returning the directory alongside it lets
     usage be read from the same level, which is what keeps the two consistent.
     """
+    global _LOGGED_LIMIT
+
     limit = None
     directory = None
 
@@ -181,8 +189,10 @@ def _resolve_scope():
         if limit is not None and limit >= psutil.virtual_memory().total:
             limit, directory = None, None
 
-        if limit is not None:
-            logging.info("Detected cgroup memory limit {:0.0f} MB".format(limit / (1024 * 1024)))
+        if limit != _LOGGED_LIMIT:
+            _LOGGED_LIMIT = limit
+            if limit is not None:
+                logging.info("Detected cgroup memory limit {:0.0f} MB".format(limit / (1024 * 1024)))
 
     return limit, directory
 

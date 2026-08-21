@@ -1,3 +1,4 @@
+import logging
 import sys
 
 import psutil
@@ -11,8 +12,10 @@ def reset_probe_cache(monkeypatch):
     """Run cgroup behavior tests as Linux tests on every host."""
     monkeypatch.setattr(system_memory.sys, "platform", "linux")
     system_memory._HIERARCHY_DIRS = None
+    system_memory._LOGGED_LIMIT = system_memory._UNSET
     yield
     system_memory._HIERARCHY_DIRS = None
+    system_memory._LOGGED_LIMIT = system_memory._UNSET
 
 
 def use_dirs(monkeypatch, *dirs):
@@ -73,6 +76,18 @@ def test_root_cgroup_path_resolves_to_the_mount_root(monkeypatch):
 
     assert system_memory._own_cgroup_scopes() == [
         (system_memory.CGROUP_V2_ROOT, system_memory.CGROUP_V2_ROOT)
+    ]
+
+
+def test_v1_memory_controller_scope(monkeypatch):
+    """Only the v1 memory controller should produce a memory scope."""
+    content = "3:memory:/docker/abc123\n2:cpu,cpuacct:/docker/abc123\n"
+    monkeypatch.setattr(system_memory, "_read",
+                        lambda path: content if path == "/proc/self/cgroup" else None)
+
+    assert system_memory._own_cgroup_scopes() == [
+        (system_memory.CGROUP_V1_MEMORY_ROOT,
+         system_memory.CGROUP_V1_MEMORY_ROOT + "/docker/abc123")
     ]
 
 
@@ -294,6 +309,33 @@ def test_limit_is_reread_after_cgroup_resize(monkeypatch, tmp_path):
 
     write(cgroup_limit, "memory.max", str(4 * 1024 ** 3))
     assert system_memory.cgroup_memory_limit() == 4 * 1024 ** 3
+
+
+def test_limit_is_logged_only_when_it_changes(monkeypatch, tmp_path, caplog):
+    cgroup_limit = tmp_path / "cgroup"
+    cgroup_limit.mkdir()
+    monkeypatch.setattr(psutil, "virtual_memory",
+                        lambda: _fake_vmem(total=64 * 1024 ** 3, available=32 * 1024 ** 3))
+    use_dirs(monkeypatch, cgroup_limit)
+
+    with caplog.at_level(logging.INFO):
+        write(cgroup_limit, "memory.max", str(8 * 1024 ** 3))
+        assert system_memory.cgroup_memory_limit() == 8 * 1024 ** 3
+        assert system_memory.cgroup_memory_limit() == 8 * 1024 ** 3
+
+        write(cgroup_limit, "memory.max", "max")
+        assert system_memory.cgroup_memory_limit() is None
+
+        # Returning to the previous finite value is a real change because the
+        # intervening no-limit state was recorded.
+        write(cgroup_limit, "memory.max", str(8 * 1024 ** 3))
+        assert system_memory.cgroup_memory_limit() == 8 * 1024 ** 3
+
+    assert [record.message for record in caplog.records
+            if "Detected cgroup memory limit" in record.message] == [
+                "Detected cgroup memory limit 8192 MB",
+                "Detected cgroup memory limit 8192 MB",
+            ]
 
 
 def test_unrelated_root_is_not_used_when_process_scope_exists(monkeypatch, tmp_path):
