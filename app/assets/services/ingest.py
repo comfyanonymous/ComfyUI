@@ -472,17 +472,6 @@ class DependencyMissingError(Exception):
 _UPLOAD_HASH_ATTEMPTS = 3
 
 
-def _strip_hash_prefix(hash_str: str) -> str:
-    lowered = hash_str.strip().lower()
-    if lowered.startswith("blake3:"):
-        return lowered.split(":", 1)[1]
-    return lowered
-
-
-def _canonical_asset_hash(digest: str) -> str:
-    return f"blake3:{digest}"
-
-
 def _remove_temp_path(temp_path: str | None) -> None:
     if not temp_path or not os.path.exists(temp_path):
         return
@@ -607,11 +596,7 @@ def _record_to_upload_result(
             .order_by(AssetTag.tag_name)
         )
     )
-    stored_hash = content.hash if content else None
-    if stored_hash and not stored_hash.startswith("blake3:"):
-        api_hash = _canonical_asset_hash(stored_hash)
-    else:
-        api_hash = stored_hash
+    api_hash = content.hash if content else None
     ref = ReferenceData(
         id=record.id,
         name=record.name,
@@ -658,8 +643,7 @@ def upload_from_temp_path(
         except UploadUnstableError:
             _remove_temp_path(temp_path)
             raise
-        canonical = _canonical_asset_hash(digest)
-        if expected_hash and canonical != expected_hash.strip().lower():
+        if expected_hash and digest != expected_hash.strip().lower():
             _remove_temp_path(temp_path)
             raise HashMismatchError("Uploaded file hash does not match provided hash.")
 
@@ -872,7 +856,7 @@ def create_from_hash(
     if not mode.hashing_enabled():
         return None
 
-    digest = _strip_hash_prefix(hash_str)
+    digest = hash_str
     display_name = _sanitize_filename(
         name, fallback=digest
     )

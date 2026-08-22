@@ -19,7 +19,7 @@ def test_absent_row_off_mode_no_transition(session):
 
 def test_off_to_on_enqueues_null_rows(session):
     session.add(AssetContent(path="/tmp/null", hash=None))
-    session.add(AssetContent(path="/tmp/hashed", hash="blake3:abc"))
+    session.add(AssetContent(path="/tmp/hashed", hash="abc"))
     write_stored_mode(session, "off")
     with patch("app.assets.services.hash_mode_state._mode.hashing_enabled", return_value=True):
         transition = record_transition_intent(session)

@@ -47,7 +47,7 @@ def test_off_mode_touch_splits(session, temp_dir: Path):
     input_root.mkdir()
     path = input_root / "touched.bin"
     path.write_bytes(b"same bytes")
-    old_content, _ = _seed_content(session, path, hash_value="blake3:historical")
+    old_content, _ = _seed_content(session, path, hash_value="historical")
     _bump_mtime(path)
 
     with (
@@ -68,7 +68,7 @@ def test_hash_mode_touch_refreshes_mtime(session, temp_dir: Path):
     input_root.mkdir()
     path = input_root / "touched.bin"
     path.write_bytes(b"same bytes")
-    old_content, _ = _seed_content(session, path, f"blake3:{snapshot_hash(str(path))}")
+    old_content, _ = _seed_content(session, path, snapshot_hash(str(path)))
     _bump_mtime(path)
 
     with (
@@ -91,7 +91,7 @@ def test_hash_mode_real_edit_splits(session, temp_dir: Path):
     input_root.mkdir()
     path = input_root / "edited.bin"
     path.write_bytes(b"old bytes")
-    old_content, _ = _seed_content(session, path, f"blake3:{snapshot_hash(str(path))}")
+    old_content, _ = _seed_content(session, path, snapshot_hash(str(path)))
     path.write_bytes(b"new bytes with a different length")
 
     with (
@@ -105,7 +105,7 @@ def test_hash_mode_real_edit_splits(session, temp_dir: Path):
     contents = list(session.scalars(select(AssetContent).order_by(AssetContent.created_at)))
     assert len(contents) == 2
     assert session.get(AssetContent, old_content.id).is_missing is True
-    assert next(content for content in contents if not content.is_missing).hash == f"blake3:{snapshot_hash(str(path))}"
+    assert next(content for content in contents if not content.is_missing).hash == snapshot_hash(str(path))
 
 
 def test_old_record_id_resolves_to_missing_content_after_split(session, temp_dir: Path):
@@ -113,7 +113,7 @@ def test_old_record_id_resolves_to_missing_content_after_split(session, temp_dir
     input_root.mkdir()
     path = input_root / "edited.bin"
     path.write_bytes(b"old bytes")
-    old_content, old_record = _seed_content(session, path, f"blake3:{snapshot_hash(str(path))}")
+    old_content, old_record = _seed_content(session, path, snapshot_hash(str(path)))
     path.write_bytes(b"replacement bytes")
 
     with (

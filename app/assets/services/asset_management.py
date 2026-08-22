@@ -49,15 +49,9 @@ from app.database.db import create_session
 
 
 def _record_to_detail_result(session, record) -> AssetDetailResult:
-    from app.assets.services.ingest import _canonical_asset_hash
-
     content = session.get(AssetContent, record.content_id)
     tags = fetch_record_tags(session, record.id)
-    stored_hash = content.hash if content else None
-    if stored_hash and not stored_hash.startswith("blake3:"):
-        api_hash = _canonical_asset_hash(stored_hash)
-    else:
-        api_hash = stored_hash
+    api_hash = content.hash if content else None
     ref = ReferenceData(
         id=record.id,
         name=record.name,
@@ -221,14 +215,13 @@ def set_asset_preview(
 
 def asset_exists(asset_hash: str) -> bool:
     from app.assets.helpers import validate_blake3_hash
-    from app.assets.services.ingest import _strip_hash_prefix
     from app.assets.services.lookup import lookup_for_view
 
     try:
         canonical = validate_blake3_hash(asset_hash)
     except ValueError:
         return False
-    digest = _strip_hash_prefix(canonical)
+    digest = canonical.partition(":")[2]
     with create_session() as session:
         return lookup_for_view(session, digest) is not None
 
@@ -372,11 +365,10 @@ def resolve_hash_to_path(
     from sqlalchemy import select
 
     from app.assets.database.models import Asset
-    from app.assets.services.ingest import _strip_hash_prefix
     from app.assets.services.lookup import lookup_for_view
 
     del tenant_id
-    digest = _strip_hash_prefix(asset_hash)
+    digest = asset_hash.partition(":")[2] or asset_hash
     with create_session() as session:
         content = lookup_for_view(session, digest)
         if content is None:

@@ -288,7 +288,7 @@ def build_asset_specs(
         if compute_hashes:
             try:
                 digest, _ = compute_blake3_hash(abs_p)
-                asset_hash = "blake3:" + digest
+                asset_hash = digest
             except Exception as e:
                 logging.warning("Failed to hash %s: %s", abs_p, e)
 
@@ -486,7 +486,7 @@ def enrich_asset(
             if mtime_before != mtime_after:
                 logging.warning("File modified during hashing, discarding hash: %s", file_path)
             else:
-                full_hash = f"blake3:{digest}"
+                full_hash = digest
                 metadata_ok = not extract_metadata or metadata is not None
                 if metadata_ok:
                     new_level = ENRICHMENT_HASHED

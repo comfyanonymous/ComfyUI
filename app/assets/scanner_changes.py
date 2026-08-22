@@ -53,7 +53,7 @@ def recover_missing_content(
             sa.select(AssetContent).where(
                 AssetContent.path == path,
                 AssetContent.is_missing.is_(True),
-                AssetContent.hash == f"blake3:{digest}",
+                AssetContent.hash == digest,
             )
         )
     )
@@ -131,7 +131,7 @@ def drain_pending_verifications(session: Session, limit: int | None = None) -> i
             queue_pending_verification(content_id)
             continue
 
-        current_hash = f"blake3:{digest}"
+        current_hash = digest
         if content.hash == current_hash or content.hash is None:
             content.hash = current_hash
             content.size_bytes = stat_result.st_size

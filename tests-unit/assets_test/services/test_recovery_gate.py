@@ -53,7 +53,7 @@ def _spec(path: Path) -> dict:
 def test_single_hash_match_recovers(session, temp_dir: Path):
     path = temp_dir / "restored.bin"
     path.write_bytes(b"restored bytes")
-    content, record = _missing_content(session, path, f"blake3:{snapshot_hash(str(path))}")
+    content, record = _missing_content(session, path, snapshot_hash(str(path)))
 
     with patch("app.assets.scanner.mode.hashing_enabled", return_value=True):
         created = seed_asset_specs(session, [_spec(path)])
@@ -67,7 +67,7 @@ def test_single_hash_match_recovers(session, temp_dir: Path):
 def test_ambiguous_hash_match_recovers_nothing(session, temp_dir: Path):
     path = temp_dir / "ambiguous.bin"
     path.write_bytes(b"same bytes")
-    digest = f"blake3:{snapshot_hash(str(path))}"
+    digest = snapshot_hash(str(path))
     first, _ = _missing_content(session, path, digest)
     second, _ = _missing_content(session, path, digest)
 
@@ -84,7 +84,7 @@ def test_ambiguous_hash_match_recovers_nothing(session, temp_dir: Path):
 def test_no_hash_match_creates_fresh_rows(session, temp_dir: Path):
     path = temp_dir / "different.bin"
     path.write_bytes(b"current bytes")
-    missing, _ = _missing_content(session, path, "blake3:old")
+    missing, _ = _missing_content(session, path, "old")
 
     with patch("app.assets.scanner.mode.hashing_enabled", return_value=True):
         created = seed_asset_specs(session, [_spec(path)])
@@ -98,7 +98,7 @@ def test_no_hash_match_creates_fresh_rows(session, temp_dir: Path):
 def test_off_mode_no_recovery(session, temp_dir: Path):
     path = temp_dir / "off.bin"
     path.write_bytes(b"bytes")
-    missing, _ = _missing_content(session, path, f"blake3:{snapshot_hash(str(path))}")
+    missing, _ = _missing_content(session, path, snapshot_hash(str(path)))
 
     with (
         patch("app.assets.scanner.mode.hashing_enabled", return_value=False),
@@ -115,7 +115,7 @@ def test_off_mode_no_recovery(session, temp_dir: Path):
 def test_unstable_hash_requeues(session, temp_dir: Path):
     path = temp_dir / "unstable.bin"
     path.write_bytes(b"bytes")
-    missing, _ = _missing_content(session, path, "blake3:old")
+    missing, _ = _missing_content(session, path, "old")
 
     with (
         patch("app.assets.scanner.mode.hashing_enabled", return_value=True),

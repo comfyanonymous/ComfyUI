@@ -76,7 +76,7 @@ def drain_transition_queue(session: Session) -> None:
         ).first()
         if content is None:
             continue
-        current_hash = f"blake3:{digest}"
+        current_hash = digest
         if content.hash is None:
             content.hash = current_hash
         elif content.hash != current_hash:
