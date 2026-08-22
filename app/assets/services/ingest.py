@@ -25,7 +25,7 @@ from app.assets.database.queries import (
     set_reference_tags,
     update_asset_hash_and_mime,
     upsert_asset,
-    upsert_reference,
+    upsert_reference as _legacy_upsert_reference,  # wave-3-fixes: replaced by B-schema write paths in Wave 3
     validate_tags_exist,
 )
 from app.assets.helpers import get_utc_now, normalize_tags
@@ -85,7 +85,7 @@ def _ingest_file_from_path(
             mime_type=mime_type,
         )
 
-        ref_created, ref_updated = upsert_reference(
+        ref_created, ref_updated = _legacy_upsert_reference(  # wave-3-fixes: replaced in Wave 3
             session,
             asset_id=asset.id,
             file_path=locator,
@@ -176,10 +176,8 @@ def register_output_files(
         if not os.path.isfile(abs_path):
             continue
         try:
-            if ingest_existing_file(
-                abs_path, user_metadata=user_metadata, job_id=job_id
-            ):
-                registered += 1
+            register_output_file_b(abs_path, job_id=job_id)
+            registered += 1
         except Exception:
             logging.exception("Failed to register output: %s", abs_path)
     return registered
@@ -684,4 +682,63 @@ def create_from_hash(
         asset=result.asset,
         tags=result.tags,
         created_new=False,
+    )
+
+
+_verification_queue: list[str] = []
+
+
+def register_output_file_b(abs_path: str, job_id: str | None = None):
+    from sqlalchemy import select
+
+    from app.assets import mode
+    from app.assets.database.models import AssetContent
+    from app.assets.database.queries.records import (
+        create_content,
+        create_record,
+        mark_content_missing,
+    )
+    from app.assets.services.snapshot_hash import snapshot_hash
+
+    locator = os.path.abspath(abs_path)
+    size_bytes, mtime_ns = get_size_and_mtime_ns(locator)
+    mime_type = mimetypes.guess_type(locator, strict=False)[0]
+    name, path_tags = get_name_and_tags_from_asset_path(locator)
+    with create_session() as session:
+        existing = session.scalars(
+            select(AssetContent).where(
+                AssetContent.path == locator, AssetContent.is_missing.is_(False)
+            )
+        ).first()
+        if existing is not None:
+            mark_content_missing(session, existing.id)
+        content_hash = None
+        if mode.hashing_enabled():
+            content_hash = snapshot_hash(locator)
+            if content_hash is None:
+                _verification_queue.append(locator)
+        content = create_content(
+            session, locator, content_hash, size_bytes, mtime_ns
+        )
+        record = create_record(
+            session,
+            content.id,
+            name,
+            mime_type=mime_type,
+            job_id=job_id,
+            loader_path=compute_loader_path(locator),
+            tags=path_tags,
+        )
+        session.commit()
+        record_id = record.id
+        record_content_id = record.content_id
+        record_job_id = record.job_id
+        record_name = record.name
+
+    from types import SimpleNamespace
+    return SimpleNamespace(
+        id=record_id,
+        content_id=record_content_id,
+        job_id=record_job_id,
+        name=record_name,
     )
