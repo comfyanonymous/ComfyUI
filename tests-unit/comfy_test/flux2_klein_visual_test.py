@@ -16,6 +16,7 @@ def test_klein_qwen3vl_keeps_klein_language_config(monkeypatch, model_type, hidd
     class DummyLanguage(torch.nn.Module):
         def __init__(self, config, device, dtype, ops):
             super().__init__()
+            self.config = config
             captured["language_config"] = config
 
     class DummyVisual(torch.nn.Module):
@@ -31,40 +32,39 @@ def test_klein_qwen3vl_keeps_klein_language_config(monkeypatch, model_type, hidd
     assert isinstance(model.model, DummyLanguage)
     assert isinstance(model.visual, DummyVisual)
     assert captured["language_config"].hidden_size == hidden_size
-    assert captured["language_config"].rope_dims == [24, 20, 20]
-    assert captured["language_config"].interleaved_mrope is True
+    assert captured["language_config"].rope_dims is None
+    assert not getattr(captured["language_config"], "interleaved_mrope", False)
     assert captured["language_config"].rope_theta == 1000000.0
     assert captured["vision_config"]["hidden_size"] == vision_hidden_size
     assert captured["vision_config"]["out_hidden_size"] == hidden_size
 
 
-def test_klein_qwen3vl_forwards_vl_metadata():
-    captured = {}
+def test_klein_qwen3vl_uses_merged_visual_embeddings_without_metadata(monkeypatch):
+    merged = torch.empty((1, 4, 2560))
+    deepstack = [torch.empty((4, 2560))]
 
-    class DummyLanguage(torch.nn.Module):
-        def forward(self, input_ids, **kwargs):
-            captured.update(kwargs)
-            return "encoded"
+    class DummyVisual(torch.nn.Module):
+        def forward(self, image, grid):
+            return merged, deepstack
 
-    model = flux.KleinQwen3VL.__new__(flux.KleinQwen3VL)
-    torch.nn.Module.__init__(model)
-    model.model = DummyLanguage()
-
-    position_ids = torch.empty((3, 1, 4))
-    visual_pos_masks = torch.ones((1, 4), dtype=torch.bool)
-    deepstack_embeds = [torch.empty((4, 2560))]
-    result = model(
-        None,
-        embeds=torch.empty((1, 4, 2560)),
-        position_ids=position_ids,
-        visual_pos_masks=visual_pos_masks,
-        deepstack_embeds=deepstack_embeds,
+    monkeypatch.setattr(
+        flux.comfy.text_encoders.qwen_vl,
+        "process_qwen2vl_images",
+        lambda image, **kwargs: (torch.empty((1, 3, 16, 16)), [(1, 1, 1)]),
     )
 
-    assert result == "encoded"
-    assert captured["position_ids"] is position_ids
-    assert captured["visual_pos_masks"] is visual_pos_masks
-    assert captured["deepstack_embeds"] is deepstack_embeds
+    model_class = flux._make_klein_qwen3vl_model("qwen3vl_4b")
+    model = model_class.__new__(model_class)
+    torch.nn.Module.__init__(model)
+    model.visual = DummyVisual()
+
+    result, extra = model.preprocess_embed(
+        {"type": "image", "data": torch.empty((1, 32, 32, 3))},
+        "cpu",
+    )
+
+    assert result is merged
+    assert extra is None
 
 
 @pytest.mark.parametrize(
@@ -80,10 +80,46 @@ def test_klein_vl_text_template_matches_existing_klein(old_tokenizer, new_tokeni
 
 def test_klein_vl_tokenizer_exposes_native_image_entry():
     tokens = flux.KleinVLTokenizer().tokenize_with_weights("describe", images=[torch.zeros((1, 32, 32, 3))])
+    assert list(tokens) == ["qwen3_4b"]
     rows = next(iter(tokens.values()))
     image_entries = [token for row in rows for token, _ in row if isinstance(token, dict)]
     assert len(image_entries) == 1
     assert image_entries[0]["type"] == "image"
+
+
+def test_klein_qwen3vl_pads_after_visual_expansion(monkeypatch):
+    clip_model = flux.KleinQwen3VLClipModel.__new__(flux.KleinQwen3VLClipModel)
+    torch.nn.Module.__init__(clip_model)
+    clip_model.special_tokens = {"pad": 151643}
+
+    class DummyEmbeddings:
+        def __call__(self, tokens, out_dtype):
+            return torch.zeros((*tokens.shape, 2560), device=tokens.device, dtype=out_dtype)
+
+    class DummyTransformer:
+        def get_input_embeddings(self):
+            return DummyEmbeddings()
+
+    clip_model.transformer = DummyTransformer()
+    monkeypatch.setattr(
+        flux.sd1_clip.SDClipModel,
+        "process_tokens",
+        lambda self, tokens, device: (
+            torch.ones((1, 19, 2560)),
+            torch.ones((1, 19), dtype=torch.long),
+            [19],
+            [{"type": "image", "index": 1, "size": 4, "extra": None}],
+        ),
+    )
+
+    embeds, attention_mask, num_tokens, embeds_info = clip_model.process_tokens([], "cpu")
+
+    assert embeds.shape == (1, 512, 2560)
+    assert attention_mask.shape == (1, 512)
+    assert attention_mask[:, :19].all()
+    assert not attention_mask[:, 19:].any()
+    assert num_tokens == [19]
+    assert embeds_info == [{"type": "image", "index": 1, "size": 4, "extra": None}]
 
 
 @pytest.mark.parametrize(
