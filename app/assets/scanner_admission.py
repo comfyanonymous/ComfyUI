@@ -1,0 +1,67 @@
+"""Admission controls for scanner-discovered files."""
+
+from __future__ import annotations
+
+import os
+import time
+from dataclasses import dataclass
+
+from sqlalchemy.orm import Session
+
+from app.assets.database.queries.records import create_content, create_record
+from app.assets.services.path_utils import compute_loader_path, get_name_and_tags_from_asset_path
+
+PARTIAL_DOWNLOAD_EXTENSIONS = frozenset({
+    ".part", ".partial", ".crdownload", ".download", ".tmp", ".aria2", ".!qb", ".opdownload",
+})
+_WATCH_CAP = 30
+
+
+@dataclass
+class _WatchEntry:
+    path: str
+    last_stat: os.stat_result
+    ticks: int = 0
+
+
+_WATCH_LIST: list[_WatchEntry] = []
+
+
+def _should_skip_extension(path: str) -> bool:
+    return os.path.splitext(path)[1].lower() in PARTIAL_DOWNLOAD_EXTENSIONS
+
+
+def _two_stat_admit(paths_with_stats: list[tuple[str, os.stat_result]]) -> tuple[list[str], list[str]]:
+    time.sleep(0.1)
+    admitted: list[str] = []
+    watched: list[str] = []
+    for path, first_stat in paths_with_stats:
+        try:
+            second_stat = os.stat(path)
+        except FileNotFoundError:
+            continue
+        if (second_stat.st_mtime_ns, second_stat.st_size) == (first_stat.st_mtime_ns, first_stat.st_size):
+            admitted.append(path)
+        else:
+            _WATCH_LIST.append(_WatchEntry(path, second_stat))
+            watched.append(path)
+    return admitted, watched
+
+
+def tick_watch_list(session: Session) -> None:
+    remaining: list[_WatchEntry] = []
+    for entry in _WATCH_LIST:
+        try:
+            current = os.stat(entry.path)
+        except FileNotFoundError:
+            continue
+        if (current.st_mtime_ns, current.st_size) == (entry.last_stat.st_mtime_ns, entry.last_stat.st_size):
+            name, tags = get_name_and_tags_from_asset_path(entry.path)
+            content = create_content(session, entry.path, size_bytes=current.st_size, mtime_ns=current.st_mtime_ns)
+            create_record(session, content.id, name, loader_path=compute_loader_path(entry.path), tags=tags)
+            continue
+        entry.last_stat = current
+        entry.ticks += 1
+        if entry.ticks < _WATCH_CAP:
+            remaining.append(entry)
+    _WATCH_LIST[:] = remaining
