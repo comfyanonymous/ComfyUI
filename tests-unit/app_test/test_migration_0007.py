@@ -105,6 +105,7 @@ def test_0007_orm_parity(db_at_0006, tmp_path):
     """Base.metadata.create_all produces same table names as alembic upgrade."""
     from sqlalchemy import create_engine, inspect
 
+    import app.assets.database.models
     from app.database.models import Base
 
     cfg, db_path = db_at_0006
