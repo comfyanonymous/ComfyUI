@@ -1,6 +1,12 @@
 import pytest
 import psutil
+import torch
 from unittest.mock import mock_open, patch
+
+from comfy.cli_args import args
+
+if not torch.cuda.is_available():
+    args.cpu = True
 
 import comfy.model_management as model_management
 
