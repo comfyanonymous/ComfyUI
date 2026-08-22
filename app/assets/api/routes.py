@@ -28,6 +28,7 @@ from app.assets.seeder import ScanInProgressError, asset_seeder
 from app.assets.services import (
     DependencyMissingError,
     HashMismatchError,
+    UploadUnstableError,
     apply_tags,
     asset_exists,
     create_from_hash,
@@ -501,6 +502,13 @@ async def create_asset_from_hash_route(request: web.Request) -> web.Response:
     if name is None:
         name = body.hash.split(":", 1)[1] if ":" in body.hash else body.hash
 
+    from app.assets import mode
+
+    if not mode.hashing_enabled():
+        return _build_error_response(
+            400, "FEATURE_DISABLED", "Asset hashing is disabled."
+        )
+
     result = create_from_hash(
         hash_str=body.hash,
         name=name,
@@ -552,8 +560,7 @@ async def upload_asset(request: web.Request) -> web.Response:
         )
 
     try:
-        # Fast path: hash exists, create AssetReference without writing anything
-        if spec.hash and parsed.provided_hash_exists is True:
+        if not parsed.file_present and spec.hash:
             result = create_from_hash(
                 hash_str=spec.hash,
                 name=spec.name or (spec.hash.split(":", 1)[1]),
@@ -564,20 +571,10 @@ async def upload_asset(request: web.Request) -> web.Response:
                 preview_id=spec.preview_id,
             )
             if result is None:
-                delete_temp_file_if_exists(parsed.tmp_path)
                 return _build_error_response(
                     404, "ASSET_NOT_FOUND", f"Asset content {spec.hash} does not exist"
                 )
-            delete_temp_file_if_exists(parsed.tmp_path)
-        else:
-            # Otherwise, we must have a temp file path to ingest
-            if not parsed.tmp_path or not os.path.exists(parsed.tmp_path):
-                return _build_error_response(
-                    400,
-                    "MISSING_INPUT",
-                    "Provided hash not found and no file uploaded.",
-                )
-
+        elif parsed.tmp_path and os.path.exists(parsed.tmp_path):
             result = upload_from_temp_path(
                 temp_path=parsed.tmp_path,
                 name=spec.name,
@@ -589,6 +586,12 @@ async def upload_asset(request: web.Request) -> web.Response:
                 mime_type=spec.mime_type,
                 preview_id=spec.preview_id,
             )
+        else:
+            return _build_error_response(
+                400,
+                "MISSING_INPUT",
+                "Provided hash not found and no file uploaded.",
+            )
     except AssetValidationError as e:
         delete_temp_file_if_exists(parsed.tmp_path)
         return _build_error_response(400, e.code, str(e))
@@ -598,6 +601,9 @@ async def upload_asset(request: web.Request) -> web.Response:
     except HashMismatchError as e:
         delete_temp_file_if_exists(parsed.tmp_path)
         return _build_error_response(400, "HASH_MISMATCH", str(e))
+    except UploadUnstableError as e:
+        delete_temp_file_if_exists(parsed.tmp_path)
+        return _build_error_response(500, "UPLOAD_UNSTABLE", str(e))
     except DependencyMissingError as e:
         delete_temp_file_if_exists(parsed.tmp_path)
         return _build_error_response(503, "DEPENDENCY_MISSING", e.message)

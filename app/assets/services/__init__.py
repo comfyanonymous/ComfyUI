@@ -2,6 +2,7 @@
 from app.assets.services.ingest import (
     DependencyMissingError,
     HashMismatchError,
+    UploadUnstableError,
     upload_from_temp_path,
     create_from_hash,
     register_file_in_place,
@@ -25,6 +26,7 @@ from app.assets.services.tagging import (
 __all__ = [
     "DependencyMissingError",
     "HashMismatchError",
+    "UploadUnstableError",
     "upload_from_temp_path",
     "create_from_hash",
     "register_file_in_place",
