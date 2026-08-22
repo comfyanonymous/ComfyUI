@@ -24,6 +24,8 @@ from app.assets.api.upload import (
     delete_temp_file_if_exists,
     parse_multipart_upload,
 )
+from app.assets.database.models import Asset
+from app.assets.database.queries.records import fetch_record_tags, list_records_page
 from app.assets.seeder import ScanInProgressError, asset_seeder
 from app.assets.services import (
     DependencyMissingError,
@@ -45,6 +47,7 @@ from app.assets.services import (
 from app.assets.services.cursor import InvalidCursorError
 from app.assets.services.path_utils import compute_asset_response_paths
 from app.assets.services.tagging import list_tag_histogram
+from app.database.db import create_session
 
 ROUTES = web.RouteTableDef()
 USER_MANAGER: user_manager.UserManager | None = None
@@ -293,6 +296,44 @@ def _build_asset_response(
     )
 
 
+def _build_record_response(session, record: Asset) -> schemas_out.Asset:
+    content = record.content
+    preview_url = None
+    if record.preview_id:
+        preview = session.get(Asset, record.preview_id)
+        if preview is not None:
+            preview_url = _build_view_url(preview.content.path)
+    elif content is not None:
+        mime_type = record.mime_type or mimetypes.guess_type(content.path)[0] or ""
+        if mime_type.split(";", 1)[0].strip().lower().startswith(
+            PREVIEWABLE_MIME_PREFIXES
+        ):
+            preview_url = _build_view_url(content.path)
+
+    content_hash = content.hash if content is not None else None
+    if content_hash is not None and not content_hash.startswith("blake3:"):
+        content_hash = f"blake3:{content_hash}"
+
+    return schemas_out.Asset(
+        id=record.id,
+        name=record.name,
+        hash=content_hash,
+        loader_path=record.loader_path,
+        size=content.size_bytes if content is not None else None,
+        mime_type=record.mime_type,
+        tags=fetch_record_tags(session, record.id),
+        preview_url=preview_url,
+        preview_id=record.preview_id,
+        user_metadata=record.user_metadata or {},
+        metadata=record.system_metadata,
+        job_id=record.job_id,
+        prompt_id=record.job_id,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+        last_access_time=record.last_access_time,
+    )
+
+
 @ROUTES.head("/api/assets/hash/{hash}")
 @_require_assets_feature_enabled
 async def head_asset_by_hash(request: web.Request) -> web.Response:
@@ -324,43 +365,28 @@ async def list_assets_route(request: web.Request) -> web.Response:
     except InvalidTagFilterError as e:
         return _build_error_response(400, "INVALID_TAG_FILTER", str(e), e.details)
 
-    sort = _validate_sort_field(q.sort)
-    order_candidate = (q.order or "desc").lower()
-    order = order_candidate if order_candidate in {"asc", "desc"} else "desc"
+    if tags_any:
+        return _build_error_response(
+            400,
+            "INVALID_TAG_FILTER",
+            "tags_any is unavailable while records are paged directly.",
+        )
 
-    try:
-        result = list_assets_page(
-            owner_id=USER_MANAGER.get_request_user_id(request),
+    with create_session() as session:
+        records, next_cursor = list_records_page(
+            session,
+            cursor=q.after,
+            limit=q.limit,
             include_tags=tags_all,
             exclude_tags=tags_none,
-            any_tags=tags_any,
-            name_contains=q.name_contains,
-            metadata_filter=q.metadata_filter,
-            limit=q.limit,
-            offset=q.offset,
-            sort=sort,
-            order=order,
-            after=q.after,
         )
-    except InvalidCursorError as e:
-        return _build_error_response(400, "INVALID_CURSOR", str(e))
-
-    preview_paths = _resolve_preview_paths(result.items)
-    summaries = [_build_asset_response(item, preview_paths) for item in result.items]
-
-    # has_more semantics differ by mode:
-    #   - cursor mode: a non-empty next_cursor means there are more results.
-    #   - offset mode: derived from total - (offset + page size).
-    if q.after is not None:
-        has_more = result.next_cursor is not None
-    else:
-        has_more = (q.offset + len(summaries)) < result.total
+        summaries = [_build_record_response(session, record) for record in records]
 
     payload = schemas_out.AssetsList(
         assets=summaries,
-        total=result.total,
-        has_more=has_more,
-        next_cursor=result.next_cursor,
+        total=len(summaries),
+        has_more=next_cursor is not None,
+        next_cursor=next_cursor,
     )
     return web.json_response(payload.model_dump(mode="json", exclude_none=True))
 
