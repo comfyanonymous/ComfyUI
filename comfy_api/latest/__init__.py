@@ -162,6 +162,9 @@ ComfyAPISync = create_sync_class(ComfyAPI_latest)
 IO = io
 UI = ui
 
+# Custom-node SDK: refs, ctx, and the overlay provider seam.
+from . import _sdk_public as sdk  # noqa: E402
+
 __all__ = [
     "ComfyAPI",
     "ComfyAPISync",
@@ -174,4 +177,5 @@ __all__ = [
     "IO",
     "ui",
     "UI",
+    "sdk",
 ]
