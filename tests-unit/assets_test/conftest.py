@@ -128,7 +128,14 @@ def comfy_url_and_proc(comfy_tmp_base_dir: Path, request: pytest.FixtureRequest)
             str(port),
             "--cpu",
         ]
-    if request.config.getoption("--enable-asset-hashing"):
+    if (
+        request.config.getoption("--enable-asset-hashing")
+        or "hashing_on" in request.config.getoption("markexpr")
+        or any(
+            item.get_closest_marker("hashing_on")
+            for item in request.session.items
+        )
+    ):
         command.append("--enable-asset-hashing")
 
     proc = subprocess.Popen(
