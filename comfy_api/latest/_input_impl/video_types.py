@@ -1,3 +1,4 @@
+from av.bitstream import BitStreamFilterContext
 from av.container import InputContainer
 from av.subtitles.stream import SubtitleStream
 from av.video.reformatter import ColorPrimaries, ColorRange, ColorTrc
@@ -94,6 +95,23 @@ def video_stream_bit_depth(stream) -> int:
     if stream is None or stream.format is None or not stream.format.components:
         return 8
     return max(component.bits for component in stream.format.components)
+
+
+def isobmff_hevc_filter(output_container, stream, out_stream):
+    """HEVC enters mp4/mov as Annex B so the muxer builds hvcC from the stream's parameter sets
+    and strips them from the samples, as the 'hvc1' sample entry Apple players require promises;
+    FFmpeg's default 'hev1' keeps them in-band."""
+    if output_container.format.name not in ("mp4", "mov") or stream.codec.canonical_name != "hevc":
+        return None
+    hevc_filter = BitStreamFilterContext("hevc_mp4toannexb", stream, out_stream)
+    out_stream.codec_context.codec_tag = "hvc1"
+    return hevc_filter
+
+
+def filter_hevc_packet(hevc_filter, packet):
+    if packet.has_sidedata("new_extradata"):
+        raise ValueError("HEVC with multiple sample descriptions cannot be remuxed as hvc1; re-encode it instead")
+    return hevc_filter.filter(packet)
 
 
 def last_decodable_audio_stream(container: InputContainer):
@@ -601,19 +619,26 @@ class VideoFromFile(VideoInput):
 
                 # Add streams to the new container. Streams with no codec context cannot be used as an output template.
                 stream_map = {}
+                hevc_filters = {}
                 for stream in streams:
                     if isinstance(stream, (av.VideoStream, av.AudioStream, SubtitleStream)):
                         if stream.codec_context is None:
                             logging.warning("Skipping %s stream %d with unsupported codec", stream.type, stream.index)
                             continue
                         out_stream = output_container.add_stream_from_template(template=stream, opaque=True)
+                        hevc_filter = isobmff_hevc_filter(output_container, stream, out_stream)
+                        if hevc_filter is not None:
+                            hevc_filters[stream] = hevc_filter
                         stream_map[stream] = out_stream
 
                 # Write packets to the new container
                 for packet in container.demux():
                     if packet.stream in stream_map and packet.dts is not None:
-                        packet.stream = stream_map[packet.stream]
-                        output_container.mux(packet)
+                        out_stream = stream_map[packet.stream]
+                        hevc_filter = hevc_filters.get(packet.stream)
+                        for out_packet in filter_hevc_packet(hevc_filter, packet) if hevc_filter else (packet,):
+                            out_packet.stream = out_stream
+                            output_container.mux(out_packet)
 
     def _save_transcoded(
         self,

@@ -1289,6 +1289,129 @@ def test_save_to_transcode_bakes_rotation():
         os.unlink(file_path)
 
 
+def hevc_encoder_available():
+    try:
+        av.Codec("libx265", "w")
+        return True
+    except av.codec.codec.UnknownCodecError:
+        return False
+
+
+hevc_remux_test = pytest.mark.skipif(not hevc_encoder_available(), reason="libx265 encoder not available")
+
+
+def create_hevc_mp4(x265_params=None):
+    """In-memory HEVC mp4, which FFmpeg tags 'hev1'."""
+    buffer = io.BytesIO()
+    options = {"x265-params": ":".join(["log-level=none"] + ([x265_params] if x265_params else []))}
+    with av.open(buffer, mode="w", format="mp4") as container:
+        stream = container.add_stream("libx265", rate=30, options=options)
+        stream.width = 64
+        stream.height = 64
+        stream.pix_fmt = "yuv420p"
+        for i in range(3):
+            frame = av.VideoFrame.from_ndarray(
+                torch.ones(64, 64, 3, dtype=torch.uint8).numpy() * (i * 85),
+                format="rgb24",
+            ).reformat(format="yuv420p")
+            for packet in stream.encode(frame):
+                container.mux(packet)
+        for packet in stream.encode():
+            container.mux(packet)
+    buffer.seek(0)
+    return buffer
+
+
+def strip_hvcc_arrays(source: io.BytesIO) -> io.BytesIO:
+    """hev1 whose hvcC has no parameter set arrays, as written by packagers that keep them in-band."""
+    output = io.BytesIO()
+    with av.open(source) as container, av.open(output, mode="w", format="mp4") as output_container:
+        stream = container.streams.video[0]
+        out_stream = output_container.add_stream_from_template(template=stream, opaque=True)
+        out_stream.codec_context.extradata = stream.codec_context.extradata[:22] + b"\x00"
+        for packet in container.demux(stream):
+            if packet.dts is not None:
+                packet.stream = out_stream
+                output_container.mux(packet)
+    output.seek(0)
+    return output
+
+
+def concat_hevc_sample_descriptions(first: io.BytesIO, second: io.BytesIO) -> io.BytesIO:
+    """mp4 with two 'stsd' entries: the second clip's packets are appended carrying its hvcC as
+    new_extradata side data, which the mp4 muxer turns into a second sample description."""
+    output = io.BytesIO()
+    with av.open(first) as a, av.open(second) as b, av.open(output, mode="w", format="mp4") as output_container:
+        out_stream = output_container.add_stream_from_template(template=a.streams.video[0], opaque=True)
+        end = 0
+        for packet in a.demux(a.streams.video[0]):
+            if packet.dts is not None:
+                packet.stream = out_stream
+                output_container.mux(packet)
+                end = max(end, packet.pts + packet.duration)
+        extradata = b.streams.video[0].codec_context.extradata
+        packets = [packet for packet in b.demux(b.streams.video[0]) if packet.dts is not None]
+        sidedata = av.packet.PacketSideData(av.packet.packet_sidedata_type_from_literal("new_extradata"), len(extradata))
+        sidedata.update(extradata)
+        packets[0].set_sidedata(sidedata)
+        for packet in packets:
+            packet.pts += end
+            packet.dts += end
+            packet.stream = out_stream
+            output_container.mux(packet)
+    output.seek(0)
+    return output
+
+
+def probe_hevc(source: io.BytesIO) -> dict:
+    source.seek(0)
+    with av.open(source) as container:
+        stream = container.streams.video[0]
+        return {
+            "tag": stream.codec_context.codec_tag,
+            "frames": sum(1 for packet in container.demux(stream) for _ in packet.decode()),
+        }
+
+
+def remux_and_probe(source: io.BytesIO, **save_kwargs) -> dict:
+    output = io.BytesIO()
+    source.seek(0)
+    VideoFromFile(source).save_to(output, **save_kwargs)
+    return probe_hevc(output)
+
+
+@hevc_remux_test
+@pytest.mark.parametrize("save_kwargs", [pytest.param({}, id="mov"), pytest.param({"format": VideoContainer.MP4}, id="mp4")])
+def test_save_to_remux_retags_hevc_as_hvc1(save_kwargs):
+    """Remuxed HEVC gets the 'hvc1' sample entry Apple players require instead of FFmpeg's default 'hev1'."""
+    source = create_hevc_mp4()
+    assert probe_hevc(source)["tag"] == "hev1"
+    assert remux_and_probe(source, **save_kwargs) == {"tag": "hvc1", "frames": 3}
+
+
+@hevc_remux_test
+def test_save_to_remux_moves_inband_parameter_sets_into_hvcc():
+    """A stream carrying VPS/SPS/PPS only in-band (empty hvcC) still comes out as a valid 'hvc1':
+    the muxer rebuilds hvcC from the stream instead of writing an empty one."""
+    source = strip_hvcc_arrays(create_hevc_mp4(x265_params="repeat-headers=1"))
+    output = io.BytesIO()
+    VideoFromFile(source).save_to(output)
+    output.seek(0)
+    with av.open(output) as container:
+        assert container.streams.video[0].codec_context.extradata[22] > 0  # hvcC numOfArrays
+    assert probe_hevc(output) == {"tag": "hvc1", "frames": 3}
+
+
+@hevc_remux_test
+def test_save_to_remux_rejects_hevc_with_multiple_sample_descriptions():
+    """hevc_mp4toannexb cannot follow a parameter set change mid-stream, which would silently
+    corrupt the second sample description, so such sources must be re-encoded."""
+    source = concat_hevc_sample_descriptions(create_hevc_mp4(), create_hevc_mp4(x265_params="no-sao=1"))
+    assert probe_hevc(source)["frames"] == 6
+    with pytest.raises(ValueError, match="multiple sample descriptions"):
+        remux_and_probe(source)
+
+
 def test_save_to_transcode_skips_undecodable_audio():
     """Streaming transcode keeps the decodable audio track and drops undecodable ones;
     with no decodable audio at all the output is video-only instead of crashing."""
