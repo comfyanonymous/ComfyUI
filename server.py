@@ -524,7 +524,7 @@ class PromptServer():
                 # endpoint must resolve blake3 hashes to their on-disk file paths.
                 if filename.startswith("blake3:"):
                     owner_id = self.user_manager.get_request_user_id(request)
-                    result = resolve_hash_to_path(filename, owner_id=owner_id)
+                    result = resolve_hash_to_path(filename)
                     if result is None:
                         return web.Response(status=404)
                     file, filename, resolved_content_type = result.abs_path, result.download_name, result.content_type
