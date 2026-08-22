@@ -7,10 +7,12 @@ from sqlalchemy import select
 from app.assets.database.models import Asset, AssetContent, AssetTag
 from app.assets.scanner import (
     build_asset_specs,
+    enrich_asset,
     mark_contents_missing_outside_prefixes,
     seed_asset_specs,
     sync_prefixes_with_filesystem,
 )
+from app.assets.services.snapshot_hash import snapshot_hash
 
 
 def _build_seed_specs(root: Path) -> list:
@@ -85,3 +87,43 @@ def test_unhashed_missing_content_gets_tagged(session, temp_dir: Path):
 
     assert content is not None and content.is_missing is True
     assert missing_tag is not None and missing_tag.origin == "automatic"
+
+
+def test_enrichment_keeps_equal_hash_contents_distinct(session, temp_dir: Path):
+    path = temp_dir / "new.bin"
+    path.write_bytes(b"same bytes")
+    digest = snapshot_hash(str(path))
+    assert digest is not None
+
+    content = AssetContent(
+        path=str(path),
+        hash=None,
+        size_bytes=path.stat().st_size,
+        mtime_ns=path.stat().st_mtime_ns,
+    )
+    existing = AssetContent(
+        path=str(temp_dir / "existing.bin"),
+        hash=digest,
+        size_bytes=path.stat().st_size,
+        mtime_ns=path.stat().st_mtime_ns,
+    )
+    session.add_all((content, existing))
+    session.flush()
+    record = Asset(content_id=content.id, name=path.name)
+    existing_record = Asset(content_id=existing.id, name="existing.bin")
+    session.add_all((record, existing_record))
+    session.commit()
+
+    enriched = enrich_asset(
+        session,
+        file_path=str(path),
+        content_id=content.id,
+        record_id=record.id,
+        extract_metadata=False,
+        compute_hash=True,
+    )
+
+    assert enriched is True
+    assert session.get(AssetContent, content.id).hash == digest
+    assert session.get(Asset, record.id).content_id == content.id
+    assert session.get(Asset, existing_record.id).content_id == existing.id
