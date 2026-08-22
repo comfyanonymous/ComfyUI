@@ -5,32 +5,23 @@ from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 class Asset(BaseModel):
-    """API view of an asset. Maps to DB ``AssetReference`` joined with its ``Asset`` blob;
-    ``id`` here is the AssetReference id, not the content-addressed Asset id."""
-
     id: str
     name: str = Field(
         ...,
-        deprecated=True,
-        description="Reference label, often caller-provided or derived from the filename. Deprecated for storage path/display semantics; use `loader_path` and `display_name` when present.",
+        description="Record label, usually derived from the source filename.",
     )
     hash: str | None = None
     loader_path: str | None = Field(
         default=None,
         description="The value a loader consumes to load this asset. `None` when no loader can resolve the file.",
     )
-    display_name: str | None = Field(
-        default=None,
-        description="Human-facing label for the asset. Not unique.",
-    )
-    asset_hash: str | None = None
+    display_name: str | None = Field(default=None, exclude=True)
     size: int | None = None
     mime_type: str | None = None
     tags: list[str] = Field(default_factory=list)
     preview_url: str | None = None
     preview_id: str | None = None  # references an asset_reference id, not an asset id
     user_metadata: dict[str, Any] = Field(default_factory=dict)
-    is_immutable: bool = False
     metadata: dict[str, Any] | None = None
     job_id: str | None = None
     prompt_id: str | None = None  # deprecated: use job_id
