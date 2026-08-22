@@ -52,6 +52,7 @@ from app.database.db import create_session
 ROUTES = web.RouteTableDef()
 USER_MANAGER: user_manager.UserManager | None = None
 _ASSETS_ENABLED = False
+SYSTEM_TAGS = frozenset({"missing"})
 
 
 def _require_assets_feature_enabled(handler):
@@ -121,6 +122,14 @@ def _build_error_response(
 def _build_validation_error_response(code: str, ve: ValidationError) -> web.Response:
     errors = json.loads(ve.json())
     return _build_error_response(400, code, "Validation failed.", {"errors": errors})
+
+
+def _reject_system_tags(tags: list[str]) -> None:
+    for tag in tags:
+        if tag in SYSTEM_TAGS:
+            raise web.HTTPBadRequest(
+                reason=f"Tag '{tag}' is system-managed and cannot be modified via the API"
+            )
 
 
 class InvalidTagFilterError(Exception):
@@ -766,6 +775,8 @@ async def add_asset_tags(request: web.Request) -> web.Response:
             400, "INVALID_JSON", "Request body must be valid JSON."
         )
 
+    _reject_system_tags(data.tags)
+
     try:
         result = apply_tags(
             reference_id=reference_id,
@@ -813,6 +824,8 @@ async def delete_asset_tags(request: web.Request) -> web.Response:
         return _build_error_response(
             400, "INVALID_JSON", "Request body must be valid JSON."
         )
+
+    _reject_system_tags(data.tags)
 
     try:
         result = remove_tags(
