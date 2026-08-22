@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 
 import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
@@ -37,6 +38,34 @@ def create_record(session: Session, content_id: str, name: str, mime_type: str |
 
 def get_record_by_id(session: Session, id: str) -> Asset | None:
     return session.get(Asset, id)
+
+
+def fetch_record_tags(session: Session, record_id: str) -> list[str]:
+    return list(
+        session.scalars(
+            sa.select(AssetTag.tag_name)
+            .where(AssetTag.asset_id == record_id)
+            .order_by(AssetTag.tag_name)
+        )
+    )
+
+
+def update_record_access_time(
+    session: Session,
+    record_id: str,
+    ts: datetime | None = None,
+    only_if_newer: bool = True,
+) -> None:
+    ts = ts or get_utc_now()
+    stmt = sa.update(Asset).where(Asset.id == record_id)
+    if only_if_newer:
+        stmt = stmt.where(
+            sa.or_(
+                Asset.last_access_time.is_(None),
+                Asset.last_access_time < ts,
+            )
+        )
+    session.execute(stmt.values(last_access_time=ts))
 
 
 def list_records_page(session: Session, cursor: str | None = None, limit: int = 50, include_tags: Sequence[str] | None = None, exclude_tags: Sequence[str] | None = None) -> tuple[list[Asset], str | None]:

@@ -14,11 +14,10 @@ from app.assets.services.cursor import (
 )
 
 
-from app.assets.database.models import Asset
+from app.assets.database.models import AssetContent
 from app.assets.database.queries import (
-    asset_exists_by_hash,
     delete_record,
-    fetch_reference_and_asset,
+    fetch_record_tags,
     get_record_by_id,
     get_reference_paths_by_ids,
     fetch_reference_asset_and_tags,
@@ -26,17 +25,14 @@ from app.assets.database.queries import (
     get_reference_by_id,
     get_reference_with_owner_check,
     list_references_page,
-    list_all_file_paths_by_asset_id,
-    list_references_by_asset_id,
     set_reference_metadata,
     set_reference_preview,
     set_reference_tags,
     update_asset_hash_and_mime,
-    update_reference_access_time,
+    update_record_access_time,
     update_reference_name,
     update_reference_updated_at,
 )
-from app.assets.helpers import select_best_live_path
 from app.assets.services.path_utils import compute_loader_path
 from app.assets.services.schemas import (
     AssetData,
@@ -44,6 +40,7 @@ from app.assets.services.schemas import (
     AssetSummaryData,
     DownloadResolutionResult,
     ListAssetsResult,
+    ReferenceData,
     UserMetadata,
     extract_asset_data,
     extract_reference_data,
@@ -51,25 +48,47 @@ from app.assets.services.schemas import (
 from app.database.db import create_session
 
 
+def _record_to_detail_result(session, record) -> AssetDetailResult:
+    from app.assets.services.ingest import _canonical_asset_hash
+
+    content = session.get(AssetContent, record.content_id)
+    tags = fetch_record_tags(session, record.id)
+    stored_hash = content.hash if content else None
+    if stored_hash and not stored_hash.startswith("blake3:"):
+        api_hash = _canonical_asset_hash(stored_hash)
+    else:
+        api_hash = stored_hash
+    ref = ReferenceData(
+        id=record.id,
+        name=record.name,
+        file_path=content.path if content else None,
+        loader_path=record.loader_path,
+        user_metadata=record.user_metadata,
+        preview_id=record.preview_id,
+        system_metadata=record.system_metadata,
+        job_id=record.job_id,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+        last_access_time=record.last_access_time,
+    )
+    asset = AssetData(
+        hash=api_hash,
+        size_bytes=content.size_bytes if content else None,
+        mime_type=record.mime_type,
+    )
+    return AssetDetailResult(ref=ref, asset=asset, tags=tags)
+
+
 def get_asset_detail(
     reference_id: str,
     owner_id: str = "",
 ) -> AssetDetailResult | None:
+    del owner_id
     with create_session() as session:
-        result = fetch_reference_asset_and_tags(
-            session,
-            reference_id=reference_id,
-            owner_id=owner_id,
-        )
-        if not result:
+        record = get_record_by_id(session, reference_id)
+        if record is None:
             return None
-
-        ref, asset, tags = result
-        return AssetDetailResult(
-            ref=extract_reference_data(ref),
-            asset=extract_asset_data(asset),
-            tags=tags,
-        )
+        return _record_to_detail_result(session, record)
 
 
 def update_asset_metadata(
@@ -344,34 +363,47 @@ def resolve_hash_to_path(
     asset_hash: str,
     owner_id: str = "",
 ) -> DownloadResolutionResult | None:
-    """Resolve a blake3 hash to an on-disk file path.
+    """Resolve a blake3 hash to an on-disk file path via lookup_for_view.
 
-    Only references visible to *owner_id* are considered (owner-less
-    references are always visible).
-
-    Returns a DownloadResolutionResult with abs_path, content_type, and
-    download_name, or None if no asset or live path is found.
+    Uses the first qualified live content row (temp paths included — temp
+    exclusion applies only to from-hash/dedup). Updates last_access_time on
+    every record pointing at the served content.
     """
+    from sqlalchemy import select
+
+    from app.assets.database.models import Asset
+    from app.assets.services.ingest import _strip_hash_prefix
+    from app.assets.services.lookup import lookup_for_view
+
+    del owner_id
+    digest = _strip_hash_prefix(asset_hash)
     with create_session() as session:
-        asset = queries_get_asset_by_hash(session, asset_hash)
-        if not asset:
+        content = lookup_for_view(session, digest)
+        if content is None:
             return None
-        refs = list_references_by_asset_id(session, asset_id=asset.id)
-        visible = [
-            r for r in refs
-            if r.owner_id == "" or r.owner_id == owner_id
-        ]
-        abs_path = select_best_live_path(visible)
-        if not abs_path:
-            return None
-        display_name = os.path.basename(abs_path)
-        for ref in visible:
-            if ref.file_path == abs_path and ref.name:
-                display_name = ref.name
-                break
+
+        records = list(
+            session.scalars(
+                select(Asset)
+                .where(Asset.content_id == content.id)
+                .order_by(Asset.created_at, Asset.id)
+            )
+        )
+        display_name = os.path.basename(content.path)
+        mime_type = None
+        for record in records:
+            if record.name:
+                display_name = record.name
+            if mime_type is None and record.mime_type:
+                mime_type = record.mime_type
+            update_record_access_time(session, record.id)
+        abs_path = content.path
+        session.commit()
+
         ctype = (
-            asset.mime_type
+            mime_type
             or mimetypes.guess_type(display_name)[0]
+            or mimetypes.guess_type(abs_path)[0]
             or "application/octet-stream"
         )
     return DownloadResolutionResult(
@@ -393,33 +425,28 @@ def resolve_asset_for_download(
     reference_id: str,
     owner_id: str = "",
 ) -> DownloadResolutionResult:
+    del owner_id
     with create_session() as session:
-        pair = fetch_reference_and_asset(
-            session, reference_id=reference_id, owner_id=owner_id
-        )
-        if not pair:
+        record = get_record_by_id(session, reference_id)
+        if record is None:
             raise ValueError(f"AssetReference {reference_id} not found")
 
-        ref, asset = pair
+        content = session.get(AssetContent, record.content_id)
+        if (
+            content is None
+            or content.is_missing
+            or not os.path.isfile(content.path)
+        ):
+            raise FileNotFoundError(
+                f"No live content for AssetReference {reference_id} "
+                f"(content id={record.content_id}, name={record.name})"
+            )
 
-        # For references with file_path, use that directly
-        if ref.file_path and os.path.isfile(ref.file_path):
-            abs_path = ref.file_path
-        else:
-            # For API-created refs without file_path, find a path from other refs
-            refs = list_references_by_asset_id(session, asset_id=asset.id)
-            abs_path = select_best_live_path(refs)
-            if not abs_path:
-                raise FileNotFoundError(
-                    f"No live path for AssetReference {reference_id} "
-                    f"(asset id={asset.id}, name={ref.name})"
-                )
+        ref_name = record.name
+        asset_mime = record.mime_type
+        abs_path = content.path
 
-        # Capture ORM attributes before commit (commit expires loaded objects)
-        ref_name = ref.name
-        asset_mime = asset.mime_type
-
-        update_reference_access_time(session, reference_id=reference_id)
+        update_record_access_time(session, reference_id)
         session.commit()
 
         ctype = (

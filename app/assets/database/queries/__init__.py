@@ -2,22 +2,26 @@ from app.assets.database.queries.records import (
     create_content,
     create_record,
     delete_record,
+    fetch_record_tags,
     get_record_by_id,
     list_records_page,
     mark_content_missing,
     rename_record,
     unset_content_missing,
+    update_record_access_time,
 )
 
 __all__ = [
     "create_content",
     "create_record",
     "delete_record",
+    "fetch_record_tags",
     "get_record_by_id",
     "list_records_page",
     "mark_content_missing",
     "rename_record",
     "unset_content_missing",
+    "update_record_access_time",
 ]
 
 
