@@ -1,4 +1,5 @@
 import torch
+import warnings
 import weakref
 
 import comfy_aimdo.model_vbar
@@ -28,6 +29,18 @@ def cleanup_prefetched_modules(module, comfy_modules):
         comfy_aimdo.model_vbar.vbar_unpin(module._v_block)
         del module._v_block_faulted
 
+def _drop_graph(module):
+    graph = getattr(module, "_comfy_graph", None)
+    if graph is None:
+        return
+    # reset() through the bound method surfaces the allocator's benign
+    # "uncaptured free of a captured allocation" as catchable Python warnings;
+    # a plain del frees from the C++ dealloc path and spams stderr instead
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        graph["graph"].reset()
+    del module._comfy_graph
+
 def cleanup_prefetch_queues():
     global PREFETCH_QUEUES, GRAPH_CAPTURE_STREAMS
 
@@ -41,7 +54,7 @@ def cleanup_prefetch_queues():
                 cleanup_prefetched_modules(prefetched_module, comfy_modules)
     PREFETCH_QUEUES = []
     for module in GRAPH_MODULES:
-        del module._comfy_graph
+        _drop_graph(module)
     GRAPH_MODULES.clear()
     GRAPH_WARMED_MODULES.clear()
     GRAPH_CAPTURE_STREAMS = {}
@@ -117,6 +130,7 @@ def prefetch_queue_pop(queue, device, module, dtype=None, core=None, enable_grap
                 if signature is not None:
                     module._v_block_faulted = True
             if signature is not None:
+                _drop_graph(module)
                 graph = torch.cuda.CUDAGraph()
                 if generator is not None:
                     graph.register_generator_state(generator)
