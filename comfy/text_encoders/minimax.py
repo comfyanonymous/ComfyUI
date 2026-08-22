@@ -28,6 +28,9 @@ from .qwen3vl import Qwen3VL, Qwen3VLSDTokenizer
 
 VISION_START = 151652
 VISION_END = 151653
+# FL2VA/Ref2VA tokenizer_config extends Qwen with these, assigned ids 151669-151675 in list order
+MINIMAX_EXTRA_TOKENS = ["<d>", "</d>", "<|cutoff|>", "<|lyrics_start|>", "<|lyrics_end|>",
+                        "<|caption_start|>", "<|caption_end|>"]
 QWEN_IMAGE_MEAN = [0.5, 0.5, 0.5]
 QWEN_IMAGE_STD = [0.5, 0.5, 0.5]
 
@@ -122,9 +125,16 @@ class MiniMaxH3TEModel(comfy.sd1_clip.SD1ClipModel):
                          clip_model=MiniMaxH3ClipModel, model_options=model_options)
 
 
+class MiniMaxQwenSDTokenizer(Qwen3VLSDTokenizer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tokenizer.add_special_tokens({"additional_special_tokens": MINIMAX_EXTRA_TOKENS})
+        self.inv_vocab = {v: k for k, v in self.tokenizer.get_vocab().items()}
+
+
 class MiniMaxH3Tokenizer(comfy.sd1_clip.SD1Tokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
-        tokenizer = lambda *a, **kw: Qwen3VLSDTokenizer(*a, **kw, embedding_size=5120, embedding_key="qwen3vl_32b")
+        tokenizer = lambda *a, **kw: MiniMaxQwenSDTokenizer(*a, **kw, embedding_size=5120, embedding_key="qwen3vl_32b")
         super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, name="qwen3vl_32b", tokenizer=tokenizer)
 
     @staticmethod
