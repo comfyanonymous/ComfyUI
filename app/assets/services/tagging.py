@@ -3,12 +3,11 @@ from typing import Sequence
 from app.assets.database.queries import (
     AddTagsResult,
     RemoveTagsResult,
-    add_tags_to_reference,
-    get_reference_with_owner_check,
     list_tags_with_usage,
-    remove_tags_from_reference,
 )
 from app.assets.database.queries.tags import list_tag_counts_for_filtered_assets
+from app.assets.database.models import Asset, AssetTag, Tag
+from app.assets.helpers import normalize_tags
 from app.assets.services.schemas import TagUsage
 from app.database.db import create_session
 
@@ -19,20 +18,47 @@ def apply_tags(
     origin: str = "manual",
     tenant_id: str = "",
 ) -> AddTagsResult:
-    with create_session() as session:
-        ref_row = get_reference_with_owner_check(session, reference_id, tenant_id)
+    from sqlalchemy import select
 
-        result = add_tags_to_reference(
-            session,
-            reference_id=reference_id,
-            tags=tags,
-            origin=origin,
-            create_if_missing=True,
-            reference_row=ref_row,
+    del tenant_id
+    with create_session() as session:
+        if session.get(Asset, reference_id) is None:
+            raise ValueError(f"Asset {reference_id} not found")
+
+        normalized_tags = normalize_tags(tags)
+        current_tags = set(
+            session.scalars(
+                select(AssetTag.tag_name).where(AssetTag.asset_id == reference_id)
+            )
+        )
+        requested_tags = set(normalized_tags)
+        for tag_name in normalized_tags:
+            if session.get(Tag, tag_name) is None:
+                session.add(Tag(name=tag_name))
+                session.flush()
+            if tag_name not in current_tags:
+                session.add(
+                    AssetTag(
+                        asset_id=reference_id,
+                        tag_name=tag_name,
+                        origin=origin,
+                    )
+                )
+        session.flush()
+        total_tags = list(
+            session.scalars(
+                select(AssetTag.tag_name)
+                .where(AssetTag.asset_id == reference_id)
+                .order_by(AssetTag.tag_name)
+            )
         )
         session.commit()
 
-    return result
+    return AddTagsResult(
+        added=sorted(requested_tags - current_tags),
+        already_present=sorted(requested_tags & current_tags),
+        total_tags=total_tags,
+    )
 
 
 def remove_tags(
@@ -40,17 +66,45 @@ def remove_tags(
     tags: list[str],
     tenant_id: str = "",
 ) -> RemoveTagsResult:
-    with create_session() as session:
-        get_reference_with_owner_check(session, reference_id, tenant_id)
+    from sqlalchemy import delete, select
 
-        result = remove_tags_from_reference(
-            session,
-            reference_id=reference_id,
-            tags=tags,
+    del tenant_id
+    with create_session() as session:
+        if session.get(Asset, reference_id) is None:
+            raise ValueError(f"Asset {reference_id} not found")
+
+        requested_tags = set(normalize_tags(tags))
+        removable_tags = set(
+            session.scalars(
+                select(AssetTag.tag_name).where(
+                    AssetTag.asset_id == reference_id,
+                    AssetTag.origin != "automatic",
+                    AssetTag.tag_name.in_(requested_tags),
+                )
+            )
+        )
+        if removable_tags:
+            session.execute(
+                delete(AssetTag).where(
+                    AssetTag.asset_id == reference_id,
+                    AssetTag.origin != "automatic",
+                    AssetTag.tag_name.in_(removable_tags),
+                )
+            )
+        total_tags = list(
+            session.scalars(
+                select(AssetTag.tag_name)
+                .where(AssetTag.asset_id == reference_id)
+                .order_by(AssetTag.tag_name)
+            )
         )
         session.commit()
 
-    return result
+    return RemoveTagsResult(
+        removed=sorted(removable_tags),
+        not_present=sorted(requested_tags - removable_tags),
+        total_tags=total_tags,
+    )
 
 
 def list_tags(

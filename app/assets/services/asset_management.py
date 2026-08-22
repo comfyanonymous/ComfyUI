@@ -34,6 +34,7 @@ from app.assets.database.queries import (
     update_reference_updated_at,
 )
 from app.assets.services.path_utils import compute_loader_path
+from app.assets.helpers import normalize_tags
 from app.assets.services.schemas import (
     AssetData,
     AssetDetailResult,
@@ -95,76 +96,63 @@ def update_asset_metadata(
     mime_type: str | None = None,
     preview_id: str | None = None,
 ) -> AssetDetailResult:
+    from sqlalchemy import delete, update
+
+    from app.assets.database.models import Asset, AssetTag, Tag
+    from app.assets.database.queries.records import get_record_by_id, rename_record
+
+    del tenant_id
     with create_session() as session:
-        ref = get_reference_with_owner_check(session, reference_id, tenant_id)
+        record = get_record_by_id(session, reference_id)
+        if record is None:
+            raise ValueError(f"Asset {reference_id} not found")
 
-        touched = False
-        if name is not None and name != ref.name:
-            update_reference_name(session, reference_id=reference_id, name=name)
-            touched = True
-
-        computed_filename = compute_loader_path(ref.file_path) if ref.file_path else None
-
-        new_meta: dict | None = None
+        if name is not None:
+            rename_record(session, reference_id, name)
         if user_metadata is not None:
-            new_meta = dict(user_metadata)
-        elif computed_filename:
-            current_meta = ref.user_metadata or {}
-            if current_meta.get("filename") != computed_filename:
-                new_meta = dict(current_meta)
-
-        if new_meta is not None:
-            if computed_filename:
-                new_meta["filename"] = computed_filename
-            set_reference_metadata(
-                session, reference_id=reference_id, user_metadata=new_meta
+            session.execute(
+                update(Asset)
+                .where(Asset.id == reference_id)
+                .values(user_metadata=dict(user_metadata))
             )
-            touched = True
-
         if tags is not None:
-            set_reference_tags(
-                session,
-                reference_id=reference_id,
-                tags=tags,
-                origin=tag_origin,
+            session.execute(
+                delete(AssetTag).where(
+                    AssetTag.asset_id == reference_id,
+                    AssetTag.origin != "automatic",
+                )
             )
-            touched = True
-
         if mime_type is not None:
-            updated = update_asset_hash_and_mime(
-                session, asset_id=ref.asset_id, mime_type=mime_type
+            session.execute(
+                update(Asset)
+                .where(Asset.id == reference_id)
+                .values(mime_type=mime_type)
             )
-            if updated:
-                touched = True
-
         if preview_id is not None:
-            set_reference_preview(
-                session,
-                reference_id=reference_id,
-                preview_reference_id=preview_id,
+            session.execute(
+                update(Asset)
+                .where(Asset.id == reference_id)
+                .values(preview_id=preview_id)
             )
-            touched = True
-
-        if touched and user_metadata is None:
-            update_reference_updated_at(session, reference_id=reference_id)
-
-        result = fetch_reference_asset_and_tags(
-            session,
-            reference_id=reference_id,
-            tenant_id=tenant_id,
-        )
-        if not result:
-            raise RuntimeError("State changed during update")
-
-        ref, asset, tag_list = result
-        detail = AssetDetailResult(
-            ref=extract_reference_data(ref),
-            asset=extract_asset_data(asset),
-            tags=tag_list,
-        )
+        if tags is not None:
+            for tag_name in normalize_tags(list(tags)):
+                if session.get(Tag, tag_name) is None:
+                    session.add(Tag(name=tag_name))
+                    session.flush()
+                if session.get(AssetTag, (reference_id, tag_name)) is None:
+                    session.add(
+                        AssetTag(
+                            asset_id=reference_id,
+                            tag_name=tag_name,
+                            origin=tag_origin,
+                        )
+                    )
         session.commit()
 
-        return detail
+    detail = get_asset_detail(reference_id)
+    if detail is None:
+        raise RuntimeError("Asset deleted during update")
+    return detail
 
 
 def delete_asset_reference(
