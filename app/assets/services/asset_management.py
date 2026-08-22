@@ -81,9 +81,9 @@ def _record_to_detail_result(session, record) -> AssetDetailResult:
 
 def get_asset_detail(
     reference_id: str,
-    owner_id: str = "",
+    tenant_id: str = "",
 ) -> AssetDetailResult | None:
-    del owner_id
+    del tenant_id
     with create_session() as session:
         record = get_record_by_id(session, reference_id)
         if record is None:
@@ -97,12 +97,12 @@ def update_asset_metadata(
     tags: Sequence[str] | None = None,
     user_metadata: UserMetadata = None,
     tag_origin: str = "manual",
-    owner_id: str = "",
+    tenant_id: str = "",
     mime_type: str | None = None,
     preview_id: str | None = None,
 ) -> AssetDetailResult:
     with create_session() as session:
-        ref = get_reference_with_owner_check(session, reference_id, owner_id)
+        ref = get_reference_with_owner_check(session, reference_id, tenant_id)
 
         touched = False
         if name is not None and name != ref.name:
@@ -157,7 +157,7 @@ def update_asset_metadata(
         result = fetch_reference_asset_and_tags(
             session,
             reference_id=reference_id,
-            owner_id=owner_id,
+            tenant_id=tenant_id,
         )
         if not result:
             raise RuntimeError("State changed during update")
@@ -175,11 +175,11 @@ def update_asset_metadata(
 
 def delete_asset_reference(
     reference_id: str,
-    owner_id: str = "",
+    tenant_id: str = "",
     delete_content_if_orphan: bool = True,
 ) -> bool:
     """Hard-delete an asset record. Content rows and files are untouched (D-3 floor)."""
-    del owner_id, delete_content_if_orphan
+    del tenant_id, delete_content_if_orphan
     with create_session() as session:
         if get_record_by_id(session, reference_id) is None:
             return False
@@ -191,10 +191,10 @@ def delete_asset_reference(
 def set_asset_preview(
     reference_id: str,
     preview_reference_id: str | None = None,
-    owner_id: str = "",
+    tenant_id: str = "",
 ) -> AssetDetailResult:
     with create_session() as session:
-        get_reference_with_owner_check(session, reference_id, owner_id)
+        get_reference_with_owner_check(session, reference_id, tenant_id)
 
         set_reference_preview(
             session,
@@ -203,7 +203,7 @@ def set_asset_preview(
         )
 
         result = fetch_reference_asset_and_tags(
-            session, reference_id=reference_id, owner_id=owner_id
+            session, reference_id=reference_id, tenant_id=tenant_id
         )
         if not result:
             raise RuntimeError("State changed during preview update")
@@ -245,7 +245,7 @@ _CURSOR_SORT_FIELDS = ("created_at", "updated_at", "name", "size")
 
 
 def list_assets_page(
-    owner_id: str = "",
+    tenant_id: str = "",
     include_tags: Sequence[str] | None = None,
     exclude_tags: Sequence[str] | None = None,
     name_contains: str | None = None,
@@ -292,7 +292,7 @@ def list_assets_page(
     with create_session() as session:
         refs, tag_map, total = list_references_page(
             session,
-            owner_id=owner_id,
+            tenant_id=tenant_id,
             include_tags=include_tags,
             exclude_tags=exclude_tags,
             any_tags=any_tags,
@@ -361,7 +361,7 @@ def _encode_next_cursor(ref, sort: str, order: str) -> str | None:
 
 def resolve_hash_to_path(
     asset_hash: str,
-    owner_id: str = "",
+    tenant_id: str = "",
 ) -> DownloadResolutionResult | None:
     """Resolve a blake3 hash to an on-disk file path via lookup_for_view.
 
@@ -375,7 +375,7 @@ def resolve_hash_to_path(
     from app.assets.services.ingest import _strip_hash_prefix
     from app.assets.services.lookup import lookup_for_view
 
-    del owner_id
+    del tenant_id
     digest = _strip_hash_prefix(asset_hash)
     with create_session() as session:
         content = lookup_for_view(session, digest)
@@ -423,9 +423,9 @@ def get_preview_file_paths(preview_ids: list[str]) -> dict[str, str]:
 
 def resolve_asset_for_download(
     reference_id: str,
-    owner_id: str = "",
+    tenant_id: str = "",
 ) -> DownloadResolutionResult:
-    del owner_id
+    del tenant_id
     with create_session() as session:
         record = get_record_by_id(session, reference_id)
         if record is None:

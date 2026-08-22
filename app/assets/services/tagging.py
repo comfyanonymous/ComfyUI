@@ -17,10 +17,10 @@ def apply_tags(
     reference_id: str,
     tags: list[str],
     origin: str = "manual",
-    owner_id: str = "",
+    tenant_id: str = "",
 ) -> AddTagsResult:
     with create_session() as session:
-        ref_row = get_reference_with_owner_check(session, reference_id, owner_id)
+        ref_row = get_reference_with_owner_check(session, reference_id, tenant_id)
 
         result = add_tags_to_reference(
             session,
@@ -38,10 +38,10 @@ def apply_tags(
 def remove_tags(
     reference_id: str,
     tags: list[str],
-    owner_id: str = "",
+    tenant_id: str = "",
 ) -> RemoveTagsResult:
     with create_session() as session:
-        get_reference_with_owner_check(session, reference_id, owner_id)
+        get_reference_with_owner_check(session, reference_id, tenant_id)
 
         result = remove_tags_from_reference(
             session,
@@ -59,7 +59,7 @@ def list_tags(
     offset: int = 0,
     order: str = "count_desc",
     include_zero: bool = True,
-    owner_id: str = "",
+    tenant_id: str = "",
 ) -> tuple[list[TagUsage], int]:
     limit = max(1, min(1000, limit))
     offset = max(0, offset)
@@ -72,14 +72,14 @@ def list_tags(
             offset=offset,
             include_zero=include_zero,
             order=order,
-            owner_id=owner_id,
+            tenant_id=tenant_id,
         )
 
     return [TagUsage(name, count) for name, count in rows], total
 
 
 def list_tag_histogram(
-    owner_id: str = "",
+    tenant_id: str = "",
     include_tags: Sequence[str] | None = None,
     exclude_tags: Sequence[str] | None = None,
     name_contains: str | None = None,
@@ -91,7 +91,7 @@ def list_tag_histogram(
     with create_session() as session:
         return list_tag_counts_for_filtered_assets(
             session,
-            owner_id=owner_id,
+            tenant_id=tenant_id,
             include_tags=include_tags,
             exclude_tags=exclude_tags,
             any_tags=any_tags,

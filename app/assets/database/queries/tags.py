@@ -17,7 +17,7 @@ from app.assets.database.models import (
 from app.assets.database.queries.common import (
     apply_metadata_filter,
     apply_tag_filters,
-    build_visible_owner_clause,
+    build_visibility_clause,
     iter_row_chunks,
 )
 from app.assets.helpers import escape_sql_like_string, get_utc_now, normalize_tags
@@ -263,7 +263,7 @@ def list_tags_with_usage(
     offset: int = 0,
     include_zero: bool = True,
     order: str = "count_desc",
-    owner_id: str = "",
+    tenant_id: str = "",
 ) -> tuple[list[tuple[str, str, int]], int]:
     prefix_filter = prefix.strip() if prefix else ""
 
@@ -274,7 +274,7 @@ def list_tags_with_usage(
         )
         .select_from(AssetReferenceTag)
         .join(AssetReference, AssetReference.id == AssetReferenceTag.asset_reference_id)
-        .where(build_visible_owner_clause(owner_id))
+        .where(build_visibility_clause(tenant_id))
         .where(
             sa.or_(
                 AssetReference.is_missing == False,  # noqa: E712
@@ -312,7 +312,7 @@ def list_tags_with_usage(
         visible_tags_sq = (
             select(AssetReferenceTag.tag_name)
             .join(AssetReference, AssetReference.id == AssetReferenceTag.asset_reference_id)
-            .where(build_visible_owner_clause(owner_id))
+            .where(build_visibility_clause(tenant_id))
             .where(
                 sa.or_(
                     AssetReference.is_missing == False,  # noqa: E712
@@ -332,7 +332,7 @@ def list_tags_with_usage(
 
 def list_tag_counts_for_filtered_assets(
     session: Session,
-    owner_id: str = "",
+    tenant_id: str = "",
     include_tags: Sequence[str] | None = None,
     exclude_tags: Sequence[str] | None = None,
     name_contains: str | None = None,
@@ -350,7 +350,7 @@ def list_tag_counts_for_filtered_assets(
     ref_sq = (
         select(AssetReference.id)
         .join(Asset, Asset.id == AssetReference.asset_id)
-        .where(build_visible_owner_clause(owner_id))
+        .where(build_visibility_clause(tenant_id))
         .where(AssetReference.is_missing == False)  # noqa: E712
     )
 

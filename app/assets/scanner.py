@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.assets import mode
 from app.assets.database.queries import (
     bulk_update_hash_state,
-    bulk_update_needs_verify,
+    bulk_update_pending_verification,
     delete_orphaned_seed_asset,
     get_asset_by_hash,
     get_reference_by_id,

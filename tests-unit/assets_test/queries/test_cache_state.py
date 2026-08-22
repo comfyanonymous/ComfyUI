@@ -9,7 +9,7 @@ from app.assets.database.queries import (
     get_unreferenced_unhashed_asset_ids,
     delete_assets_by_ids,
     get_references_for_prefixes,
-    bulk_update_needs_verify,
+    bulk_update_pending_verification,
     delete_references_by_ids,
     delete_orphaned_seed_asset,
     bulk_insert_references_ignore_conflicts,
@@ -17,7 +17,7 @@ from app.assets.database.queries import (
     mark_references_missing_outside_prefixes,
     restore_references_by_paths,
 )
-from app.assets.helpers import select_best_live_path, get_utc_now
+from app.assets.helpers import select_live_path, get_utc_now
 
 pytestmark = pytest.mark.xfail(reason="wave-6-fixes: B schema rewrite in progress", strict=False)
 

@@ -410,7 +410,6 @@ async def get_asset_route(request: web.Request) -> web.Response:
     try:
         result = get_asset_detail(
             reference_id=reference_id,
-            owner_id=USER_MANAGER.get_request_user_id(request),
         )
         if not result:
             return _build_error_response(
@@ -427,7 +426,7 @@ async def get_asset_route(request: web.Request) -> web.Response:
         )
     except Exception:
         logging.exception(
-            "get_asset failed for reference_id=%s, owner_id=%s",
+            "get_asset failed for reference_id=%s, tenant_id=%s",
             reference_id,
             USER_MANAGER.get_request_user_id(request),
         )
@@ -445,7 +444,6 @@ async def download_asset_content(request: web.Request) -> web.Response:
     try:
         result = resolve_asset_for_download(
             reference_id=str(uuid.UUID(request.match_info["id"])),
-            owner_id=USER_MANAGER.get_request_user_id(request),
         )
         abs_path = result.abs_path
         content_type = result.content_type
@@ -549,7 +547,6 @@ async def create_asset_from_hash_route(request: web.Request) -> web.Response:
         name=name,
         tags=body.tags,
         user_metadata=body.user_metadata,
-        owner_id=USER_MANAGER.get_request_user_id(request),
         mime_type=body.mime_type,
         preview_id=body.preview_id,
     )
@@ -575,7 +572,7 @@ async def upload_asset(request: web.Request) -> web.Response:
     except UploadError as e:
         return _build_error_response(e.status, e.code, e.message)
 
-    owner_id = USER_MANAGER.get_request_user_id(request)
+    tenant_id = USER_MANAGER.get_request_user_id(request)
 
     try:
         spec = schemas_in.UploadAssetSpec.model_validate(
@@ -601,7 +598,7 @@ async def upload_asset(request: web.Request) -> web.Response:
                 name=spec.name or (spec.hash.split(":", 1)[1]),
                 tags=spec.tags,
                 user_metadata=spec.user_metadata or {},
-                owner_id=owner_id,
+                tenant_id=tenant_id,
                 mime_type=spec.mime_type,
                 preview_id=spec.preview_id,
             )
@@ -616,7 +613,7 @@ async def upload_asset(request: web.Request) -> web.Response:
                 tags=spec.tags,
                 user_metadata=spec.user_metadata or {},
                 client_filename=parsed.file_client_name,
-                owner_id=owner_id,
+                tenant_id=tenant_id,
                 expected_hash=spec.hash,
                 mime_type=spec.mime_type,
                 preview_id=spec.preview_id,
@@ -644,7 +641,7 @@ async def upload_asset(request: web.Request) -> web.Response:
         return _build_error_response(503, "DEPENDENCY_MISSING", e.message)
     except Exception:
         delete_temp_file_if_exists(parsed.tmp_path)
-        logging.exception("upload_asset failed for owner_id=%s", owner_id)
+        logging.exception("upload_asset failed for tenant_id=%s", tenant_id)
         return _build_error_response(500, "INTERNAL", "Unexpected server error.")
 
     asset = _build_asset_response(result, _resolve_preview_paths([result]))
@@ -674,7 +671,6 @@ async def update_asset_route(request: web.Request) -> web.Response:
             reference_id=reference_id,
             name=body.name,
             user_metadata=body.user_metadata,
-            owner_id=USER_MANAGER.get_request_user_id(request),
             preview_id=body.preview_id,
         )
         payload = _build_asset_response(result, _resolve_preview_paths([result]))
@@ -686,7 +682,7 @@ async def update_asset_route(request: web.Request) -> web.Response:
         )
     except Exception:
         logging.exception(
-            "update_asset failed for reference_id=%s, owner_id=%s",
+            "update_asset failed for reference_id=%s, tenant_id=%s",
             reference_id,
             USER_MANAGER.get_request_user_id(request),
         )
@@ -702,11 +698,10 @@ async def delete_asset_route(request: web.Request) -> web.Response:
     try:
         deleted = delete_asset_reference(
             reference_id=reference_id,
-            owner_id=USER_MANAGER.get_request_user_id(request),
         )
     except Exception:
         logging.exception(
-            "delete_asset_reference failed for reference_id=%s, owner_id=%s",
+            "delete_asset_reference failed for reference_id=%s, tenant_id=%s",
             reference_id,
             USER_MANAGER.get_request_user_id(request),
         )
@@ -743,7 +738,6 @@ async def get_tags(request: web.Request) -> web.Response:
         offset=query.offset,
         order=query.order,
         include_zero=query.include_zero,
-        owner_id=USER_MANAGER.get_request_user_id(request),
     )
 
     tags = [
@@ -782,7 +776,6 @@ async def add_asset_tags(request: web.Request) -> web.Response:
             reference_id=reference_id,
             tags=data.tags,
             origin="manual",
-            owner_id=USER_MANAGER.get_request_user_id(request),
         )
         payload = schemas_out.TagsAdd(
             added=result.added,
@@ -797,7 +790,7 @@ async def add_asset_tags(request: web.Request) -> web.Response:
         )
     except Exception:
         logging.exception(
-            "add_tags_to_asset failed for reference_id=%s, owner_id=%s",
+            "add_tags_to_asset failed for reference_id=%s, tenant_id=%s",
             reference_id,
             USER_MANAGER.get_request_user_id(request),
         )
@@ -831,7 +824,6 @@ async def delete_asset_tags(request: web.Request) -> web.Response:
         result = remove_tags(
             reference_id=reference_id,
             tags=data.tags,
-            owner_id=USER_MANAGER.get_request_user_id(request),
         )
         payload = schemas_out.TagsRemove(
             removed=result.removed,
@@ -846,7 +838,7 @@ async def delete_asset_tags(request: web.Request) -> web.Response:
         )
     except Exception:
         logging.exception(
-            "remove_tags_from_asset failed for reference_id=%s, owner_id=%s",
+            "remove_tags_from_asset failed for reference_id=%s, tenant_id=%s",
             reference_id,
             USER_MANAGER.get_request_user_id(request),
         )
@@ -871,7 +863,6 @@ async def get_tags_refine(request: web.Request) -> web.Response:
         return _build_error_response(400, "INVALID_TAG_FILTER", str(e), e.details)
 
     tag_counts = list_tag_histogram(
-        owner_id=USER_MANAGER.get_request_user_id(request),
         include_tags=tags_all,
         exclude_tags=tags_none,
         any_tags=tags_any,
