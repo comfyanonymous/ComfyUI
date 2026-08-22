@@ -186,7 +186,22 @@ def register_output_files(
         if not os.path.isfile(abs_path):
             continue
         try:
-            register_output_file_b(abs_path, job_id=job_id)
+            from sqlalchemy import select
+
+            from app.assets.database.models import AssetContent
+
+            locator = os.path.abspath(abs_path)
+            with create_session() as session:
+                existing = session.scalars(
+                    select(AssetContent).where(
+                        AssetContent.path == locator,
+                        AssetContent.is_missing.is_(False),
+                    )
+                ).first()
+            if existing is not None:
+                register_cached_output(abs_path, job_id=job_id)
+            else:
+                register_output_file_b(abs_path, job_id=job_id)
             registered += 1
         except Exception:
             logging.exception("Failed to register output: %s", abs_path)
