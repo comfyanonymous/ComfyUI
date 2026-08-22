@@ -766,6 +766,7 @@ class MergeMeshes(IO.ComfyNode):
 
         any_uvs = any(m.uvs is not None for m in meshes)
         any_colors = any(m.vertex_colors is not None for m in meshes)
+        color_channels = max((int(m.vertex_colors.shape[-1]) for m in meshes if m.vertex_colors is not None), default=3)
 
         verts_list, faces_list, uvs_list, colors_list = [], [], [], []
         texture = None
@@ -781,7 +782,9 @@ class MergeMeshes(IO.ComfyNode):
             if any_uvs:
                 uvs_list.append(mu.cpu() if mu is not None else v.new_zeros((v.shape[0], 2)))
             if any_colors:
-                c = mc.cpu() if mc is not None else v.new_ones((v.shape[0], 3))
+                c = mc.cpu() if mc is not None else v.new_ones((v.shape[0], color_channels))
+                if c.shape[-1] < color_channels:
+                    c = torch.cat((c, c.new_ones((c.shape[0], color_channels - c.shape[-1]))), dim=-1)
                 colors_list.append(c)
             mt = m.texture
             if mt is not None:
