@@ -89,11 +89,11 @@ def get_reference_with_owner_check(
     """Fetch a reference and verify ownership.
 
     Raises:
-        ValueError: if reference not found or soft-deleted
+        ValueError: if reference not found
         PermissionError: if owner_id doesn't match
     """
     ref = get_reference_by_id(session, reference_id=reference_id)
-    if not ref or ref.deleted_at is not None:
+    if not ref:
         raise ValueError(f"AssetReference {reference_id} not found")
     if ref.owner_id and ref.owner_id != owner_id:
         raise PermissionError("not owner")
@@ -119,13 +119,12 @@ def count_active_siblings(
     asset_id: str,
     exclude_reference_id: str,
 ) -> int:
-    """Count active (non-deleted) references to an asset, excluding one reference."""
+    """Count active references to an asset, excluding one reference."""
     return (
         session.query(AssetReference)
         .filter(
             AssetReference.asset_id == asset_id,
             AssetReference.id != exclude_reference_id,
-            AssetReference.deleted_at.is_(None),
         )
         .count()
     )
@@ -139,7 +138,6 @@ def reference_exists_for_asset_id(
         select(sa.literal(True))
         .select_from(AssetReference)
         .where(AssetReference.asset_id == asset_id)
-        .where(AssetReference.deleted_at.is_(None))
         .limit(1)
     )
     return session.execute(q).first() is not None
@@ -149,12 +147,11 @@ def reference_exists(
     session: Session,
     reference_id: str,
 ) -> bool:
-    """Return True if a reference with the given ID exists (not soft-deleted)."""
+    """Return True if a reference with the given ID exists."""
     q = (
         select(sa.literal(True))
         .select_from(AssetReference)
         .where(AssetReference.id == reference_id)
-        .where(AssetReference.deleted_at.is_(None))
         .limit(1)
     )
     return session.execute(q).first() is not None
@@ -287,7 +284,6 @@ def list_references_page(
         .join(Asset, Asset.id == AssetReference.asset_id)
         .where(build_visible_owner_clause(owner_id))
         .where(AssetReference.is_missing == False)  # noqa: E712
-        .where(AssetReference.deleted_at.is_(None))
         .options(noload(AssetReference.tags))
     )
 
@@ -340,7 +336,6 @@ def list_references_page(
         .join(Asset, Asset.id == AssetReference.asset_id)
         .where(build_visible_owner_clause(owner_id))
         .where(AssetReference.is_missing == False)  # noqa: E712
-        .where(AssetReference.deleted_at.is_(None))
     )
     if name_contains:
         escaped, esc = escape_sql_like_string(name_contains)
@@ -384,7 +379,6 @@ def fetch_reference_asset_and_tags(
         .join(Tag, Tag.name == AssetReferenceTag.tag_name, isouter=True)
         .where(
             AssetReference.id == reference_id,
-            AssetReference.deleted_at.is_(None),
             build_visible_owner_clause(owner_id),
         )
         .options(noload(AssetReference.tags))
@@ -415,7 +409,6 @@ def fetch_reference_and_asset(
         .join(Asset, Asset.id == AssetReference.asset_id)
         .where(
             AssetReference.id == reference_id,
-            AssetReference.deleted_at.is_(None),
             build_visible_owner_clause(owner_id),
         )
         .limit(1)
@@ -554,27 +547,6 @@ def delete_reference_by_id(
     return int(session.execute(stmt).rowcount or 0) > 0
 
 
-def soft_delete_reference_by_id(
-    session: Session,
-    reference_id: str,
-    owner_id: str,
-) -> bool:
-    """Mark a reference as soft-deleted by setting deleted_at timestamp.
-
-    Returns True if the reference was found and marked deleted.
-    """
-    now = get_utc_now()
-    stmt = (
-        sa.update(AssetReference)
-        .where(
-            AssetReference.id == reference_id,
-            AssetReference.deleted_at.is_(None),
-            build_visible_owner_clause(owner_id),
-        )
-        .values(deleted_at=now)
-    )
-    return int(session.execute(stmt).rowcount or 0) > 0
-
 
 def set_reference_preview(
     session: Session,
@@ -618,8 +590,7 @@ def list_references_by_asset_id(
             select(AssetReference)
             .where(AssetReference.asset_id == asset_id)
             .where(AssetReference.is_missing == False)  # noqa: E712
-            .where(AssetReference.deleted_at.is_(None))
-            .order_by(AssetReference.id.asc())
+                .order_by(AssetReference.id.asc())
         )
         .scalars()
         .all()
@@ -692,12 +663,11 @@ def upsert_reference(
                 AssetReference.mtime_ns != int(mtime_ns),
                 AssetReference.loader_path.is_distinct_from(loader_path),
                 AssetReference.is_missing == True,  # noqa: E712
-                AssetReference.deleted_at.isnot(None),
             )
         )
         .values(
             asset_id=asset_id, mtime_ns=int(mtime_ns), loader_path=loader_path,
-            is_missing=False, deleted_at=None, updated_at=now,
+            is_missing=False, updated_at=now,
         )
     )
     res2 = session.execute(upd)
@@ -721,7 +691,6 @@ def mark_references_missing_outside_prefixes(
     result = session.execute(
         sa.update(AssetReference)
         .where(AssetReference.file_path.isnot(None))
-        .where(AssetReference.deleted_at.is_(None))
         .where(~matches_valid_prefix)
         .where(AssetReference.is_missing == False)  # noqa: E712
         .values(is_missing=True)
@@ -743,8 +712,7 @@ def restore_references_by_paths(session: Session, file_paths: list[str]) -> int:
             sa.update(AssetReference)
             .where(AssetReference.file_path.in_(chunk))
             .where(AssetReference.is_missing == True)  # noqa: E712
-            .where(AssetReference.deleted_at.is_(None))
-            .values(is_missing=False)
+                .values(is_missing=False)
         )
         total += result.rowcount
     return total
@@ -762,7 +730,6 @@ def get_unreferenced_unhashed_asset_ids(session: Session) -> list[str]:
         sa.select(sa.literal(1))
         .where(AssetReference.asset_id == Asset.id)
         .where(AssetReference.is_missing == False)  # noqa: E712
-        .where(AssetReference.deleted_at.is_(None))
         .correlate(Asset)
         .exists()
     )
@@ -822,7 +789,6 @@ def get_references_for_prefixes(
         )
         .join(Asset, Asset.id == AssetReference.asset_id)
         .where(AssetReference.file_path.isnot(None))
-        .where(AssetReference.deleted_at.is_(None))
         .where(sa.or_(*conds))
     )
 
@@ -897,7 +863,6 @@ def update_is_missing_by_asset_id(
     result = session.execute(
         sa.update(AssetReference)
         .where(AssetReference.asset_id == asset_id)
-        .where(AssetReference.deleted_at.is_(None))
         .values(is_missing=value)
     )
     return result.rowcount
@@ -975,7 +940,6 @@ def get_unenriched_references(
             AssetReference.enrichment_level,
         )
         .where(AssetReference.file_path.isnot(None))
-        .where(AssetReference.deleted_at.is_(None))
         .where(sa.or_(*conds))
         .where(AssetReference.is_missing == False)  # noqa: E712
         .where(AssetReference.enrichment_level <= max_level)
@@ -1078,8 +1042,7 @@ def get_reference_paths_by_ids(
             select(AssetReference.id, AssetReference.file_path).where(
                 AssetReference.id.in_(chunk),
                 AssetReference.file_path.is_not(None),
-                AssetReference.deleted_at.is_(None),
-            )
+                )
         )
         paths.update({rid: fp for rid, fp in rows})
     return paths

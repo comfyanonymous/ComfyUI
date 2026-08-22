@@ -34,7 +34,7 @@ import sys
 from comfy_execution.progress import get_progress_state
 from comfy_execution.utils import get_executing_context
 from comfy_api import feature_flags
-from app.database.db import init_db, dependencies_available
+from app.database.db import dependencies_available
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
@@ -513,19 +513,14 @@ def hijack_progress(server_instance):
     comfy.utils.set_progress_bar_global_hook(hook)
 
 
-def cleanup_temp():
-    temp_dir = folder_paths.get_temp_directory()
-    if os.path.exists(temp_dir):
-        shutil.rmtree(temp_dir, ignore_errors=True)
-
-
 def setup_database():
+    from app.assets.lifecycle import init_db_and_state, run_asset_startup
+
     try:
         if dependencies_available():
-            init_db()
+            init_db_and_state()
             if args.enable_assets:
-                if asset_seeder.start(roots=("models", "input", "output"), prune_first=True, compute_hashes=args.enable_asset_hashing):
-                    logging.info("Background asset scan initiated for models, input, output")
+                run_asset_startup()
     except Exception as e:
         if "database is locked" in str(e):
             logging.error(
@@ -556,7 +551,6 @@ def start_comfyui(asyncio_loop=None):
         temp_dir = os.path.join(os.path.abspath(args.temp_directory), "temp")
         logging.info(f"Setting temp directory to: {temp_dir}")
         folder_paths.set_temp_directory(temp_dir)
-    cleanup_temp()
 
     if not asyncio_loop:
         asyncio_loop = asyncio.new_event_loop()
@@ -638,5 +632,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logging.info("\nStopped server")
     finally:
-        asset_seeder.shutdown()
-        cleanup_temp()
+        from app.assets.lifecycle import run_asset_shutdown_cleanup
+
+        if asset_seeder.shutdown():
+            run_asset_shutdown_cleanup()

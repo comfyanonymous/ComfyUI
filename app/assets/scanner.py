@@ -82,7 +82,12 @@ def get_owned_prefixes() -> list[str]:
 
 
 def get_temp_prefixes() -> list[str]:
-    return [os.path.abspath(folder_paths.get_temp_directory())]
+    from app.assets.lifecycle import get_excluded_scan_roots
+
+    temp_dir = os.path.abspath(folder_paths.get_temp_directory())
+    if temp_dir in get_excluded_scan_roots():
+        return []
+    return [temp_dir]
 
 
 def collect_models_files() -> list[str]:
