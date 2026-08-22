@@ -797,10 +797,6 @@ class _AssetSeeder:
         consecutive_empty = 0
         max_consecutive_empty = 3
 
-        # Hash checkpoints survive across batches so interrupted hashes
-        # can be resumed without re-reading the entire file.
-        hash_checkpoints: dict[str, object] = {}
-
         while True:
             if self._check_pause_and_cancel():
                 logging.info("Enrich scan cancelled after %d assets", total_enriched)
@@ -825,7 +821,6 @@ class _AssetSeeder:
                 extract_metadata=True,
                 compute_hash=self._compute_hashes,
                 interrupt_check=self._is_paused_or_cancelled,
-                hash_checkpoints=hash_checkpoints,
             )
             total_enriched += enriched
             skip_ids.update(failed_ids)
