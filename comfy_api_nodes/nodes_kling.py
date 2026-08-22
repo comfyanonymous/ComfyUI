@@ -1866,7 +1866,7 @@ class KlingImageGenerationNode(IO.ComfyNode):
                     tooltip="Subject reference similarity",
                     advanced=True,
                 ),
-                IO.Combo.Input("model_name", options=["kling-v3", "kling-v2"]),
+                IO.Combo.Input("model_name", options=["kling-v3"]),
                 IO.Combo.Input(
                     "aspect_ratio",
                     options=[i.value for i in KlingImageGenAspectRatio],
@@ -1902,13 +1902,8 @@ class KlingImageGenerationNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model_name", "n"]),
-                expr="""
-                (
-                  $base := $contains(widgets.model_name,"kling-v3") ? 0.028 : 0.014;
-                  {"type":"usd","usd": $base * widgets.n}
-                )
-                """,
+                depends_on=IO.PriceBadgeDepends(widgets=["n"]),
+                expr="""{"type":"usd","usd": 0.028 * widgets.n}""",
             ),
         )
 

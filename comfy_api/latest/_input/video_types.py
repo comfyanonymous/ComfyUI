@@ -30,14 +30,23 @@ class VideoInput(ABC):
         metadata: Optional[dict] = None,
         bit_depth: int | None = None,
         crf: float | None = None,
+        color_space: str | None = None,
     ):
         """
         Abstract method to save the video input to a file.
 
         bit_depth selects the encoded bit depth; None keeps the video's native depth.
-        crf selects the H.264 constant rate factor; None uses the encoder default.
+        crf selects the H.264 or AV1 constant rate factor; None uses the encoder default.
+        color_space="sRGB" writes SDR BT.709/sRGB video. "HDR" writes 10-bit BT.2020/HLG video;
+        "HDR PQ" selects BT.2020/PQ.
+        Tensor-created videos default to sRGB when color_space is None. Loaded videos keep matching recognized native color
+        properties; other input pixels must already use the selected color space.
         """
         pass
+
+    def get_color_space(self) -> str:
+        """Return the video's color space as sRGB, HDR, HDR PQ, or auto when unspecified."""
+        return "auto"
 
     @abstractmethod
     def as_trimmed(

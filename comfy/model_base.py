@@ -68,6 +68,7 @@ import comfy.ldm.ideogram4.model
 import comfy.ldm.krea2.model
 import comfy.ldm.kandinsky5.model
 import comfy.ldm.anima.model
+import comfy.ldm.trellis2.model
 import comfy.ldm.ace.ace_step15
 import comfy.ldm.cogvideo.model
 import comfy.ldm.rt_detr.rtdetr_v4
@@ -1920,6 +1921,23 @@ class WAN22(WAN21):
     def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
         return latent_image
 
+class Trellis2(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None, unet_model=comfy.ldm.trellis2.model.Trellis2):
+        super().__init__(model_config, model_type, device, unet_model)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        embeds = kwargs.get("embeds")
+        out["embeds"] = comfy.conds.CONDRegular(embeds)
+        # CONDConstant: shared across pos/neg
+        for k in ("trellis2_coords", "trellis2_coord_counts",
+                  "trellis2_generation_mode", "trellis2_shape_slat",
+                  "trellis2_proj_feats", "trellis2_model_frame"):
+            v = kwargs.get(k)
+            if v is not None:
+                out[k] = comfy.conds.CONDConstant(v)
+        return out
+
 class WAN21_FlowRVS(WAN21):
     def __init__(self, model_config, model_type=ModelType.IMG_TO_IMG_FLOW, image_to_video=False, device=None):
         model_config.unet_config["model_type"] = "t2v"
@@ -2179,6 +2197,11 @@ class MiniMaxH3(BaseModel):
         payload["seed"] = kwargs.get("seed", 0)
         # same value process_latent_in/out used, so the model never undoes a scale that was not applied
         payload["audio_scale"] = self.audio_scale()
+
+        denoise_mask = kwargs.get("denoise_mask", None)
+        if denoise_mask is not None:
+            out.update(self._denoise_mask_conds(denoise_mask, latent_shapes))
+
         if cross_attn is not None and latent_shapes is not None and len(latent_shapes) > 1:
             # packed layout built once per sampling run, h/w rounded up to the DiT's 2x2 patch
             vs = latent_shapes[0]
@@ -2188,6 +2211,65 @@ class MiniMaxH3(BaseModel):
                 refs=payload.get("refs"))
         out['minimax_payload'] = comfy.conds.CONDConstant(payload)
         return out
+
+    def _pool_masks_to_token_grid(self, masks):
+        # pool the per-pixel masks to the label grid with amax: video per 2x2 DiT patch, audio per latent frame
+        video_mask = masks[0]
+        h, w = video_mask.shape[-2:]
+        ph, pw = self.diffusion_model.patch_size[1:]
+        lead = video_mask.shape[:-2]
+        video_mask = torch.nn.functional.pad(video_mask.reshape((-1,) + video_mask.shape[-3:]), (0, -w % pw, 0, -h % ph), mode="replicate")
+        video_mask = video_mask.reshape(lead + video_mask.shape[-2:])
+        video_mask = video_mask.reshape(video_mask.shape[:-2] + (video_mask.shape[-2] // ph, ph, video_mask.shape[-1] // pw, pw)).amax(dim=(-3, -1))
+        pooled = [video_mask.repeat_interleave(ph, dim=-2).repeat_interleave(pw, dim=-1)[..., :h, :w]]
+        if len(masks) > 1:
+            audio_mask = masks[1].amax(dim=1, keepdim=True)
+            pooled.append(audio_mask.expand_as(masks[1]).contiguous())
+        return pooled
+
+    def _token_grid_masks(self, denoise_mask, latent_shapes):
+        masks = utils.unpack_latents(denoise_mask, latent_shapes)
+        return [torch.ceil(mask * 256.0) / 256.0 for mask in self._pool_masks_to_token_grid(masks)]
+
+    def _denoise_mask_values(self, denoise_mask, latent_shapes):
+        if latent_shapes is None or len(latent_shapes) < 2:
+            return {}
+        masks = self._token_grid_masks(denoise_mask, latent_shapes)
+        out = {}
+        if torch.amin(masks[0]).item() < 1.0 - 1e-3:
+            out['denoise_mask'] = masks[0][:1, :1].clone()
+        if torch.amin(masks[1]).item() < 1.0 - 1e-3:
+            out['audio_denoise_mask'] = masks[1][:1].amax(dim=1, keepdim=True)
+        return out
+
+    def _denoise_mask_conds(self, denoise_mask, latent_shapes):
+        return {name: comfy.conds.CONDRegular(value) for name, value in self._denoise_mask_values(denoise_mask, latent_shapes).items()}
+
+    def scale_latent_inpaint(self, sigma, noise, latent_image, x=None, denoise_mask=None, **kwargs):
+        # preserved regions run at the cond timestep, inject them at cond strength
+        shapes = self.latent_shapes
+        if shapes is None or len(shapes) < 2:
+            return super().scale_latent_inpaint(sigma=sigma, noise=noise, latent_image=latent_image, **kwargs)
+        cleans = utils.unpack_latents(latent_image, shapes)
+        noises = utils.unpack_latents(noise, shapes)
+        aug = comfy.ldm.minimax.model.VISUAL_COND_TIMESTEP # H3's video timestep is 0.999 by default
+        cleans[0] = aug * cleans[0] + (1.0 - aug) * noises[0]
+        scale = self.audio_scale()
+        if scale != 1.0:
+            # the sampler carries audio as (sigma_v / sigma_a) * x_audio and latent_image
+            # holds audio_scale * x_audio, so rescale for the model to see it clean
+            model_sampling = self.model_sampling
+            sigma_v = sigma.clamp(min=1e-6)
+            sigma_a = comfy.ldm.minimax.model.time_shift_sigma(sigma_v, model_sampling.shift, model_sampling.audio_shift)
+            factor = (sigma_v / sigma_a) / scale
+            cleans[1] = cleans[1] * factor.view(factor.shape[:1] + (1,) * (cleans[1].ndim - 1)).to(cleans[1].dtype)
+        injected = utils.pack_latents(cleans)[0]
+        if x is None or denoise_mask is None:
+            return injected
+        token_grid_mask = utils.pack_latents(self._token_grid_masks(denoise_mask, shapes))[0]
+        x_blend_weight = (token_grid_mask - denoise_mask) / (1.0 - denoise_mask).clamp(min=1e-6)
+        x_blend_weight = torch.where(denoise_mask < 1.0, x_blend_weight.clamp(0.0, 1.0), torch.zeros_like(x_blend_weight))
+        return injected + x_blend_weight.to(injected.dtype) * (x - injected)
 
 class TripoSplat(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):

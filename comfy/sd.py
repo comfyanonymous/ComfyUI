@@ -15,6 +15,7 @@ import comfy.ldm.lightricks.vae.na_diffusion_decoder
 import comfy.ldm.lightricks.vae.audio_vae
 import comfy.ldm.cosmos.vae
 import comfy.ldm.wan.vae
+import comfy.ldm.trellis2.vae
 import comfy.ldm.wan.vae2_2
 import comfy.ldm.hunyuan3d.vae
 import comfy.ldm.seedvr.vae
@@ -575,6 +576,16 @@ class VAE:
                 self.first_stage_model = StageC_coder()
                 self.downscale_ratio = 32
                 self.latent_channels = 16
+            elif "shape_dec.blocks.1.16.to_subdiv.weight" in sd: # trellis2 shape vae (struct_dec + shape_dec)
+                self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+                self.memory_used_decode = lambda shape, dtype: (2500 * math.prod(shape[2:])) * model_management.dtype_size(dtype)
+                self.memory_used_encode = lambda shape, dtype: (2500 * math.prod(shape[2:])) * model_management.dtype_size(dtype)
+                self.first_stage_model = comfy.ldm.trellis2.vae.ShapeVae()
+            elif "txt_dec.blocks.3.4.conv2.weight" in sd: # trellis2 texture vae
+                self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+                self.memory_used_decode = lambda shape, dtype: (2500 * math.prod(shape[2:])) * model_management.dtype_size(dtype)
+                self.memory_used_encode = lambda shape, dtype: (2500 * math.prod(shape[2:])) * model_management.dtype_size(dtype)
+                self.first_stage_model = comfy.ldm.trellis2.vae.TextureVae()
             elif "decoder.up_blocks.2.upsamplers.0.upscale_conv.weight" in sd: # seedvr2
                 self.first_stage_model = comfy.ldm.seedvr.vae.VideoAutoencoderKLWrapper()
                 self.latent_channels = comfy.ldm.seedvr.vae.SEEDVR2_LATENT_CHANNELS
@@ -907,7 +918,14 @@ class VAE:
                 self.upscale_index_formula = (4, 16, 16)
                 self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 16, 16)
                 self.downscale_index_formula = (4, 16, 16)
-                if self.latent_channels in [48, 128]: # Wan 2.2 and LTX2
+                if self.latent_channels == 24 and sd["decoder.22.bias"].shape[0] == 12: # MiniMax H3
+                    self.first_stage_model = comfy.taesd.taehv.TAEHV(latent_channels=self.latent_channels, latent_format=None)
+                    self.process_input = self.process_output = lambda image: image
+                    self.upscale_ratio = (lambda a: max(1, (a - 2) // 5 * 17 + 5), 16, 16)
+                    self.downscale_ratio = (lambda a: max(1, (a - 1) // 17 * 5 + 2) if a > 1 else 1, 16, 16)
+                    self.memory_used_encode = lambda shape, dtype: (400 * ((shape[-3] + 16) // 17) * shape[-2] * shape[-1] * model_management.dtype_size(dtype))
+                    self.memory_used_decode = lambda shape, dtype: ((260 * 16 * 16 + shape[1] * shape[-3]) * shape[-2] * shape[-1] * model_management.dtype_size(dtype))
+                elif self.latent_channels in [48, 128]: # Wan 2.2 and LTX2
                     self.first_stage_model = comfy.taesd.taehv.TAEHV(latent_channels=self.latent_channels, latent_format=None) # taehv doesn't need scaling
                     self.process_input = self.process_output = lambda image: image
                     self.process_output = lambda image: image
@@ -1276,6 +1294,15 @@ class VAE:
 
         pixel_samples = pixel_samples.to(self.output_device).movedim(1,-1)
         return pixel_samples
+
+    def prepare_decode(self, sample_shape, memory_required=None):
+        """For VAEs whose real decode entry point bypasses decode()"""
+        if memory_required is None:
+            memory_required = self.memory_used_decode(sample_shape, self.vae_dtype)
+        memory_required = max(1, int(memory_required))
+        model_management.load_models_gpu([self.patcher], memory_required=memory_required, force_full_load=self.disable_offload)
+        free_memory = self.patcher.get_free_memory(self.device)
+        return max(1, int(free_memory / memory_required))
 
     def _tile_bounded_shape(self, shape, tile_x, tile_y, tile_t):
         """Clamp a latent shape to one tile for memory estimates: peak memory of a tiled decode is per-tile. Only caller-provided tile dims are clamped."""
