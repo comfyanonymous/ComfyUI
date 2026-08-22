@@ -60,7 +60,7 @@ def _ingest_file_from_path(
     mtime_ns: int,
     mime_type: str | None = None,
     info_name: str | None = None,
-    owner_id: str = "",
+    tenant_id: str = "",
     preview_id: str | None = None,
     user_metadata: UserMetadata = None,
     tags: Sequence[str] = (),
@@ -94,7 +94,7 @@ def _ingest_file_from_path(
             file_path=locator,
             name=info_name or os.path.basename(locator),
             mtime_ns=mtime_ns,
-            owner_id=owner_id,
+            tenant_id=tenant_id,
             loader_path=compute_loader_path(locator),
         )
 
@@ -190,7 +190,7 @@ def ingest_existing_file(
     abs_path: str,
     user_metadata: UserMetadata = None,
     extra_tags: Sequence[str] = (),
-    owner_id: str = "",
+    tenant_id: str = "",
     job_id: str | None = None,
 ) -> bool:
     """Register an existing on-disk file as an asset stub.
@@ -253,7 +253,7 @@ def ingest_existing_file(
         }
         if tags:
             ensure_tags_exist(session, tags)
-        result = batch_insert_seed_assets(session, [spec], owner_id=owner_id)
+        result = batch_insert_seed_assets(session, [spec], tenant_id=tenant_id)
         session.commit()
         return result.won_paths > 0
 
@@ -264,7 +264,7 @@ def _register_existing_asset(
     user_metadata: UserMetadata = None,
     tags: list[str] | None = None,
     tag_origin: str = "manual",
-    owner_id: str = "",
+    tenant_id: str = "",
     mime_type: str | None = None,
     preview_id: str | None = None,
 ) -> RegisterAssetResult:
@@ -285,7 +285,7 @@ def _register_existing_asset(
         ref, ref_created = get_or_create_reference(
             session,
             asset_id=asset.id,
-            owner_id=owner_id,
+            tenant_id=tenant_id,
             name=name,
             preview_id=preview_id,
         )
@@ -639,7 +639,7 @@ def upload_from_temp_path(
     tags: list[str] | None = None,
     user_metadata: dict | None = None,
     client_filename: str | None = None,
-    owner_id: str = "",
+    tenant_id: str = "",
     expected_hash: str | None = None,
     mime_type: str | None = None,
     preview_id: str | None = None,
@@ -750,7 +750,7 @@ def register_file_in_place(
     abs_path: str,
     name: str,
     tags: list[str],
-    owner_id: str = "",
+    tenant_id: str = "",
     mime_type: str | None = None,
 ) -> UploadResult:
     """Register an already-saved file in the asset database without moving it.
@@ -862,7 +862,7 @@ def create_from_hash(
     name: str,
     tags: list[str] | None = None,
     user_metadata: dict | None = None,
-    owner_id: str = "",
+    tenant_id: str = "",
     mime_type: str | None = None,
     preview_id: str | None = None,
 ) -> UploadResult | None:

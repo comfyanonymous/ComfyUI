@@ -27,7 +27,7 @@ from app.assets.database.queries.common import (
     apply_metadata_filter,
     apply_tag_filters,
     build_prefix_like_conditions,
-    build_visible_owner_clause,
+    build_visibility_clause,
     calculate_rows_per_statement,
     iter_chunks,
 )
@@ -84,18 +84,18 @@ def get_reference_by_id(
 def get_reference_with_owner_check(
     session: Session,
     reference_id: str,
-    owner_id: str,
+    tenant_id: str,
 ) -> AssetReference:
     """Fetch a reference and verify ownership.
 
     Raises:
         ValueError: if reference not found
-        PermissionError: if owner_id doesn't match
+        PermissionError: if tenant_id doesn't match
     """
     ref = get_reference_by_id(session, reference_id=reference_id)
     if not ref:
         raise ValueError(f"AssetReference {reference_id} not found")
-    if ref.owner_id and ref.owner_id != owner_id:
+    if ref.tenant_id and ref.tenant_id != tenant_id:
         raise PermissionError("not owner")
     return ref
 
@@ -161,7 +161,7 @@ def insert_reference(
     session: Session,
     asset_id: str,
     name: str,
-    owner_id: str = "",
+    tenant_id: str = "",
     file_path: str | None = None,
     mtime_ns: int | None = None,
     preview_id: str | None = None,
@@ -173,7 +173,7 @@ def insert_reference(
             ref = AssetReference(
                 asset_id=asset_id,
                 name=name,
-                owner_id=owner_id,
+                tenant_id=tenant_id,
                 file_path=file_path,
                 mtime_ns=mtime_ns,
                 preview_id=preview_id,
@@ -192,7 +192,7 @@ def get_or_create_reference(
     session: Session,
     asset_id: str,
     name: str,
-    owner_id: str = "",
+    tenant_id: str = "",
     file_path: str | None = None,
     mtime_ns: int | None = None,
     preview_id: str | None = None,
@@ -201,7 +201,7 @@ def get_or_create_reference(
 
     For filesystem references (file_path is set), uniqueness is by file_path.
     For API references (file_path is None), we look for matching
-    asset_id + owner_id + name.
+    asset_id + tenant_id + name.
 
     Returns (reference, created).
     """
@@ -209,7 +209,7 @@ def get_or_create_reference(
         session,
         asset_id=asset_id,
         name=name,
-        owner_id=owner_id,
+        tenant_id=tenant_id,
         file_path=file_path,
         mtime_ns=mtime_ns,
         preview_id=preview_id,
@@ -227,7 +227,7 @@ def get_or_create_reference(
                 .where(
                     AssetReference.asset_id == asset_id,
                     AssetReference.name == name,
-                    AssetReference.owner_id == owner_id,
+                    AssetReference.tenant_id == tenant_id,
                     AssetReference.file_path.is_(None),
                 )
                 .limit(1)
@@ -254,7 +254,7 @@ def update_reference_timestamps(
 
 def list_references_page(
     session: Session,
-    owner_id: str = "",
+    tenant_id: str = "",
     limit: int = 100,
     offset: int = 0,
     name_contains: str | None = None,
@@ -282,7 +282,7 @@ def list_references_page(
     base = (
         select(AssetReference)
         .join(Asset, Asset.id == AssetReference.asset_id)
-        .where(build_visible_owner_clause(owner_id))
+        .where(build_visibility_clause(tenant_id))
         .where(AssetReference.is_missing == False)  # noqa: E712
         .options(noload(AssetReference.tags))
     )
@@ -334,7 +334,7 @@ def list_references_page(
         select(sa.func.count())
         .select_from(AssetReference)
         .join(Asset, Asset.id == AssetReference.asset_id)
-        .where(build_visible_owner_clause(owner_id))
+        .where(build_visibility_clause(tenant_id))
         .where(AssetReference.is_missing == False)  # noqa: E712
     )
     if name_contains:
@@ -366,7 +366,7 @@ def list_references_page(
 def fetch_reference_asset_and_tags(
     session: Session,
     reference_id: str,
-    owner_id: str = "",
+    tenant_id: str = "",
 ) -> tuple[AssetReference, Asset, list[str]] | None:
     stmt = (
         select(AssetReference, Asset, Tag.name)
@@ -379,7 +379,7 @@ def fetch_reference_asset_and_tags(
         .join(Tag, Tag.name == AssetReferenceTag.tag_name, isouter=True)
         .where(
             AssetReference.id == reference_id,
-            build_visible_owner_clause(owner_id),
+            build_visibility_clause(tenant_id),
         )
         .options(noload(AssetReference.tags))
         .order_by(Tag.name.asc())
@@ -402,14 +402,14 @@ def fetch_reference_asset_and_tags(
 def fetch_reference_and_asset(
     session: Session,
     reference_id: str,
-    owner_id: str = "",
+    tenant_id: str = "",
 ) -> tuple[AssetReference, Asset] | None:
     stmt = (
         select(AssetReference, Asset)
         .join(Asset, Asset.id == AssetReference.asset_id)
         .where(
             AssetReference.id == reference_id,
-            build_visible_owner_clause(owner_id),
+            build_visibility_clause(tenant_id),
         )
         .limit(1)
         .options(noload(AssetReference.tags))
@@ -538,11 +538,11 @@ def set_reference_system_metadata(
 def delete_reference_by_id(
     session: Session,
     reference_id: str,
-    owner_id: str,
+    tenant_id: str,
 ) -> bool:
     stmt = sa.delete(AssetReference).where(
         AssetReference.id == reference_id,
-        build_visible_owner_clause(owner_id),
+        build_visibility_clause(tenant_id),
     )
     return int(session.execute(stmt).rowcount or 0) > 0
 
@@ -575,7 +575,7 @@ class CacheStateRow(NamedTuple):
     reference_id: str
     file_path: str
     mtime_ns: int | None
-    needs_verify: bool
+    pending_verification: bool
     asset_id: str
     asset_hash: str | None
     size_bytes: int | None
@@ -622,7 +622,7 @@ def upsert_reference(
     file_path: str,
     name: str,
     mtime_ns: int,
-    owner_id: str = "",
+    tenant_id: str = "",
     loader_path: str | None = None,
 ) -> tuple[bool, bool]:
     """Upsert a reference by file_path. Returns (created, updated).
@@ -635,7 +635,7 @@ def upsert_reference(
         "file_path": file_path,
         "loader_path": loader_path,
         "name": name,
-        "owner_id": owner_id,
+        "tenant_id": tenant_id,
         "mtime_ns": int(mtime_ns),
         "is_missing": False,
         "created_at": now,
@@ -782,7 +782,7 @@ def get_references_for_prefixes(
             AssetReference.id,
             AssetReference.file_path,
             AssetReference.mtime_ns,
-            AssetReference.needs_verify,
+            AssetReference.pending_verification,
             AssetReference.asset_id,
             Asset.hash,
             Asset.size_bytes,
@@ -804,7 +804,7 @@ def get_references_for_prefixes(
             reference_id=row[0],
             file_path=row[1],
             mtime_ns=row[2],
-            needs_verify=row[3],
+            pending_verification=row[3],
             asset_id=row[4],
             asset_hash=row[5],
             size_bytes=int(row[6]) if row[6] is not None else None,
@@ -813,10 +813,10 @@ def get_references_for_prefixes(
     ]
 
 
-def bulk_update_needs_verify(
+def bulk_update_pending_verification(
     session: Session, reference_ids: list[str], value: bool
 ) -> int:
-    """Set needs_verify flag for multiple references.
+    """Set pending_verification flag for multiple references.
 
     Returns: Number of rows updated
     """
@@ -827,7 +827,7 @@ def bulk_update_needs_verify(
         result = session.execute(
             sa.update(AssetReference)
             .where(AssetReference.id.in_(chunk))
-            .values(needs_verify=value)
+            .values(pending_verification=value)
         )
         total += result.rowcount
     return total
@@ -984,7 +984,7 @@ def bulk_insert_references_ignore_conflicts(
 ) -> None:
     """Bulk insert reference rows with ON CONFLICT DO NOTHING on file_path.
 
-    Each dict should have: id, asset_id, file_path, name, owner_id, mtime_ns, etc.
+    Each dict should have: id, asset_id, file_path, name, tenant_id, mtime_ns, etc.
     The is_missing field is automatically set to False for new inserts.
     """
     if not rows:

@@ -31,15 +31,15 @@ def iter_row_chunks(rows: list[dict], cols_per_row: int) -> Iterable[list[dict]]
     yield from iter_chunks(rows, calculate_rows_per_statement(cols_per_row))
 
 
-def build_visible_owner_clause(owner_id: str) -> sa.sql.ClauseElement:
+def build_visibility_clause(tenant_id: str) -> sa.sql.ClauseElement:
     """Build owner visibility predicate for reads.
 
     Owner-less rows are visible to everyone.
     """
-    owner_id = (owner_id or "").strip()
-    if owner_id == "":
-        return AssetReference.owner_id == ""
-    return AssetReference.owner_id.in_(["", owner_id])
+    tenant_id = (tenant_id or "").strip()
+    if tenant_id == "":
+        return AssetReference.tenant_id == ""
+    return AssetReference.tenant_id.in_(["", tenant_id])
 
 
 def build_prefix_like_conditions(

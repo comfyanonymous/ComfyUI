@@ -56,7 +56,7 @@ class ReferenceRow(TypedDict):
     file_path: str
     loader_path: str | None
     mtime_ns: int
-    owner_id: str
+    tenant_id: str
     name: str
     preview_id: str | None
     user_metadata: dict[str, Any] | None
@@ -99,7 +99,7 @@ class BulkInsertResult:
 def batch_insert_seed_assets(
     session: Session,
     specs: list[SeedAssetSpec],
-    owner_id: str = "",
+    tenant_id: str = "",
 ) -> BulkInsertResult:
     """Seed assets from filesystem specs in batch.
 
@@ -174,7 +174,7 @@ def batch_insert_seed_assets(
                 # spec["fname"] is compute_loader_path(abs_path) from build_asset_specs.
                 "loader_path": spec["fname"],
                 "mtime_ns": spec["mtime_ns"],
-                "owner_id": owner_id,
+                "tenant_id": tenant_id,
                 "name": spec["info_name"],
                 "preview_id": None,
                 "user_metadata": user_metadata,
