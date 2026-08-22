@@ -2,12 +2,15 @@ import torch
 
 from comfy.cli_args import args as cli_args
 
+_original_cli_args_cpu = cli_args.cpu
 if not torch.cuda.is_available():
     cli_args.cpu = True
 
 import comfy.model_base  # noqa: E402
 import comfy.model_management  # noqa: E402
 import comfy.supported_models  # noqa: E402
+
+cli_args.cpu = _original_cli_args_cpu
 
 
 def test_minimax_h3_memory_usage_factor_covers_measured_shortfall(monkeypatch):
