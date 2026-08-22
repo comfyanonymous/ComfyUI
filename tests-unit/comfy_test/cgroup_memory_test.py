@@ -167,7 +167,7 @@ def test_usage_above_limit_does_not_go_negative(host_psutil, tmp_path):
     assert mem.available == 0
 
 
-def test_unreadable_usage_falls_back_to_host_figures(host_psutil, tmp_path):
+def test_missing_usage_falls_back_to_host_figures(host_psutil, tmp_path):
     (tmp_path / "memory.max").write_text(f"{CONTAINER_LIMIT}\n")  # no memory.current
 
     with patch.object(model_management, "_cgroup_self_paths", lambda: hierarchies(tmp_path, "/")):
