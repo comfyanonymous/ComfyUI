@@ -270,32 +270,17 @@ def tiled_vae(
 
     sf_s = getattr(vae_model, "spatial_downsample_factor", BYTEDANCE_VAE_SPATIAL_DOWNSAMPLE)
     sf_t = getattr(vae_model, "temporal_downsample_factor", BYTEDANCE_VAE_TEMPORAL_DOWNSAMPLE)
-    if encode:
-        slicing_attr = "slicing_sample_min_size"
-        slicing_min_size = _seedvr2_temporal_slicing_min_size(temporal_size, temporal_overlap)
-    else:
-        slicing_attr = "slicing_latent_min_size"
-        slicing_min_size = _seedvr2_temporal_slicing_min_size(temporal_size, temporal_overlap, sf_t)
-    if encode:
-        ti_h, ti_w = tile_size
-        ov_h = _seedvr2_clamped_spatial_overlap(tile_overlap[0], ti_h)
-        ov_w = _seedvr2_clamped_spatial_overlap(tile_overlap[1], ti_w)
-        blend_ov_h = max(0, ov_h // sf_s)
-        blend_ov_w = max(0, ov_w // sf_s)
-        target_d = (d + sf_t - 1) // sf_t
-        target_h = (h + sf_s - 1) // sf_s
-        target_w = (w + sf_s - 1) // sf_s
-    else:
-        ti_h = max(1, tile_size[0] // sf_s)
-        ti_w = max(1, tile_size[1] // sf_s)
-        ov_h = _seedvr2_clamped_spatial_overlap(tile_overlap[0] // sf_s, ti_h)
-        ov_w = _seedvr2_clamped_spatial_overlap(tile_overlap[1] // sf_s, ti_w)
-        blend_ov_h = ov_h * sf_s
-        blend_ov_w = ov_w * sf_s
+    slicing_attr = "slicing_sample_min_size"
+    slicing_min_size = _seedvr2_temporal_slicing_min_size(temporal_size, temporal_overlap)
 
-        target_d = max(1, d * sf_t - (sf_t - 1))
-        target_h = h * sf_s
-        target_w = w * sf_s
+    ti_h, ti_w = tile_size
+    ov_h = _seedvr2_clamped_spatial_overlap(tile_overlap[0], ti_h)
+    ov_w = _seedvr2_clamped_spatial_overlap(tile_overlap[1], ti_w)
+    blend_ov_h = max(0, ov_h // sf_s)
+    blend_ov_w = max(0, ov_w // sf_s)
+    target_d = (d + sf_t - 1) // sf_t
+    target_h = (h + sf_s - 1) // sf_s
+    target_w = (w + sf_s - 1) // sf_s
 
     stride_h = max(1, ti_h - ov_h)
     stride_w = max(1, ti_w - ov_w)
@@ -314,10 +299,7 @@ def tiled_vae(
             else:
                 setattr(model, slicing_attr, slicing_min_size)
         try:
-            if encode:
-                out = model.encode(t_chunk)
-            else:
-                out = model.decode_(t_chunk)
+            out = model.encode(t_chunk)
         finally:
             if old_slicing_min_size is not None and slicing_min_size is not None:
                 setattr(model, slicing_attr, old_slicing_min_size)
@@ -376,16 +358,10 @@ def tiled_vae(
             result = torch.zeros((b_out, c_out, target_d, target_h, target_w), device=storage_device, dtype=torch.float32)
             count = torch.zeros((1, 1, 1, target_h, target_w), device=storage_device, dtype=torch.float32)
 
-        if encode:
-            ys, ye = y_idx // sf_s, (y_idx // sf_s) + tile_out.shape[3]
-            xs, xe = x_idx // sf_s, (x_idx // sf_s) + tile_out.shape[4]
-            cur_ov_h = max(0, min(blend_ov_h, tile_out.shape[3] // 2))
-            cur_ov_w = max(0, min(blend_ov_w, tile_out.shape[4] // 2))
-        else:
-            ys, ye = y_idx * sf_s, (y_idx * sf_s) + tile_out.shape[3]
-            xs, xe = x_idx * sf_s, (x_idx * sf_s) + tile_out.shape[4]
-            cur_ov_h = max(0, min(blend_ov_h, tile_out.shape[3] // 2))
-            cur_ov_w = max(0, min(blend_ov_w, tile_out.shape[4] // 2))
+        ys, ye = y_idx // sf_s, (y_idx // sf_s) + tile_out.shape[3]
+        xs, xe = x_idx // sf_s, (x_idx // sf_s) + tile_out.shape[4]
+        cur_ov_h = max(0, min(blend_ov_h, tile_out.shape[3] // 2))
+        cur_ov_w = max(0, min(blend_ov_w, tile_out.shape[4] // 2))
 
         w_h = torch.ones((tile_out.shape[3],), device=storage_device)
         w_w = torch.ones((tile_out.shape[4],), device=storage_device)
@@ -1625,6 +1601,8 @@ class VideoAutoencoderKL(nn.Module):
             yield self._decode(z)
 
     def slicing_decode(self, z: torch.Tensor) -> torch.Tensor:
+        if not (self.use_slicing and (z.shape[2] - 1) > self.slicing_latent_min_size):
+            return self._decode(z)
         return torch.cat(tuple(self.iter_slicing_decode(z)), dim=2)
 
     def forward(self, x: torch.FloatTensor, mode: Literal["encode", "decode", "all"] = "all"):
