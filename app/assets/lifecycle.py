@@ -39,6 +39,14 @@ def enqueue_mode_transition_work() -> None:
         session.commit()
 
 
+def drain_mode_transition_work() -> None:
+    from app.assets.services.hash_mode_state import drain_transition_queue
+
+    with create_session() as session:
+        drain_transition_queue(session)
+        session.commit()
+
+
 def init_db_and_state() -> None:
     init_db()
     record_hash_mode_transition_intent()
@@ -107,10 +115,12 @@ def run_asset_startup() -> None:
     except Exception:
         logging.exception("Temp DB row wipe failed; skipping filesystem cleanup")
         enqueue_mode_transition_work()
+        drain_mode_transition_work()
         start_asset_seeder()
         return
     cleanup_temp_filesystem()
     enqueue_mode_transition_work()
+    drain_mode_transition_work()
     start_asset_seeder()
 
 

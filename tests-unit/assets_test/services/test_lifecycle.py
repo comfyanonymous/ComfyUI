@@ -83,11 +83,12 @@ def test_startup_order_wipe_before_rmtree_before_seeder(mock_create_session):
         patch("app.assets.lifecycle.wipe_temp_db_rows", side_effect=_wipe),
         patch("app.assets.lifecycle.cleanup_temp_filesystem", side_effect=lambda: calls.append("rmtree") or True),
         patch("app.assets.lifecycle.enqueue_mode_transition_work", side_effect=lambda: calls.append("enqueue")),
+        patch("app.assets.lifecycle.drain_mode_transition_work", side_effect=lambda: calls.append("drain")),
         patch("app.assets.lifecycle.start_asset_seeder", side_effect=lambda: calls.append("seeder") or True),
     ):
         run_asset_startup()
 
-    assert calls == ["wipe", "rmtree", "enqueue", "seeder"]
+    assert calls == ["wipe", "rmtree", "enqueue", "drain", "seeder"]
 
 
 def test_db_wipe_failure_skips_rmtree_and_continues(mock_create_session):

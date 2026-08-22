@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import os
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.assets import mode as _mode
 from app.assets.database.models import AssetContent, AssetSystemState
-from app.assets.database.queries.records import mark_content_missing
+from app.assets.database.queries.records import create_content, create_record, mark_content_missing
+from app.assets.services.path_utils import compute_loader_path, get_name_and_tags_from_asset_path
 from app.assets.services.snapshot_hash import snapshot_hash
 
 _KEY = "hash_mode"
@@ -65,7 +68,10 @@ def drain_transition_queue(session: Session) -> None:
     pending_count = len(_PENDING_QUEUE)
     for _ in range(pending_count):
         path = _PENDING_QUEUE.pop(0)
-        digest = snapshot_hash(path)
+        try:
+            digest = snapshot_hash(path)
+        except FileNotFoundError:
+            continue
         if digest is None:
             _PENDING_QUEUE.append(path)
             continue
@@ -81,12 +87,21 @@ def drain_transition_queue(session: Session) -> None:
             content.hash = current_hash
         elif content.hash != current_hash:
             mark_content_missing(session, content.id)
-            replacement = AssetContent(
+            stat = os.stat(path)
+            name, tags = get_name_and_tags_from_asset_path(path)
+            replacement = create_content(
+                session,
                 path=path,
                 hash=current_hash,
-                size_bytes=content.size_bytes,
-                mtime_ns=content.mtime_ns,
+                size_bytes=stat.st_size,
+                mtime_ns=stat.st_mtime_ns,
             )
-            session.add(replacement)
+            create_record(
+                session,
+                content_id=replacement.id,
+                name=name,
+                loader_path=compute_loader_path(path),
+                tags=tags,
+            )
     if not _PENDING_QUEUE:
         write_stored_mode(session, "on")
