@@ -78,7 +78,7 @@ def _save_video_color_space_input():
         options=["auto", "sRGB", "HDR", "HDR PQ"],
         default="auto",
         display_name="color space",
-        tooltip="Auto uses sRGB for videos created from images and preserves recognized colors on loaded videos. sRGB writes SDR BT.709/sRGB. HDR writes 10-bit BT.2020/HLG; HDR PQ writes BT.2020/PQ. Other input pixels must already use the selected color space.",
+        tooltip="Auto uses the video's selected or recognized color space. sRGB selects SDR BT.709/sRGB, HDR selects BT.2020/HLG, and HDR PQ selects BT.2020/PQ. Bit depth is selected independently; input pixels must already use the selected color space.",
     )
 
 
@@ -230,16 +230,19 @@ class CreateVideo(io.ComfyNode):
                 io.Image.Input("images", tooltip="The images to create a video from."),
                 io.Float.Input("fps", default=30.0, min=1.0, max=120.0, step=1.0),
                 io.Audio.Input("audio", optional=True, tooltip="The audio to add to the video."),
-                io.Int.Input(
+                io.Combo.Input(
                     "bit_depth",
-                    min=8,
-                    max=10,
-                    default=8,
-                    step=2,
-                    tooltip="Bit depth of the created video. 10-bit keeps smoother gradients with less"
-                    " banding, but some players and downstream nodes may not support it.",
+                    options=["auto", 8, 10],
+                    default="auto",
+                    tooltip="Auto uses 8-bit for sRGB and 10-bit for HDR. Explicit 8-bit and 10-bit choices are independent of colorspace.",
                     optional=True,
-                    display_mode=io.NumberDisplay.number,
+                ),
+                io.Combo.Input(
+                    "color_space",
+                    options=["sRGB", "HDR", "HDR PQ"],
+                    default="sRGB",
+                    optional=True,
+                    tooltip="Colorspace of the input images. HDR selects BT.2020/HLG and HDR PQ selects BT.2020/PQ.",
                 ),
             ],
             outputs=[
@@ -249,12 +252,15 @@ class CreateVideo(io.ComfyNode):
 
     @classmethod
     def execute(
-        cls, images: Input.Image, fps: float, audio: Optional[Input.Audio] = None, bit_depth: int = 8,
+        cls, images: Input.Image, fps: float, audio: Optional[Input.Audio] = None, bit_depth: int | str = "auto", color_space: str = "sRGB",
     ) -> io.NodeOutput:
+        if bit_depth == "auto":
+            bit_depth = 10 if color_space in ("HDR", "HDR PQ") else 8
         return io.NodeOutput(
             InputImpl.VideoFromComponents(
                 Types.VideoComponents(images=images, audio=audio, frame_rate=Fraction(fps)),
                 bit_depth=bit_depth,
+                color_space=color_space,
             )
         )
 
@@ -274,7 +280,7 @@ class GetVideoComponents(io.ComfyNode):
                 io.Image.Output(display_name="images"),
                 io.Audio.Output(display_name="audio"),
                 io.Float.Output(display_name="fps"),
-                io.Int.Output(display_name="bit_depth"),
+                io.Combo.Output(display_name="bit_depth"),
                 io.Combo.Output(display_name="color_space"),
             ],
         )

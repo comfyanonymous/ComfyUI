@@ -5,6 +5,7 @@ import numpy as np
 from fractions import Fraction
 from comfy_api.latest._input_impl.video_types import VideoFromFile, VideoFromComponents
 from comfy_api.latest._util.video_types import VideoComponents
+from comfy_extras.nodes_video import CreateVideo
 
 
 @pytest.fixture(scope="module")
@@ -56,6 +57,33 @@ def test_create_video_bit_depth(src8, src10):
     assert probe(src8) == ("h264", "yuv420p", 8)
     assert probe(src10) == ("h264", "yuv420p10le", 10)
     assert decoded_levels(src10) > 2 * decoded_levels(src8)
+
+
+@pytest.mark.parametrize(
+    "bit_depth,color_space,expected_bit_depth",
+    [
+        ("auto", "sRGB", 8),
+        ("auto", "HDR", 10),
+        ("auto", "HDR PQ", 10),
+        (8, "HDR", 8),
+        (10, "sRGB", 10),
+    ],
+)
+def test_create_video_node_bit_depth(gradient_components, bit_depth, color_space, expected_bit_depth):
+    video = CreateVideo.execute(
+        gradient_components.images,
+        float(gradient_components.frame_rate),
+        bit_depth=bit_depth,
+        color_space=color_space,
+    ).args[0]
+    assert video.get_bit_depth() == expected_bit_depth
+    assert video.get_color_space() == color_space
+
+
+def test_create_video_node_bit_depth_options():
+    bit_depth_input = next(input for input in CreateVideo.define_schema().inputs if input.id == "bit_depth")
+    assert bit_depth_input.options == ["auto", 8, 10]
+    assert bit_depth_input.default == "auto"
 
 
 def test_save_auto_keeps_source_depth(src8, src10, tmp_path):
