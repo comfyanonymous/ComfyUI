@@ -1,37 +1,28 @@
 import logging
 import os
 from pathlib import Path
-from typing import Callable, Literal, TypedDict
+from typing import Callable, Literal
 
 import folder_paths
+import sqlalchemy as sa
+from sqlalchemy.orm import Session
 from app.assets.database.queries import (
-    add_missing_tag_for_asset_id,
     bulk_update_enrichment_level,
-    bulk_update_is_missing,
     bulk_update_needs_verify,
     delete_orphaned_seed_asset,
-    delete_references_by_ids,
-    ensure_tags_exist,
     get_asset_by_hash,
     get_reference_by_id,
-    get_references_for_prefixes,
     get_unenriched_references,
-    mark_references_missing_outside_prefixes,
+    mark_content_missing,
     reassign_asset_references,
-    remove_missing_tag_for_asset_id,
     set_reference_system_metadata,
+    create_content,
+    create_record,
     update_asset_hash_and_mime,
 )
-from app.assets.services.bulk_ingest import (
-    SeedAssetSpec,
-    batch_insert_seed_assets,
-)
-from app.assets.services.file_utils import (
-    get_mtime_ns,
-    is_visible,
-    list_files_recursively,
-    verify_file_unchanged,
-)
+from app.assets.database.models import Asset, AssetContent
+from app.assets.services.bulk_ingest import SeedAssetSpec
+from app.assets.services.file_utils import get_mtime_ns, is_visible, list_files_recursively
 from app.assets.services.hashing import HashCheckpoint, compute_blake3_hash
 from app.assets.services.image_dimensions import extract_image_dimensions
 from app.assets.services.metadata_extract import extract_file_metadata
@@ -41,20 +32,6 @@ from app.assets.services.path_utils import (
     get_name_and_tags_from_asset_path,
 )
 from app.database.db import create_session
-
-
-class _RefInfo(TypedDict):
-    ref_id: str
-    file_path: str
-    exists: bool
-    stat_unchanged: bool
-    needs_verify: bool
-
-
-class _AssetAccumulator(TypedDict):
-    hash: str | None
-    size_db: int
-    refs: list[_RefInfo]
 
 
 # Temp is deliberately absent: it is wiped before every scan, so walking it finds nothing.
@@ -127,132 +104,45 @@ def sync_references_with_filesystem(
 
 
 def sync_prefixes_with_filesystem(
-    session,
+    session: Session,
     prefixes: list[str],
     collect_existing_paths: bool = False,
     update_missing_tags: bool = False,
 ) -> set[str] | None:
-    """Reconcile asset references with filesystem under the given prefixes.
+    """Mark disappeared content missing and return live filesystem paths.
 
-    - Toggle needs_verify per reference using mtime/size stat check
-    - For hashed assets with at least one stat-unchanged ref: delete stale missing refs
-    - For seed assets with all refs missing: delete Asset and its references
-    - Optionally add/remove 'missing' tags based on stat check in this root
-    - Optionally return surviving absolute paths
-
-    Args:
-        session: Database session
-        prefixes: Absolute directory prefixes whose references to reconcile
-        collect_existing_paths: If True, return set of surviving file paths
-        update_missing_tags: If True, update 'missing' tags based on file status
-
-    Returns:
-        Set of surviving absolute paths if collect_existing_paths=True, else None
+    ``update_missing_tags`` remains for callers from the pre-B scanner API. The B
+    schema has one authoritative missing state on content, so its record-tag
+    projection is always maintained rather than conditionally enabled.
     """
     if not prefixes:
         return set() if collect_existing_paths else None
 
-    rows = get_references_for_prefixes(
-        session, prefixes, include_missing=update_missing_tags
+    contents = session.scalars(
+        sa.select(AssetContent).where(AssetContent.is_missing.is_(False))
     )
-
-    by_asset: dict[str, _AssetAccumulator] = {}
-    for row in rows:
-        acc = by_asset.get(row.asset_id)
-        if acc is None:
-            acc = {"hash": row.asset_hash, "size_db": row.size_bytes, "refs": []}
-            by_asset[row.asset_id] = acc
-
-        stat_unchanged = False
-        try:
-            exists = True
-            stat_unchanged = verify_file_unchanged(
-                mtime_db=row.mtime_ns,
-                size_db=acc["size_db"],
-                stat_result=os.stat(row.file_path, follow_symlinks=True),
-            )
-        except FileNotFoundError:
-            exists = False
-        except PermissionError:
-            exists = True
-            logging.debug("Permission denied accessing %s", row.file_path)
-        except OSError as e:
-            exists = False
-            logging.debug("OSError checking %s: %s", row.file_path, e)
-
-        acc["refs"].append(
-            {
-                "ref_id": row.reference_id,
-                "file_path": row.file_path,
-                "exists": exists,
-                "stat_unchanged": stat_unchanged,
-                "needs_verify": row.needs_verify,
-            }
-        )
-
-    to_set_verify: list[str] = []
-    to_clear_verify: list[str] = []
-    stale_ref_ids: list[str] = []
-    to_mark_missing: list[str] = []
-    to_clear_missing: list[str] = []
     survivors: set[str] = set()
-
-    for aid, acc in by_asset.items():
-        a_hash = acc["hash"]
-        refs = acc["refs"]
-        any_unchanged = any(r["stat_unchanged"] for r in refs)
-        all_missing = all(not r["exists"] for r in refs)
-
-        for r in refs:
-            if not r["exists"]:
-                to_mark_missing.append(r["ref_id"])
-                continue
-            if r["stat_unchanged"]:
-                to_clear_missing.append(r["ref_id"])
-                if r["needs_verify"]:
-                    to_clear_verify.append(r["ref_id"])
-            if not r["stat_unchanged"] and not r["needs_verify"]:
-                to_set_verify.append(r["ref_id"])
-
-        if a_hash is None:
-            if refs and all_missing:
-                delete_orphaned_seed_asset(session, aid)
-            else:
-                for r in refs:
-                    if r["exists"]:
-                        survivors.add(os.path.abspath(r["file_path"]))
+    for content in contents:
+        if not _is_under_prefixes(content.path, prefixes):
             continue
-
-        if any_unchanged:
-            for r in refs:
-                if not r["exists"]:
-                    stale_ref_ids.append(r["ref_id"])
-            if update_missing_tags:
-                try:
-                    remove_missing_tag_for_asset_id(session, asset_id=aid)
-                except Exception as e:
-                    logging.warning(
-                        "Failed to remove missing tag for asset %s: %s", aid, e
-                    )
-        elif update_missing_tags:
-            try:
-                add_missing_tag_for_asset_id(session, asset_id=aid, origin="automatic")
-            except Exception as e:
-                logging.warning("Failed to add missing tag for asset %s: %s", aid, e)
-
-        for r in refs:
-            if r["exists"]:
-                survivors.add(os.path.abspath(r["file_path"]))
-
-    delete_references_by_ids(session, stale_ref_ids)
-    stale_set = set(stale_ref_ids)
-    to_mark_missing = [ref_id for ref_id in to_mark_missing if ref_id not in stale_set]
-    bulk_update_is_missing(session, to_mark_missing, value=True)
-    bulk_update_is_missing(session, to_clear_missing, value=False)
-    bulk_update_needs_verify(session, to_set_verify, value=True)
-    bulk_update_needs_verify(session, to_clear_verify, value=False)
+        try:
+            os.stat(content.path, follow_symlinks=True)
+        except FileNotFoundError:
+            mark_content_missing(session, content.id)
+        except PermissionError:
+            logging.debug("Permission denied accessing %s", content.path)
+        except OSError as e:
+            logging.debug("OSError checking %s: %s", content.path, e)
+            mark_content_missing(session, content.id)
+        else:
+            survivors.add(os.path.abspath(content.path))
 
     return survivors if collect_existing_paths else None
+
+
+def _is_under_prefixes(path: str, prefixes: list[str]) -> bool:
+    candidate = Path(os.path.abspath(path))
+    return any(candidate.is_relative_to(os.path.abspath(prefix)) for prefix in prefixes)
 
 
 def sync_root_safely(root: RootType) -> set[str]:
@@ -292,12 +182,25 @@ def mark_missing_outside_prefixes_safely(prefixes: list[str]) -> int:
     """
     try:
         with create_session() as sess:
-            count = mark_references_missing_outside_prefixes(sess, prefixes)
+            count = mark_contents_missing_outside_prefixes(sess, prefixes)
             sess.commit()
             return count
     except Exception as e:
         logging.exception("marking missing assets failed: %s", e)
         return 0
+
+
+def mark_contents_missing_outside_prefixes(
+    session: Session, prefixes: list[str]
+) -> int:
+    """Retain content history while marking paths absent from the registry."""
+    contents = session.scalars(
+        sa.select(AssetContent).where(AssetContent.is_missing.is_(False))
+    )
+    missing = [content for content in contents if not _is_under_prefixes(content.path, prefixes)]
+    for content in missing:
+        mark_content_missing(session, content.id)
+    return len(missing)
 
 
 def collect_paths_for_roots(roots: tuple[RootType, ...]) -> list[str]:
@@ -383,16 +286,43 @@ def build_asset_specs(
 
 
 
-def insert_asset_specs(specs: list[SeedAssetSpec], tag_pool: set[str]) -> int:
-    """Insert asset specs into database, returning count of created refs."""
+def seed_asset_specs(session: Session, specs: list[SeedAssetSpec]) -> int:
+    """Create one B content row and one birth-classified record per new path."""
+    created = 0
+    for spec in specs:
+        content = create_content(
+            session,
+            path=os.path.abspath(spec["abs_path"]),
+            hash=None,
+            size_bytes=spec["size_bytes"],
+            mtime_ns=spec["mtime_ns"],
+        )
+        existing_record = session.scalar(
+            sa.select(Asset.id).where(Asset.content_id == content.id).limit(1)
+        )
+        if existing_record is not None:
+            continue
+        create_record(
+            session,
+            content_id=content.id,
+            name=spec["info_name"],
+            mime_type=spec["mime_type"],
+            job_id=spec["job_id"],
+            loader_path=spec["fname"],
+            tags=spec["tags"],
+        )
+        created += 1
+    return created
+
+
+def insert_asset_specs(specs: list[SeedAssetSpec], _tag_pool: set[str]) -> int:
+    """Insert B-schema seed rows; tags are created together with their records."""
     if not specs:
         return 0
     with create_session() as sess:
-        if tag_pool:
-            ensure_tags_exist(sess, tag_pool)
-        result = batch_insert_seed_assets(sess, specs=specs, owner_id="")
+        created = seed_asset_specs(sess, specs)
         sess.commit()
-        return result.inserted_refs
+        return created
 
 
 # Enrichment level constants

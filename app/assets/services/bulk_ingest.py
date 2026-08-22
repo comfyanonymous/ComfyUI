@@ -12,11 +12,9 @@ from app.assets.database.queries import (
     bulk_insert_assets,
     bulk_insert_references_ignore_conflicts,
     bulk_insert_tags_and_meta,
-    delete_assets_by_ids,
     get_existing_asset_ids,
     get_reference_ids_by_ids,
     get_references_by_paths_and_asset_ids,
-    get_unreferenced_unhashed_asset_ids,
     restore_references_by_paths,
 )
 from app.assets.helpers import get_utc_now
@@ -117,7 +115,7 @@ def batch_insert_seed_assets(
     1. Insert seed Assets (hash=NULL)
     2. Claim references with ON CONFLICT DO NOTHING on file_path
     3. Query to find winners (paths where our asset_id was inserted)
-    4. Delete Assets for losers (path already claimed by another asset)
+    4. Retain losers for the scanner's B-schema replacement path to handle
     5. Insert tags and metadata for successfully inserted references
 
     Returns:
@@ -213,11 +211,6 @@ def batch_insert_seed_assets(
         if path_to_asset_id[path] in inserted_asset_ids
     }
     losing_paths = inserted_paths - winning_paths
-    lost_asset_ids = [path_to_asset_id[path] for path in losing_paths]
-
-    if lost_asset_ids:
-        delete_assets_by_ids(session, lost_asset_ids)
-
     if not winning_paths:
         return BulkInsertResult(
             inserted_refs=0,
@@ -279,16 +272,3 @@ def batch_insert_seed_assets(
         won_paths=len(winning_paths),
         lost_paths=len(losing_paths),
     )
-
-
-def cleanup_unreferenced_assets(session: Session) -> int:
-    """Hard-delete unhashed assets with no active references.
-
-    This is a destructive operation intended for explicit cleanup.
-    Only deletes assets where hash=None and all references are missing.
-
-    Returns:
-        Number of assets deleted
-    """
-    unreferenced_ids = get_unreferenced_unhashed_asset_ids(session)
-    return delete_assets_by_ids(session, unreferenced_ids)
