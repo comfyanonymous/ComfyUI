@@ -688,6 +688,59 @@ def create_from_hash(
 _verification_queue: list[str] = []
 
 
+def register_cached_output(abs_path: str, job_id: str | None = None):
+    """Register a replayed output as a new delivery record without mutations."""
+    from sqlalchemy import event, select
+
+    from app.assets.database.models import AssetContent
+    from app.assets.database.queries.records import create_record
+
+    locator = os.path.abspath(abs_path)
+    with create_session() as session:
+        update_count = [0]
+
+        @event.listens_for(session, "after_bulk_update")
+        def _count_update(update_context):
+            update_count[0] += 1
+
+        existing = session.scalars(
+            select(AssetContent).where(
+                AssetContent.path == locator, AssetContent.is_missing.is_(False)
+            )
+        ).first()
+        if existing is None:
+            return register_output_file_b(abs_path, job_id=job_id)
+
+        name, path_tags = get_name_and_tags_from_asset_path(locator)
+        mime_type = mimetypes.guess_type(locator, strict=False)[0]
+        record = create_record(
+            session,
+            existing.id,
+            name,
+            mime_type=mime_type,
+            job_id=job_id,
+            loader_path=compute_loader_path(locator),
+            tags=path_tags,
+        )
+        session.commit()
+        assert update_count[0] == 0, (
+            f"Cached save must not UPDATE any row; got {update_count[0]}"
+        )
+        record_id = record.id
+        record_content_id = record.content_id
+        record_job_id = record.job_id
+        record_name = record.name
+
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        id=record_id,
+        content_id=record_content_id,
+        job_id=record_job_id,
+        name=record_name,
+    )
+
+
 def register_output_file_b(abs_path: str, job_id: str | None = None):
     from sqlalchemy import select
 
