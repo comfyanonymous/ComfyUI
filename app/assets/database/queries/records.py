@@ -40,6 +40,16 @@ def get_record_by_id(session: Session, id: str) -> Asset | None:
     return session.get(Asset, id)
 
 
+def get_record_by_path_or_none(session: Session, path: str) -> Asset | None:
+    return session.scalar(
+        sa.select(Asset)
+        .join(AssetContent, Asset.content_id == AssetContent.id)
+        .where(AssetContent.path == path, AssetContent.is_missing.is_(False))
+        .order_by(Asset.created_at.desc(), Asset.id.desc())
+        .limit(1)
+    )
+
+
 def fetch_record_tags(session: Session, record_id: str) -> list[str]:
     return list(
         session.scalars(
