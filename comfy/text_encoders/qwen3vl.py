@@ -185,6 +185,9 @@ class Qwen3VLTokenizer(sd1_clip.SD1Tokenizer):
                 llama_text += "<think>\n\n</think>\n\n"
 
         tokens = super().tokenize_with_weights(llama_text, return_word_ids=return_word_ids, disable_weights=True, **kwargs)
+        return self._add_image_entries(tokens, images)
+
+    def _add_image_entries(self, tokens, images):
         key_name = next(iter(tokens))
         embed_count = 0
         for r in tokens[key_name]:

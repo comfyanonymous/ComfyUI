@@ -2,6 +2,7 @@ from comfy import sd1_clip
 import comfy.text_encoders.t5
 import comfy.text_encoders.sd3_clip
 import comfy.text_encoders.llama
+import comfy.text_encoders.qwen3vl
 import comfy.model_management
 from transformers import T5TokenizerFast, Qwen2Tokenizer
 from .bpe_tokenizer import from_tekken_json
@@ -173,6 +174,31 @@ class KleinTokenizer8B(KleinTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}, name="qwen3_8b"):
         super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, name=name)
 
+
+KLEIN_VL_TEMPLATE = "<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+KLEIN_VL_IMAGE_BLOCK = "<|vision_start|><|image_pad|><|vision_end|>"
+
+
+class KleinVLTokenizer(comfy.text_encoders.qwen3vl.Qwen3VLTokenizer):
+    def __init__(self, embedding_directory=None, tokenizer_data={}, model_type="qwen3vl_4b"):
+        super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, model_type=model_type)
+        self.llama_template = KLEIN_VL_TEMPLATE
+        getattr(self, self.clip).min_length = 512
+
+    def tokenize_with_weights(self, text, return_word_ids=False, images=[], **kwargs):
+        image = kwargs.pop("image", None)
+        if image is not None and len(images) == 0:
+            images = [image[i:i + 1] for i in range(image.shape[0])]
+        llama_text = KLEIN_VL_IMAGE_BLOCK * len(images) + self.llama_template.format(text)
+        tokens = sd1_clip.SD1Tokenizer.tokenize_with_weights(self, llama_text, return_word_ids=return_word_ids, disable_weights=True, **kwargs)
+        return self._add_image_entries(tokens, images)
+
+
+class KleinVLTokenizer8B(KleinVLTokenizer):
+    def __init__(self, embedding_directory=None, tokenizer_data={}):
+        super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, model_type="qwen3vl_8b")
+
+
 class Qwen3_4BModel(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", layer=[9, 18, 27], layer_idx=None, dtype=None, attention_mask=True, model_options={}):
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"pad": 151643}, layer_norm_hidden_state=False, model_class=comfy.text_encoders.llama.Qwen3_4B, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
@@ -180,6 +206,62 @@ class Qwen3_4BModel(sd1_clip.SDClipModel):
 class Qwen3_8BModel(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", layer=[9, 18, 27], layer_idx=None, dtype=None, attention_mask=True, model_options={}):
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"pad": 151643}, layer_norm_hidden_state=False, model_class=comfy.text_encoders.llama.Qwen3_8B, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
+
+class KleinQwen3VL(comfy.text_encoders.qwen3vl.Qwen3VL):
+    model_type = "qwen3vl_4b"
+
+    def __init__(self, config_dict, dtype, device, operations):
+        torch.nn.Module.__init__(self)
+        if self.model_type == "qwen3vl_4b":
+            config = comfy.text_encoders.llama.Qwen3_4BConfig(**config_dict)
+        else:
+            config = comfy.text_encoders.llama.Qwen3_8BConfig(**config_dict)
+        vl_config = comfy.text_encoders.qwen3vl.QWEN3VL_CONFIGS[self.model_type]
+        config.rope_dims = vl_config.rope_dims
+        config.interleaved_mrope = vl_config.interleaved_mrope
+        self.num_layers = config.num_hidden_layers
+        self.model = comfy.text_encoders.llama.Llama2_(config, device=device, dtype=dtype, ops=operations)
+        vision_config = {
+            **comfy.text_encoders.qwen3vl.QWEN3VL_VISION_COMMON,
+            **comfy.text_encoders.qwen3vl.QWEN3VL_VISION[self.model_type],
+            "out_hidden_size": config.hidden_size,
+        }
+        self.visual = comfy.text_encoders.qwen3vl.Qwen3VLVisionModel(vision_config, device=device, dtype=dtype, ops=operations)
+        self.dtype = dtype
+
+
+def _make_klein_qwen3vl_model(model_type):
+    class KleinQwen3VL_(KleinQwen3VL):
+        pass
+    KleinQwen3VL_.model_type = model_type
+    return KleinQwen3VL_
+
+
+class KleinQwen3VLClipModel(sd1_clip.SDClipModel):
+    def __init__(self, device="cpu", layer=[9, 18, 27], layer_idx=None, dtype=None, attention_mask=True, model_options={}, model_type="qwen3vl_4b"):
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype,
+                         special_tokens={"pad": 151643}, layer_norm_hidden_state=False,
+                         model_class=_make_klein_qwen3vl_model(model_type), enable_attention_masks=attention_mask,
+                         return_attention_masks=attention_mask, model_options=model_options)
+
+
+class KleinVLTEModel(Flux2TEModel):
+    def __init__(self, device="cpu", dtype=None, model_options={}, model_type="qwen3vl_4b"):
+        clip_model = lambda **kwargs: KleinQwen3VLClipModel(**kwargs, model_type=model_type)
+        super().__init__(device=device, dtype=dtype, name=model_type, model_options=model_options, clip_model=clip_model)
+
+
+def klein_vl_te(dtype_llama=None, llama_quantization_metadata=None, model_type="qwen3vl_4b"):
+    class KleinVLTEModel_(KleinVLTEModel):
+        def __init__(self, device="cpu", dtype=None, model_options={}):
+            if llama_quantization_metadata is not None:
+                model_options = model_options.copy()
+                model_options["quantization_metadata"] = llama_quantization_metadata
+            if dtype_llama is not None:
+                dtype = dtype_llama
+            super().__init__(device=device, dtype=dtype, model_options=model_options, model_type=model_type)
+    return KleinVLTEModel_
+
 
 def klein_te(dtype_llama=None, llama_quantization_metadata=None, model_type="qwen3_4b"):
     if model_type == "qwen3_4b":
