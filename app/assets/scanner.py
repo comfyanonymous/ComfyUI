@@ -255,6 +255,7 @@ def build_asset_specs(
     specs: list[SeedAssetSpec] = []
     tag_pool: set[str] = set()
     skipped = 0
+    candidates: list[tuple[str, os.stat_result]] = []
 
     for p in paths:
         abs_p = os.path.abspath(p)
@@ -270,6 +271,12 @@ def build_asset_specs(
             continue
         if not stat_p.st_size:
             continue
+        candidates.append((abs_p, stat_p))
+
+    admitted_paths, _ = _two_stat_admit(candidates)
+    candidate_stats = dict(candidates)
+    for abs_p in admitted_paths:
+        stat_p = candidate_stats[abs_p]
         name, tags = get_name_and_tags_from_asset_path(abs_p)
         rel_fname = compute_loader_path(abs_p)
 
