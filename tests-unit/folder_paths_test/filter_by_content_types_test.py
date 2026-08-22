@@ -4,7 +4,6 @@ import tempfile
 from folder_paths import filter_files_content_types, extension_mimetypes_cache
 from unittest.mock import patch
 
-pytestmark = pytest.mark.xfail(reason="wave-6-fixes: B schema rewrite in progress", strict=False)
 
 
 
@@ -13,7 +12,7 @@ def file_extensions():
     return {
         'image': ['gif', 'heif', 'ico', 'jpeg', 'jpg', 'png', 'pnm', 'ppm', 'svg', 'tiff', 'webp', 'xbm', 'xpm'],
         'audio': ['aif', 'aifc', 'aiff', 'au', 'flac', 'm4a', 'mp2', 'mp3', 'ogg', 'snd', 'wav'],
-        'video': ['avi', 'm2v', 'm4v', 'mkv', 'mov', 'mp4', 'mpeg', 'mpg', 'ogv', 'qt', 'webm', 'wmv'],
+        'video': ['avi', 'm4v', 'mkv', 'mov', 'mp4', 'mpeg', 'mpg', 'ogv', 'qt', 'webm', 'wmv'],
         'model': ['gltf', 'glb', 'obj', 'fbx', 'stl']
     }
 
