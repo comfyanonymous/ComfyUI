@@ -1,0 +1,112 @@
+"""Content identity transitions driven by scanner mtime observations."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+import sqlalchemy as sa
+from sqlalchemy.orm import Session
+
+from app.assets.database.models import AssetContent
+from app.assets.database.queries.records import (
+    create_content,
+    create_record,
+    mark_content_missing,
+)
+from app.assets.services.path_utils import compute_loader_path, get_name_and_tags_from_asset_path
+from app.assets.services.snapshot_hash import snapshot_hash
+
+_pending_verification_ids: list[str] = []
+
+
+def clear_pending_verifications() -> None:
+    _pending_verification_ids.clear()
+
+
+def queue_pending_verification(content_id: str) -> None:
+    if content_id not in _pending_verification_ids:
+        _pending_verification_ids.append(content_id)
+
+
+def is_path_under_prefixes(path: str, prefixes: list[str]) -> bool:
+    candidate = Path(os.path.abspath(path))
+    return any(candidate.is_relative_to(os.path.abspath(prefix)) for prefix in prefixes)
+
+
+def split_content(session: Session, content: AssetContent, stat_result: os.stat_result, hash_value: str | None) -> AssetContent:
+    """Retire old bytes and create a separate record for the current path bytes."""
+    mark_content_missing(session, content.id)
+    name, tags = get_name_and_tags_from_asset_path(content.path)
+    replacement = create_content(
+        session,
+        path=content.path,
+        hash=hash_value,
+        size_bytes=stat_result.st_size,
+        mtime_ns=stat_result.st_mtime_ns,
+    )
+    create_record(
+        session,
+        content_id=replacement.id,
+        name=name,
+        loader_path=compute_loader_path(content.path),
+        tags=tags,
+    )
+    return replacement
+
+
+def detect_content_change(
+    session: Session,
+    content: AssetContent,
+    stat_result: os.stat_result,
+    hashing_is_enabled: bool,
+) -> None:
+    if content.mtime_ns == stat_result.st_mtime_ns:
+        # Ruling #10: size drift with unchanged mtime is undefined behavior.
+        return
+    if hashing_is_enabled:
+        queue_pending_verification(content.id)
+        return
+    split_content(session, content, stat_result, hash_value=None)
+
+
+def drain_pending_verifications(session: Session, limit: int | None = None) -> int:
+    """Consume changed content using stable snapshot hashes; unstable work is retained."""
+    queued_count = min(len(_pending_verification_ids), limit or len(_pending_verification_ids))
+    processed = 0
+    for _ in range(queued_count):
+        content_id = _pending_verification_ids.pop(0)
+        content = session.get(AssetContent, content_id)
+        if content is None or content.is_missing:
+            continue
+        try:
+            stat_result = os.stat(content.path, follow_symlinks=True)
+        except FileNotFoundError:
+            mark_content_missing(session, content.id)
+            processed += 1
+            continue
+        except OSError:
+            queue_pending_verification(content_id)
+            continue
+
+        digest = snapshot_hash(content.path)
+        if digest is None:
+            queue_pending_verification(content_id)
+            continue
+
+        current_hash = f"blake3:{digest}"
+        if content.hash == current_hash or content.hash is None:
+            content.hash = current_hash
+            content.size_bytes = stat_result.st_size
+            content.mtime_ns = stat_result.st_mtime_ns
+        else:
+            split_content(session, content, stat_result, hash_value=current_hash)
+        processed += 1
+    return processed
+
+
+def live_contents_under_prefixes(session: Session, prefixes: list[str]) -> list[AssetContent]:
+    contents = session.scalars(
+        sa.select(AssetContent).where(AssetContent.is_missing.is_(False))
+    )
+    return [content for content in contents if is_path_under_prefixes(content.path, prefixes)]

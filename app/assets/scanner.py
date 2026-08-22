@@ -6,6 +6,7 @@ from typing import Callable, Literal
 import folder_paths
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
+from app.assets import mode
 from app.assets.database.queries import (
     bulk_update_enrichment_level,
     bulk_update_needs_verify,
@@ -21,6 +22,13 @@ from app.assets.database.queries import (
     update_asset_hash_and_mime,
 )
 from app.assets.database.models import Asset, AssetContent
+from app.assets.scanner_changes import (
+    clear_pending_verifications,
+    detect_content_change,
+    drain_pending_verifications,
+    is_path_under_prefixes,
+    live_contents_under_prefixes,
+)
 from app.assets.services.bulk_ingest import SeedAssetSpec
 from app.assets.services.file_utils import get_mtime_ns, is_visible, list_files_recursively
 from app.assets.services.hashing import HashCheckpoint, compute_blake3_hash
@@ -32,6 +40,11 @@ from app.assets.services.path_utils import (
     get_name_and_tags_from_asset_path,
 )
 from app.database.db import create_session
+
+__all__ = [
+    "clear_pending_verifications",
+    "drain_pending_verifications",
+]
 
 
 # Temp is deliberately absent: it is wiped before every scan, so walking it finds nothing.
@@ -118,15 +131,10 @@ def sync_prefixes_with_filesystem(
     if not prefixes:
         return set() if collect_existing_paths else None
 
-    contents = session.scalars(
-        sa.select(AssetContent).where(AssetContent.is_missing.is_(False))
-    )
     survivors: set[str] = set()
-    for content in contents:
-        if not _is_under_prefixes(content.path, prefixes):
-            continue
+    for content in live_contents_under_prefixes(session, prefixes):
         try:
-            os.stat(content.path, follow_symlinks=True)
+            stat_result = os.stat(content.path, follow_symlinks=True)
         except FileNotFoundError:
             mark_content_missing(session, content.id)
         except PermissionError:
@@ -135,14 +143,19 @@ def sync_prefixes_with_filesystem(
             logging.debug("OSError checking %s: %s", content.path, e)
             mark_content_missing(session, content.id)
         else:
+            detect_content_change(
+                session,
+                content,
+                stat_result,
+                hashing_is_enabled=mode.hashing_enabled(),
+            )
             survivors.add(os.path.abspath(content.path))
 
     return survivors if collect_existing_paths else None
 
 
 def _is_under_prefixes(path: str, prefixes: list[str]) -> bool:
-    candidate = Path(os.path.abspath(path))
-    return any(candidate.is_relative_to(os.path.abspath(prefix)) for prefix in prefixes)
+    return is_path_under_prefixes(path, prefixes)
 
 
 def sync_root_safely(root: RootType) -> set[str]:
