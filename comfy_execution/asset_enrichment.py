@@ -1,22 +1,15 @@
-"""Enrich executed-node output entries with asset id."""
 import logging
 import os
 
 
 def enrich_output_with_assets(output_ui: dict) -> dict:
-    """Register file-type output entries as assets and inject their ``id``.
-
-    Runs at output-processing time, once per produced output, when
-    --enable-assets is set. Returns a new dict; entries without a resolvable
-    on-disk file path are left unchanged. Errors are caught per-entry so a
-    failure never blocks execution or the other entries.
-    """
     from comfy.cli_args import args
     if not args.enable_assets:
         return output_ui
 
     import folder_paths
-    from app.assets.services.ingest import register_file_in_place, DependencyMissingError
+    from app.assets.database.queries.records import get_record_by_path_or_none
+    from app.database.db import create_session
 
     enriched = {}
     for key, entries in output_ui.items():
@@ -46,19 +39,11 @@ def enrich_output_with_assets(output_ui: dict) -> dict:
                     new_entries.append(entry)
                     continue
 
-                # Register unconditionally: the file was just produced, and
-                # register_file_in_place re-hashes so an overwritten path can
-                # never carry a stale id.
-                result = register_file_in_place(
-                    abs_path=abs_path,
-                    name=entry["filename"],
-                    tags=[entry["type"]],
-                )
-
-                entry = dict(entry)
-                entry["id"] = result.ref.id
-            except DependencyMissingError:
-                logging.warning("Asset enrichment skipped (blake3 not available): %s", entry.get("filename"))
+                with create_session() as session:
+                    record = get_record_by_path_or_none(session, abs_path)
+                if record is not None:
+                    entry = dict(entry)
+                    entry["id"] = record.id
             except Exception:
                 logging.warning("Failed to enrich output entry with asset id: %s", entry.get("filename"), exc_info=True)
             new_entries.append(entry)
