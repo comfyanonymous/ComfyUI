@@ -1,5 +1,6 @@
 import logging
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Literal
 
@@ -8,18 +9,9 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session
 from app.assets import mode
 from app.assets.database.queries import (
-    bulk_update_hash_state,
-    bulk_update_pending_verification,
-    delete_orphaned_seed_asset,
-    get_asset_by_hash,
-    get_reference_by_id,
-    get_unenriched_references,
     mark_content_missing,
-    reassign_asset_references,
-    set_reference_system_metadata,
     create_content,
     create_record,
-    update_asset_hash_and_mime,
 )
 from app.assets.database.models import Asset, AssetContent
 from app.assets.scanner_changes import (
@@ -60,6 +52,13 @@ __all__ = [
 
 # Temp is deliberately absent: it is wiped before every scan, so walking it finds nothing.
 RootType = Literal["models", "input", "output"]
+
+
+@dataclass(frozen=True, slots=True)
+class UnenrichedContent:
+    content_id: str
+    record_id: str
+    file_path: str
 
 
 def get_scan_prefixes_for_root(root: RootType) -> list[str]:
@@ -361,27 +360,12 @@ def insert_asset_specs(specs: list[SeedAssetSpec], _tag_pool: set[str]) -> int:
         return created
 
 
-# Enrichment level constants
-ENRICHMENT_STUB = 0  # Fast scan: path, size, mtime only
-ENRICHMENT_METADATA = 1  # Metadata extracted (safetensors header, mime type)
-ENRICHMENT_HASHED = 2  # Hash computed (blake3)
-
-
 def get_unenriched_assets_for_roots(
     roots: tuple[RootType, ...],
-    max_level: int = ENRICHMENT_STUB,
+    compute_hashes: bool,
     limit: int = 1000,
-) -> list:
-    """Get assets that need enrichment for the given roots.
-
-    Args:
-        roots: Tuple of root types to scan
-        max_level: Maximum enrichment level to include
-        limit: Maximum number of rows to return
-
-    Returns:
-        List of UnenrichedReferenceRow
-    """
+) -> list[UnenrichedContent]:
+    """Get B-schema content awaiting metadata or a hash."""
     prefixes: list[str] = []
     for root in roots:
         prefixes.extend(get_scan_prefixes_for_root(root))
@@ -390,28 +374,41 @@ def get_unenriched_assets_for_roots(
         return []
 
     with create_session() as sess:
-        return get_unenriched_references(
-            sess, prefixes, max_level=max_level, limit=limit
+        query = (
+            sa.select(AssetContent.id, Asset.id, AssetContent.path)
+            .join(Asset, Asset.content_id == AssetContent.id)
+            .where(AssetContent.is_missing.is_(False))
         )
+        if compute_hashes:
+            query = query.where(AssetContent.hash.is_(None))
+        else:
+            query = query.where(Asset.system_metadata.is_(None))
+        rows = sess.execute(query.order_by(Asset.id)).all()
+
+    return [
+        UnenrichedContent(content_id, record_id, file_path)
+        for content_id, record_id, file_path in rows
+        if is_path_under_prefixes(file_path, prefixes)
+    ][:limit]
 
 
 def enrich_asset(
     session,
     file_path: str,
-    reference_id: str,
-    asset_id: str,
+    content_id: str,
+    record_id: str,
     extract_metadata: bool = True,
     compute_hash: bool = False,
     interrupt_check: Callable[[], bool] | None = None,
     hash_checkpoints: dict[str, HashCheckpoint] | None = None,
-) -> int:
+) -> bool:
     """Enrich a single asset with metadata and/or hash.
 
     Args:
         session: Database session (caller manages lifecycle)
         file_path: Absolute path to the file
-        reference_id: ID of the reference to update
-        asset_id: ID of the asset to update (for mime_type and hash)
+        content_id: ID of the content to update
+        record_id: ID of the record to update
         extract_metadata: If True, extract safetensors header and mime type
         compute_hash: If True, compute blake3 hash
         interrupt_check: Optional non-blocking callable that returns True if
@@ -420,14 +417,12 @@ def enrich_asset(
             across interruptions, keyed by file path
 
     Returns:
-        New enrichment level achieved
+        Whether enrichment changed the B-schema record or content
     """
-    new_level = ENRICHMENT_STUB
-
     try:
         stat_p = os.stat(file_path, follow_symlinks=True)
     except OSError:
-        return new_level
+        return False
 
     initial_mtime_ns = get_mtime_ns(stat_p)
     rel_fname = compute_loader_path(file_path)
@@ -442,7 +437,6 @@ def enrich_asset(
         )
         if metadata:
             mime_type = metadata.content_type
-            new_level = ENRICHMENT_METADATA
 
     full_hash: str | None = None
     if compute_hash:
@@ -475,7 +469,7 @@ def enrich_asset(
                     new_checkpoint.mtime_ns = mtime_before
                     new_checkpoint.file_size = size_before
                     hash_checkpoints[file_path] = new_checkpoint
-                return new_level
+                return False
 
             # Completed — clear any saved checkpoint
             if hash_checkpoints is not None:
@@ -487,23 +481,21 @@ def enrich_asset(
                 logging.warning("File modified during hashing, discarding hash: %s", file_path)
             else:
                 full_hash = digest
-                metadata_ok = not extract_metadata or metadata is not None
-                if metadata_ok:
-                    new_level = ENRICHMENT_HASHED
         except Exception as e:
             logging.warning("Failed to hash %s: %s", file_path, e)
 
-    # Optimistic guard: if the reference's mtime_ns changed since we
+    # Optimistic guard: if the content's mtime_ns changed since we
     # started (e.g. ingest_existing_file updated it), our results are
     # stale — discard them to avoid overwriting fresh registration data.
-    ref = get_reference_by_id(session, reference_id)
-    if ref is None or ref.mtime_ns != initial_mtime_ns:
+    content = session.get(AssetContent, content_id)
+    record = session.get(Asset, record_id)
+    if content is None or record is None or content.mtime_ns != initial_mtime_ns:
         session.rollback()
         logging.info(
-            "Ref %s mtime changed during enrichment, discarding stale result",
-            reference_id,
+            "Content %s mtime changed during enrichment, discarding stale result",
+            content_id,
         )
-        return ENRICHMENT_STUB
+        return False
 
     if extract_metadata and metadata:
         system_metadata = metadata.to_user_metadata()
@@ -511,28 +503,20 @@ def enrich_asset(
             dims = extract_image_dimensions(file_path, mime_type=mime_type)
             if dims:
                 system_metadata.update(dims)
-        set_reference_system_metadata(session, reference_id, system_metadata)
+        record.system_metadata = system_metadata
 
     if full_hash:
-        existing = get_asset_by_hash(session, full_hash)
-        if existing and existing.id != asset_id:
-            reassign_asset_references(session, asset_id, existing.id, reference_id)
-            delete_orphaned_seed_asset(session, asset_id)
-            if mime_type:
-                update_asset_hash_and_mime(session, existing.id, mime_type=mime_type)
-        else:
-            update_asset_hash_and_mime(session, asset_id, full_hash, mime_type)
-    elif mime_type:
-        update_asset_hash_and_mime(session, asset_id, mime_type=mime_type)
+        content.hash = full_hash
+    if mime_type:
+        record.mime_type = mime_type
 
-    bulk_update_hash_state(session, [reference_id], new_level)
     session.commit()
 
-    return new_level
+    return full_hash is not None or metadata is not None or mime_type is not None
 
 
 def enrich_assets_batch(
-    rows: list,
+    rows: list[UnenrichedContent],
     extract_metadata: bool = True,
     compute_hash: bool = False,
     interrupt_check: Callable[[], bool] | None = None,
@@ -565,23 +549,23 @@ def enrich_assets_batch(
                 break
 
             try:
-                new_level = enrich_asset(
+                updated = enrich_asset(
                     sess,
                     file_path=row.file_path,
-                    reference_id=row.reference_id,
-                    asset_id=row.asset_id,
+                    content_id=row.content_id,
+                    record_id=row.record_id,
                     extract_metadata=extract_metadata,
                     compute_hash=compute_hash,
                     interrupt_check=interrupt_check,
                     hash_checkpoints=hash_checkpoints,
                 )
-                if new_level > row.hash_state:
+                if updated:
                     enriched += 1
                 else:
-                    failed_ids.append(row.reference_id)
+                    failed_ids.append(row.record_id)
             except Exception as e:
                 logging.warning("Failed to enrich %s: %s", row.file_path, e)
                 sess.rollback()
-                failed_ids.append(row.reference_id)
+                failed_ids.append(row.record_id)
 
     return enriched, failed_ids

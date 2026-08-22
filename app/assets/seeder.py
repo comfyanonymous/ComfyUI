@@ -9,8 +9,6 @@ from enum import Enum
 from typing import Callable
 
 from app.assets.scanner import (
-    ENRICHMENT_METADATA,
-    ENRICHMENT_STUB,
     RootType,
     build_asset_specs,
     collect_paths_for_roots,
@@ -790,12 +788,6 @@ class _AssetSeeder:
         last_progress_time = time.perf_counter()
         progress_interval = 1.0
 
-        # Get the target enrichment level based on compute_hashes
-        if not self._compute_hashes:
-            target_max_level = ENRICHMENT_STUB
-        else:
-            target_max_level = ENRICHMENT_METADATA
-
         self._emit_event(
             "assets.seed.started",
             {"roots": list(roots), "phase": "enrich"},
@@ -817,13 +809,13 @@ class _AssetSeeder:
             # Fetch next batch of unenriched assets
             unenriched = get_unenriched_assets_for_roots(
                 roots,
-                max_level=target_max_level,
+                compute_hashes=self._compute_hashes,
                 limit=batch_size,
             )
 
             # Filter out previously failed references
             if skip_ids:
-                unenriched = [r for r in unenriched if r.reference_id not in skip_ids]
+                unenriched = [row for row in unenriched if row.record_id not in skip_ids]
 
             if not unenriched:
                 break
