@@ -7,6 +7,7 @@ from typing import Any, Sequence
 from sqlalchemy.orm import Session
 
 import app.assets.services.hashing as hashing
+from app.assets.database.models import Asset
 from app.assets.database.queries import (
     add_tags_to_reference,
     count_active_siblings,
@@ -40,7 +41,9 @@ from app.assets.services.path_utils import (
     validate_path_within_base,
 )
 from app.assets.services.schemas import (
+    AssetData,
     IngestResult,
+    ReferenceData,
     RegisterAssetResult,
     UploadResult,
     UserMetadata,
@@ -457,10 +460,178 @@ class HashMismatchError(Exception):
     pass
 
 
+class UploadUnstableError(Exception):
+    pass
+
+
 class DependencyMissingError(Exception):
     def __init__(self, message: str):
         self.message = message
         super().__init__(message)
+
+
+_UPLOAD_HASH_ATTEMPTS = 3
+
+
+def _strip_hash_prefix(hash_str: str) -> str:
+    lowered = hash_str.strip().lower()
+    if lowered.startswith("blake3:"):
+        return lowered.split(":", 1)[1]
+    return lowered
+
+
+def _canonical_asset_hash(digest: str) -> str:
+    return f"blake3:{digest}"
+
+
+def _remove_temp_path(temp_path: str | None) -> None:
+    if not temp_path or not os.path.exists(temp_path):
+        return
+    with contextlib.suppress(OSError):
+        os.remove(temp_path)
+    parent = os.path.dirname(temp_path)
+    with contextlib.suppress(OSError):
+        if parent and os.path.isdir(parent):
+            os.rmdir(parent)
+
+
+def _snapshot_hash_with_retry(path: str) -> str:
+    from app.assets.services.snapshot_hash import snapshot_hash
+
+    for _ in range(_UPLOAD_HASH_ATTEMPTS):
+        digest = snapshot_hash(path)
+        if digest is not None:
+            return digest
+    raise UploadUnstableError("upload file changed during hashing")
+
+
+def _allocate_exclusive_path(dest_dir: str, basename: str) -> str:
+    os.makedirs(dest_dir, exist_ok=True)
+    split = os.path.splitext(basename)
+    stem = split[0] or "upload"
+    ext = split[1] if len(split) > 1 else ""
+    candidate_name = basename if basename else "upload"
+    i = 1
+    while True:
+        dest_abs = os.path.abspath(os.path.join(dest_dir, candidate_name))
+        try:
+            fd = os.open(dest_abs, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+            return dest_abs
+        except FileExistsError:
+            candidate_name = f"{stem} ({i}){ext}"
+            i += 1
+
+
+def _hash_mode_dest_path(
+    tags: list[str],
+    digest: str,
+    client_filename: str | None,
+    name: str | None,
+) -> str:
+    base_dir, subdirs = resolve_destination_from_tags(tags)
+    dest_dir = os.path.join(base_dir, *subdirs) if subdirs else base_dir
+    os.makedirs(dest_dir, exist_ok=True)
+    src_for_ext = (client_filename or name or "").strip()
+    _ext = os.path.splitext(os.path.basename(src_for_ext))[1] if src_for_ext else ""
+    ext = _ext if 0 < len(_ext) <= 16 else ""
+    hashed_basename = f"{digest}{ext}"
+    dest_abs = os.path.abspath(os.path.join(dest_dir, hashed_basename))
+    validate_path_within_base(dest_abs, base_dir)
+    return dest_abs
+
+
+def _guess_upload_mime_type(
+    mime_type: str | None,
+    client_filename: str | None,
+    name: str | None,
+    fallback_basename: str,
+) -> str:
+    src_for_ext = (client_filename or name or "").strip()
+    if mime_type:
+        return mime_type
+    guessed = mimetypes.guess_type(os.path.basename(src_for_ext), strict=False)[0]
+    if guessed:
+        return guessed
+    guessed = mimetypes.guess_type(fallback_basename, strict=False)[0]
+    return guessed or "application/octet-stream"
+
+
+def _move_temp_to_dest(temp_path: str, dest_abs: str) -> None:
+    os.makedirs(os.path.dirname(dest_abs), exist_ok=True)
+    try:
+        os.replace(temp_path, dest_abs)
+    except Exception as e:
+        raise RuntimeError(f"failed to move uploaded file into place: {e}") from e
+
+
+def _create_upload_record(
+    session: Session,
+    content_id: str,
+    name: str,
+    abs_path: str,
+    tags: Sequence[str],
+    mime_type: str | None,
+    user_metadata: UserMetadata,
+    preview_id: str | None,
+) -> Asset:
+    from app.assets.database.queries.records import create_record
+
+    record = create_record(
+        session,
+        content_id,
+        name,
+        mime_type=mime_type,
+        loader_path=compute_loader_path(abs_path),
+        tags=list(tags),
+    )
+    if user_metadata:
+        record.user_metadata = dict(user_metadata)
+    if preview_id:
+        record.preview_id = preview_id
+    session.flush()
+    return record
+
+
+def _record_to_upload_result(
+    session: Session, record: Asset, *, created_new: bool
+) -> UploadResult:
+    from sqlalchemy import select
+
+    from app.assets.database.models import AssetContent, AssetTag
+
+    content = session.get(AssetContent, record.content_id)
+    tag_names = list(
+        session.scalars(
+            select(AssetTag.tag_name)
+            .where(AssetTag.asset_id == record.id)
+            .order_by(AssetTag.tag_name)
+        )
+    )
+    stored_hash = content.hash if content else None
+    if stored_hash and not stored_hash.startswith("blake3:"):
+        api_hash = _canonical_asset_hash(stored_hash)
+    else:
+        api_hash = stored_hash
+    ref = ReferenceData(
+        id=record.id,
+        name=record.name,
+        file_path=content.path if content else None,
+        loader_path=record.loader_path,
+        user_metadata=record.user_metadata,
+        preview_id=record.preview_id,
+        system_metadata=record.system_metadata,
+        job_id=record.job_id,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+        last_access_time=record.last_access_time,
+    )
+    asset = AssetData(
+        hash=api_hash,
+        size_bytes=content.size_bytes if content else None,
+        mime_type=record.mime_type,
+    )
+    return UploadResult(ref=ref, asset=asset, tags=tag_names, created_new=created_new)
 
 
 def upload_from_temp_path(
@@ -474,109 +645,106 @@ def upload_from_temp_path(
     mime_type: str | None = None,
     preview_id: str | None = None,
 ) -> UploadResult:
-    try:
-        digest, _ = hashing.compute_blake3_hash(temp_path)
-    except ImportError as e:
-        raise DependencyMissingError(str(e))
-    except Exception as e:
-        raise RuntimeError(f"failed to hash uploaded file: {e}")
-    asset_hash = "blake3:" + digest
+    from app.assets import mode
+    from app.assets.database.models import Asset, AssetContent
+    from app.assets.database.queries.records import create_content
+    from app.assets.services.lookup import lookup_for_upload_dedup
 
-    if expected_hash and asset_hash != expected_hash.strip().lower():
-        raise HashMismatchError("Uploaded file hash does not match provided hash.")
+    display_name = _sanitize_filename(name or client_filename, fallback="upload")
+    user_metadata = user_metadata or {}
 
-    with create_session() as session:
-        existing = get_asset_by_hash(session, asset_hash=asset_hash)
+    if mode.hashing_enabled():
+        try:
+            digest = _snapshot_hash_with_retry(temp_path)
+        except UploadUnstableError:
+            _remove_temp_path(temp_path)
+            raise
+        canonical = _canonical_asset_hash(digest)
+        if expected_hash and canonical != expected_hash.strip().lower():
+            _remove_temp_path(temp_path)
+            raise HashMismatchError("Uploaded file hash does not match provided hash.")
 
-    if existing is not None:
-        # Once content is already known, duplicate byte uploads are treated as
-        # reference-only creation. Request tags are labels only here: do not
-        # require upload destination tags, do not move bytes, and do not
-        # synthesize path-derived classification or uploaded provenance.
-        with contextlib.suppress(Exception):
-            if temp_path and os.path.exists(temp_path):
-                os.remove(temp_path)
+        with create_session() as session:
+            dedup = lookup_for_upload_dedup(session, digest, display_name)
 
-        display_name = _sanitize_filename(name or client_filename, fallback=digest)
-        result = _register_existing_asset(
-            asset_hash=asset_hash,
-            name=display_name,
-            user_metadata=user_metadata or {},
-            tags=tags or [],
-            tag_origin="manual",
-            owner_id=owner_id,
-            mime_type=mime_type,
-            preview_id=preview_id,
+        if isinstance(dedup, Asset):
+            _remove_temp_path(temp_path)
+            with create_session() as session:
+                record = session.get(Asset, dedup.id)
+                if record is None:
+                    raise RuntimeError("inconsistent DB state after dedup")
+                return _record_to_upload_result(session, record, created_new=False)
+
+        if isinstance(dedup, AssetContent):
+            _remove_temp_path(temp_path)
+            with create_session() as session:
+                record = _create_upload_record(
+                    session,
+                    dedup.id,
+                    display_name,
+                    dedup.path,
+                    [*(tags or []), "uploaded"],
+                    mime_type,
+                    user_metadata,
+                    preview_id,
+                )
+                session.commit()
+                return _record_to_upload_result(session, record, created_new=True)
+
+        if not tags:
+            _remove_temp_path(temp_path)
+            raise ValueError("tags are required for new asset uploads")
+
+        dest_abs = _hash_mode_dest_path(tags, digest, client_filename, name)
+        content_type = _guess_upload_mime_type(
+            mime_type, client_filename, name, os.path.basename(dest_abs)
         )
-        return UploadResult(
-            ref=result.ref,
-            asset=result.asset,
-            tags=result.tags,
-            created_new=False,
-        )
+        _move_temp_to_dest(temp_path, dest_abs)
+        size_bytes, mtime_ns = get_size_and_mtime_ns(dest_abs)
+        with create_session() as session:
+            content = create_content(
+                session, dest_abs, digest, size_bytes, mtime_ns
+            )
+            record = _create_upload_record(
+                session,
+                content.id,
+                display_name,
+                dest_abs,
+                [*(tags or []), "uploaded"],
+                content_type,
+                user_metadata,
+                preview_id,
+            )
+            session.commit()
+            return _record_to_upload_result(session, record, created_new=True)
 
     if not tags:
+        _remove_temp_path(temp_path)
         raise ValueError("tags are required for new asset uploads")
     base_dir, subdirs = resolve_destination_from_tags(tags)
     dest_dir = os.path.join(base_dir, *subdirs) if subdirs else base_dir
-    os.makedirs(dest_dir, exist_ok=True)
-
-    src_for_ext = (client_filename or name or "").strip()
-    _ext = os.path.splitext(os.path.basename(src_for_ext))[1] if src_for_ext else ""
-    ext = _ext if 0 < len(_ext) <= 16 else ""
-    hashed_basename = f"{digest}{ext}"
-    dest_abs = os.path.abspath(os.path.join(dest_dir, hashed_basename))
+    client_basename = os.path.basename(client_filename or name or "upload")
+    dest_abs = _allocate_exclusive_path(dest_dir, client_basename)
     validate_path_within_base(dest_abs, base_dir)
-
-    content_type = mime_type or (
-        mimetypes.guess_type(os.path.basename(src_for_ext), strict=False)[0]
-        or mimetypes.guess_type(hashed_basename, strict=False)[0]
-        or "application/octet-stream"
+    content_type = _guess_upload_mime_type(
+        mime_type, client_filename, name, client_basename
     )
-
-    try:
-        os.replace(temp_path, dest_abs)
-    except Exception as e:
-        raise RuntimeError(f"failed to move uploaded file into place: {e}")
-
-    try:
-        size_bytes, mtime_ns = get_size_and_mtime_ns(dest_abs)
-    except OSError as e:
-        raise RuntimeError(f"failed to stat destination file: {e}")
-
-    ingest_result = _ingest_file_from_path(
-        asset_hash=asset_hash,
-        abs_path=dest_abs,
-        size_bytes=size_bytes,
-        mtime_ns=mtime_ns,
-        mime_type=content_type,
-        info_name=_sanitize_filename(name or client_filename, fallback=digest),
-        owner_id=owner_id,
-        preview_id=preview_id,
-        user_metadata=user_metadata or {},
-        tags=[*(tags or []), "uploaded"],
-        tag_origin="manual",
-        require_existing_tags=False,
-    )
-    reference_id = ingest_result.reference_id
-    if not reference_id:
-        raise RuntimeError("failed to create asset reference")
-
+    _move_temp_to_dest(temp_path, dest_abs)
+    size_bytes, mtime_ns = get_size_and_mtime_ns(dest_abs)
     with create_session() as session:
-        pair = fetch_reference_and_asset(
-            session, reference_id=reference_id, owner_id=owner_id
+        content = create_content(session, dest_abs, None, size_bytes, mtime_ns)
+        record = _create_upload_record(
+            session,
+            content.id,
+            display_name,
+            dest_abs,
+            [*(tags or []), "uploaded"],
+            content_type,
+            user_metadata,
+            preview_id,
         )
-        if not pair:
-            raise RuntimeError("inconsistent DB state after ingest")
-        ref, asset = pair
-        tag_names = get_reference_tags(session, reference_id=ref.id)
-
-    return UploadResult(
-        ref=extract_reference_data(ref),
-        asset=extract_asset_data(asset),
-        tags=tag_names,
-        created_new=ingest_result.asset_created,
-    )
+        session.commit()
+        return _record_to_upload_result(session, record, created_new=True)
 
 
 def register_file_in_place(
@@ -588,65 +756,106 @@ def register_file_in_place(
 ) -> UploadResult:
     """Register an already-saved file in the asset database without moving it.
 
-    This helper is used by upload paths that have already written bytes before
-    registering the file, so it records the same ``uploaded`` tag as the
-    multipart byte-upload path.
-
-    Tags are derived from trusted filesystem classification and merged with any
-    caller-provided tags, matching the behavior of the scanner.
-    If the path is not under a known root, only the caller-provided tags are used.
+    Used by ``/upload/image`` after the handler writes (or reuses) bytes on disk.
+    ``compare_image_hash`` same-name dedup is legacy physical behavior and stays
+    outside hash-mode policy (parallel to path-form ``/view`` semantics).
     """
+    from sqlalchemy import select
+
+    from app.assets import mode
+    from app.assets.database.models import Asset, AssetContent
+    from app.assets.database.queries.records import create_content
+    from app.assets.services.lookup import lookup_for_upload_dedup
+
+    locator = os.path.abspath(abs_path)
+    display_name = _sanitize_filename(name, fallback=os.path.basename(locator))
     try:
-        _, path_tags = get_name_and_tags_from_asset_path(abs_path)
+        _, path_tags = get_name_and_tags_from_asset_path(locator)
     except ValueError:
         path_tags = []
     merged_tags = normalize_tags([*path_tags, *tags, "uploaded"])
-
-    try:
-        digest, _ = hashing.compute_blake3_hash(abs_path)
-    except ImportError as e:
-        raise DependencyMissingError(str(e))
-    except Exception as e:
-        raise RuntimeError(f"failed to hash file: {e}")
-    asset_hash = "blake3:" + digest
-
-    size_bytes, mtime_ns = get_size_and_mtime_ns(abs_path)
-    content_type = mime_type or (
-        mimetypes.guess_type(abs_path, strict=False)[0]
-        or "application/octet-stream"
+    content_type = _guess_upload_mime_type(
+        mime_type, name, name, os.path.basename(locator)
     )
+    size_bytes, mtime_ns = get_size_and_mtime_ns(locator)
 
-    ingest_result = _ingest_file_from_path(
-        abs_path=abs_path,
-        asset_hash=asset_hash,
-        size_bytes=size_bytes,
-        mtime_ns=mtime_ns,
-        mime_type=content_type,
-        info_name=_sanitize_filename(name, fallback=digest),
-        owner_id=owner_id,
-        tags=merged_tags,
-        tag_origin="upload",
-        require_existing_tags=False,
-    )
-    reference_id = ingest_result.reference_id
-    if not reference_id:
-        raise RuntimeError("failed to create asset reference")
+    if mode.hashing_enabled():
+        digest = _snapshot_hash_with_retry(locator)
+        with create_session() as session:
+            dedup = lookup_for_upload_dedup(session, digest, display_name)
+
+        if isinstance(dedup, Asset):
+            with create_session() as session:
+                record = session.get(Asset, dedup.id)
+                if record is None:
+                    raise RuntimeError("inconsistent DB state after dedup")
+                return _record_to_upload_result(session, record, created_new=False)
+
+        if isinstance(dedup, AssetContent):
+            with create_session() as session:
+                record = _create_upload_record(
+                    session,
+                    dedup.id,
+                    display_name,
+                    dedup.path,
+                    merged_tags,
+                    content_type,
+                    None,
+                    None,
+                )
+                session.commit()
+                return _record_to_upload_result(session, record, created_new=True)
+
+        with create_session() as session:
+            content = create_content(
+                session, locator, digest, size_bytes, mtime_ns
+            )
+            record = _create_upload_record(
+                session,
+                content.id,
+                display_name,
+                locator,
+                merged_tags,
+                content_type,
+                None,
+                None,
+            )
+            session.commit()
+            return _record_to_upload_result(session, record, created_new=True)
 
     with create_session() as session:
-        pair = fetch_reference_and_asset(
-            session, reference_id=reference_id, owner_id=owner_id
-        )
-        if not pair:
-            raise RuntimeError("inconsistent DB state after ingest")
-        ref, asset = pair
-        tag_names = get_reference_tags(session, reference_id=ref.id)
+        live_content = session.scalars(
+            select(AssetContent).where(
+                AssetContent.path == locator, AssetContent.is_missing.is_(False)
+            )
+        ).first()
+        if live_content is not None:
+            record = _create_upload_record(
+                session,
+                live_content.id,
+                display_name,
+                locator,
+                merged_tags,
+                content_type,
+                None,
+                None,
+            )
+            session.commit()
+            return _record_to_upload_result(session, record, created_new=True)
 
-    return UploadResult(
-        ref=extract_reference_data(ref),
-        asset=extract_asset_data(asset),
-        tags=tag_names,
-        created_new=ingest_result.asset_created,
-    )
+        content = create_content(session, locator, None, size_bytes, mtime_ns)
+        record = _create_upload_record(
+            session,
+            content.id,
+            display_name,
+            locator,
+            merged_tags,
+            content_type,
+            None,
+            None,
+        )
+        session.commit()
+        return _record_to_upload_result(session, record, created_new=True)
 
 
 def create_from_hash(
@@ -658,31 +867,34 @@ def create_from_hash(
     mime_type: str | None = None,
     preview_id: str | None = None,
 ) -> UploadResult | None:
-    canonical = hash_str.strip().lower()
+    from app.assets import mode
+    from app.assets.services.lookup import lookup_for_from_hash
 
-    try:
-        result = _register_existing_asset(
-            asset_hash=canonical,
-            name=_sanitize_filename(
-                name, fallback=canonical.split(":", 1)[1] if ":" in canonical else canonical
-            ),
-            user_metadata=user_metadata or {},
-            tags=tags or [],
-            tag_origin="manual",
-            owner_id=owner_id,
-            mime_type=mime_type,
-            preview_id=preview_id,
-        )
-    except ValueError:
-        logging.warning("create_from_hash: no asset found for hash %s", canonical)
+    if not mode.hashing_enabled():
         return None
 
-    return UploadResult(
-        ref=result.ref,
-        asset=result.asset,
-        tags=result.tags,
-        created_new=False,
+    digest = _strip_hash_prefix(hash_str)
+    display_name = _sanitize_filename(
+        name, fallback=digest
     )
+
+    with create_session() as session:
+        content = lookup_for_from_hash(session, digest)
+        if content is None:
+            logging.warning("create_from_hash: no asset found for hash %s", hash_str)
+            return None
+        record = _create_upload_record(
+            session,
+            content.id,
+            display_name,
+            content.path,
+            tags or [],
+            mime_type,
+            user_metadata,
+            preview_id,
+        )
+        session.commit()
+        return _record_to_upload_result(session, record, created_new=True)
 
 
 _verification_queue: list[str] = []

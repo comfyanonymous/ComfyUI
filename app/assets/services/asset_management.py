@@ -254,8 +254,17 @@ def set_asset_preview(
 
 
 def asset_exists(asset_hash: str) -> bool:
+    from app.assets.helpers import validate_blake3_hash
+    from app.assets.services.ingest import _strip_hash_prefix
+    from app.assets.services.lookup import lookup_for_view
+
+    try:
+        canonical = validate_blake3_hash(asset_hash)
+    except ValueError:
+        return False
+    digest = _strip_hash_prefix(canonical)
     with create_session() as session:
-        return asset_exists_by_hash(session, asset_hash=asset_hash)
+        return lookup_for_view(session, digest) is not None
 
 
 def get_asset_by_hash(asset_hash: str) -> AssetData | None:
