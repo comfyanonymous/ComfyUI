@@ -28,6 +28,8 @@ from app.assets.scanner_changes import (
     drain_pending_verifications,
     is_path_under_prefixes,
     live_contents_under_prefixes,
+    pending_recovery_count,
+    recover_missing_content,
 )
 from app.assets.services.bulk_ingest import SeedAssetSpec
 from app.assets.services.file_utils import get_mtime_ns, is_visible, list_files_recursively
@@ -44,6 +46,7 @@ from app.database.db import create_session
 __all__ = [
     "clear_pending_verifications",
     "drain_pending_verifications",
+    "pending_recovery_count",
 ]
 
 
@@ -303,6 +306,15 @@ def seed_asset_specs(session: Session, specs: list[SeedAssetSpec]) -> int:
     """Create one B content row and one birth-classified record per new path."""
     created = 0
     for spec in specs:
+        stat_result = os.stat(spec["abs_path"], follow_symlinks=True)
+        recovery = recover_missing_content(
+            session,
+            os.path.abspath(spec["abs_path"]),
+            stat_result,
+            hashing_is_enabled=mode.hashing_enabled(),
+        )
+        if recovery != "no_match":
+            continue
         content = create_content(
             session,
             path=os.path.abspath(spec["abs_path"]),

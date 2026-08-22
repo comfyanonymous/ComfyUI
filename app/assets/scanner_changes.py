@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Literal
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
@@ -13,20 +14,56 @@ from app.assets.database.queries.records import (
     create_content,
     create_record,
     mark_content_missing,
+    unset_content_missing,
 )
 from app.assets.services.path_utils import compute_loader_path, get_name_and_tags_from_asset_path
 from app.assets.services.snapshot_hash import snapshot_hash
 
 _pending_verification_ids: list[str] = []
+_pending_recovery_paths: list[str] = []
 
 
 def clear_pending_verifications() -> None:
     _pending_verification_ids.clear()
+    _pending_recovery_paths.clear()
 
 
 def queue_pending_verification(content_id: str) -> None:
     if content_id not in _pending_verification_ids:
         _pending_verification_ids.append(content_id)
+
+
+def pending_recovery_count() -> int:
+    return len(_pending_recovery_paths)
+
+
+def recover_missing_content(
+    session: Session, path: str, stat_result: os.stat_result, hashing_is_enabled: bool
+) -> Literal["recovered", "no_match", "unstable"]:
+    """Recover only an unambiguous missing row with the current stable hash."""
+    if not hashing_is_enabled:
+        return "no_match"
+    digest = snapshot_hash(path)
+    if digest is None:
+        if path not in _pending_recovery_paths:
+            _pending_recovery_paths.append(path)
+        return "unstable"
+    matches = list(
+        session.scalars(
+            sa.select(AssetContent).where(
+                AssetContent.path == path,
+                AssetContent.is_missing.is_(True),
+                AssetContent.hash == f"blake3:{digest}",
+            )
+        )
+    )
+    if len(matches) != 1:
+        return "no_match"
+    recovered = matches[0]
+    unset_content_missing(session, recovered.id)
+    recovered.size_bytes = stat_result.st_size
+    recovered.mtime_ns = stat_result.st_mtime_ns
+    return "recovered"
 
 
 def is_path_under_prefixes(path: str, prefixes: list[str]) -> bool:
