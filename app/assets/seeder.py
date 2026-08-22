@@ -783,6 +783,8 @@ class _AssetSeeder:
         with create_session() as session:
             drain_pending_verifications(session)
             tick_watch_list(session)
+            from app.assets.services.hash_mode_state import drain_transition_queue
+            drain_transition_queue(session)
             session.commit()
         batch_size = 100
         last_progress_time = time.perf_counter()

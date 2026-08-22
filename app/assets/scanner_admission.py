@@ -49,6 +49,8 @@ def _two_stat_admit(paths_with_stats: list[tuple[str, os.stat_result]]) -> tuple
 
 
 def tick_watch_list(session: Session) -> None:
+    from app.assets.scanner import seed_asset_specs, SeedAssetSpec
+    import mimetypes
     remaining: list[_WatchEntry] = []
     for entry in _WATCH_LIST:
         try:
@@ -57,8 +59,19 @@ def tick_watch_list(session: Session) -> None:
             continue
         if (current.st_mtime_ns, current.st_size) == (entry.last_stat.st_mtime_ns, entry.last_stat.st_size):
             name, tags = get_name_and_tags_from_asset_path(entry.path)
-            content = create_content(session, entry.path, size_bytes=current.st_size, mtime_ns=current.st_mtime_ns)
-            create_record(session, content.id, name, loader_path=compute_loader_path(entry.path), tags=tags)
+            spec: SeedAssetSpec = {
+                "abs_path": entry.path,
+                "size_bytes": current.st_size,
+                "mtime_ns": current.st_mtime_ns,
+                "info_name": name,
+                "tags": tags,
+                "fname": compute_loader_path(entry.path),
+                "metadata": None,
+                "hash": None,
+                "mime_type": mimetypes.guess_type(entry.path, strict=False)[0],
+                "job_id": None,
+            }
+            seed_asset_specs(session, [spec])
             continue
         entry.last_stat = current
         entry.ticks += 1
