@@ -281,7 +281,6 @@ def list_tags_with_usage(
                 AssetReferenceTag.tag_name == "missing",
             )
         )
-        .where(AssetReference.deleted_at.is_(None))
         .group_by(AssetReferenceTag.tag_name)
         .subquery()
     )
@@ -320,8 +319,7 @@ def list_tags_with_usage(
                     AssetReferenceTag.tag_name == "missing",
                 )
             )
-            .where(AssetReference.deleted_at.is_(None))
-            .group_by(AssetReferenceTag.tag_name)
+                .group_by(AssetReferenceTag.tag_name)
         )
         total_q = total_q.where(Tag.name.in_(visible_tags_sq))
 
@@ -354,7 +352,6 @@ def list_tag_counts_for_filtered_assets(
         .join(Asset, Asset.id == AssetReference.asset_id)
         .where(build_visible_owner_clause(owner_id))
         .where(AssetReference.is_missing == False)  # noqa: E712
-        .where(AssetReference.deleted_at.is_(None))
     )
 
     if name_contains:

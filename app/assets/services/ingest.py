@@ -216,7 +216,6 @@ def ingest_existing_file(
             existing_ref.mtime_ns = mtime_ns
             existing_ref.job_id = job_id
             existing_ref.is_missing = False
-            existing_ref.deleted_at = None
             existing_ref.updated_at = now
             existing_ref.enrichment_level = 0
 

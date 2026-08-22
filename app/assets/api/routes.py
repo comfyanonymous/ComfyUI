@@ -665,12 +665,9 @@ async def delete_asset_route(request: web.Request) -> web.Response:
     reference_id = str(uuid.UUID(request.match_info["id"]))
 
     try:
-        # Deleting an asset is a soft delete of the reference; the underlying
-        # content is preserved (it may be shared with other references).
         deleted = delete_asset_reference(
             reference_id=reference_id,
             owner_id=USER_MANAGER.get_request_user_id(request),
-            delete_content_if_orphan=False,
         )
     except Exception:
         logging.exception(

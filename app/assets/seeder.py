@@ -370,16 +370,26 @@ class _AssetSeeder:
                 errors=list(self._errors),
             )
 
-    def shutdown(self, timeout: float = 5.0) -> None:
+    def shutdown(self, timeout: float = 5.0) -> bool:
         """Gracefully shutdown: cancel any running scan and wait for thread.
 
         Args:
             timeout: Maximum seconds to wait for thread to exit
+
+        Returns:
+            True if the scan thread joined cleanly; False on timeout.
         """
         self.cancel()
-        self.wait(timeout=timeout)
+        joined = self.wait(timeout=timeout)
+        if not joined:
+            logging.warning(
+                "Asset seeder thread did not exit within %ss; skipping temp cleanup",
+                timeout,
+            )
         with self._lock:
-            self._thread = None
+            if joined:
+                self._thread = None
+        return joined
 
     def mark_missing_outside_prefixes(self) -> int:
         """Mark references as missing when outside all known root prefixes.

@@ -1,4 +1,3 @@
-import contextlib
 import mimetypes
 import os
 from datetime import timezone
@@ -18,11 +17,10 @@ from app.assets.services.cursor import (
 from app.assets.database.models import Asset
 from app.assets.database.queries import (
     asset_exists_by_hash,
-    reference_exists_for_asset_id,
-    delete_reference_by_id,
+    delete_record,
     fetch_reference_and_asset,
+    get_record_by_id,
     get_reference_paths_by_ids,
-    soft_delete_reference_by_id,
     fetch_reference_asset_and_tags,
     get_asset_by_hash as queries_get_asset_by_hash,
     get_reference_by_id,
@@ -158,68 +156,17 @@ def update_asset_metadata(
 
 def delete_asset_reference(
     reference_id: str,
-    owner_id: str,
+    owner_id: str = "",
     delete_content_if_orphan: bool = True,
 ) -> bool:
-    """Delete an asset reference.
-
-    With ``delete_content_if_orphan=False`` (a soft delete), the reference is
-    hidden and the underlying content is preserved. With ``True``, the content
-    is also removed once it becomes orphaned.
-
-    Note: the public DELETE /api/assets/{id} endpoint always soft-deletes
-    (passes ``False``); the orphan-reclamation path is intentionally
-    internal-only, retained for a future GC/admin caller.
-    """
+    """Hard-delete an asset record. Content rows and files are untouched (D-3 floor)."""
+    del owner_id, delete_content_if_orphan
     with create_session() as session:
-        if not delete_content_if_orphan:
-            # Soft delete: mark the reference as deleted but keep everything
-            deleted = soft_delete_reference_by_id(
-                session, reference_id=reference_id, owner_id=owner_id
-            )
-            session.commit()
-            return deleted
-
-        ref_row = get_reference_by_id(session, reference_id=reference_id)
-        asset_id = ref_row.asset_id if ref_row else None
-        file_path = ref_row.file_path if ref_row else None
-
-        deleted = delete_reference_by_id(
-            session, reference_id=reference_id, owner_id=owner_id
-        )
-        if not deleted:
-            session.commit()
+        if get_record_by_id(session, reference_id) is None:
             return False
-
-        if not asset_id:
-            session.commit()
-            return True
-
-        still_exists = reference_exists_for_asset_id(session, asset_id=asset_id)
-        if still_exists:
-            session.commit()
-            return True
-
-        # Orphaned asset - gather ALL file paths (including
-        # soft-deleted / missing refs) so their on-disk files get cleaned up.
-        file_paths = list_all_file_paths_by_asset_id(session, asset_id=asset_id)
-        # Also include the just-deleted file path
-        if file_path:
-            file_paths.append(file_path)
-
-        asset_row = session.get(Asset, asset_id)
-        if asset_row is not None:
-            session.delete(asset_row)
-
+        delete_record(session, reference_id)
         session.commit()
-
-        # Delete files after commit
-        for p in file_paths:
-            with contextlib.suppress(Exception):
-                if p and os.path.isfile(p):
-                    os.remove(p)
-
-    return True
+        return True
 
 
 def set_asset_preview(
