@@ -8,7 +8,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session
 from app.assets import mode
 from app.assets.database.queries import (
-    bulk_update_enrichment_level,
+    bulk_update_hash_state,
     bulk_update_needs_verify,
     delete_orphaned_seed_asset,
     get_asset_by_hash,
@@ -514,7 +514,7 @@ def enrich_asset(
     elif mime_type:
         update_asset_hash_and_mime(session, asset_id, mime_type=mime_type)
 
-    bulk_update_enrichment_level(session, [reference_id], new_level)
+    bulk_update_hash_state(session, [reference_id], new_level)
     session.commit()
 
     return new_level
@@ -564,7 +564,7 @@ def enrich_assets_batch(
                     interrupt_check=interrupt_check,
                     hash_checkpoints=hash_checkpoints,
                 )
-                if new_level > row.enrichment_level:
+                if new_level > row.hash_state:
                     enriched += 1
                 else:
                     failed_ids.append(row.reference_id)
