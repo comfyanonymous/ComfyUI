@@ -907,7 +907,7 @@ class UnenrichedReferenceRow(NamedTuple):
     reference_id: str
     asset_id: str
     file_path: str
-    enrichment_level: int
+    hash_state: int
 
 
 def get_unenriched_references(
@@ -916,7 +916,7 @@ def get_unenriched_references(
     max_level: int = 0,
     limit: int = 1000,
 ) -> list[UnenrichedReferenceRow]:
-    """Get references that need enrichment (enrichment_level <= max_level).
+    """Get references that need enrichment (hash state <= max_level).
 
     Args:
         session: Database session
@@ -937,12 +937,12 @@ def get_unenriched_references(
             AssetReference.id,
             AssetReference.asset_id,
             AssetReference.file_path,
-            AssetReference.enrichment_level,
+        AssetReference.hash_state,
         )
         .where(AssetReference.file_path.isnot(None))
         .where(sa.or_(*conds))
         .where(AssetReference.is_missing == False)  # noqa: E712
-        .where(AssetReference.enrichment_level <= max_level)
+        .where(AssetReference.hash_state <= max_level)
         .order_by(AssetReference.id.asc())
         .limit(limit)
     )
@@ -953,13 +953,13 @@ def get_unenriched_references(
             reference_id=row[0],
             asset_id=row[1],
             file_path=row[2],
-            enrichment_level=row[3],
+            hash_state=row[3],
         )
         for row in rows
     ]
 
 
-def bulk_update_enrichment_level(
+def bulk_update_hash_state(
     session: Session,
     reference_ids: list[str],
     level: int,
@@ -973,7 +973,7 @@ def bulk_update_enrichment_level(
     result = session.execute(
         sa.update(AssetReference)
         .where(AssetReference.id.in_(reference_ids))
-        .values(enrichment_level=level)
+        .values(hash_state=level)
     )
     return result.rowcount
 

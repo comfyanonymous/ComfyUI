@@ -15,6 +15,7 @@ from app.assets.services.lookup import is_temp_path
 from app.database.db import create_session, init_db
 
 _excluded_scan_roots: set[str] = set()
+_hash_mode_transition: str | None = None
 
 
 def get_excluded_scan_roots() -> frozenset[str]:
@@ -22,11 +23,20 @@ def get_excluded_scan_roots() -> frozenset[str]:
 
 
 def record_hash_mode_transition_intent() -> None:
-    """Compare stored vs runtime hash mode; record intent only (todo 21 enqueues work)."""
+    global _hash_mode_transition
+    from app.assets.services.hash_mode_state import record_transition_intent
+
+    with create_session() as session:
+        _hash_mode_transition = record_transition_intent(session)
+        session.commit()
 
 
 def enqueue_mode_transition_work() -> None:
-    """Enqueue hash transition work over surviving rows after temp wipe (todo 21)."""
+    from app.assets.services.hash_mode_state import enqueue_transition_work
+
+    with create_session() as session:
+        enqueue_transition_work(session, _hash_mode_transition)
+        session.commit()
 
 
 def init_db_and_state() -> None:

@@ -217,7 +217,7 @@ def ingest_existing_file(
             existing_ref.job_id = job_id
             existing_ref.is_missing = False
             existing_ref.updated_at = now
-            existing_ref.enrichment_level = 0
+            existing_ref.hash_state = 0
 
             asset = existing_ref.asset
             if asset:
