@@ -31,6 +31,14 @@ from app.assets.scanner_changes import (
     pending_recovery_count,
     recover_missing_content,
 )
+from app.assets.scanner_admission import (
+    PARTIAL_DOWNLOAD_EXTENSIONS,
+    _WATCH_LIST,
+    _WatchEntry,
+    _should_skip_extension,
+    _two_stat_admit,
+    tick_watch_list,
+)
 from app.assets.services.bulk_ingest import SeedAssetSpec
 from app.assets.services.file_utils import get_mtime_ns, is_visible, list_files_recursively
 from app.assets.services.hashing import HashCheckpoint, compute_blake3_hash
@@ -251,6 +259,9 @@ def build_asset_specs(
 
     for p in paths:
         abs_p = os.path.abspath(p)
+        if _should_skip_extension(abs_p):
+            skipped += 1
+            continue
         if abs_p in existing_paths:
             skipped += 1
             continue
