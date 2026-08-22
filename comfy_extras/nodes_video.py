@@ -72,16 +72,6 @@ class SaveWEBM(io.ComfyNode):
 
         return io.NodeOutput(images, ui=ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)]))
 
-def _save_video_color_space_input():
-    return io.Combo.Input(
-        "color_space",
-        options=["auto", "sRGB", "HDR", "HDR PQ"],
-        default="auto",
-        display_name="color space",
-        tooltip="Auto uses the video's selected or recognized color space. sRGB selects SDR BT.709/sRGB, HDR selects BT.2020/HLG, and HDR PQ selects BT.2020/PQ. Bit depth is selected independently; input pixels must already use the selected color space.",
-    )
-
-
 def _save_video_codec_input(supported_codecs: list[str], *, optional=False, hidden=False):
     codec_options = []
     if "auto" in supported_codecs:
@@ -100,7 +90,6 @@ def _save_video_codec_input(supported_codecs: list[str], *, optional=False, hidd
                                 "re-encode",
                                 [
                                     io.Float.Input("crf", default=23.0, min=0.0, max=51.0, step=1.0, tooltip="Lower values produce higher quality and larger files."),
-                                    _save_video_color_space_input(),
                                 ],
                             ),
                         ],
@@ -124,7 +113,6 @@ def _save_video_codec_input(supported_codecs: list[str], *, optional=False, hidd
                                 "re-encode",
                                 [
                                     io.Float.Input("crf", default=30.0, min=0.0, max=63.0, step=1.0, tooltip="Lower values produce higher quality and larger files."),
-                                    _save_video_color_space_input(),
                                 ],
                             ),
                         ],
@@ -164,7 +152,7 @@ class SaveVideo(io.ComfyNode):
                         io.DynamicCombo.Option("mkv", [_save_video_codec_input(["auto", "h264", "av1"])]),
                         io.DynamicCombo.Option("webm", [_save_video_codec_input(["auto", "av1"])]),
                     ],
-                    tooltip="The output container. Auto preserves the source container when possible; MP4, MKV, and WebM select a specific container.",
+                    tooltip="The output container. Auto uses MP4 for Auto/H.264 and WebM for AV1. MP4, MKV, and WebM select a specific container.",
                 ),
                 _save_video_codec_input(["auto", "h264", "av1"], optional=True, hidden=True),
             ],
@@ -183,10 +171,9 @@ class SaveVideo(io.ComfyNode):
         if codec is None:
             codec = {"codec": "auto"}
         codec_name = codec["codec"]
+        if format_name == "auto":
+            format_name = "webm" if codec_name == "av1" else "mp4"
         encoding = codec.get("encoding") or {}
-        color_space = encoding.get("color_space")
-        if color_space == "auto":
-            color_space = None
         width, height = video.get_dimensions()
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
             filename_prefix,
@@ -210,7 +197,6 @@ class SaveVideo(io.ComfyNode):
             codec=Types.VideoCodec(codec_name),
             metadata=saved_metadata,
             crf=encoding.get("crf"),
-            color_space=color_space,
         )
 
         return io.NodeOutput(video, ui=ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)]))
