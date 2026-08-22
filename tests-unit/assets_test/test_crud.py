@@ -10,9 +10,14 @@ def test_hash_on_missing_tag_appears_after_rm(
     )
     next((comfy_tmp_base_dir / "output").glob("*.png")).unlink()
 
-    response = http.post(
-        f"{api_base}/api/assets/seed?wait=true", json={"roots": ["output"]}
-    )
+    import time as _time
+    for _attempt in range(5):
+        response = http.post(
+            f"{api_base}/api/assets/seed?wait=true", json={"roots": ["output"]}
+        )
+        if response.status_code != 409:
+            break
+        _time.sleep(1.0)
     assert response.status_code == 200
     assets = http.get(f"{api_base}/api/assets", timeout=120).json()["assets"]
     missing = next(asset for asset in assets if asset["id"] == record["id"])
