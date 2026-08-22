@@ -29,6 +29,18 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=os.environ.get("ASSETS_TEST_DB_URL"),
         help="SQLAlchemy DB URL (e.g. sqlite:///path/to/db.sqlite3)",
     )
+    parser.addoption(
+        "--enable-asset-hashing",
+        action="store_true",
+        help="Start the assets subprocess with hash-mode behavior enabled.",
+    )
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line(
+        "markers",
+        "hashing_on: exercises the subprocess harness with --enable-asset-hashing",
+    )
 
 
 def _free_port() -> int:
@@ -104,8 +116,7 @@ def comfy_url_and_proc(comfy_tmp_base_dir: Path, request: pytest.FixtureRequest)
     if not (comfy_root / "main.py").is_file():
         raise FileNotFoundError(f"main.py not found under {comfy_root}")
 
-    proc = subprocess.Popen(
-        args=[
+    command = [
             sys.executable,
             "main.py",
             f"--base-directory={str(comfy_tmp_base_dir)}",
@@ -116,7 +127,12 @@ def comfy_url_and_proc(comfy_tmp_base_dir: Path, request: pytest.FixtureRequest)
             "--port",
             str(port),
             "--cpu",
-        ],
+        ]
+    if request.config.getoption("--enable-asset-hashing"):
+        command.append("--enable-asset-hashing")
+
+    proc = subprocess.Popen(
+        args=command,
         stdout=out_log,
         stderr=err_log,
         cwd=str(comfy_root),
