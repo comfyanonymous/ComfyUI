@@ -22,8 +22,10 @@ from app.assets.scanner import (
     mark_missing_outside_prefixes_safely,
     sync_root_safely,
     sync_temp_references_safely,
+    drain_pending_verifications,
+    tick_watch_list,
 )
-from app.database.db import dependencies_available
+from app.database.db import create_session, dependencies_available
 
 
 class ScanInProgressError(Exception):
@@ -761,6 +763,9 @@ class _AssetSeeder:
                 last_progress_time = now
 
         self._update_progress(scanned=len(specs), created=total_created)
+        with create_session() as session:
+            tick_watch_list(session)
+            session.commit()
         logging.info(
             "Fast scan complete: %.3fs total (created=%d, skipped=%d, total_paths=%d)",
             time.perf_counter() - t_fast_start,
@@ -777,6 +782,10 @@ class _AssetSeeder:
             Tuple of (cancelled, total_enriched)
         """
         total_enriched = 0
+        with create_session() as session:
+            drain_pending_verifications(session)
+            tick_watch_list(session)
+            session.commit()
         batch_size = 100
         last_progress_time = time.perf_counter()
         progress_interval = 1.0
