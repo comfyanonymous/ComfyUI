@@ -53,6 +53,13 @@ from app.assets.services.schemas import (
 from app.database.db import create_session
 
 
+def _normalize_hash_input(hash_str: str) -> str:
+    """Strip blake3: prefix from client-supplied hashes for DB lookup."""
+    if hash_str and hash_str.lower().startswith("blake3:"):
+        return hash_str[7:]
+    return hash_str
+
+
 def _ingest_file_from_path(
     abs_path: str,
     asset_hash: str,
@@ -643,7 +650,7 @@ def upload_from_temp_path(
         except UploadUnstableError:
             _remove_temp_path(temp_path)
             raise
-        if expected_hash and digest != expected_hash.strip().lower():
+        if expected_hash and digest != _normalize_hash_input(expected_hash).lower():
             _remove_temp_path(temp_path)
             raise HashMismatchError("Uploaded file hash does not match provided hash.")
 
@@ -856,7 +863,7 @@ def create_from_hash(
     if not mode.hashing_enabled():
         return None
 
-    digest = hash_str
+    digest = _normalize_hash_input(hash_str)
     display_name = _sanitize_filename(
         name, fallback=digest
     )
