@@ -33,7 +33,7 @@ from app.assets.scanner_admission import (
 )
 from app.assets.services.bulk_ingest import SeedAssetSpec
 from app.assets.services.file_utils import get_mtime_ns, is_visible, list_files_recursively
-from app.assets.services.hashing import HashCheckpoint, compute_blake3_hash
+from app.assets.services.hashing import compute_blake3_hash
 from app.assets.services.image_dimensions import extract_image_dimensions
 from app.assets.services.metadata_extract import extract_file_metadata
 from app.assets.services.path_utils import (
@@ -41,6 +41,7 @@ from app.assets.services.path_utils import (
     get_comfy_models_folders,
     get_name_and_tags_from_asset_path,
 )
+from app.assets.services.snapshot_hash import snapshot_hash
 from app.database.db import create_session
 
 __all__ = [
@@ -406,8 +407,6 @@ def enrich_asset(
     record_id: str,
     extract_metadata: bool = True,
     compute_hash: bool = False,
-    interrupt_check: Callable[[], bool] | None = None,
-    hash_checkpoints: dict[str, HashCheckpoint] | None = None,
 ) -> bool:
     """Enrich a single asset with metadata and/or hash.
 
@@ -418,10 +417,6 @@ def enrich_asset(
         record_id: ID of the record to update
         extract_metadata: If True, extract safetensors header and mime type
         compute_hash: If True, compute blake3 hash
-        interrupt_check: Optional non-blocking callable that returns True if
-            the operation should be interrupted (e.g. paused or cancelled)
-        hash_checkpoints: Optional dict for saving/restoring hash progress
-            across interruptions, keyed by file path
 
     Returns:
         Whether enrichment changed the B-schema record or content
@@ -448,46 +443,13 @@ def enrich_asset(
     full_hash: str | None = None
     if compute_hash:
         try:
-            mtime_before = get_mtime_ns(stat_p)
-            size_before = stat_p.st_size
-
-            # Restore checkpoint if available and file unchanged
-            checkpoint = None
-            if hash_checkpoints is not None:
-                checkpoint = hash_checkpoints.get(file_path)
-                if checkpoint is not None:
-                    cur_stat = os.stat(file_path, follow_symlinks=True)
-                    if (checkpoint.mtime_ns != get_mtime_ns(cur_stat)
-                            or checkpoint.file_size != cur_stat.st_size):
-                        checkpoint = None
-                        hash_checkpoints.pop(file_path, None)
-                    else:
-                        mtime_before = get_mtime_ns(cur_stat)
-
-            digest, new_checkpoint = compute_blake3_hash(
-                file_path,
-                interrupt_check=interrupt_check,
-                checkpoint=checkpoint,
-            )
-
-            if digest is None:
-                # Interrupted — save checkpoint for later resumption
-                if hash_checkpoints is not None and new_checkpoint is not None:
-                    new_checkpoint.mtime_ns = mtime_before
-                    new_checkpoint.file_size = size_before
-                    hash_checkpoints[file_path] = new_checkpoint
+            full_hash = snapshot_hash(file_path)
+            if full_hash is None:
+                logging.warning(
+                    "File modified during hashing (snapshot unstable), discarding hash: %s",
+                    file_path,
+                )
                 return False
-
-            # Completed — clear any saved checkpoint
-            if hash_checkpoints is not None:
-                hash_checkpoints.pop(file_path, None)
-
-            stat_after = os.stat(file_path, follow_symlinks=True)
-            mtime_after = get_mtime_ns(stat_after)
-            if mtime_before != mtime_after:
-                logging.warning("File modified during hashing, discarding hash: %s", file_path)
-            else:
-                full_hash = digest
         except Exception as e:
             logging.warning("Failed to hash %s: %s", file_path, e)
 
@@ -527,7 +489,6 @@ def enrich_assets_batch(
     extract_metadata: bool = True,
     compute_hash: bool = False,
     interrupt_check: Callable[[], bool] | None = None,
-    hash_checkpoints: dict[str, HashCheckpoint] | None = None,
 ) -> tuple[int, list[str]]:
     """Enrich a batch of assets.
 
@@ -541,8 +502,6 @@ def enrich_assets_batch(
         compute_hash: If True, compute hash for each asset
         interrupt_check: Optional non-blocking callable that returns True if
             the operation should be interrupted (e.g. paused or cancelled)
-        hash_checkpoints: Optional dict for saving/restoring hash progress
-            across interruptions, keyed by file path
 
     Returns:
         Tuple of (enriched_count, failed_reference_ids)
@@ -563,8 +522,6 @@ def enrich_assets_batch(
                     record_id=row.record_id,
                     extract_metadata=extract_metadata,
                     compute_hash=compute_hash,
-                    interrupt_check=interrupt_check,
-                    hash_checkpoints=hash_checkpoints,
                 )
                 if updated:
                     enriched += 1
