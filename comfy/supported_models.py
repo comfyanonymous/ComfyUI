@@ -1489,7 +1489,7 @@ class Trellis2(supported_models_base.BASE):
         "shift": 3.0,
     }
 
-    memory_usage_factor = 3.5
+    memory_usage_factor = 6
 
     latent_format = latent_formats.Trellis2
     vae_key_prefix = ["vae."]
