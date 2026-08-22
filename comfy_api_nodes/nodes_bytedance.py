@@ -23,6 +23,9 @@ from comfy_api_nodes.apis.bytedance import (
     GetAssetResponse,
     Image2VideoTaskCreationRequest,
     ImageTaskCreationResponse,
+    MediaKitTaskCreateResponse,
+    MediaKitTaskResponse,
+    MediaKitVideoEnhanceRequest,
     SeedAudioConfig,
     SeedAudioReference,
     SeedAudioRequest,
@@ -3667,6 +3670,216 @@ class ByteDanceSeedAudioNode(IO.ComfyNode):
         return IO.NodeOutput(audio_bytes_to_audio_input(base64.b64decode(response.audio)))
 
 
+_VCUBE_ENHANCE_VIDEO_ENDPOINT = ApiEndpoint(path="/proxy/byteplusmediakit/api/v1/tools/enhance-video", method="POST")
+_VCUBE_TASK_ENDPOINT_PREFIX = "/proxy/byteplusmediakit/api/v1/tasks/"
+
+_VCUBE_MAX_DURATION_SECONDS = 600
+_VCUBE_MIN_FPS = 15.0
+_VCUBE_MAX_FPS = 120.0
+_VCUBE_MIN_SHORT_SIDE = 128
+_VCUBE_MAX_SHORT_SIDE = 4320
+_VCUBE_MAX_INPUT_SHORT_SIDE = 1440
+_VCUBE_MAX_INPUT_LONG_SIDE = 2560
+_VCUBE_RESOLUTION_PRESETS = ["1080p", "720p", "2k", "4k", "8k"]
+_VCUBE_FPS_PRESETS = ["source", "24", "25", "30", "48", "50", "60", "120"]
+
+
+class ByteDanceVideoEnhanceNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="ByteDanceVideoEnhanceNode",
+            display_name="ByteDance vCube Video Enhance",
+            category="partner/video/ByteDance",
+            description="Upscales and restores a video with ByteDance vCube: super-resolution up to 8K, "
+            "compression artifact and noise removal, colour and sharpness enhancement, "
+            "optional frame interpolation.",
+            inputs=[
+                IO.Video.Input(
+                    "video",
+                    tooltip="Video to enhance. The source resolution must be at most 2560x1440 (2K); "
+                    "the output size is set by the resolution input.",
+                ),
+                IO.DynamicCombo.Input(
+                    "tool_version",
+                    options=[
+                        IO.DynamicCombo.Option(
+                            "standard",
+                            [
+                                IO.Combo.Input(
+                                    "scene",
+                                    options=["aigc", "common", "ugc", "short_series", "old_film"],
+                                    default="aigc",
+                                    tooltip="Preset tuned to the content: 'aigc' for AI-generated footage, "
+                                    "'common' for general video, 'ugc' for compressed phone clips, "
+                                    "'short_series' for drama with faces, 'old_film' for scratched or "
+                                    "flickering archive footage.",
+                                ),
+                                IO.Combo.Input(
+                                    "enhance_style",
+                                    options=["hd", "natural"],
+                                    default="hd",
+                                    tooltip="'hd' applies a sharper enhancement; 'natural' reduces the strength "
+                                    "for a softer, less sharpened look.",
+                                ),
+                            ],
+                        ),
+                        IO.DynamicCombo.Option(
+                            "professional",
+                            [
+                                IO.Combo.Input(
+                                    "enhance_style",
+                                    options=["hd", "natural"],
+                                    default="hd",
+                                    tooltip="'hd' applies a sharper enhancement; 'natural' reduces the strength "
+                                    "for a softer, less sharpened look.",
+                                ),
+                            ],
+                        ),
+                    ],
+                    tooltip="'standard' balances speed and quality with 10+ enhancement algorithms. "
+                    "'professional' uses 30+ algorithms for cinema-grade restoration, takes about "
+                    "3x longer and costs 10x more.",
+                ),
+                IO.DynamicCombo.Input(
+                    "resolution",
+                    options=[
+                        *[IO.DynamicCombo.Option(preset, []) for preset in _VCUBE_RESOLUTION_PRESETS],
+                        IO.DynamicCombo.Option("source", []),
+                        IO.DynamicCombo.Option(
+                            "custom",
+                            [
+                                IO.Int.Input(
+                                    "short_side",
+                                    default=1080,
+                                    min=_VCUBE_MIN_SHORT_SIDE,
+                                    max=_VCUBE_MAX_SHORT_SIDE,
+                                    tooltip="Short side of the output in pixels; the long side follows "
+                                    "the source aspect ratio.",
+                                ),
+                            ],
+                        ),
+                    ],
+                    tooltip="Output resolution. The short side is set to the chosen level and the long side "
+                    "follows the source aspect ratio. 'source' keeps the source size, 'custom' sets "
+                    "the short side in pixels. Sources wider or taller than about 2.2:1 are billed one "
+                    "resolution tier higher.",
+                ),
+                IO.Combo.Input(
+                    "fps",
+                    options=_VCUBE_FPS_PRESETS,
+                    default="source",
+                    tooltip="Output frame rate. A higher rate than the source enables AI frame interpolation; "
+                    "a lower one drops frames. 'source' keeps the source rate, up to 120 fps. "
+                    "Rates above 30 fps cost 2x, above 60 fps 4x.",
+                ),
+                IO.Combo.Input(
+                    "bitrate_level",
+                    options=["low", "medium", "high"],
+                    default="medium",
+                    advanced=True,
+                    tooltip="Target bitrate of the delivered file, scaled to the output resolution and frame rate.",
+                ),
+            ],
+            outputs=[IO.Video.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(
+                    widgets=["tool_version", "resolution", "resolution.short_side", "fps"],
+                ),
+                expr="""
+                (
+                  $tv := $lookup(widgets, "tool_version");
+                  $res := $lookup(widgets, "resolution");
+                  $fps := $lookup(widgets, "fps");
+                  $tiers := {"720p": 1, "1080p": 2, "2k": 4, "4k": 8, "8k": 32};
+                  $tier := $res = "custom"
+                    ? ($s := $number($lookup(widgets, "resolution.short_side"));
+                       $s < 1080 ? 1 : $s < 1440 ? 2 : $s < 2160 ? 4 : $s < 4320 ? 8 : 32)
+                    : $lookup($tiers, $res);
+                  $fpsMul := $fps = "source" ? 1 : ($number($fps) <= 30 ? 1 : ($number($fps) <= 60 ? 2 : 4));
+                  $base := 0.2066 * 1.43 / 60 * ($tv = "professional" ? 10 : 1);
+                  $min := $base * ($res = "source" ? 1 : $tier) * ($fps = "source" ? 1 : $fpsMul);
+                  $max := $base * ($res = "source" ? 4 : $tier) * ($fps = "source" ? 4 : $fpsMul);
+                  $min = $max
+                    ? {"type": "usd", "usd": $min, "format": {"suffix": "/second"}}
+                    : {"type": "range_usd", "min_usd": $min, "max_usd": $max,
+                       "format": {"approximate": true, "suffix": "/second",
+                                  "note": $res = "source"
+                                    ? ($fps = "source" ? "(by source size and frame rate)" : "(720p-2K, by source size)")
+                                    : "(by source frame rate)"}}
+                )
+                """,
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        video: Input.Video,
+        tool_version: dict,
+        resolution: dict,
+        fps: str,
+        bitrate_level: str,
+    ) -> IO.NodeOutput:
+        validate_video_duration(video, max_duration=_VCUBE_MAX_DURATION_SECONDS)
+        width, height = video.get_dimensions()
+        if min(width, height) > _VCUBE_MAX_INPUT_SHORT_SIDE or max(width, height) > _VCUBE_MAX_INPUT_LONG_SIDE:
+            raise ValueError(
+                f"Video resolution must be at most {_VCUBE_MAX_INPUT_LONG_SIDE}x{_VCUBE_MAX_INPUT_SHORT_SIDE} "
+                f"(2K), got {width}x{height}. Scale the video down before enhancing it."
+            )
+        if fps == "source":
+            source_fps = float(video.get_frame_rate())
+            output_fps = round(min(source_fps, _VCUBE_MAX_FPS), 3) if source_fps >= _VCUBE_MIN_FPS else None
+        else:
+            output_fps = float(fps)
+        target = resolution["resolution"]
+        resolution_preset = target if target in _VCUBE_RESOLUTION_PRESETS else None
+        short_side = None
+        if target == "custom":
+            short_side = resolution["short_side"]
+        elif target == "source" and min(width, height) >= _VCUBE_MIN_SHORT_SIDE:
+            short_side = min(width, height)
+        url = await upload_video_to_comfyapi(cls, video, wait_label="Uploading source video")
+        request = MediaKitVideoEnhanceRequest(
+            video_url=url,
+            tool_version=tool_version["tool_version"],
+            scene=tool_version.get("scene"),
+            enhance_style=tool_version.get("enhance_style"),
+            resolution=resolution_preset,
+            resolution_limit=short_side,
+            fps=output_fps,
+            bitrate_level=bitrate_level,
+        )
+        created = await sync_op(
+            cls, _VCUBE_ENHANCE_VIDEO_ENDPOINT, response_model=MediaKitTaskCreateResponse, data=request
+        )
+        if not created.success or not created.task_id:
+            error = created.error
+            raise ValueError(
+                f"{error.code}: {error.message}" if error and error.message else "Task submission failed."
+            )
+        task = await poll_op(
+            cls,
+            ApiEndpoint(path=_VCUBE_TASK_ENDPOINT_PREFIX + created.task_id, method="GET"),
+            response_model=MediaKitTaskResponse,
+            status_extractor=lambda r: r.status,
+            completed_statuses=["completed"],
+            failed_statuses=["failed"],
+            queued_statuses=[],
+            poll_interval=10.0,
+            max_poll_attempts=2000,
+        )
+        return IO.NodeOutput(await download_url_to_video_output(task.result.video_url))
+
+
 class ByteDanceExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
@@ -3687,6 +3900,7 @@ class ByteDanceExtension(ComfyExtension):
             ByteDanceCreateImageAsset,
             ByteDanceCreateVideoAsset,
             ByteDanceSeedAudioNode,
+            ByteDanceVideoEnhanceNode,
         ]
 
 
