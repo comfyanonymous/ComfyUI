@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import torch
 
 import comfy.utils
-from comfy.controlnet import ControlNet
+from comfy.controlnet import ControlNet, T2IAdapter
 
 
 class FakeControlModel:
@@ -88,3 +88,73 @@ def test_batch_broadcast_does_not_pollute_cache(monkeypatch):
     # the cached copy keeps its original pre-broadcast batch size so later
     # calls with any batch count can reuse it
     assert cn.cond_hints[(8, 8)].shape[0] == cn.cond_hint_original.shape[0]
+
+
+class FakeT2IModel:
+    unshuffle_amount = 8
+
+    def __init__(self):
+        self.calls = []
+
+    def to(self, *a, **k):
+        return self
+
+    def cpu(self):
+        return self
+
+    def __call__(self, hint):
+        self.calls.append(tuple(hint.shape))
+        return {"output": [hint]}
+
+
+def make_t2i():
+    adapter = object.__new__(T2IAdapter)
+    adapter.cond_hint_original = torch.zeros((1, 3, 64, 64))
+    adapter.compression_ratio = 8
+    adapter.upscale_algorithm = "nearest-exact"
+    adapter.channels_in = 3
+    adapter.t2i_model = FakeT2IModel()
+    adapter.device = torch.device("cpu")
+    adapter.previous_controlnet = None
+    adapter.timestep_range = None
+    adapter.cond_hints = {}
+    adapter.control_inputs = {}
+    adapter.control_merge = lambda control, control_prev, output_dtype=None: control
+    return adapter
+
+
+def test_t2i_alternating_sizes_recompute_adapter():
+    adapter = make_t2i()
+
+    out_1 = call(adapter, 8, 8)
+    out_2 = call(adapter, 4, 4)
+    out_3 = call(adapter, 8, 8)
+
+    # the adapter runs once per size; the second 8x8 step reuses the cached
+    # result instead of rerunning t2i_model
+    assert adapter.t2i_model.calls == [((1, 3, 64, 64)), ((1, 3, 32, 32))]
+    assert len(adapter.control_inputs) == 2
+    assert out_1["output"][0].shape == (1, 3, 64, 64)
+    assert out_2["output"][0].shape == (1, 3, 32, 32)
+    assert out_3["output"][0].shape == (1, 3, 64, 64)
+
+
+def test_set_cond_hint_invalidates_cache(monkeypatch):
+    prep_calls = []
+    real_upscale = comfy.utils.common_upscale
+
+    def spy_upscale(samples, width, height, *a, **k):
+        prep_calls.append((width, height))
+        return real_upscale(samples, width, height, *a, **k)
+
+    monkeypatch.setattr(comfy.utils, "common_upscale", spy_upscale)
+    cn = make_cn()
+
+    call(cn, 8, 8)
+    assert len(prep_calls) == 1
+
+    cn.set_cond_hint(torch.zeros((1, 3, 32, 32)))
+    call(cn, 8, 8)
+
+    # a new hint image must not be served from the per-size cache
+    assert len(prep_calls) == 2

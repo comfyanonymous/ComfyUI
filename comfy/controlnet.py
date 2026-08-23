@@ -82,6 +82,7 @@ class ControlBase:
         self.cond_hint_original = None
         self.cond_hint = None
         self.cond_hints = {}
+        self.control_inputs = {}
         self.strength = 1.0
         self.timestep_percent_range = (0.0, 1.0)
         self.latent_format = None
@@ -112,6 +113,8 @@ class ControlBase:
         self.extra_concat_orig = extra_concat.copy()
         if self.concat_mask and len(self.extra_concat_orig) == 0:
             self.extra_concat_orig.append(torch.tensor([[[[1.0]]]]))
+        self.cond_hints.clear()
+        self.control_inputs.clear()
         return self
 
     def pre_run(self, model, percent_to_timestep_function):
@@ -131,6 +134,7 @@ class ControlBase:
                 device_cnet.cleanup()
         self.cond_hint = None
         self.cond_hints.clear()
+        self.control_inputs.clear()
         self.extra_concat = None
         self.timestep_range = None
 
@@ -903,7 +907,6 @@ class T2IAdapter(ControlBase):
         super().__init__()
         self.t2i_model = t2i_model
         self.channels_in = channels_in
-        self.control_input = None
         self.compression_ratio = compression_ratio
         self.upscale_algorithm = upscale_algorithm
         if device is None:
@@ -939,17 +942,22 @@ class T2IAdapter(ControlBase):
             self.cond_hints[(x_noisy.shape[2], x_noisy.shape[3])] = cond_hint
         if x_noisy.shape[0] != cond_hint.shape[0]:
             cond_hint = broadcast_image_to(cond_hint, x_noisy.shape[0], batched_number)
-        if self.control_input is None:
+
+        control_input = self.control_inputs.get((x_noisy.shape[2], x_noisy.shape[3]))
+        if control_input is None:
             self.t2i_model.to(x_noisy.dtype)
             self.t2i_model.to(self.device)
-            self.control_input = self.t2i_model(cond_hint.to(x_noisy.dtype))
+            control_input = self.t2i_model(cond_hint.to(x_noisy.dtype))
             self.t2i_model.cpu()
+            while len(self.control_inputs) >= 2:
+                self.control_inputs.pop(next(iter(self.control_inputs)))
+            self.control_inputs[(x_noisy.shape[2], x_noisy.shape[3])] = control_input
 
-        control_input = {}
-        for k in self.control_input:
-            control_input[k] = list(map(lambda a: None if a is None else a.clone(), self.control_input[k]))
+        out = {}
+        for k in control_input:
+            out[k] = list(map(lambda a: None if a is None else a.clone(), control_input[k]))
 
-        return self.control_merge(control_input, control_prev, x_noisy.dtype)
+        return self.control_merge(out, control_prev, x_noisy.dtype)
 
     def copy(self):
         c = T2IAdapter(self.t2i_model, self.channels_in, self.compression_ratio, self.upscale_algorithm)
