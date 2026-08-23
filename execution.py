@@ -238,7 +238,10 @@ def record_lazy_evidence(caches, unique_id, class_type, lazy_requested):
     if lazy_requested is None:
         return
     for lazy_key in get_lazy_input_keys(class_type):
-        caches.lazy_evaluated[(unique_id, lazy_key)] = lazy_key in lazy_requested
+        key = (unique_id, lazy_key)
+        # Once consumed, an input keeps invalidating: later runs see it cached and
+        # check_lazy_status stops naming it, which must not flip the recorded value.
+        caches.lazy_evaluated[key] = caches.lazy_evaluated.get(key, False) or lazy_key in lazy_requested
 
 map_node_over_list = None #Don't hook this please
 
@@ -533,6 +536,9 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                 if len(required_inputs) > 0:
                     for i in required_inputs:
                         execution_list.make_input_strong_link(unique_id, i)
+                    # Inputs requested here get consumed when the pending pass resumes,
+                    # so they must count as evaluated even though the tail is skipped.
+                    record_lazy_evidence(caches, unique_id, class_type, lazy_requested)
                     return (ExecutionResult.PENDING, None, None)
 
             def execution_block_cb(block):

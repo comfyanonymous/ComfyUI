@@ -142,8 +142,18 @@ def test_record_lazy_evidence_marks_only_requested(register_stubs):
     record_lazy_evidence(caches, "2", "StubKeyLazy", {"image1"})
     assert caches.lazy_evaluated == {("2", "image1"): True}
 
-    record_lazy_evidence(caches, "2", "StubKeyLazy", {"mask"})
-    assert caches.lazy_evaluated == {("2", "image1"): False}
+
+def test_record_lazy_evidence_is_monotonic(register_stubs):
+    caches = SimpleNamespace(lazy_evaluated={})
+
+    record_lazy_evidence(caches, "2", "StubKeyLazy", {"image1"})
+    # A later run sees the input cached and check_lazy_status stops naming it;
+    # the recorded value must not flip or identical re-queues would miss cache.
+    record_lazy_evidence(caches, "2", "StubKeyLazy", set())
+    assert caches.lazy_evaluated == {("2", "image1"): True}
+
+    record_lazy_evidence(caches, "3", "StubKeyLazy", set())
+    assert caches.lazy_evaluated[("3", "image1")] is False
 
 
 def test_record_lazy_evidence_none_request_is_noop(register_stubs):
