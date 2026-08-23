@@ -28,6 +28,7 @@ from comfy_execution.caching import (
     CacheKeySetID,
     CacheKeySetInputSignature,
     NullCache,
+    get_lazy_input_keys,
     HierarchicalCache,
     LRUCache,
     RAMPressureCache,
@@ -130,6 +131,12 @@ class CacheSet:
             self.init_classic_cache()
 
         self.all = [self.outputs, self.objects]
+
+        # Executor-owned record of which lazy inputs were actually evaluated, shared with the
+        # cache key builder so unconsumed lazy inputs stop poisoning downstream cache keys.
+        self.lazy_evaluated: dict = {}
+        if hasattr(self.outputs, "key_class") and self.outputs.key_class is CacheKeySetInputSignature:
+            self.outputs.key_class_kwargs = {"lazy_evaluated": self.lazy_evaluated}
 
     # Performs like the old cache -- dump data ASAP
     def init_classic_cache(self):
@@ -658,6 +665,12 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
 
     get_progress_state().finish_progress(unique_id)
     executed.add(unique_id)
+
+    if lazy_status_present:
+        lazy_keys = get_lazy_input_keys(class_type)
+        for lazy_key in lazy_keys:
+            was_evaluated = lazy_key in input_data_all and lazy_key not in missing_keys
+            caches.lazy_evaluated[(unique_id, lazy_key)] = was_evaluated
 
     return (ExecutionResult.SUCCESS, None, None)
 
