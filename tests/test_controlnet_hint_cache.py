@@ -27,8 +27,8 @@ def make_cn():
     return cn
 
 
-def call(cn, h, w, batch=1, batched_number=1):
-    x = torch.zeros((batch, 4, h, w))
+def call(cn, h, w, batch=1, batched_number=1, dtype=torch.float32):
+    x = torch.zeros((batch, 4, h, w), dtype=dtype)
     cond = {"c_crossattn": torch.zeros((1, 1, 1))}
     return cn.get_control(x, torch.tensor([999.0]), cond, batched_number, {})
 
@@ -154,6 +154,18 @@ def test_t2i_same_size_different_batch_recomputes():
     # repeating the first configuration is served from the cache again
     call(adapter, 8, 8, batch=2)
     assert adapter.t2i_model.calls == [((2, 3, 64, 64)), ((4, 3, 64, 64))]
+
+
+def test_t2i_same_size_different_dtype_recomputes():
+    adapter = make_t2i()
+
+    call(adapter, 8, 8, dtype=torch.float32)
+    call(adapter, 8, 8, dtype=torch.float16)
+
+    # the model is cast to x_noisy.dtype on a miss; a cached fp32 result must
+    # not be served when the next step runs in fp16
+    assert len(adapter.t2i_model.calls) == 2
+    assert {k[4] for k in adapter.control_inputs} == {torch.float32, torch.float16}
 
 
 def test_set_cond_hint_invalidates_cache(monkeypatch):

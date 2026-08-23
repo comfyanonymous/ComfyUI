@@ -943,7 +943,7 @@ class T2IAdapter(ControlBase):
         if x_noisy.shape[0] != cond_hint.shape[0]:
             cond_hint = broadcast_image_to(cond_hint, x_noisy.shape[0], batched_number)
 
-        control_input = self.control_inputs.get((x_noisy.shape[2], x_noisy.shape[3], x_noisy.shape[0], batched_number))
+        control_input = self.control_inputs.get((x_noisy.shape[2], x_noisy.shape[3], x_noisy.shape[0], batched_number, x_noisy.dtype))
         if control_input is None:
             self.t2i_model.to(x_noisy.dtype)
             self.t2i_model.to(self.device)
@@ -951,7 +951,7 @@ class T2IAdapter(ControlBase):
             self.t2i_model.cpu()
             while len(self.control_inputs) >= 2:
                 self.control_inputs.pop(next(iter(self.control_inputs)))
-            self.control_inputs[(x_noisy.shape[2], x_noisy.shape[3], x_noisy.shape[0], batched_number)] = control_input
+            self.control_inputs[(x_noisy.shape[2], x_noisy.shape[3], x_noisy.shape[0], batched_number, x_noisy.dtype)] = control_input
 
         out = {}
         for k in control_input:
