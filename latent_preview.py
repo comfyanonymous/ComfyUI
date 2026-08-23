@@ -79,6 +79,39 @@ class TAESDPreviewerImpl(LatentPreviewer):
 
 class TAEHVPreviewerImpl(TAESDPreviewerImpl):
     def decode_latent_to_preview(self, x0):
+        if args.preview_full_batch:
+            # For 5-D (video) latents [bs, C, T, H, W], select the first temporal
+            # frame of every batch item so the TAE decoder (Conv2d) receives a
+            # valid 4-D [1, C, H, W] input
+            if x0.ndim == 5:
+                x0 = x0[:, :, 0]
+            # Decode each batch item with TAEHV and tile them into a single grid preview
+            x0_clone = x0.clone().detach()
+            samples = []
+            for i in range(x0_clone.shape[0]):
+                samples.append(self.taesd.decode(x0_clone[i:i+1])[0].movedim(0, 2))
+
+            # samples[i] has shape [h, w, 3]
+            h, w = samples[0].shape[0], samples[0].shape[1]
+
+            # Compute a grid layout that fits all items, as square as possible
+            layout_x = 1
+            layout_y = 1
+            while (layout_x * layout_y) < x0.shape[0]:
+                if ((layout_x + 1) * w) <= ((layout_y + 1) * h):
+                    layout_x = layout_x + 1
+                else:
+                    layout_y = layout_y + 1
+
+            grid = torch.zeros((layout_y * h, layout_x * w, 3), device=samples[0].device, dtype=samples[0].dtype)
+            for i, sample in enumerate(samples):
+                x = i % layout_x
+                y = i // layout_x
+                grid[y*h:(y+1)*h, x*w:(x+1)*w, :] = sample
+
+            return preview_to_image(grid, do_scale=False)
+
+        # Default (no --preview-full-batch): preview only the first batch member, first frame
         x_sample = self.taesd.decode(x0[:1, :, :1])[0][0]
         return preview_to_image(x_sample, do_scale=False)
 
