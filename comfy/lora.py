@@ -34,15 +34,32 @@ LORA_CLIP_MAP = {
 }
 
 
-def load_lora(lora, to_load, log_missing=True):
+def load_lora(lora, to_load, log_missing=True, metadata=None):
     patch_dict = {}
     loaded_keys = set()
+    # Some trainers (SimpleTuner and other PEFT/diffusers-based ones) store alpha/rank only in
+    # the safetensors file metadata instead of a per-key .alpha tensor.
+    meta_alpha = None
+    meta_rank = None
+    if metadata is not None:
+        for k, v in metadata.items():
+            short = k.rsplit(".", 1)[-1]
+            try:
+                if short == "lora_alpha" and meta_alpha is None:
+                    meta_alpha = float(v)
+                elif short in ("r", "rank", "lora_rank") and meta_rank is None:
+                    meta_rank = float(v)
+            except ValueError:
+                pass
+
     for x in to_load:
         alpha_name = "{}.alpha".format(x)
         alpha = None
         if alpha_name in lora.keys():
             alpha = lora[alpha_name].item()
             loaded_keys.add(alpha_name)
+        elif meta_alpha is not None and meta_rank:
+            alpha = meta_alpha / meta_rank
 
         dora_scale_name = "{}.dora_scale".format(x)
         dora_scale = None
