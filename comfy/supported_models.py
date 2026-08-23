@@ -16,6 +16,7 @@ import comfy.text_encoders.genmo
 import comfy.text_encoders.lt
 import comfy.text_encoders.hunyuan_video
 import comfy.text_encoders.minimax
+import comfy.text_encoders.minimax_music
 import comfy.text_encoders.cosmos
 import comfy.text_encoders.lumina2
 import comfy.text_encoders.wan
@@ -1477,6 +1478,31 @@ class WAN22_T2V(WAN21_T2V):
         out = model_base.WAN22(self, image_to_video=True, device=device)
         return out
 
+class Trellis2(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "trellis2"
+    }
+
+    unet_extra_config = {"num_heads": 12}
+
+    sampling_settings = {
+        "shift": 3.0,
+    }
+
+    memory_usage_factor = 6
+
+    latent_format = latent_formats.Trellis2
+    vae_key_prefix = ["vae."]
+    clip_vision_prefix = "conditioner.main_image_encoder.model."
+    # this is only needed for the texture model
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.Trellis2(self, device=device)
+
+    def clip_target(self, state_dict={}):
+        return None
+
 class WAN21_FlowRVS(WAN21_T2V):
     unet_config = {
         "image_model": "wan2.1",
@@ -2200,6 +2226,28 @@ class ACEStep15(supported_models_base.BASE):
 
         return supported_models_base.ClipTarget(comfy.text_encoders.ace15.ACE15Tokenizer, comfy.text_encoders.ace15.te(**detect))
 
+class MiniMaxMusic3(supported_models_base.BASE):
+    unet_config = {
+        "audio_model": "minimax_music3",
+    }
+
+    latent_format = comfy.latent_formats.MiniMaxMusic3
+    memory_usage_factor = 2.0
+    supported_inference_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+    sampling_settings = {"multiplier": 1.0}
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.MiniMaxMusic3(self, device=device)
+
+    def model_type(self, state_dict, prefix=""):
+        return model_base.ModelType.FLOW
+
+    def clip_target(self, state_dict={}):
+        detect = comfy.text_encoders.minimax_music.detect_merged_config(state_dict, self.text_encoder_key_prefix[0])
+        target = supported_models_base.ClipTarget(comfy.text_encoders.minimax_music.MiniMaxMusic3Tokenizer, comfy.text_encoders.minimax_music.MiniMaxMusic3TEModel)
+        target.params["projection_config"] = detect
+        return target
+
 
 class LongCatImage(supported_models_base.BASE):
     unet_config = {
@@ -2494,6 +2542,7 @@ models = [
     ChromaRadiance,
     ACEStep,
     ACEStep15,
+    MiniMaxMusic3,
     Omnigen2,
     Boogu,
     MageFlow,
@@ -2514,5 +2563,6 @@ models = [
     CogVideoX_I2V,
     CogVideoX_T2V,
     SVD_img2vid,
+    Trellis2,
     DepthAnything3,
 ]
