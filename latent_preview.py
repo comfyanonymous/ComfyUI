@@ -42,6 +42,11 @@ class TAESDPreviewerImpl(LatentPreviewer):
 
     def decode_latent_to_preview(self, x0):
         if args.preview_full_batch:
+            # For 5-D (video) latents [bs, C, T, H, W], select the first temporal
+            # frame of every batch item so the TAESD decoder (Conv2d) receives a
+            # valid 4-D [1, C, H, W] input
+            if x0.ndim == 5:
+                x0 = x0[:, :, 0]
             # Decode each batch item with TAESD and tile them into a single grid preview
             x0_clone = x0.clone().detach()
             samples = []
@@ -93,6 +98,10 @@ class Latent2RGBPreviewer(LatentPreviewer):
             self.latent_rgb_factors_bias = self.latent_rgb_factors_bias.to(dtype=x0.dtype, device=x0.device)
 
         if args.preview_full_batch:
+            # For 5-D (video) latents [bs, C, T, H, W], take the first temporal
+            # frame of every batch item, matching the default path's x0[0, :, 0]
+            if x0.ndim == 5:
+                x0 = x0[:, :, 0]
             # Project each batch item to RGB and tile them into a single grid preview
             samples = []
             for i in range(x0.shape[0]):
