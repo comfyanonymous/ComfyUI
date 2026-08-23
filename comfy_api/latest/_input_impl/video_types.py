@@ -98,13 +98,21 @@ def video_stream_bit_depth(stream) -> int:
 
 
 def isobmff_hevc_filter(output_container, stream, out_stream):
-    """HEVC enters mp4/mov as Annex B so the muxer builds hvcC from the stream's parameter sets
-    and strips them from the samples, as the 'hvc1' sample entry Apple players require promises;
-    FFmpeg's default 'hev1' keeps them in-band."""
+    """Apple players need the 'hvc1' sample entry, not FFmpeg's default 'hev1'. Annex B input without
+    extradata makes the muxer build hvcC from the first packet and strip in-band parameter sets;
+    'hvc1' sources already have a complete hvcC and only need the tag PyAV reset."""
     if output_container.format.name not in ("mp4", "mov") or stream.codec.canonical_name != "hevc":
+        return None
+    try:
+        codec_tag = stream.codec_context.codec_tag
+    except UnicodeDecodeError:
+        codec_tag = ""
+    if codec_tag == "hvc1":
+        out_stream.codec_context.codec_tag = "hvc1"
         return None
     hevc_filter = BitStreamFilterContext("hevc_mp4toannexb", stream, out_stream)
     out_stream.codec_context.codec_tag = "hvc1"
+    out_stream.codec_context.extradata = None
     return hevc_filter
 
 
