@@ -666,11 +666,13 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
     get_progress_state().finish_progress(unique_id)
     executed.add(unique_id)
 
-    if lazy_status_present:
-        lazy_keys = get_lazy_input_keys(class_type)
-        for lazy_key in lazy_keys:
-            was_evaluated = lazy_key in input_data_all and lazy_key not in missing_keys
-            caches.lazy_evaluated[(unique_id, lazy_key)] = was_evaluated
+    if input_data_all is not None:
+        # Async/subgraph resumes skip input resolution; without fresh evidence we keep
+        # previous records untouched rather than guessing.
+        for lazy_key in get_lazy_input_keys(class_type):
+            caches.lazy_evaluated[(unique_id, lazy_key)] = (
+                lazy_key in input_data_all and lazy_key not in missing_keys
+            )
 
     return (ExecutionResult.SUCCESS, None, None)
 

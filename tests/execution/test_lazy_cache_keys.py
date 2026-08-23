@@ -5,7 +5,11 @@ import pytest
 import torch
 
 import nodes
-from comfy_execution.caching import CacheKeySetInputSignature, get_lazy_input_keys
+from comfy_execution.caching import (
+    BasicCache,
+    CacheKeySetInputSignature,
+    get_lazy_input_keys,
+)
 from comfy_execution.graph import DynamicPrompt
 
 
@@ -115,3 +119,16 @@ def test_eager_link_still_invalidates(register_stubs):
     key_after = asyncio.run(build_consumer_key(build_prompt("StubKeyEager", 5), {}))
 
     assert key_before != key_after
+
+
+def test_subcache_shares_evidence_record(register_stubs):
+    shared = {}
+
+    async def build():
+        bc = BasicCache(CacheKeySetInputSignature, key_class_kwargs={"lazy_evaluated": shared})
+        dynprompt = DynamicPrompt(build_prompt("StubKeyLazy", 0))
+        await bc.set_prompt(dynprompt, ["1", "2"], StubIsChanged())
+        return await bc._ensure_subcache("1", ["2"])
+
+    child = asyncio.run(build())
+    assert child.cache_key_set.lazy_evaluated is shared
