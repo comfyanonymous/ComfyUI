@@ -65,3 +65,42 @@ def test_malformed_metadata_ignored():
     loaded = load_lora(lora, key_map, metadata=metadata)
 
     assert get_adapter(loaded).weights[2] is None
+
+
+def test_ambiguous_namespaces_skip_fallback():
+    lora = make_lora_dict()
+    key_map = {"test_layer": "model.test_layer"}
+    metadata = {
+        "text_encoder.lora_alpha": "8",
+        "text_encoder.r": "8",
+        "transformer.lora_alpha": "64",
+        "transformer.r": "16",
+    }
+
+    loaded = load_lora(lora, key_map, metadata=metadata)
+
+    assert get_adapter(loaded).weights[2] is None
+
+
+def test_non_finite_metadata_ignored():
+    lora = make_lora_dict()
+    key_map = {"test_layer": "model.test_layer"}
+
+    loaded = load_lora(lora, key_map, metadata={"transformer.r": "16", "transformer.lora_alpha": "nan"})
+    assert get_adapter(loaded).weights[2] is None
+
+    loaded = load_lora(lora, key_map, metadata={"transformer.r": "16", "transformer.lora_alpha": "inf"})
+    assert get_adapter(loaded).weights[2] is None
+
+    loaded = load_lora(lora, key_map, metadata={"transformer.r": "0", "transformer.lora_alpha": "64"})
+    assert get_adapter(loaded).weights[2] is None
+
+
+def test_integer_metadata_values_accepted():
+    lora = make_lora_dict()
+    key_map = {"test_layer": "model.test_layer"}
+    metadata = {"r": 16, "lora_alpha": 64}
+
+    loaded = load_lora(lora, key_map, metadata=metadata)
+
+    assert get_adapter(loaded).weights[2] == 4.0
