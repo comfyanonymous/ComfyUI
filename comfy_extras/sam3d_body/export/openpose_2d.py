@@ -9,7 +9,6 @@ the DWPose face slot).
 Output: (H, W, 3) fp32 torch.Tensor in [0, 1].
 """
 
-import logging
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
@@ -89,7 +88,7 @@ def _draw_face_dots(
     """White face dots, variable count (238 sapiens / ~30 rig-projected)."""
     H, W = canvas.shape[:2]
     pad = int(marker_radius_px)
-    white = (255, 255, 255)
+    centers = []
     for i in range(face_xy.shape[0]):
         x_, y_ = float(face_xy[i, 0]), float(face_xy[i, 1])
         if not (np.isfinite(x_) and np.isfinite(y_)):
@@ -97,7 +96,8 @@ def _draw_face_dots(
         x, y = int(round(x_)), int(round(y_))
         if x + pad < 0 or x - pad >= W or y + pad < 0 or y - pad >= H:
             continue
-        _KD.draw.circle(canvas, (x, y), int(marker_radius_px), white, thickness=-1)
+        centers.append((x, y))
+    _KD.circles(canvas, centers, int(marker_radius_px), (255, 255, 255))
 
 
 def render_pose_data_openpose(
@@ -162,15 +162,11 @@ def render_pose_data_openpose(
             cc = pose_data.get("canonical_colors") or {}
             positions = cc.get("positions")
             if positions is not None:
-                try:
-                    face_vert_ids = select_face_landmark_vert_ids(
-                        np.asarray(positions), face_mask=cc.get("face_mask"),
-                    )
-                    if use_rig_only:
-                        face_vert_ids = face_vert_ids[_EYES_MOUTH_IDX]
-                except (ValueError, IndexError) as e:
-                    logging.warning(f"[SAM3DBody] face landmarks disabled - {e}")
-                    face_vert_ids = None
+                face_vert_ids = select_face_landmark_vert_ids(
+                    np.asarray(positions), face_mask=cc.get("face_mask"),
+                )
+                if use_rig_only:
+                    face_vert_ids = face_vert_ids[_EYES_MOUTH_IDX]
 
     hand_dot_color = (
         _HAND_DOT_PALETTE_OPENPOSE if hand_color_style == "openpose"

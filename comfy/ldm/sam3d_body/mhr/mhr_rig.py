@@ -8,8 +8,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-torch.sparse.check_sparse_tensor_invariants.disable() # silence the "implicitly disabled" UserWarning.
+from comfy.ops import cast_to_input
 
 from .mhr_utils import batch6DFromXYZ
 
@@ -20,32 +19,19 @@ _LN2 = 0.6931471824645996
 # picks the three factors of each term, reproducing:
 #   x = sr*cp*cy - cr*sp*sy      z = cr*cp*sy - sr*sp*cy
 #   y = cr*sp*cy + sr*cp*sy      w = cr*cp*cy + sr*sp*sy
-_EQ_I = (((3, 1, 2), (0, 4, 5)),
-         ((0, 4, 2), (3, 1, 5)),
-         ((0, 1, 5), (3, 4, 2)),
-         ((0, 1, 2), (3, 4, 5)))
-_EQ_S = (-1., 1., -1., 1.)
-_eq_tables: dict = {}
-
-
-def _euler_quat_tables(device, dtype):
-    key = (device, dtype)
-    cached = _eq_tables.get(key)
-    if cached is None:
-        cached = (torch.tensor(_EQ_I, device=device),
-                  torch.tensor(_EQ_S, device=device, dtype=dtype))
-        _eq_tables[key] = cached
-    return cached
-
-
 def _euler_xyz_to_quat(angles):
     """(roll, pitch, yaw) -> quaternion (x, y, z, w). Matches pymomentum.quaternion.euler_xyz_to_quaternion."""
-    idx, sign = _euler_quat_tables(angles.device, angles.dtype)
     half = angles * 0.5
-    cs = torch.cat([torch.cos(half), torch.sin(half)], dim=-1)
-    p = cs[..., idx]                                   # (..., 4, 2, 3)
-    term = p[..., 0] * p[..., 1] * p[..., 2]           # (..., 4, 2)
-    return term[..., 0] + term[..., 1] * sign
+    c = torch.cos(half)
+    s = torch.sin(half)
+    cr, cp, cy = c.unbind(-1)
+    sr, sp, sy = s.unbind(-1)
+    return torch.stack([
+        sr * cp * cy - cr * sp * sy,
+        cr * sp * cy + sr * cp * sy,
+        cr * cp * sy - sr * sp * cy,
+        cr * cp * cy + sr * sp * sy,
+    ], dim=-1)
 
 
 # Hamilton product as gather + 3 adds. Each output component is a 4-term sum;
@@ -54,27 +40,15 @@ def _euler_xyz_to_quat(angles):
 #   y = w1*y2 - x1*z2 + y1*w2 + z1*x2
 #   z = w1*z2 + x1*y2 - y1*x2 + z1*w2
 #   w = w1*w2 - x1*x2 - y1*y2 - z1*z2
-_QM_P1 = ((3, 0, 1, 2),) * 4
-_QM_P2 = ((0, 3, 2, 1), (1, 2, 3, 0), (2, 1, 0, 3), (3, 0, 1, 2))
-_QM_S = ((1., 1., 1., -1.), (1., -1., 1., 1.), (1., 1., -1., 1.), (1., -1., -1., -1.))
-_qm_tables: dict = {}
-
-
-def _quat_mul_tables(device, dtype):
-    key = (device, dtype)
-    cached = _qm_tables.get(key)
-    if cached is None:
-        cached = (torch.tensor(_QM_P1, device=device),
-                  torch.tensor(_QM_P2, device=device),
-                  torch.tensor(_QM_S, device=device, dtype=dtype))
-        _qm_tables[key] = cached
-    return cached
-
-
 def _quat_multiply(q1, q2):
-    p1, p2, s = _quat_mul_tables(q1.device, q1.dtype)
-    t = q1[..., p1] * q2[..., p2] * s
-    return ((t[..., 0] + t[..., 1]) + t[..., 2]) + t[..., 3]
+    x1, y1, z1, w1 = q1.unbind(-1)
+    x2, y2, z2, w2 = q2.unbind(-1)
+    return torch.stack([
+        w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+        w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+        w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
+        w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+    ], dim=-1)
 
 
 def _quat_rotate(q, v):
@@ -177,11 +151,16 @@ class MHRRig(nn.Module):
         _b("pose_corr_sparse_indices", 2, self.POSE_CORR_SPARSE_NNZ, dtype=torch.int64)
         self.pose_corr_sparse_weight = _p(self.POSE_CORR_SPARSE_NNZ)
 
-        self.register_buffer("pose_corr_sparse_shape", torch.tensor([self.POSE_CORR_HIDDEN, self.POSE_CORR_IN], dtype=torch.int64, device=device))
+        _b("pose_corr_sparse_shape", 2, dtype=torch.int64)
         self.pose_corr_weight = _p(self.NUM_VERTS * 3, self.POSE_CORR_HIDDEN)
         self.pose_corr_bias = None
-        self._pose_corr_sparse_cache = None
-        self._pmi_levels_cache = None
+        self._pmi_sizes = None
+        self._pose_corr_shape = None
+        self.register_load_state_dict_post_hook(self._set_pmi_sizes)
+
+    def _set_pmi_sizes(self, module, incompatible_keys):
+        self._pmi_sizes = tuple(self.skel_pmi_buffer_sizes.tolist())
+        self._pose_corr_shape = tuple(self.pose_corr_sparse_shape.tolist())
 
     def forward(self, identity_coeffs, model_parameters, expr_coeffs, apply_correctives: bool = True):
         dtype = self.base_shape.dtype
@@ -190,21 +169,23 @@ class MHRRig(nn.Module):
         expr_coeffs = expr_coeffs.to(dtype)
         B = identity_coeffs.shape[0]
 
-        identity_rest = self.base_shape + torch.einsum("nvd,bn->bvd", self.identity_basis, identity_coeffs)
+        base_shape = cast_to_input(self.base_shape, identity_coeffs, copy=False)
+        identity_basis = cast_to_input(self.identity_basis, identity_coeffs, copy=False)
+        identity_rest = base_shape + torch.einsum("nvd,bn->bvd", identity_basis, identity_coeffs)
 
         cat_in = torch.cat([model_parameters, torch.zeros_like(identity_coeffs)], dim=1)
-        joint_parameters = torch.einsum("dn,bn->bd", self.param_transform, cat_in)
+        joint_parameters = torch.einsum("dn,bn->bd", cast_to_input(self.param_transform, cat_in, copy=False), cat_in)
 
         jp = joint_parameters.view(B, self.NUM_JOINTS, 7)
-        local_t = jp[..., :3] + self.skel_joint_translation_offsets.unsqueeze(0)
+        local_t = jp[..., :3] + cast_to_input(self.skel_joint_translation_offsets, jp, copy=False).unsqueeze(0)
         local_q = _euler_xyz_to_quat(jp[..., 3:6])
-        local_q = _quat_multiply(self.skel_joint_prerotations.unsqueeze(0), local_q)
+        local_q = _quat_multiply(cast_to_input(self.skel_joint_prerotations, local_q, copy=False).unsqueeze(0), local_q)
         local_s = torch.exp(jp[..., 6:7] * _LN2)
         local_state = torch.cat([local_t, local_q, local_s], dim=-1)
 
-        skel_state = _global_skel_state_from_local(local_state, self._pmi_levels())
+        skel_state = _global_skel_state_from_local(local_state, self._pmi_levels(local_state.device))
 
-        face_expr = torch.einsum("nvd,bn->bvd", self.expr_basis, expr_coeffs)
+        face_expr = torch.einsum("nvd,bn->bvd", cast_to_input(self.expr_basis, expr_coeffs, copy=False), expr_coeffs)
         unposed = identity_rest + face_expr
         if apply_correctives:
             unposed = unposed + self._pose_correctives(joint_parameters)
@@ -221,47 +202,40 @@ class MHRRig(nn.Module):
         feat[..., 4] -= 1.0
         feat = feat.flatten(1, 2)  # (B, 750)
 
-        h = (self._sparse_w() @ feat.T).T                # (B, 3000)
+        h = (self._sparse_w(feat) @ feat.T).T                # (B, 3000)
         h = F.relu(h)
-        out = F.linear(h, self.pose_corr_weight, self.pose_corr_bias)  # (B, 55317)
+        out = F.linear(h, cast_to_input(self.pose_corr_weight, h, copy=False), self.pose_corr_bias)  # (B, 55317)
         return out.view(B, self.NUM_VERTS, 3)
 
-    def _pmi_levels(self):
-        cached = self._pmi_levels_cache
-        pmi = self.skel_pmi
-        if cached is not None and cached[0][0].device == pmi.device:
-            return cached
-        sizes = self.skel_pmi_buffer_sizes.tolist()
-        parts = torch.split(pmi, sizes, dim=1)
-        levels = [(p[0], p[1]) for p in parts]
-        self._pmi_levels_cache = levels
-        return levels
+    def _pmi_levels(self, device):
+        if self._pmi_sizes is None:
+            raise RuntimeError("MHR rig weights have not been loaded")
+        pmi = self.skel_pmi.to(device=device)
+        return [(part[0], part[1]) for part in torch.split(pmi, self._pmi_sizes, dim=1)]
 
-    def _sparse_w(self):
-        cached = self._pose_corr_sparse_cache
-        w = self.pose_corr_sparse_weight
-        if cached is not None and cached.device == w.device and cached.dtype == w.dtype:
-            return cached
-        sparse = torch.sparse_coo_tensor(
-            self.pose_corr_sparse_indices,
-            w,
-            tuple(self.pose_corr_sparse_shape.tolist()),
-            check_invariants=False,
-        ).coalesce()
-        self._pose_corr_sparse_cache = sparse
-        return sparse
+    def _sparse_w(self, ref):
+        if self._pose_corr_shape is None:
+            raise RuntimeError("MHR rig weights have not been loaded")
+        w = cast_to_input(self.pose_corr_sparse_weight, ref, copy=False)
+        # PyTorch 2.12 warns unless invariant checking is explicitly scoped.
+        with torch.sparse.check_sparse_tensor_invariants():
+            return torch.sparse_coo_tensor(
+                self.pose_corr_sparse_indices.to(device=ref.device),
+                w,
+                self._pose_corr_shape,
+            ).coalesce()
 
     def _skin(self, skel_state, rest_verts):
         B = skel_state.shape[0]
-        ibp = self.lbs_inverse_bind_pose.unsqueeze(0).expand(B, self.NUM_JOINTS, 8)
+        ibp = cast_to_input(self.lbs_inverse_bind_pose, skel_state, copy=False).unsqueeze(0).expand(B, self.NUM_JOINTS, 8)
         joint_xform = _skel_multiply(skel_state, ibp)
 
         norm_q = F.normalize(joint_xform[..., 3:7], p=2, dim=-1, eps=1e-12)
         joint_xform = torch.cat([joint_xform[..., :3], norm_q, joint_xform[..., 7:8]], dim=-1)
 
-        sk_idx = self.lbs_skin_indices.long()
-        v_idx = self.lbs_vert_indices
-        w = self.lbs_skin_weights
+        sk_idx = self.lbs_skin_indices.to(device=rest_verts.device, dtype=torch.long)
+        v_idx = self.lbs_vert_indices.to(device=rest_verts.device)
+        w = cast_to_input(self.lbs_skin_weights, rest_verts, copy=False)
 
         per_triplet_xform = joint_xform.index_select(-2, sk_idx)   # (B, 51337, 8)
         per_triplet_rest = rest_verts.index_select(-2, v_idx)      # (B, 51337, 3)

@@ -14,22 +14,28 @@ import comfy.utils
 
 from tqdm import tqdm
 
-def _bbox_from_mask(mask: torch.Tensor) -> Optional[torch.Tensor]:
+def _bbox_from_mask(mask: torch.Tensor) -> torch.Tensor:
     """xyxy bounds of a binary mask, with sub-5px speckles filtered out."""
     m = mask[..., 0] if mask.dim() == 3 else mask
     m_bool = m > 0
-    if not m_bool.any():
-        return None
     t = m_bool.to(torch.float32)[None, None]
     eroded = -F.max_pool2d(-t, kernel_size=5, stride=1, padding=2)
-    keep = eroded[0, 0] > 0.5
-    if not keep.any():
-        keep = m_bool
-    ys, xs = torch.where(keep)
-    return torch.stack([
-        xs.min().float(), ys.min().float(),
-        (xs.max() + 1).float(), (ys.max() + 1).float(),
+    eroded_mask = eroded[0, 0] > 0.5
+    keep = torch.where(eroded_mask.any(), eroded_mask, m_bool)
+
+    H, W = keep.shape
+    xs = torch.arange(W, device=keep.device)
+    ys = torch.arange(H, device=keep.device)
+    cols = keep.any(dim=0)
+    rows = keep.any(dim=1)
+    bbox = torch.stack([
+        torch.where(cols, xs, W).amin(),
+        torch.where(rows, ys, H).amin(),
+        torch.where(cols, xs + 1, 0).amax(),
+        torch.where(rows, ys + 1, 0).amax(),
     ])
+    full_frame = bbox.new_tensor([0, 0, W, H])
+    return torch.where(m_bool.any(), bbox, full_frame).to(torch.float32)
 
 
 def inputs_from_sam3_track(track_data, B: int, H: int, W: int):
@@ -54,14 +60,13 @@ def inputs_from_sam3_track(track_data, B: int, H: int, W: int):
     arr = arr_gpu.cpu()
 
     per_frame_masks = [arr[f, :, :, :, None].contiguous() for f in range(N)]
-    full_frame_bbox = torch.tensor([0.0, 0.0, float(W), float(H)], dtype=torch.float32)
     per_frame_bboxes = []
     for f in range(N):
         derived = []
         for k in range(K):
             # Erosion + argmax bbox on GPU; CPU max_pool2d over N*K full-res masks is slow.
             b = _bbox_from_mask(arr_gpu[f, k])
-            derived.append(b.cpu() if b is not None else full_frame_bbox)
+            derived.append(b.cpu())
         per_frame_bboxes.append(torch.stack(derived, dim=0))
     return per_frame_bboxes, per_frame_masks
 
@@ -227,12 +232,6 @@ def run_batched_single_chunk(inner: SAM3DBody, frames_rgb: List[torch.Tensor], p
     N = len(frames_rgb)
     total = N * K
 
-    # Reset stateful caches on the model
-    for attr in ("batch", "image_embeddings", "output"):
-        if hasattr(inner, attr):
-            setattr(inner, attr, None)
-    inner.prev_prompt = []
-
     boxes_stacked = torch.stack(
         [per_frame_boxes[f][k] for f in range(N) for k in range(K)], dim=0
     )
@@ -259,7 +258,6 @@ def run_batched_single_chunk(inner: SAM3DBody, frames_rgb: List[torch.Tensor], p
     )
     device = comfy.model_management.get_torch_device()
     batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
-    inner._initialize_batch(batch)
 
     outputs = inner.run_inference(
         img_per_crop,
@@ -281,8 +279,8 @@ def run_batched_single_chunk(inner: SAM3DBody, frames_rgb: List[torch.Tensor], p
     batch_bbox_cpu = batch["bbox"][0].cpu().numpy()
     lhand_bboxes = rhand_bboxes = None
     if inference_type == "full" and batch_lhand is not None and batch_rhand is not None:
-        lhand_bboxes = [_bbox_from_center_scale(batch_lhand, i) for i in range(total)]
-        rhand_bboxes = [_bbox_from_center_scale(batch_rhand, i) for i in range(total)]
+        lhand_bboxes = _bboxes_from_center_scale(batch_lhand)
+        rhand_bboxes = _bboxes_from_center_scale(batch_rhand)
 
     del pose_output, batch, batch_lhand, batch_rhand, outputs
 
@@ -363,18 +361,13 @@ def run_batched_frames(
             t.update(end - start)
             if pbar is not None:
                 pbar.update(end - start)
-            # Drop GPU caches so the next chunk starts from a clean allocator state
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
     return results
 
 
-def _bbox_from_center_scale(batch, idx: int) -> np.ndarray:
-    cx = batch["bbox_center"].flatten(0, 1)[idx][0].item()
-    cy = batch["bbox_center"].flatten(0, 1)[idx][1].item()
-    sx = batch["bbox_scale"].flatten(0, 1)[idx][0].item()
-    sy = batch["bbox_scale"].flatten(0, 1)[idx][1].item()
-    return np.array([cx - sx / 2, cy - sy / 2, cx + sx / 2, cy + sy / 2], dtype=np.float32)
+def _bboxes_from_center_scale(batch) -> np.ndarray:
+    centers = batch["bbox_center"].flatten(0, 1)
+    half_scales = batch["bbox_scale"].flatten(0, 1) * 0.5
+    return torch.cat([centers - half_scales, centers + half_scales], dim=1).float().cpu().numpy()
 
 # Wire types and small helpers shared across the SAM 3D Body node modules.
 

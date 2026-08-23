@@ -159,8 +159,7 @@ class DINOv3ViTEmbeddings(nn.Module):
     def __init__(self, hidden_size, num_register_tokens, num_channels, patch_size, dtype, device, operations, use_mask_token=True):
         super().__init__()
         self.cls_token = nn.Parameter(torch.empty(1, 1, hidden_size, device=device, dtype=dtype))
-        # mask_token is a pre-training param, omit it when the checkpoint does not ship it so strict loading stays clean
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, hidden_size, device=device, dtype=dtype)) if use_mask_token else None
+        self.mask_token = nn.Parameter(torch.empty(1, 1, hidden_size, device=device, dtype=dtype)) if use_mask_token else None
 
         self.register_tokens = nn.Parameter(torch.empty(1, num_register_tokens, hidden_size, device=device, dtype=dtype))
         self.patch_embeddings = operations.Conv2d(
@@ -265,7 +264,6 @@ class DINOv3ViTModel(nn.Module):
         return sequence_output, None, pooled_output, None
 
     def forward_features(self, pixel_values, **kwargs):
-        """Dense (B, C, H, W) patch-feature grid, CLS + register tokens dropped."""
         sequence_output = self.forward(pixel_values, **kwargs)[0]
         b = pixel_values.shape[0]
         h = pixel_values.shape[-2] // self.patch_size

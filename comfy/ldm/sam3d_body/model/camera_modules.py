@@ -1,6 +1,5 @@
 import math
 
-import einops
 import torch
 import torch.nn.functional as F
 from comfy.ldm.cascade.common import LayerNorm2d_op
@@ -29,7 +28,7 @@ class CameraEncoder(nn.Module):
         rays = rays.permute(0, 2, 3, 1).contiguous()  # [b, h, w, 2]
         rays = torch.cat([rays, torch.ones_like(rays[..., :1])], dim=-1)
         rays_embeddings = self.camera(pos=rays.reshape(B, -1, 3))  # (bs, N, 99): rays fourier embedding
-        rays_embeddings = einops.rearrange(rays_embeddings, "b (h w) c -> b c h w", h=_h, w=_w).contiguous()
+        rays_embeddings = rays_embeddings.reshape(B, _h, _w, -1).permute(0, 3, 1, 2).contiguous()
 
         z = torch.cat([img_embeddings, rays_embeddings], dim=1)
         return self.norm(self.conv(z))
@@ -53,7 +52,7 @@ def _generate_fourier_features(pos: torch.Tensor, num_bands: int, max_resolution
 
     freq_bands = torch.stack([torch.linspace(start=min_freq, end=res / 2, steps=num_bands, device=pos.device, dtype=pos.dtype) for res in max_resolution], dim=0)
 
-    per_pos_features = torch.stack([pos[i, :, :][:, :, None] * freq_bands[None, :, :] for i in range(b)], 0)
+    per_pos_features = pos.unsqueeze(-1) * freq_bands.unsqueeze(0).unsqueeze(0)
     per_pos_features = per_pos_features.reshape(b, n, -1)
 
     # Sin-Cos

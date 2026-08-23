@@ -16,22 +16,16 @@ from .utils import jet_colormap
 
 _CANONICAL_PRESETS = {"rainbow", "rainbow_face_normal", "rainbow_face_semantic"}
 
-_rainbow_cache: dict = {}
-
-_faces_cache: dict = {}
-
-def _faces_to_device(faces, device) -> torch.Tensor:
+def _faces_to_device(faces, device, cache: dict) -> torch.Tensor:
     """Device-side face indices. Topology is static per model, but the render
     loop calls this once per frame, so keep the H2D copy out of the loop."""
-    key = (id(faces), device)
-    hit = _faces_cache.get(key)
+    key = ("faces", id(faces), device)
+    hit = cache.get(key)
     if hit is not None:
         return hit[1]
     t = torch.as_tensor(np.asarray(faces, dtype=np.int64), device=device)
     # Hold the source array too: id() alone could be recycled after a GC.
-    _faces_cache[key] = (faces, t)
-    if len(_faces_cache) > 4:
-        _faces_cache.pop(next(iter(_faces_cache)))
+    cache[key] = (faces, t)
     return t
 
 
@@ -52,11 +46,6 @@ def rainbow_colors_from_canonical(
     Returns:
         (N_v, 3) float32 RGB in [0, 1].
     """
-    key = (hash(positions.tobytes()), round(float(tilt_x_deg), 3), round(float(tilt_z_deg), 3))
-    cached = _rainbow_cache.get(key)
-    if cached is not None:
-        return cached
-
     theta_x = np.deg2rad(tilt_x_deg)
     theta_z = np.deg2rad(tilt_z_deg)
     axis = np.array([
@@ -68,11 +57,7 @@ def rainbow_colors_from_canonical(
     s = positions @ axis
     s = (s - s.min()) / max(float(s.max() - s.min()), 1e-8)
     s = np.clip(s * 0.98, 0.0, 1.0).astype(np.float32)
-    colors = jet_colormap(s)
-    _rainbow_cache[key] = colors
-    if len(_rainbow_cache) > 32:
-        _rainbow_cache.pop(next(iter(_rainbow_cache)))
-    return colors
+    return jet_colormap(s)
 
 
 def _vertex_normals(verts: torch.Tensor, faces: torch.Tensor) -> torch.Tensor:
@@ -152,9 +137,6 @@ def _rasterize_chunk(
     inside = (e_a * area2 >= 0) & (e_b * area2 >= 0) & (e_c * area2 >= 0)
     inside = inside & in_bb & nondegen
 
-    if not inside.any():
-        return None
-
     inv_a2 = torch.where(nondegen, 1.0 / area2, torch.zeros_like(area2))
     w_a = e_a * inv_a2
     w_b = e_b * inv_a2
@@ -205,69 +187,44 @@ def _rasterize_person(
     if keep.numel() == 0:
         return
 
-    # Sort kept faces by max bbox dimension so chunks stay similarly-sized.
     bbsize = torch.maximum(sx_all, sy_all)[keep]
-    order = torch.argsort(bbsize)
-    keep = keep[order]
-    n = keep.numel()
-    sx_cpu = sx_all[keep].tolist()
-    sy_cpu = sy_all[keep].tolist()
-    bbsize_cpu = bbsize[order].tolist()
-
     PIXEL_BUDGET = 4_000_000
     MAX_CHUNK = 8192
+    lower = 0
+    limit = 1
+    max_extent = max(W, H)
+    while lower < max_extent:
+        bin_keep = keep[(bbsize > lower) & (bbsize <= limit)]
+        chunk_size = min(MAX_CHUNK, max(1, PIXEL_BUDGET // (limit * limit)))
+        for i in range(0, bin_keep.shape[0], chunk_size):
+            chunk = bin_keep[i : i + chunk_size]
+            pixel_idx, z_chunk, face_local, bary = _rasterize_chunk(
+                Fv_pix[chunk], Fv_z[chunk],
+                bb_min_x[chunk], bb_max_x[chunk],
+                bb_min_y[chunk], bb_max_y[chunk],
+                limit, limit, W,
+            )
+            face_global = chunk[face_local]
 
-    i = 0
-    while i < n:
-        e = min(i + MAX_CHUNK, n)
-        # Shrink chunk so worst-case per-face bbox stays within pixel budget.
-        while e > i + 1:
-            bb = bbsize_cpu[e - 1]
-            if (e - i) * bb * bb <= PIXEL_BUDGET:
-                break
-            e = max(i + 1, e - max(1, (e - i) // 4))
-        chunk = keep[i:e]
-        max_sx = max(sx_cpu[i:e])
-        max_sy = max(sy_cpu[i:e])
-        i = e
+            old_at = z_buf[pixel_idx].clone()
+            z_buf.scatter_reduce_(0, pixel_idx, z_chunk, reduce='amin', include_self=True)
+            new_at = z_buf[pixel_idx]
+            is_min = (z_chunk == new_at) & (new_at < old_at)
 
-        result = _rasterize_chunk(
-            Fv_pix[chunk], Fv_z[chunk],
-            bb_min_x[chunk], bb_max_x[chunk],
-            bb_min_y[chunk], bb_max_y[chunk],
-            max_sx, max_sy, W,
-        )
-        if result is None:
-            continue
-        pixel_idx, z_chunk, face_local, bary = result
-        face_global = chunk[face_local]
+            surv_pixel = pixel_idx[is_min]
+            surv_face = face_global[is_min]
+            surv_bary = bary[is_min]
+            sort_perm = torch.argsort(surv_pixel, stable=True)
+            sp = surv_pixel[sort_perm]
+            first = torch.ones_like(sp, dtype=torch.bool)
+            first[1:] = sp[1:] != sp[:-1]
+            selected = sort_perm[first]
 
-        # Atomic depth test against z_buf.
-        old_at = z_buf[pixel_idx].clone()
-        z_buf.scatter_reduce_(0, pixel_idx, z_chunk, reduce='amin', include_self=True)
-        new_at = z_buf[pixel_idx]
-        is_min = (z_chunk == new_at) & (new_at < old_at)
-        if not is_min.any():
-            continue
-
-        # Multiple fragments can land on the same pixel and share the new min;
-        # stable-sort by pixel and keep the first of each run so shade_fn runs
-        # once per winning pixel. O(M) where M = surviving fragments
-        surv_pixel = pixel_idx[is_min]
-        surv_face = face_global[is_min]
-        surv_bary = bary[is_min]
-        sort_perm = torch.argsort(surv_pixel, stable=True)
-        sp = surv_pixel[sort_perm]
-        first = torch.ones_like(sp, dtype=torch.bool)
-        first[1:] = sp[1:] != sp[:-1]
-        selected = sort_perm[first]
-
-        wp_idx = surv_pixel[selected]
-        wp_face = surv_face[selected]
-        wp_bary = surv_bary[selected]
-
-        color_buf[wp_idx] = shade_fn(wp_face, wp_bary)
-        mask_buf[wp_idx] = True
+            wp_idx = surv_pixel[selected]
+            color_buf[wp_idx] = shade_fn(surv_face[selected], surv_bary[selected])
+            mask_buf[wp_idx] = True
+        lower = limit
+        limit = min(limit * 2, max_extent)
 
 
 def _make_shade_fn(
@@ -371,12 +328,15 @@ def render_pose_data_torch(
     rainbow_tilt_x_deg: float = 0.0,
     rainbow_tilt_z_deg: float = 0.0,
     person_brightness_falloff: float = 0.6,
+    cache: dict | None = None,
 ) -> torch.Tensor:
     """Render one frame of persons from `pose_data` at resolution WxH.
 
     Returns an (H, W, 3) float32 torch.Tensor on the comfy compute device,
     ready to be stacked into the node's IMAGE output without a CPU round-trip."""
     device = comfy.model_management.get_torch_device()
+    if cache is None:
+        cache = {}
     persons = pose_data["frames"][frame_idx] if frame_idx < len(pose_data["frames"]) else []
     if len(persons) == 0:
         if composite == "over" and background is not None:
@@ -389,7 +349,7 @@ def render_pose_data_torch(
             return bg.clamp(0.0, 1.0)
         return torch.zeros((H, W, 3), device=device, dtype=torch.float32)
 
-    faces = _faces_to_device(pose_data["faces"], device)
+    faces = _faces_to_device(pose_data["faces"], device, cache)
 
     canonical_colors = pose_data.get("canonical_colors")
     using_canonical = shader_preset in _CANONICAL_PRESETS
@@ -399,9 +359,14 @@ def render_pose_data_torch(
 
     vcolor = None
     if using_canonical:
-        vcolor_np = _build_vcolor(canonical_colors, shader_preset,
-                                  rainbow_tilt_x_deg, rainbow_tilt_z_deg)
-        vcolor = torch.as_tensor(vcolor_np, dtype=torch.float32, device=device)
+        color_key = ("vcolor", id(canonical_colors), shader_preset,
+                     float(rainbow_tilt_x_deg), float(rainbow_tilt_z_deg), device)
+        vcolor = cache.get(color_key)
+        if vcolor is None:
+            vcolor_np = _build_vcolor(canonical_colors, shader_preset,
+                                      rainbow_tilt_x_deg, rainbow_tilt_z_deg)
+            vcolor = torch.as_tensor(vcolor_np, dtype=torch.float32, device=device)
+            cache[color_key] = vcolor
 
     falloff = max(0.0, min(1.0, float(person_brightness_falloff)))
     person_pastel = [0.0 if k == 0 else (1.0 - falloff ** k) for k in range(len(persons))]
@@ -458,13 +423,10 @@ def render_pose_data_torch(
         # Normalize within the rendered mesh's range: near=white, far=black, background=black
         mask_2d = mask_buf.reshape(H, W)
         z_2d = z_buf.reshape(H, W)
-        if mask_2d.any():
-            zin = z_2d[mask_2d]
-            zmin = zin.min()
-            zr = (zin.max() - zmin).clamp(min=1e-6)
-            norm = torch.where(mask_2d, 1.0 - (z_2d - zmin) / zr, torch.zeros_like(z_2d))
-        else:
-            norm = torch.zeros((H, W), device=device, dtype=torch.float32)
+        zmin = torch.where(mask_2d, z_2d, torch.full_like(z_2d, float("inf"))).amin()
+        zmax = torch.where(mask_2d, z_2d, torch.full_like(z_2d, float("-inf"))).amax()
+        zr = (zmax - zmin).clamp(min=1e-6)
+        norm = torch.where(mask_2d, 1.0 - (z_2d - zmin) / zr, torch.zeros_like(z_2d))
         rendered = torch.stack([norm, norm, norm], dim=-1)
         mask_f = mask_2d.float()
     else:

@@ -1,7 +1,7 @@
 """Pose keypoint drawing primitives shared across pose nodes.
 
-`KeypointDraw` exposes a cv2-or-numpy backend so callers can use one drawing
-API regardless of whether OpenCV is installed:
+`KeypointDraw` exposes native drawing primitives through the same API used by
+the pose renderers:
 
   kd = KeypointDraw()
   kd.draw.circle(canvas, (x, y), radius, color, thickness=-1)
@@ -19,18 +19,19 @@ import colorsys
 import math
 
 import numpy as np
+from PIL import Image, ImageDraw
+
+_FULL_ELLIPSE_RADIANS = np.deg2rad(np.arange(361))
+_FULL_ELLIPSE_COS = np.cos(_FULL_ELLIPSE_RADIANS)
+_FULL_ELLIPSE_SIN = np.sin(_FULL_ELLIPSE_RADIANS)
 
 
 class KeypointDraw:
     """
-    Pose keypoint drawing class that supports both numpy and cv2 backends.
+    Native pose keypoint drawing primitives and topology data.
     """
     def __init__(self):
-        try:
-            import cv2
-            self.draw = cv2
-        except ImportError:
-            self.draw = self
+        self.draw = self
 
         # Hand connections (same for both hands)
         self.hand_edges = [
@@ -80,68 +81,67 @@ class KeypointDraw:
         mask = (x - cx)**2 + (y - cy)**2 <= radius**2
         canvas_np[y_min:y_max, x_min:x_max][mask] = color
 
+    def circles(self, canvas_np, centers, radius, colors):
+        if not centers:
+            return
+        color_array = np.asarray(colors)
+        uniform_color = color_array.ndim == 1
+        centers = np.asarray(centers, dtype=np.int32)
+        h, w = canvas_np.shape[:2]
+        offset_x, offset_y = _disk_offsets(radius)
+        if uniform_color:
+            _draw_disk_points(canvas_np, centers, offset_x, offset_y, colors, h, w)
+        else:
+            chunk_size = max(1, 1_000_000 // len(offset_x))
+            for start in range(0, len(centers), chunk_size):
+                points = centers[start:start + chunk_size]
+                xx = points[:, 0, None] + offset_x
+                yy = points[:, 1, None] + offset_y
+                valid = (xx >= 0) & (xx < w) & (yy >= 0) & (yy < h)
+                color_values = np.broadcast_to(color_array[start:start + chunk_size, None, :], (*xx.shape, 3))
+                canvas_np[yy[valid], xx[valid]] = color_values[valid]
+
     @staticmethod
     def line(canvas_np, pt1, pt2, color, thickness=1, **kwargs):
         """Draw line using Bresenham's algorithm with NumPy operations."""
-        x0, y0, x1, y1 = *pt1, *pt2
         h, w = canvas_np.shape[:2]
-        dx, dy = abs(x1 - x0), abs(y1 - y0)
-        sx, sy = (1 if x0 < x1 else -1), (1 if y0 < y1 else -1)
-        err, x, y, line_points = dx - dy, x0, y0, []
-
-        while True:
-            line_points.append((x, y))
-            if x == x1 and y == y1:
-                break
-            e2 = 2 * err
-            if e2 > -dy:
-                err, x = err - dy, x + sx
-            if e2 < dx:
-                err, y = err + dx, y + sy
-
+        line_points = _line_points(pt1, pt2)
         if thickness > 1:
-            radius, radius_int = (thickness / 2.0) + 0.5, int(np.ceil((thickness / 2.0) + 0.5))
-            for px, py in line_points:
-                y_min, y_max, x_min, x_max = max(0, py - radius_int), min(h, py + radius_int + 1), max(0, px - radius_int), min(w, px + radius_int + 1)
-                if y_max > y_min and x_max > x_min:
-                    yy, xx = np.ogrid[y_min:y_max, x_min:x_max]
-                    canvas_np[y_min:y_max, x_min:x_max][(xx - px)**2 + (yy - py)**2 <= radius**2] = color
+            offset_x, offset_y = _disk_offsets((thickness / 2.0) + 0.5)
+            _draw_disk_points(canvas_np, line_points, offset_x, offset_y, color, h, w)
         else:
-            line_points = np.array(line_points)
             valid = (line_points[:, 1] >= 0) & (line_points[:, 1] < h) & (line_points[:, 0] >= 0) & (line_points[:, 0] < w)
             if (valid_points := line_points[valid]).size:
                 canvas_np[valid_points[:, 1], valid_points[:, 0]] = color
 
+    def lines(self, canvas_np, starts, ends, colors, thickness=1):
+        if not starts:
+            return
+        h, w = canvas_np.shape[:2]
+        if thickness > 1:
+            offset_x, offset_y = _disk_offsets((thickness / 2.0) + 0.5)
+            for pt1, pt2, color in zip(starts, ends, colors):
+                _draw_disk_points(canvas_np, _line_points(pt1, pt2), offset_x, offset_y, color, h, w)
+        else:
+            for pt1, pt2, color in zip(starts, ends, colors):
+                points = _line_points(pt1, pt2)
+                valid = (points[:, 1] >= 0) & (points[:, 1] < h) & (points[:, 0] >= 0) & (points[:, 0] < w)
+                if (valid_points := points[valid]).size:
+                    canvas_np[valid_points[:, 1], valid_points[:, 0]] = color
+
     @staticmethod
     def fillConvexPoly(canvas_np, pts, color, **kwargs):
         """Fill polygon using vectorized scanline algorithm."""
-        if len(pts) < 3:
+        region = _convex_poly_mask(pts, canvas_np.shape[0], canvas_np.shape[1])
+        if region is None:
             return
-        pts = np.array(pts, dtype=np.int32)
-        h, w = canvas_np.shape[:2]
-        y_min, y_max, x_min, x_max = max(0, pts[:, 1].min()), min(h, pts[:, 1].max() + 1), max(0, pts[:, 0].min()), min(w, pts[:, 0].max() + 1)
-        if y_max <= y_min or x_max <= x_min:
-            return
-        yy, xx = np.mgrid[y_min:y_max, x_min:x_max]
-        mask = np.zeros((y_max - y_min, x_max - x_min), dtype=bool)
-
-        for i in range(len(pts)):
-            p1, p2 = pts[i], pts[(i + 1) % len(pts)]
-            y1, y2 = p1[1], p2[1]
-            if y1 == y2:
-                continue
-            if y1 > y2:
-                p1, p2, y1, y2 = p2, p1, p2[1], p1[1]
-            if not (edge_mask := (yy >= y1) & (yy < y2)).any():
-                continue
-            mask ^= edge_mask & (xx >= p1[0] + (yy - y1) * (p2[0] - p1[0]) / (y2 - y1))
-
+        y_min, y_max, x_min, x_max, mask = region
         canvas_np[y_min:y_max, x_min:x_max][mask] = color
 
     @staticmethod
     def ellipse2Poly(center, axes, angle, arc_start, arc_end, delta=1, **kwargs):
-        """Python implementation of cv2.ellipse2Poly."""
-        axes = (axes[0] + 0.5, axes[1] + 0.5) # to better match cv2 output
+        """Build integer points along an ellipse arc."""
+        axes = (axes[0] + 0.5, axes[1] + 0.5)
         angle = angle % 360
         if arc_start > arc_end:
             arc_start, arc_end = arc_end, arc_start
@@ -152,21 +152,24 @@ class KeypointDraw:
         if arc_end - arc_start > 360:
             arc_start, arc_end = 0, 360
 
+        if arc_start == 0 and arc_end == 360 and delta == 1:
+            x = axes[0] * _FULL_ELLIPSE_COS
+            y = axes[1] * _FULL_ELLIPSE_SIN
+        else:
+            theta = np.deg2rad(np.minimum(np.arange(arc_start, arc_end + delta, delta), arc_end))
+            x = axes[0] * np.cos(theta)
+            y = axes[1] * np.sin(theta)
         angle_rad = math.radians(angle)
         alpha, beta = math.cos(angle_rad), math.sin(angle_rad)
-        pts = []
-        for i in range(arc_start, arc_end + delta, delta):
-            theta_rad = math.radians(min(i, arc_end))
-            x, y = axes[0] * math.cos(theta_rad), axes[1] * math.sin(theta_rad)
-            pts.append([int(round(center[0] + x * alpha - y * beta)), int(round(center[1] + x * beta + y * alpha))])
+        pts = np.rint(np.column_stack((
+            center[0] + x * alpha - y * beta,
+            center[1] + x * beta + y * alpha,
+        ))).astype(np.int32)
+        keep = np.ones(pts.shape[0], dtype=bool)
+        keep[1:] = np.any(pts[1:] != pts[:-1], axis=1)
+        pts = pts[keep]
 
-        unique_pts, prev_pt = [], (float('inf'), float('inf'))
-        for pt in pts:
-            if (pt_tuple := tuple(pt)) != prev_pt:
-                unique_pts.append(pt)
-                prev_pt = pt_tuple
-
-        return unique_pts if len(unique_pts) > 1 else [[center[0], center[1]], [center[0], center[1]]]
+        return pts.tolist() if len(pts) > 1 else [[center[0], center[1]], [center[0], center[1]]]
 
     def draw_wholebody_keypoints(self, canvas, keypoints, scores=None, threshold=0.3,
                                  draw_body=True, draw_head=True, draw_feet=True, draw_face=True, draw_hands=True,
@@ -213,6 +216,12 @@ class KeypointDraw:
         hand_dot_tuples = [tuple(int(c) for c in hdc_arr[i]) for i in range(21)]
 
         do_alpha = float(limb_alpha) < 1.0
+        backend = _PillowDraw(canvas, self)
+        ellipse2poly = backend.ellipse2Poly
+        fill_poly_alpha = backend.fillConvexPolyAlpha
+        fill_poly = backend.fillConvexPoly
+        draw_circles = backend.circles
+        draw_lines = backend.lines
 
         # Draw body limbs & head connections. body_limbSeq holds the full skeleton
         # with head edges trailing; draw_body / draw_head toggle each group while the
@@ -247,18 +256,19 @@ class KeypointDraw:
 
                 angle = math.degrees(math.atan2(X[0] - X[1], Y[0] - Y[1]))
 
-                polygon = self.draw.ellipse2Poly((int(mY), int(mX)), (int(length / 2), stick_width), int(angle), 0, 360, 1)
+                polygon = ellipse2poly((int(mY), int(mX)), (int(length / 2), stick_width), int(angle), 0, 360, 1)
 
                 color = self.colors[(i + color_offset) % len(self.colors)]
                 if do_alpha:
-                    _fill_poly_alpha(canvas, polygon, color, limb_alpha, self.draw)
+                    fill_poly_alpha(canvas, polygon, color, limb_alpha)
                 else:
-                    self.draw.fillConvexPoly(canvas, polygon, color)
+                    fill_poly(canvas, polygon, color)
 
         # Draw body & head keypoints
         if (draw_body or draw_head) and len(keypoints) >= 18:
             head_keypoints = {0, 14, 15, 16, 17} # nose, eyes, ears
             neck_point = 1
+            centers, point_colors = [], []
             for i in range(18):
                 if not draw_head and i in head_keypoints:
                     continue
@@ -268,20 +278,26 @@ class KeypointDraw:
                     continue
                 x, y = int(keypoints[i][0]), int(keypoints[i][1])
                 if 0 <= x < W and 0 <= y < H:
-                    self.draw.circle(canvas, (x, y), marker_radius, self.colors[i % len(self.colors)], thickness=-1)
+                    centers.append((x, y))
+                    point_colors.append(self.colors[i % len(self.colors)])
+            draw_circles(canvas, centers, marker_radius, point_colors)
 
         # Draw foot keypoints (18-23, 6 keypoints)
         if draw_feet and len(keypoints) >= 24:
+            centers, point_colors = [], []
             for i in range(18, 24):
                 if scores is not None and scores[i] < threshold:
                     continue
                 x, y = int(keypoints[i][0]), int(keypoints[i][1])
                 if 0 <= x < W and 0 <= y < H:
-                    self.draw.circle(canvas, (x, y), marker_radius, self.colors[i % len(self.colors)], thickness=-1)
+                    centers.append((x, y))
+                    point_colors.append(self.colors[i % len(self.colors)])
+            draw_circles(canvas, centers, marker_radius, point_colors)
 
         # Draw right hand (92-112)
         if draw_hands and len(keypoints) >= 113:
             eps = 0.01
+            starts, ends, line_colors = [], [], []
             for ie, edge in enumerate(self.hand_edges):
                 idx1, idx2 = 92 + edge[0], 92 + edge[1]
                 if scores is not None:
@@ -296,19 +312,26 @@ class KeypointDraw:
                         # HSV to RGB conversion for rainbow colors
                         r, g, b = colorsys.hsv_to_rgb(ie / float(len(self.hand_edges)), 1.0, 1.0)
                         color = (int(r * 255), int(g * 255), int(b * 255))
-                        self.draw.line(canvas, (x1, y1), (x2, y2), color, thickness=hand_stick_width)
+                        starts.append((x1, y1))
+                        ends.append((x2, y2))
+                        line_colors.append(color)
+            draw_lines(canvas, starts, ends, line_colors, thickness=hand_stick_width)
 
             # Draw right hand keypoints
+            centers, point_colors = [], []
             for i in range(92, 113):
                 if scores is not None and scores[i] < threshold:
                     continue
                 x, y = int(keypoints[i][0]), int(keypoints[i][1])
                 if x > eps and y > eps and 0 <= x < W and 0 <= y < H:
-                    self.draw.circle(canvas, (x, y), hand_marker_radius, hand_dot_tuples[i - 92], thickness=-1)
+                    centers.append((x, y))
+                    point_colors.append(hand_dot_tuples[i - 92])
+            draw_circles(canvas, centers, hand_marker_radius, point_colors)
 
         # Draw left hand (113-133)
         if draw_hands and len(keypoints) >= 134:
             eps = 0.01
+            starts, ends, line_colors = [], [], []
             for ie, edge in enumerate(self.hand_edges):
                 idx1, idx2 = 113 + edge[0], 113 + edge[1]
                 if scores is not None:
@@ -323,49 +346,155 @@ class KeypointDraw:
                         # HSV to RGB conversion for rainbow colors
                         r, g, b = colorsys.hsv_to_rgb(ie / float(len(self.hand_edges)), 1.0, 1.0)
                         color = (int(r * 255), int(g * 255), int(b * 255))
-                        self.draw.line(canvas, (x1, y1), (x2, y2), color, thickness=hand_stick_width)
+                        starts.append((x1, y1))
+                        ends.append((x2, y2))
+                        line_colors.append(color)
+            draw_lines(canvas, starts, ends, line_colors, thickness=hand_stick_width)
 
             # Draw left hand keypoints
+            centers, point_colors = [], []
             for i in range(113, 134):
                 if scores is not None and i < len(scores) and scores[i] < threshold:
                     continue
                 x, y = int(keypoints[i][0]), int(keypoints[i][1])
                 if x > eps and y > eps and 0 <= x < W and 0 <= y < H:
-                    self.draw.circle(canvas, (x, y), hand_marker_radius, hand_dot_tuples[i - 113], thickness=-1)
+                    centers.append((x, y))
+                    point_colors.append(hand_dot_tuples[i - 113])
+            draw_circles(canvas, centers, hand_marker_radius, point_colors)
 
         # Draw face keypoints (24-91) - white dots only, no lines
         if draw_face and len(keypoints) >= 92:
             eps = 0.01
+            centers = []
             for i in range(24, 92):
                 if scores is not None and scores[i] < threshold:
                     continue
                 x, y = int(keypoints[i][0]), int(keypoints[i][1])
                 if x > eps and y > eps and 0 <= x < W and 0 <= y < H:
-                    self.draw.circle(canvas, (x, y), face_point_size, (255, 255, 255), thickness=-1)
+                    centers.append((x, y))
+            draw_circles(canvas, centers, face_point_size, (255, 255, 255))
+
+        backend.finish(canvas)
 
         return canvas
 
 
-def _fill_poly_alpha(canvas, polygon, color, alpha, draw_backend):
-    """Bbox-clipped alpha-blended fillConvexPoly. `canvas` is mutated in-place.
+class _PillowDraw:
+    def __init__(self, canvas, native_draw):
+        self.canvas = canvas
+        self.native_draw = native_draw
+        self.polygons = []
 
-    DWPose semantics: each limb blends with `alpha` independently so overlapping
-    limbs darken further. Operates on the polygon's bbox to avoid copying the
-    whole canvas per limb.
-    """
-    H, W = canvas.shape[:2]
-    poly_arr = np.asarray(polygon, dtype=np.int32)
-    x0 = max(0, int(poly_arr[:, 0].min()))
-    xN = min(W, int(poly_arr[:, 0].max()) + 1)
-    y0 = max(0, int(poly_arr[:, 1].min()))
-    yN = min(H, int(poly_arr[:, 1].max()) + 1)
-    if xN <= x0 or yN <= y0:
-        return
-    local_poly = poly_arr - np.array([x0, y0], dtype=poly_arr.dtype)
-    roi = canvas[y0:yN, x0:xN].copy()
-    draw_backend.fillConvexPoly(roi, local_poly, color)
-    a = float(alpha)
-    canvas[y0:yN, x0:xN] = np.clip(
-        roi.astype(np.float32) * a + canvas[y0:yN, x0:xN].astype(np.float32) * (1.0 - a),
-        0, 255,
-    ).astype(np.uint8)
+    def _flush(self):
+        if not self.polygons:
+            return
+        points = np.concatenate([polygon for polygon, _, _ in self.polygons])
+        h, w = self.canvas.shape[:2]
+        y_min, y_max = max(0, int(points[:, 1].min())), min(h, int(points[:, 1].max()) + 1)
+        x_min, x_max = max(0, int(points[:, 0].min())), min(w, int(points[:, 0].max()) + 1)
+        if y_max > y_min and x_max > x_min:
+            roi = self.canvas[y_min:y_max, x_min:x_max]
+            image = Image.fromarray(roi)
+            draw = ImageDraw.Draw(image, "RGBA")
+            offset = np.array([x_min, y_min], dtype=np.int32)
+            for polygon, color, alpha in self.polygons:
+                fill = tuple(color) if alpha is None else (*color, int(round(alpha * 255.0)))
+                draw.polygon((polygon - offset).reshape(-1).tolist(), fill=fill)
+            roi[:] = np.asarray(image)
+        self.polygons.clear()
+
+    @staticmethod
+    def ellipse2Poly(center, axes, angle, arc_start, arc_end, delta=1, **kwargs):
+        return KeypointDraw.ellipse2Poly(center, axes, angle, arc_start, arc_end, max(delta, 4), **kwargs)
+
+    def fillConvexPolyAlpha(self, canvas, polygon, color, alpha):
+        self.polygons.append((np.asarray(polygon, dtype=np.int32), tuple(color), float(alpha)))
+
+    def fillConvexPoly(self, canvas, polygon, color):
+        self.polygons.append((np.asarray(polygon, dtype=np.int32), tuple(color), None))
+
+    def circles(self, canvas, centers, radius, colors):
+        self._flush()
+        self.native_draw.circles(canvas, centers, radius, colors)
+
+    def lines(self, canvas, starts, ends, colors, thickness=1):
+        self._flush()
+        self.native_draw.lines(canvas, starts, ends, colors, thickness)
+
+    def finish(self, canvas):
+        self._flush()
+
+
+def _disk_offsets(radius):
+    radius_int = int(np.ceil(radius))
+    offset_y, offset_x = np.mgrid[-radius_int:radius_int + 1, -radius_int:radius_int + 1]
+    disk = offset_x * offset_x + offset_y * offset_y <= radius * radius
+    return offset_x[disk], offset_y[disk]
+
+
+def _draw_disk_points(canvas, points, offset_x, offset_y, color, h, w):
+    chunk_size = max(1, 1_000_000 // len(offset_x))
+    for start in range(0, len(points), chunk_size):
+        chunk = points[start:start + chunk_size]
+        xx = chunk[:, 0, None] + offset_x
+        yy = chunk[:, 1, None] + offset_y
+        valid = (xx >= 0) & (xx < w) & (yy >= 0) & (yy < h)
+        canvas[yy[valid], xx[valid]] = color
+
+
+def _line_points(pt1, pt2):
+    x0, y0, x1, y1 = *pt1, *pt2
+    dx, dy = abs(x1 - x0), abs(y1 - y0)
+    sx, sy = (1 if x0 < x1 else -1), (1 if y0 < y1 else -1)
+    err, x, y, points = dx - dy, x0, y0, []
+    while True:
+        points.append((x, y))
+        if x == x1 and y == y1:
+            break
+        e2 = 2 * err
+        if e2 > -dy:
+            err, x = err - dy, x + sx
+        if e2 < dx:
+            err, y = err + dx, y + sy
+    return np.asarray(points, dtype=np.int32)
+
+
+def _convex_poly_mask(pts, h, w):
+    if len(pts) < 3:
+        return None
+    pts = np.asarray(pts, dtype=np.int32)
+    y_min, y_max = max(0, pts[:, 1].min()), min(h, pts[:, 1].max() + 1)
+    x_min, x_max = max(0, pts[:, 0].min()), min(w, pts[:, 0].max() + 1)
+    if y_max <= y_min or x_max <= x_min:
+        return None
+
+    p1 = pts
+    p2 = np.roll(pts, -1, axis=0)
+    nonhorizontal = p1[:, 1] != p2[:, 1]
+    if not nonhorizontal.any():
+        return None
+    p1 = p1[nonhorizontal]
+    p2 = p2[nonhorizontal]
+    swap = p1[:, 1] > p2[:, 1]
+    lower = np.where(swap[:, None], p2, p1)
+    upper = np.where(swap[:, None], p1, p2)
+
+    starts = np.maximum(lower[:, 1], y_min)
+    ends = np.minimum(upper[:, 1], y_max)
+    counts = np.maximum(ends - starts, 0)
+    keep = counts > 0
+    lower = lower[keep]
+    upper = upper[keep]
+    starts = starts[keep]
+    counts = counts[keep]
+    edge_idx = np.repeat(np.arange(len(counts)), counts)
+    block_starts = np.repeat(np.cumsum(counts) - counts, counts)
+    yy = np.repeat(starts, counts) + np.arange(counts.sum()) - block_starts
+    intersections = lower[edge_idx, 0] + (yy - lower[edge_idx, 1]) * (upper[edge_idx, 0] - lower[edge_idx, 0]) / (upper[edge_idx, 1] - lower[edge_idx, 1])
+    rows = yy - y_min
+    left = np.full(y_max - y_min, np.inf)
+    right = np.full(y_max - y_min, -np.inf)
+    np.minimum.at(left, rows, intersections)
+    np.maximum.at(right, rows, intersections)
+    xx = np.arange(x_min, x_max, dtype=np.int32)[None, :]
+    return y_min, y_max, x_min, x_max, (xx >= left[:, None]) & (xx < right[:, None])

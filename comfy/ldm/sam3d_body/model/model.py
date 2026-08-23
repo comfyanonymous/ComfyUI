@@ -45,9 +45,6 @@ class SAM3DBody(nn.Module):
         self.register_buffer("image_std", torch.tensor(IMAGE_STD).view(-1, 1, 1), False)
 
         self.image_size = IMAGE_SIZE
-        # Populated by the loader once weights are in place.
-        self.canonical_colors = None
-        self.hand_vert_mask = None
         self.backbone = DINOv3ViTModel(DINOV3_VITH_CONFIG, dtype=dtype, device=device, operations=operations, use_mask_token=False)
         embed_dims = self.backbone.embed_dims
 
@@ -64,21 +61,9 @@ class SAM3DBody(nn.Module):
             device=device, dtype=dtype, operations=operations,
         )
         self.head_pose = MHRHead(**head_kwargs)
-        self.head_pose.register_buffer(
-            "hand_pose_comps_ori", self.head_pose.hand_pose_comps.clone(), persistent=False
-        )
-        self.head_pose.hand_pose_comps.data = (
-            torch.eye(54).to(self.head_pose.hand_pose_comps.data).float()
-        )
         self.init_pose = operations.Embedding(1, self.head_pose.npose, device=device, dtype=dtype)
 
         self.head_pose_hand = MHRHead(enable_hand_model=True, **head_kwargs)
-        self.head_pose_hand.register_buffer(
-            "hand_pose_comps_ori", self.head_pose_hand.hand_pose_comps.clone(), persistent=False
-        )
-        self.head_pose_hand.hand_pose_comps.data = (
-            torch.eye(54).to(self.head_pose_hand.hand_pose_comps.data).float()
-        )
         self.init_pose_hand = operations.Embedding(
             1, self.head_pose_hand.npose, device=device, dtype=dtype
         )
@@ -170,12 +155,16 @@ class SAM3DBody(nn.Module):
             detector_variant="both", # short+full, picks whichever found more faces per frame.
         )
 
+    @staticmethod
+    def memory_used_forward(crops: int, with_hand_refinement: bool) -> int:
+        # CUDA reserved-memory calibration at 512px; the 64-crop hand path keeps about 6% headroom.
+        per_crop = 200 if with_hand_refinement else 112
+        return (384 + max(1, int(crops)) * per_crop) * 1024 ** 2
+
     def data_preprocess(self, inputs: torch.Tensor) -> torch.Tensor:
-        if inputs.max() > 1 and self.image_mean.max() <= 1.0:
-            inputs = inputs / 255.0
-        elif inputs.max() <= 1.0 and self.image_mean.max() > 1:
-            inputs = inputs * 255.0
-        return (inputs - self.image_mean) / self.image_std
+        image_mean = cast_to_input(self.image_mean, inputs, copy=False)
+        image_std = cast_to_input(self.image_std, inputs, copy=False)
+        return (inputs - image_mean) / image_std
 
     def _initialize_batch(self, batch: Dict) -> None:
         if batch["img"].dim() == 5:
@@ -272,7 +261,7 @@ class SAM3DBody(nn.Module):
         l_centers, l_scales, l_mats = _meta(left_xyxy)
         r_centers, r_scales, r_mats = _meta(right_xyxy)
 
-        src_t = src_t.to(device, non_blocking=True).permute(0, 3, 1, 2).float()
+        src_t = src_t.to(device=device, dtype=torch.float32, non_blocking=True).permute(0, 3, 1, 2)
 
         warped_l = warp_affine_batched(torch.flip(src_t, dims=[3]), l_mats, (H_out, W_out))
         warped_r = warp_affine_batched(src_t, r_mats, (H_out, W_out))
@@ -285,16 +274,16 @@ class SAM3DBody(nn.Module):
         zero_mask_score = torch.zeros((n,), dtype=torch.float32, device=device)
         person_valid = torch.ones((1, n), dtype=torch.float32, device=device)
         img_size = torch.tensor([W_out, H_out], dtype=torch.float32, device=device).expand(n, 2).contiguous()
-        cam_int_dev = cam_int.to(device).to(dtype=torch.float32)
+        cam_int_dev = cam_int.to(device=device, dtype=torch.float32)
 
         def _build(centers_t, scales_t, mats_t, img_t, boxes_xyxy):
             return {
                 "img": img_t.unsqueeze(0),  # (1, N, 3, H_out, W_out)
                 "img_size": img_size.unsqueeze(0),
-                "bbox_center": centers_t.to(device).unsqueeze(0),
-                "bbox_scale": scales_t.to(device).unsqueeze(0),
-                "bbox": torch.as_tensor(boxes_xyxy, dtype=torch.float32).to(device).unsqueeze(0),
-                "affine_trans": mats_t.to(device).unsqueeze(0),
+                "bbox_center": centers_t.unsqueeze(0),
+                "bbox_scale": scales_t.unsqueeze(0),
+                "bbox": torch.as_tensor(boxes_xyxy, dtype=torch.float32, device=device).unsqueeze(0),
+                "affine_trans": mats_t.unsqueeze(0),
                 "mask": zero_mask.unsqueeze(0),  # (1, N, 1, H_out, W_out)
                 "mask_score": zero_mask_score.unsqueeze(0),  # (1, N)
                 "person_valid": person_valid,  # (1, N) shared OK
@@ -404,7 +393,7 @@ class SAM3DBody(nn.Module):
             prev_embeddings = prev_to_token(prev_estimate).view(batch_size, 1, -1)
 
             # PE generated in fp32; cast back to decoder dtype.
-            image_augment = image_augment_fn(image_embeddings.shape[-2:]).to(image_embeddings.dtype)
+            image_augment = image_augment_fn(image_embeddings.shape[-2:]).to(image_embeddings)
 
             # ray_cond is fp32 from get_ray_condition; cast so CameraEncoder's
             # internal cat doesn't silently promote everything back to fp32.
@@ -551,13 +540,13 @@ class SAM3DBody(nn.Module):
 
     def get_ray_condition(self, batch):
         B, N, _, H, W = batch["img"].shape
-        meshgrid_xy = (
-            torch.stack(
-                torch.meshgrid(torch.arange(H), torch.arange(W), indexing="xy"), dim=2
-            )[None, None, :, :, :]
-            .repeat(B, N, 1, 1, 1)
-            .to(batch["affine_trans"].device)
-        )  # B x N x H x W x 2
+        affine = batch["affine_trans"]
+        xs, ys = torch.meshgrid(
+            torch.arange(W, device=affine.device, dtype=affine.dtype),
+            torch.arange(H, device=affine.device, dtype=affine.dtype),
+            indexing="xy",
+        )
+        meshgrid_xy = torch.stack([xs, ys], dim=-1)[None, None].expand(B, N, -1, -1, -1)
         meshgrid_xy = (
             meshgrid_xy / batch["affine_trans"][:, :, None, None, [0, 1], [0, 1]]
         )
@@ -604,7 +593,9 @@ class SAM3DBody(nn.Module):
         condition_info = self._get_decoder_condition(batch).type(image_embeddings.dtype)
 
         # Seed prompt: all-invalid keypoints (label = -2).
-        keypoints_prompt = torch.zeros((batch_size * num_person, 1, 3)).to(batch["img"])
+        keypoints_prompt = torch.zeros(
+            (batch_size * num_person, 1, 3), dtype=batch["img"].dtype, device=batch["img"].device,
+        )
         keypoints_prompt[:, :, -1] = -2
 
         pose_output, pose_output_hand = None, None
@@ -658,6 +649,7 @@ class SAM3DBody(nn.Module):
         """3DB inference. inference_type: 'full' (body + hand-refined),
         'body' (body decoder only), 'hand' (hand decoder only)."""
 
+        self._initialize_batch(batch)
         is_multi_image = isinstance(img, list)
         ref_img = img[0] if is_multi_image else img
         height, width = ref_img.shape[:2]
@@ -722,11 +714,10 @@ class SAM3DBody(nn.Module):
         # 3. Validity criteria for replacing body-decoder hand pose.
         # (a) local wrist pose difference: hand vs body wrist rotations
         joint_rotations = pose_output["mhr"]["joint_global_rots"]
-        _dev = joint_rotations.device
-        lowarm_joint_idxs = torch.LongTensor([76, 40]).to(_dev)  # left, right
-        lowarm_joint_rotations = joint_rotations[:, lowarm_joint_idxs]
-        wrist_twist_joint_idxs = torch.LongTensor([77, 41]).to(_dev)
-        wrist_zero_rot_pose = lowarm_joint_rotations @ self.head_pose.joint_rotation[wrist_twist_joint_idxs]
+        lowarm_joint_rotations = joint_rotations[:, [76, 40]]
+        wrist_zero_rot_pose = lowarm_joint_rotations @ cast_to_input(
+            self.head_pose.joint_rotation[[77, 41]], lowarm_joint_rotations, copy=False,
+        )
         pred_global_wrist_rotmat = torch.stack(
             [lhand_output["mhr_hand"]["joint_global_rots"][:, 78],
              rhand_output["mhr_hand"]["joint_global_rots"][:, 42]],
@@ -811,7 +802,7 @@ class SAM3DBody(nn.Module):
                 | (keypoint_prompt[..., 1] > 0.5)
                 | (~hand_valid_mask[..., [1, 0, 1, 0]])
             ).unsqueeze(-1)
-            dummy_prompt = torch.zeros((1, 1, 3)).to(keypoint_prompt)
+            dummy_prompt = torch.zeros((1, 1, 3), dtype=keypoint_prompt.dtype, device=keypoint_prompt.device)
             dummy_prompt[:, :, -1] = -2
             # Shift [-0.5, 0.5] → [0, 1] for the prompt encoder.
             keypoint_prompt[:, :, :2] = torch.clamp(keypoint_prompt[:, :, :2] + 0.5, 0.0, 1.0)
@@ -860,14 +851,12 @@ class SAM3DBody(nn.Module):
             expr_params=pose_output["mhr"]["face"],
             return_joint_rotations=True,
         )[1]
-        _dev = joint_rotations.device
-        lowarm_joint_idxs = torch.LongTensor([76, 40]).to(_dev)
-        lowarm_joint_rotations = joint_rotations[:, lowarm_joint_idxs]
+        lowarm_joint_rotations = joint_rotations[:, [76, 40]]
         # joint_rotation is a static buffer at head dtype; cast to MHR's fp32
         # to keep the rotation matmul in fp32.
-        wrist_twist_joint_idxs = torch.LongTensor([77, 41]).to(_dev)
-        wrist_zero_rot_pose = lowarm_joint_rotations @ \
-            self.head_pose.joint_rotation[wrist_twist_joint_idxs].to(joint_rotations.dtype)
+        wrist_zero_rot_pose = lowarm_joint_rotations @ cast_to_input(
+            self.head_pose.joint_rotation[[77, 41]], joint_rotations, copy=False,
+        )
         pred_global_wrist_rotmat = torch.stack(
             [lhand_output["mhr_hand"]["joint_global_rots"][:, 78],
              rhand_output["mhr_hand"]["joint_global_rots"][:, 42]],
@@ -968,7 +957,7 @@ class SAM3DBody(nn.Module):
             proj[:, :, [0, 1]] = proj[:, :, [0, 1]] * pose_output["mhr"]["focal_length"][:, None, None]
             proj[:, :, [0, 1]] = (
                 proj[:, :, [0, 1]]
-                + torch.FloatTensor([width / 2, height / 2]).to(proj)[None, None, :]
+                + proj.new_tensor([width / 2, height / 2])[None, None, :]
                 * proj[:, :, [2]]
             )
             proj[:, :, :2] = proj[:, :, :2] / proj[:, :, [2]]

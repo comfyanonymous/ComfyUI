@@ -2,9 +2,10 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
+from comfy.ops import cast_to_input
 
 from ..utils import euler_to_rotmat, rot6d_to_rotmat, rotmat_to_euler, unitquat_to_rotmat
-from .mhr_utils import compact_cont_to_model_params_body, compact_cont_to_model_params_hand, mhr_param_hand_mask
+from .mhr_utils import compact_cont_to_model_params_body, compact_cont_to_model_params_hand, mhr_param_hand_idxs
 
 from ..model.transformer import MLP
 
@@ -47,24 +48,24 @@ class MHRHead(nn.Module):
 
         # Buffers populated by load_state_dict from the safetensors
         def _p(*shape, dtype=torch.float32):
-            return nn.Parameter(torch.empty(*shape, dtype=dtype), requires_grad=False)
+            return nn.Parameter(torch.empty(*shape, dtype=dtype, device=device), requires_grad=False)
         self.joint_rotation = _p(127, 3, 3)
         self.scale_mean = _p(68)
         self.scale_comps = _p(28, 68)
-        self.register_buffer("faces", torch.empty(36874, 3, dtype=torch.int64))
+        self.register_buffer("faces", torch.empty(36874, 3, dtype=torch.int64, device=device))
         self._faces_np = None
         self.hand_pose_mean = _p(54)
-        self.hand_pose_comps = nn.Parameter(torch.eye(54), requires_grad=False)
-        self.register_buffer("hand_joint_idxs_left", torch.empty(27, dtype=torch.int64))
-        self.register_buffer("hand_joint_idxs_right", torch.empty(27, dtype=torch.int64))
+        self.hand_pose_comps = _p(54, 54)
+        self.register_buffer("hand_joint_idxs_left", torch.empty(27, dtype=torch.int64, device=device))
+        self.register_buffer("hand_joint_idxs_right", torch.empty(27, dtype=torch.int64, device=device))
         self.keypoint_mapping = _p(308, 18439 + 127)
         # Some special buffers for the hand-version
         self.right_wrist_coords = _p(3)
         self.root_coords = _p(3)
         self.local_to_world_wrist = _p(3, 3)
-        self.register_buffer("nonhand_param_idxs", torch.empty(145, dtype=torch.int64))
-        # Hand-painted per-vertex face region RGB (rainbow_face_semantic shader).
-        self.register_buffer("face_region_rgb", torch.zeros(18439, 3, dtype=torch.float32))
+        self.register_buffer("nonhand_param_idxs", torch.empty(145, dtype=torch.int64, device=device))
+        if not enable_hand_model:
+            self.register_buffer("face_region_rgb", torch.empty(18439, 3, dtype=torch.float32, device=device))
 
     def canonical_vertices(self):
         """Return the T-pose vertices for the mean shape (scaled to meters).
@@ -113,17 +114,17 @@ class MHRHead(nn.Module):
 
         # Change from cont to model params
         left_hand_params_model_params = compact_cont_to_model_params_hand(
-            self.hand_pose_mean
-            + torch.einsum("da,ab->db", left_hand_params, self.hand_pose_comps)
+            cast_to_input(self.hand_pose_mean, left_hand_params, copy=False)
+            + torch.einsum("da,ab->db", left_hand_params, cast_to_input(self.hand_pose_comps, left_hand_params, copy=False))
         )
         right_hand_params_model_params = compact_cont_to_model_params_hand(
-            self.hand_pose_mean
-            + torch.einsum("da,ab->db", right_hand_params, self.hand_pose_comps)
+            cast_to_input(self.hand_pose_mean, right_hand_params, copy=False)
+            + torch.einsum("da,ab->db", right_hand_params, cast_to_input(self.hand_pose_comps, right_hand_params, copy=False))
         )
 
         # Drop it in
-        full_pose_params[:, self.hand_joint_idxs_left] = left_hand_params_model_params
-        full_pose_params[:, self.hand_joint_idxs_right] = right_hand_params_model_params
+        full_pose_params[:, self.hand_joint_idxs_left.to(full_pose_params.device)] = left_hand_params_model_params
+        full_pose_params[:, self.hand_joint_idxs_right.to(full_pose_params.device)] = right_hand_params_model_params
 
         return full_pose_params  # B x 207
 
@@ -159,13 +160,15 @@ class MHRHead(nn.Module):
             global_trans_ori = global_trans.clone()
             global_rot = rotmat_to_euler(
                 "xyz",
-                euler_to_rotmat("xyz", global_rot_ori) @ self.local_to_world_wrist,
+                euler_to_rotmat("xyz", global_rot_ori) @ cast_to_input(self.local_to_world_wrist, global_rot_ori, copy=False),
             )
+            right_wrist_coords = cast_to_input(self.right_wrist_coords, global_rot, copy=False)
+            root_coords = cast_to_input(self.root_coords, global_rot, copy=False)
             global_trans = (
                 -(
                     euler_to_rotmat("xyz", global_rot)
-                    @ (self.right_wrist_coords - self.root_coords)
-                    + self.root_coords
+                    @ (right_wrist_coords - root_coords)
+                    + root_coords
                 )
                 + global_trans_ori
             )
@@ -180,7 +183,9 @@ class MHRHead(nn.Module):
         if len(shape_params.shape) == 1:
             shape_params = shape_params[None]
         # Convert scale...
-        scales = self.scale_mean[None, :] + scale_params @ self.scale_comps
+        scale_mean = cast_to_input(self.scale_mean, scale_params, copy=False)
+        scale_comps = cast_to_input(self.scale_comps, scale_params, copy=False)
+        scales = scale_mean[None, :] + scale_params @ scale_comps
 
         # Now, figure out the pose.
         ## 10 here is because it's more stable to optimize global translation in meters.
@@ -194,7 +199,7 @@ class MHRHead(nn.Module):
 
         if self.enable_hand_model:
             # Zero out non-hand parameters
-            model_params[:, self.nonhand_param_idxs] = 0
+            model_params[:, self.nonhand_param_idxs.to(model_params.device)] = 0
 
         curr_skinned_verts, curr_skel_state = self.mhr(
             shape_params, model_params, expr_params
@@ -214,7 +219,7 @@ class MHRHead(nn.Module):
                 [curr_skinned_verts, curr_joint_coords], dim=1
             )  # B x (num_verts + 127) x 3
 
-            kp_map = self.keypoint_mapping.to(model_vert_joints.dtype)
+            kp_map = cast_to_input(self.keypoint_mapping, model_vert_joints, copy=False)
             model_keypoints_pred = (
                 (kp_map @ model_vert_joints.permute(1, 0, 2).flatten(1, 2))
                 .reshape(-1, model_vert_joints.shape[0], 3)
@@ -272,7 +277,7 @@ class MHRHead(nn.Module):
         ### Convert to eulers (and trans)
         pred_pose_euler = compact_cont_to_model_params_body(pred_pose_cont)
         ### Zero-out hands
-        pred_pose_euler[:, mhr_param_hand_mask] = 0
+        pred_pose_euler[:, mhr_param_hand_idxs] = 0
         ### Zero-out jaw
         pred_pose_euler[:, -3:] = 0
 

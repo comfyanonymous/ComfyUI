@@ -572,8 +572,14 @@ class FaceLandmarker(nn.Module):
         self.register_buffer("_bs_idx", torch.tensor(_BS_INPUT_INDICES, dtype=torch.long), persistent=False)
 
     def _detector(self, variant: str) -> nn.Module:
+        if variant not in ("short", "full"):
+            raise ValueError(f"Unknown face detector variant: {variant!r}")
         if self.detector_variant == "both":
             return self.detector_full if variant == "full" else self.detector
+        if variant != self.detector_variant:
+            raise ValueError(
+                f"FaceLandmarker was initialized with the {self.detector_variant!r} detector, not {variant!r}"
+            )
         return self.detector
 
     def run_detector_batch(self, images_rgb_uint8: List[np.ndarray],
@@ -625,24 +631,37 @@ class FaceLandmarker(nn.Module):
         On 'both'-mode instances `variant=None` runs both detectors and keeps
         whichever found more faces per frame (tie → short).
         """
+        def normalize_detections(sub_rects, sizes, detections):
+            # tensor-normalized → image-normalized [0,1] for _detection_to_face_rect.
+            for b, decoded in enumerate(detections):
+                if decoded.shape[0] == 0:
+                    continue
+                cx, cy, size = sub_rects[b]
+                H, W = sizes[b]
+                sx0, sy0 = cx - size * 0.5, cy - size * 0.5
+                decoded[:, 0:16:2] = (sx0 + size * decoded[:, 0:16:2]) / W
+                decoded[:, 1:16:2] = (sy0 + size * decoded[:, 1:16:2]) / H
+                if num_faces > 0:
+                    detections[b] = decoded[: int(num_faces)]
+
         if variant is None and self.detector_variant == "both":
-            s = self.detect_batch(images_rgb_uint8, num_faces=num_faces, score_thresh=score_thresh, variant="short")
-            f = self.detect_batch(images_rgb_uint8, num_faces=num_faces, score_thresh=score_thresh, variant="full")
-            return [s[b] if len(s[b]) >= len(f[b]) else f[b] for b in range(len(images_rgb_uint8))]
-        img_raws, sub_rects, sizes, per_frame_dets = self.run_detector_batch(
-            images_rgb_uint8, score_thresh=score_thresh, variant=variant,
-        )
-        # tensor-normalized → image-normalized [0,1] for _detection_to_face_rect.
-        for b, decoded in enumerate(per_frame_dets):
-            if decoded.shape[0] == 0:
-                continue
-            cx, cy, size = sub_rects[b]
-            H, W = sizes[b]
-            sx0, sy0 = cx - size * 0.5, cy - size * 0.5
-            decoded[:, 0:16:2] = (sx0 + size * decoded[:, 0:16:2]) / W
-            decoded[:, 1:16:2] = (sy0 + size * decoded[:, 1:16:2]) / H
-            if num_faces > 0:
-                per_frame_dets[b] = decoded[: int(num_faces)]
+            img_raws, short_rects, sizes, short_dets = self.run_detector_batch(
+                images_rgb_uint8, score_thresh=score_thresh, variant="short",
+            )
+            _, full_rects, full_sizes, full_dets = self.run_detector_batch(
+                images_rgb_uint8, score_thresh=score_thresh, variant="full",
+            )
+            normalize_detections(short_rects, sizes, short_dets)
+            normalize_detections(full_rects, full_sizes, full_dets)
+            per_frame_dets = [
+                short if len(short) >= len(full) else full
+                for short, full in zip(short_dets, full_dets)
+            ]
+        else:
+            img_raws, sub_rects, sizes, per_frame_dets = self.run_detector_batch(
+                images_rgb_uint8, score_thresh=score_thresh, variant=variant,
+            )
+            normalize_detections(sub_rects, sizes, per_frame_dets)
 
         # Collect every detected face across all frames into one mesh input.
         face_params: List[Tuple[int, float, float, float, float, float, float]] = []

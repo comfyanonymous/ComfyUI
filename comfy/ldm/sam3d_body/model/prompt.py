@@ -40,7 +40,6 @@ class PromptEncoder(nn.Module):
         )
         self.not_a_point_embed = operations.Embedding(1, embed_dim, device=device, dtype=dtype)
         self.invalid_point_embed = operations.Embedding(1, embed_dim, device=device, dtype=dtype)
-        self._joint_w_cache = None
 
         # Mask prompt: 5-stage 2x2 strided conv downscaling to embed_dim.
         LN2d = LayerNorm2d_op(operations)
@@ -80,7 +79,7 @@ class PromptEncoder(nn.Module):
         point_embedding = self.pe_layer._encode(points.to(torch.float)).to(weight_dtype)
 
         # One gather over the stacked joint table.
-        joint_w = self._joint_embed_weights(point_embedding)
+        joint_w = cast_to_input(torch.cat([e.weight for e in self.point_embeddings], dim=0), point_embedding, copy=False)
         idx = labels.long().clamp(0, self.num_body_joints - 1)
         is_joint = ((labels >= 0) & (labels < self.num_body_joints)).unsqueeze(-1)
         point_embedding = point_embedding + joint_w[idx] * is_joint.to(point_embedding.dtype)
@@ -93,15 +92,6 @@ class PromptEncoder(nn.Module):
 
         point_mask = labels > -2
         return point_embedding, point_mask
-
-    def _joint_embed_weights(self, ref: torch.Tensor) -> torch.Tensor:
-        """(num_body_joints, C) stack of the per-joint embeddings, cached per device/dtype."""
-        cached = self._joint_w_cache
-        if cached is not None and cached.device == ref.device and cached.dtype == ref.dtype:
-            return cached
-        w = cast_to_input(torch.cat([e.weight for e in self.point_embeddings], dim=0), ref, copy=False)
-        self._joint_w_cache = w
-        return w
 
     def _get_batch_size(self, keypoints: Optional[torch.Tensor], boxes: Optional[torch.Tensor], masks: Optional[torch.Tensor]) -> int:
         if keypoints is not None:

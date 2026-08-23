@@ -402,8 +402,6 @@ def regenerate_mesh_from_params(inner, pose_frames: List[List[Dict[str, Any]]]) 
     pred_pose_raw."""
     device = comfy.model_management.get_torch_device()
     head = inner.head_pose
-    if head.mhr is None:
-        return
 
     B = len(pose_frames)
     max_p = max((len(f) for f in pose_frames), default=0)

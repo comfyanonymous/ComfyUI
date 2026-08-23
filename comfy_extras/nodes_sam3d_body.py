@@ -1,6 +1,7 @@
 """SAM 3D Body — Predict + Smooth nodes and their inference helpers."""
 
 import logging
+from io import BytesIO
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -9,8 +10,10 @@ from tqdm import tqdm
 from scipy.signal import savgol_coeffs
 
 import comfy.model_management
+import comfy.model_patcher
+import comfy.ops
 import comfy.utils
-from comfy_api.latest import io, ComfyExtension
+from comfy_api.latest import io, ComfyExtension, Types
 from typing_extensions import override
 import folder_paths
 
@@ -20,7 +23,6 @@ from comfy_extras.sam3d_body.utils import (
         cam_int_from_fov,
         inputs_from_sam3_track,
         run_batched_frames,
-        run_batched_single_chunk,
         compute_canonical_colors,
         compute_hand_vert_mask,
     )
@@ -28,6 +30,9 @@ from comfy_extras.sam3d_body.utils import (
 from comfy_extras.sam3d_body.rasterizer import render_pose_data_torch as render_pose_data
 from comfy_extras.sam3d_body.export.capsules import render_pose_data_capsules
 from comfy_extras.sam3d_body.export.openpose_2d import render_pose_data_openpose
+from comfy_extras.sam3d_body.export.bvh import build_bvh
+from comfy_extras.sam3d_body.export.glb_openpose import build_glb_openpose
+from comfy_extras.sam3d_body.export.glb_skeletal import build_glb_skeletal
 from comfy_extras.sam3d_body import face_expression as fx
 from comfy_extras.sam3d_body.utils import image_to_uint8
 
@@ -81,13 +86,10 @@ class SAM3DBody_Loader(io.ComfyNode):
         sd.pop("hand_cls_embed.weight", None)
         sd.pop("hand_cls_embed.bias", None)
         missing, unexpected = model.load_state_dict(sd, strict=False)
-        missing = set(missing) - {"head_pose_hand.face_region_rgb"}
         if missing or unexpected:
             raise RuntimeError(f"SAM3D-Body checkpoint key mismatch: missing={sorted(missing)}, unexpected={sorted(unexpected)}")
 
         model.backbone_dtype = torch_dtype
-        model.canonical_colors = compute_canonical_colors(model)
-        model.hand_vert_mask = compute_hand_vert_mask(model)
 
         patcher = comfy.model_patcher.CoreModelPatcher(
             model,
@@ -158,7 +160,7 @@ class SAM3DBody_Predict(io.ComfyNode):
                     "batch_size",
                     default=64, min=1, max=512, step=1, advanced=True,
                     tooltip=(
-                        "Max frames to process as a batch. Larger values utilize more VRAM for faster inference."
+                        "Max person crops to process as a batch. Larger values use more VRAM for faster inference."
                     ),
                 ),
             ],
@@ -167,7 +169,6 @@ class SAM3DBody_Predict(io.ComfyNode):
 
     @classmethod
     def execute(cls, sam3d_body_model, image, track_data=None, bboxes=None, run_hand_refinement=True, fov=0.0, batch_size=64) -> io.NodeOutput:
-        comfy.model_management.load_model_gpu(sam3d_body_model)
         inner: SAM3DBody = sam3d_body_model.model
 
         B, H, W, _ = image.shape
@@ -196,48 +197,46 @@ class SAM3DBody_Predict(io.ComfyNode):
             else:
                 frames_rgb.append(image_to_uint8(image[f]))
 
-        # Batched path requires uniform non-zero K across all frames.
-        bbox_counts = {per_frame_bboxes[f].shape[0] for f in range(B) if frames_rgb[f] is not None}
-        can_batch = (
-            len(bbox_counts) == 1
-            and 0 not in bbox_counts
-            and all(frames_rgb[f] is not None for f in range(B))
-        )
-
-        frames_out: List[List[Dict[str, Any]]] = []
+        frames_out: List[List[Dict[str, Any]]] = [[] for _ in range(B)]
         pbar = comfy.utils.ProgressBar(B)
+        frames_by_count: Dict[int, List[int]] = {}
+        for frame_idx, frame in enumerate(frames_rgb):
+            count = int(per_frame_bboxes[frame_idx].shape[0])
+            if frame is None or count == 0:
+                pbar.update(1)
+                continue
+            frames_by_count.setdefault(count, []).append(frame_idx)
 
-        if can_batch and B > 0:
-            frames_out = run_batched_frames(
-                inner, frames_rgb, per_frame_bboxes, per_frame_masks,
+        max_chunk_crops = max(
+            (
+                min(len(indices), max(1, int(batch_size) // count)) * count
+                for count, indices in frames_by_count.items()
+            ),
+            default=1,
+        )
+        memory_required = inner.memory_used_forward(max_chunk_crops, run_hand_refinement)
+        comfy.model_management.load_models_gpu([sam3d_body_model], memory_required=memory_required)
+
+        for indices in frames_by_count.values():
+            grouped_frames = [frames_rgb[i] for i in indices]
+            grouped_boxes = [per_frame_bboxes[i] for i in indices]
+            grouped_masks = None if per_frame_masks is None else [per_frame_masks[i] for i in indices]
+            grouped_out = run_batched_frames(
+                inner, grouped_frames, grouped_boxes, grouped_masks,
                 image_size, inference_type,
                 cam_int=cam_int,
                 pbar=pbar,
                 crops_per_chunk=int(batch_size),
             )
-        else:
-            # Mixed K per frame — call the batched path once per frame.
-            for f in range(B):
-                if frames_rgb[f] is None or per_frame_bboxes[f].shape[0] == 0:
-                    frames_out.append([])
-                    pbar.update(1)
-                    continue
-                mask_f = [per_frame_masks[f]] if per_frame_masks is not None else None
-                chunk = run_batched_single_chunk(
-                    inner, [frames_rgb[f]], [per_frame_bboxes[f]], mask_f,
-                    image_size, inference_type,
-                    K=int(per_frame_bboxes[f].shape[0]),
-                    cam_int=cam_int,
-                )
-                frames_out.append(chunk[0])
-                pbar.update(1)
+            for frame_idx, output in zip(indices, grouped_out):
+                frames_out[frame_idx] = output
 
         mhr_pose_data = {
             "frames": frames_out,
             "faces": inner.head_pose.faces_np(),
             "image_size": (int(H), int(W)),
-            "canonical_colors": inner.canonical_colors,
-            "hand_vert_mask": inner.hand_vert_mask,
+            "canonical_colors": compute_canonical_colors(inner),
+            "hand_vert_mask": compute_hand_vert_mask(inner),
         }
         return io.NodeOutput(mhr_pose_data)
 
@@ -303,7 +302,7 @@ class SAM3DBody_FaceExpression(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, mhr_pose_data, sam3d_body_model, image,
+    def execute(cls, sam3d_body_model, mhr_pose_data, image,
                 strength=1.0, mouth_strength=1.0, eye_strength=2.0, brow_strength=2.0,
                 input_threshold=0.02, blendshape_smooth_window=7) -> io.NodeOutput:
 
@@ -391,13 +390,6 @@ class SAM3DBody_FaceExpression(io.ComfyNode):
                 per_person_coefs[pid] = fx.subtract_per_clip_baseline(
                     per_person_coefs[pid], percentile=5.0,
                 )
-        else:
-            logging.warning(
-                f"[SAM 3D Body FaceExpression] per-clip baseline subtraction "
-                f"needs ~{BASELINE_MIN_FRAMES}+ frames with detections; "
-                f"got {n_total_frames_with_persons}. Skipping subtraction."
-            )
-
         # Smooth raw signal AFTER baseline subtraction but BEFORE gap fill
         # MP's per-frame noise gets averaged out at the source.
         bs_win = int(blendshape_smooth_window)
@@ -465,7 +457,7 @@ class SAM3DBody_Smooth(io.ComfyNode):
                     options=["gaussian", "savgol"],
                     default="savgol",
                     tooltip=(
-                        "gaussian: symmetric weighted average, best general-purpose smoother./n"
+                        "gaussian: symmetric weighted average, best general-purpose smoother.\n"
                         "savgol: sliding polynomial fit, preserves sharp peaks."
                     ),
                 ),
@@ -488,7 +480,7 @@ class SAM3DBody_Smooth(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, mhr_pose_data, method, window, strength, rotation_threshold_degrees) -> io.NodeOutput:
+    def execute(cls, mhr_pose_data, strength, method, window, rotation_threshold_degrees) -> io.NodeOutput:
         if strength <= 0.0 or window <= 1:
             return io.NodeOutput(mhr_pose_data)
 
@@ -583,15 +575,20 @@ class SAM3DBody_Smooth(io.ComfyNode):
                         stacked[fi] = np.asarray(frames[fi][pid][key], dtype=np.float32)
                     else:
                         stacked[fi] = stacked[fi - 1] if fi > 0 else 0.0
-                filtered = _apply_temporal_filter(stacked, kernel)
+                filter_input = _unwrap_pose_angles(key, stacked)
+                filtered = _apply_temporal_filter(filter_input, kernel)
+                blend_input = filter_input if key in {"global_rot", "body_pose_params", "mhr_model_params"} else stacked
 
                 if key in keys_geom:
                     b = geom_blend
                     while b.ndim < stacked.ndim:
                         b = b[..., None]
-                    out = (1.0 - b) * stacked + b * filtered
+                    out = (1.0 - b) * blend_input + b * filtered
                 else:
-                    out = (1.0 - base_blend) * stacked + base_blend * filtered
+                    out = (1.0 - base_blend) * blend_input + base_blend * filtered
+
+                if key == "pred_global_rots":
+                    out = _project_rotation_matrices(out)
 
                 for fi in range(B):
                     if valid[fi]:
@@ -631,6 +628,27 @@ def _apply_temporal_filter(stacked: np.ndarray, kernel: np.ndarray) -> np.ndarra
     for i, k in enumerate(kernel):
         out += k * padded[i : i + B]
     return out.reshape(stacked.shape)
+
+
+def _unwrap_pose_angles(key: str, values: np.ndarray) -> np.ndarray:
+    out = values.copy()
+    if key == "global_rot":
+        out = np.unwrap(out, axis=0)
+    elif key == "body_pose_params":
+        out[..., :124] = np.unwrap(out[..., :124], axis=0)
+    elif key == "mhr_model_params":
+        out[..., 3:130] = np.unwrap(out[..., 3:130], axis=0)
+    return out
+
+
+def _project_rotation_matrices(values: np.ndarray) -> np.ndarray:
+    shape = values.shape
+    matrices = values.reshape(-1, 3, 3)
+    u, _, vh = np.linalg.svd(matrices)
+    rotations = u @ vh
+    reflected = np.linalg.det(rotations) < 0
+    u[reflected, :, -1] *= -1
+    return (u @ vh).reshape(shape).astype(values.dtype, copy=False)
 
 
 # Render
@@ -923,12 +941,12 @@ class SAM3DBody_Render(io.ComfyNode):
         if camera_info is not None:
             pose_data = apply_camera_override(pose_data, camera_info, H, W)
 
-        B = len(pose_data["frames"])
-        if B == 0:
-            return io.NodeOutput(torch.zeros(1, H, W, 3, dtype=torch.float32))
-
         out_device = comfy.model_management.intermediate_device()
         out_dtype = comfy.model_management.intermediate_dtype()
+        B = len(pose_data["frames"])
+        if B == 0:
+            return io.NodeOutput(torch.zeros(1, H, W, 3, dtype=out_dtype, device=out_device))
+
         bg_t = None if background is None else background.to(device=out_device, dtype=torch.float32)
 
         if bg_t is not None and tuple(bg_t.shape[1:3]) != (H, W): # Match the background to the render resolution
@@ -978,14 +996,17 @@ class SAM3DBody_Render(io.ComfyNode):
                 pose_data["faces"] = np.ascontiguousarray(
                     faces_full[keep], dtype=faces_full.dtype,
                 )
-        else:  # silhouette — no shader/opacity controls, mask is binary
+        elif mode_key == "silhouette":
             shader_key = "default"
             rainbow_tilt_x = 0.0
             rainbow_tilt_z = -35.0
             opacity = 1.0
             person_palette_falloff = 0.6
+        else:
+            raise ValueError(f"Unknown SAM3D render style: {mode_key!r}")
 
         frames_out = []
+        render_cache = {}
         pbar = comfy.utils.ProgressBar(B)
         desc = (
             "SAM3D openpose-2D render" if mode_key == "openpose_2d"
@@ -1057,12 +1078,385 @@ class SAM3DBody_Render(io.ComfyNode):
                     rainbow_tilt_x_deg=rainbow_tilt_x,
                     rainbow_tilt_z_deg=rainbow_tilt_z,
                     person_brightness_falloff=person_palette_falloff,
+                    cache=render_cache,
                 )
             frames_out.append(img.to(device=out_device, dtype=out_dtype))
             pbar.update(1)
 
         out_image = torch.stack(frames_out, dim=0)
         return io.NodeOutput(out_image)
+
+
+def camera_translation_input():
+    """Shared camera_translation combo (Create 3D Animation glb + bvh paths)."""
+    return io.Combo.Input(
+        "camera_translation",
+        options=["off", "centered", "absolute"],
+        default="off",
+        tooltip=(
+            "Bake pred_cam_t into the root's translation "
+            "'off' = bind position "
+            "'centered' = delta from frame 0 "
+            "'absolute' = raw (Z is camera depth — usually meters away)."
+        ),
+    )
+
+
+class BuildPoseFile(io.ComfyNode):
+    """Build an animated GLB from pose data, or save it as a BVH mocap file."""
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="BuildPoseFile",
+            display_name="Create 3D Animation File",
+            description="Build an animated GLB from pose data, or save a BVH mocap file.",
+            search_aliases=["pose animation", "mocap", "glb", "bvh", "build pose file", "save pose file"],
+            category="3d",
+            inputs=[
+                io.MultiType.Input(
+                    "pose_data", types=[MHRPoseData, KimodoPoseData],
+                    tooltip=("3D pose data."),
+                ),
+                io.DynamicCombo.Input(
+                    "format",
+                    options=[
+                        io.DynamicCombo.Option("glb", [
+                            io.DynamicCombo.Input(
+                                "mesh_style",
+                                options=[
+                                    io.DynamicCombo.Option("body_mesh", [
+                                        io.DynamicCombo.Input(
+                                            "bone_vis",
+                                            options=[
+                                                io.DynamicCombo.Option("off", []),
+                                                io.DynamicCombo.Option("octahedrons", [
+                                                    io.Float.Input(
+                                                        "bone_vis_radius_m",
+                                                        default=0.02, min=0.005, max=0.5, step=0.005, advanced=True,
+                                                        tooltip="Radius in m (sphere radius / octahedron half-width).",
+                                                    ),
+                                                    io.Combo.Input(
+                                                        "bone_vis_color",
+                                                        options=["white", "rainbow_y"],
+                                                        default="rainbow_y",
+                                                        tooltip=(
+                                                            "Per-bone vertex colors (unlit material). "
+                                                            "'white' = none, 'rainbow_y' = head→toe jet."
+                                                        ),
+                                                    ),
+                                                ]),
+                                            ],
+                                            tooltip=("Bone vis shape, rigidly skinned to each joint. "),
+                                        ),
+                                        io.DynamicCombo.Input(
+                                            "shader",
+                                            options=[
+                                                io.DynamicCombo.Option("default", []),
+                                                io.DynamicCombo.Option("rainbow", [
+                                                    *rainbow_tilt_inputs(),
+                                                    io.Float.Input(
+                                                        "person_palette_falloff",
+                                                        default=0.6, min=0.1, max=1.0, step=0.05,
+                                                        tooltip="Per-person desaturation: each track gets (1 - falloff^k) pastel mix.",
+                                                    ),
+                                                ]),
+                                                io.DynamicCombo.Option("rainbow_face_normal", [
+                                                    *rainbow_tilt_inputs(),
+                                                    io.Float.Input(
+                                                        "person_palette_falloff",
+                                                        default=0.6, min=0.1, max=1.0, step=0.05,
+                                                        tooltip="Per-person desaturation: each track gets (1 - falloff^k) pastel mix.",
+                                                    ),
+                                                ]),
+                                                io.DynamicCombo.Option("rainbow_face_semantic", [
+                                                    *rainbow_tilt_inputs(),
+                                                    io.Float.Input(
+                                                        "person_palette_falloff",
+                                                        default=0.6, min=0.1, max=1.0, step=0.05,
+                                                        tooltip="Per-person desaturation: each track gets (1 - falloff^k) pastel mix.",
+                                                    ),
+                                                ]),
+                                            ],
+                                            tooltip=(
+                                                "Bake per-vertex colors matching the Render node's shaders "
+                                                "(COLOR_0 + KHR_materials_unlit). 'default' = no colors."
+                                            ),
+                                        ),
+                                    ]),
+                                    io.DynamicCombo.Option("bones_only", [
+                                        io.DynamicCombo.Input(
+                                            "bone_vis",
+                                            options=[
+                                                io.DynamicCombo.Option("octahedrons", [
+                                                    io.Float.Input(
+                                                        "bone_vis_radius_m",
+                                                        default=0.02, min=0.005, max=0.5, step=0.005, advanced=True,
+                                                        tooltip="Radius in m (sphere radius / octahedron half-width).",
+                                                    ),
+                                                    io.Combo.Input(
+                                                        "bone_vis_color",
+                                                        options=["white", "rainbow_y"],
+                                                        default="rainbow_y",
+                                                        tooltip=(
+                                                            "Per-bone vertex colors (unlit material). "
+                                                            "'white' = none, 'rainbow_y' = head→toe jet."
+                                                        ),
+                                                    ),
+                                                ]),
+                                            ],
+                                            tooltip=(
+                                                "Bone vis shape, rigidly skinned to each joint. "
+                                                "'octahedrons' = Blender-style directional bones (joint → "
+                                                "primary child)."
+                                            ),
+                                        ),
+                                    ]),
+                                    io.DynamicCombo.Option("openpose", [
+                                        io.Float.Input(
+                                            "marker_radius_m", default=0.010, min=0.005, max=0.1, step=0.001, advanced=True,
+                                            tooltip="Sphere radius in m.",
+                                        ),
+                                        io.Float.Input(
+                                            "stick_radius_m", default=0.008, min=0.002, max=0.05, step=0.001, advanced=True,
+                                            tooltip="Limb half-width in m. Auto-clamped to bone_length x 0.1.",
+                                        ),
+                                        io.Boolean.Input(
+                                            "include_hands", default=False,
+                                            tooltip=(
+                                                "Append 21+21 OpenPose hands (wrist + 5 fingers x 4 joints, "
+                                                "base→tip) sourced from pred_keypoints_3d."
+                                            ),
+                                        ),
+                                        io.Float.Input(
+                                            "hand_marker_radius_m", default=0.005, min=0.001, max=0.1, step=0.001, advanced=True,
+                                            tooltip="Hand sphere radius in m.",
+                                        ),
+                                        io.Float.Input(
+                                            "hand_stick_radius_m", default=0.003, min=0.001, max=0.05, step=0.001, advanced=True,
+                                            tooltip="Hand limb half-width in m.",
+                                        ),
+                                        io.Combo.Input(
+                                            "face_style",
+                                            options=["disabled", "full", "eyes_mouth"],
+                                            default="disabled",
+                                            tooltip=(
+                                                "Face-contour landmarks sampled from pred_vertices at fixed "
+                                                "head-mesh vertex IDs (needs canonical_colors on pose_data). "
+                                                "'full' = all ~30 points; 'eyes_mouth' = eyes + outer lips only."
+                                            ),
+                                        ),
+                                        io.Float.Input(
+                                            "face_marker_radius_m", default=0.0, min=0.0, max=0.05, step=0.0005, advanced=True,
+                                            tooltip="Face dot radius. 0 = auto = 0.3 x marker_radius_m.",
+                                        ),
+                                    ]),
+                                    io.DynamicCombo.Option("scail", [
+                                        io.Float.Input(
+                                            "stick_radius_m", default=0.022, min=0.002, max=0.1, step=0.001, advanced=True,
+                                            tooltip=(
+                                                "Cylinder radius in m. Bones are open cylinders at constant "
+                                                "radius; joint spheres (auto-sized to match) cap the open ends. "
+                                                "SCAIL reference = 0.0215 m."
+                                            ),
+                                        ),
+                                        io.Float.Input(
+                                            "marker_radius_m", default=0.0, min=0.0, max=0.1, step=0.001, advanced=True,
+                                            tooltip="Joint sphere radius. 0 = auto = stick_radius_m (flush cap).",
+                                        ),
+                                        io.Float.Input(
+                                            "material_roughness", default=0.3, min=0.0, max=1.0, step=0.05, advanced=True,
+                                            tooltip="PBR roughness. SCAIL ref = 0.3. 1 = matte; 0 = chrome.",
+                                        ),
+                                        io.Boolean.Input(
+                                            "include_hands", default=False,
+                                            tooltip="Append 21+21 hand keypoints + capsule sticks per track.",
+                                        ),
+                                        io.Float.Input(
+                                            "hand_marker_radius_m", default=0.005, min=0.001, max=0.05, step=0.001, advanced=True,
+                                            tooltip="Hand sphere radius in m.",
+                                        ),
+                                        io.Float.Input(
+                                            "hand_stick_radius_m", default=0.003, min=0.001, max=0.05, step=0.001, advanced=True,
+                                            tooltip="Hand cylinder radius in m.",
+                                        ),
+                                        io.Combo.Input(
+                                            "face_style",
+                                            options=["disabled", "full", "eyes_mouth"],
+                                            default="disabled",
+                                            tooltip=(
+                                                "Face-contour landmarks sampled from pred_vertices (needs "
+                                                "canonical_colors on pose_data). 'full' = all ~30 points; "
+                                                "'eyes_mouth' = eyes + outer lips only."
+                                            ),
+                                        ),
+                                    ]),
+                                ],
+                                tooltip=(
+                                    "'body_mesh' = real Armature (127 bones, skinning, TRS keyframes, 72 face morphs; needs model). "
+                                    "'bones_only' = bone-shape primitives at each joint (preview armature). "
+                                    "'openpose' = OpenPose-18 3D skeleton from keypoints "
+                                    "'scail' = SCAIL 3D capsule rig (open cylinders capped flush by joint spheres)."
+                                ),
+                            ),
+                            io.Int.Input(
+                                "bone_smooth_window",
+                                default=0, min=0, max=51, step=2,
+                                tooltip=(
+                                    "Gaussian smoothing window on per-bone rotation keyframes / keypoint "
+                                    "tracks. 0 = off. 7-15 calms spins/jitter where upstream Smooth misses spikes."
+                                ),
+                            ),
+                        ]),
+                        io.DynamicCombo.Option("bvh", [
+                            io.Combo.Input(
+                                "units",
+                                options=["cm", "m"],
+                                default="cm",
+                                tooltip="BVH OFFSET/position units. 'cm' is the mocap standard.",
+                            ),
+                        ]),
+                    ],
+                    tooltip=(
+                        "Output format, both fed to Save 3D Model to write to disk. "
+                        "'glb' = animated GLB (mesh / bones / openpose / scail). "
+                        "'bvh' = BVH mocap clip (one skeleton; needs the model)."
+                    ),
+                ),
+                SAM3DBodyModel.Input("sam3d_body_model", optional=True),
+                io.Float.Input(
+                    "fps", default=24.0, min=1.0, max=240.0, step=1.0,
+                    tooltip="Animation frame rate.",
+                ),
+                camera_translation_input(),
+                io.Int.Input(
+                    "track_index", default=-1, min=-1, max=15,
+                    tooltip="-1 = all tracks; ≥0 = single track.",
+                ),
+            ],
+            outputs=[io.File3DAny.Output("model_3d")],
+        )
+
+    @classmethod
+    def execute(cls, pose_data, format, sam3d_body_model=None, fps=24.0, camera_translation="off", track_index=-1) -> io.NodeOutput:
+        format = format or {"format": "glb"}
+        fmt = format.get("format", "glb")
+
+        if fmt == "bvh":
+            # External rigs (e.g. Kimodo) supply pose_data["_skeleton_override"]
+            has_external_rig = isinstance(pose_data, dict) and ("_skeleton_override" in pose_data)
+            if sam3d_body_model is None and not has_external_rig:
+                raise ValueError(
+                    "Create 3D Animation: 'bvh' format needs the `sam3d_body_model` input OR a "
+                    "`_skeleton_override` dict in pose_data (e.g. from KimodoSample)."
+                )
+            if sam3d_body_model is not None and not has_external_rig:
+                comfy.model_management.load_model_gpu(sam3d_body_model)
+            # BVH carries one skeleton; -1 (all tracks) collapses to the first.
+            ti = int(track_index)
+            if ti < 0:
+                ti = 0
+            bvh_bytes = build_bvh(
+                pose_data, sam3d_body_model,
+                fps=float(fps),
+                camera_translation=str(camera_translation),
+                track_index=ti,
+                units=str(format.get("units", "cm")),
+            )
+            return io.NodeOutput(Types.File3D(BytesIO(bvh_bytes), file_format="bvh"))
+
+        mesh_style = format.get("mesh_style") or {"mesh_style": "body_mesh"}
+        bone_smooth_window = int(format.get("bone_smooth_window", 0))
+        mode_key = mesh_style["mesh_style"]
+        # `shader` is nested in body_mesh; absent for bones_only.
+        shader_dict = mesh_style.get("shader") or {}
+        shader_key = shader_dict.get("shader", "default")
+        common = dict(
+            fps=float(fps),
+            camera_translation=str(camera_translation),
+            track_index=int(track_index),
+            shader=str(shader_key),
+            rainbow_tilt_x_deg=float(shader_dict.get("rainbow_tilt_x", 0.0)),
+            rainbow_tilt_z_deg=float(shader_dict.get("rainbow_tilt_z", 0.0)),
+            person_palette_falloff=float(shader_dict.get("person_palette_falloff", 0.6)),
+        )
+        if mode_key in ("body_mesh", "bones_only"):
+            # External rigs (e.g. ComfyUI-Kimodo) supply pose_data["_skeleton_override"]
+            # so the GLB writer reads rig/bind/skin from there instead of MHR.
+            has_external_rig = isinstance(pose_data, dict) and ("_skeleton_override" in pose_data)
+            if sam3d_body_model is None and not has_external_rig:
+                raise ValueError(
+                    f"BuildPoseFile: '{mode_key}' mode needs the `sam3d_body_model` input OR a "
+                    "`_skeleton_override` dict in pose_data. Connect the SAM3DBody model "
+                    "or feed pose_data from a node that supplies the override (e.g. KimodoSample)."
+                )
+            if sam3d_body_model is not None and not has_external_rig:
+                comfy.model_management.load_model_gpu(sam3d_body_model)
+            default_shape = "off" if mode_key == "body_mesh" else "octahedrons"
+            bone_vis_dict = mesh_style.get("bone_vis", {"bone_vis": default_shape})
+            bone_vis = str(bone_vis_dict.get("bone_vis", default_shape))
+            bone_vis_radius_m = float(bone_vis_dict.get("bone_vis_radius_m", 0.04))
+            bone_vis_color = str(bone_vis_dict.get("bone_vis_color", "white"))
+            glb_bytes = build_glb_skeletal(
+                pose_data, sam3d_body_model,
+                bone_smooth_window=int(bone_smooth_window),
+                bone_vis=bone_vis,
+                bone_vis_radius_m=bone_vis_radius_m,
+                bone_vis_color=bone_vis_color,
+                include_body_mesh=(mode_key == "body_mesh"),
+                **common,
+            )
+        elif mode_key == "openpose":
+            # Rig-independent: sourced from pred_keypoints_3d. face_source='rig'
+            # additionally reads canonical_colors for head-mesh vertex IDs.
+            glb_bytes = build_glb_openpose(
+                pose_data,
+                fps=float(fps),
+                camera_translation=str(camera_translation),
+                track_index=int(track_index),
+                marker_radius_m=float(mesh_style.get("marker_radius_m", 0.025)),
+                stick_radius_m=float(mesh_style.get("stick_radius_m", 0.008)),
+                include_hands=bool(mesh_style.get("include_hands", False)),
+                hand_marker_radius_m=float(mesh_style.get("hand_marker_radius_m", 0.005)),
+                hand_stick_radius_m=float(mesh_style.get("hand_stick_radius_m", 0.003)),
+                face_style=str(mesh_style.get("face_style", "disabled")),
+                face_marker_radius_m=float(mesh_style.get("face_marker_radius_m", 0.0)),
+                palette="openpose",
+                shape="ellipsoid",
+                bone_smooth_window=int(bone_smooth_window),
+            )
+        elif mode_key == "scail":
+            # SCAIL rig: open cylinders capped flush by joint spheres (sphere
+            # radius defaults to cylinder radius for a seamless silhouette).
+            cap_stick_radius = float(mesh_style.get("stick_radius_m", 0.022))
+            cap_marker_radius = float(mesh_style.get("marker_radius_m", 0.0))
+            if cap_marker_radius <= 0.0:
+                cap_marker_radius = cap_stick_radius
+            glb_bytes = build_glb_openpose(
+                pose_data,
+                fps=float(fps),
+                camera_translation=str(camera_translation),
+                track_index=int(track_index),
+                marker_radius_m=cap_marker_radius,
+                stick_radius_m=cap_stick_radius,
+                include_hands=bool(mesh_style.get("include_hands", False)),
+                hand_marker_radius_m=float(mesh_style.get("hand_marker_radius_m", 0.005)),
+                hand_stick_radius_m=float(mesh_style.get("hand_stick_radius_m", 0.003)),
+                face_style=str(mesh_style.get("face_style", "disabled")),
+                palette="scail",
+                shape="capsule",
+                smooth_shade=True,
+                # SCAIL material: slightly glossy (0.3) + double-sided so the
+                # inside of the open cylinders shades sensibly at grazing angles.
+                material_roughness=float(mesh_style.get("material_roughness", 0.3)),
+                material_double_sided=True,
+                bone_smooth_window=int(bone_smooth_window),
+            )
+        else:
+            raise ValueError(f"BuildPoseGLB: unknown mesh_style {mode_key!r}")
+
+        return io.NodeOutput(Types.File3D(BytesIO(glb_bytes), file_format="glb"))
+
 
 
 class SAM3DBodyExtension(ComfyExtension):
@@ -1074,6 +1468,7 @@ class SAM3DBodyExtension(ComfyExtension):
             SAM3DBody_FaceExpression,
             SAM3DBody_Smooth,
             SAM3DBody_Render,
+            BuildPoseFile,
         ]
 
 

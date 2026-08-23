@@ -207,18 +207,7 @@ def _render_capsules_torch(
             return background_rgb.to(device=device, dtype=torch.float32).clamp(0.0, 1.0)
         return torch.zeros(H, W, 3, dtype=torch.float32, device=device)
 
-    yy, xx = torch.meshgrid(
-        torch.arange(H, device=device, dtype=torch.float32),
-        torch.arange(W, device=device, dtype=torch.float32),
-        indexing="ij",
-    )
-    u = (xx - cx) / fx
-    v = (yy - cy) / fy
-    z = torch.ones_like(u)
-    ray_dirs = torch.stack([u, v, z], dim=-1)
-    ray_dirs = ray_dirs / torch.linalg.norm(ray_dirs, dim=-1, keepdim=True)
-    flat_dirs = ray_dirs.view(-1, 3)
-    N = flat_dirs.shape[0]
+    N = H * W
 
     radius = torch.as_tensor(radius, device=device, dtype=torch.float32)
     if radius.ndim == 0:
@@ -228,13 +217,12 @@ def _render_capsules_torch(
     ba_len = torch.linalg.norm(ba, dim=1).clamp(min=1e-6)
     ba_norm = ba / ba_len.unsqueeze(1)
 
-    z_min = float(min(starts[:, 2].min().item(), ends[:, 2].min().item()))
-    z_near = max(0.05, z_min - float(radius.max().item()))
+    z_near = (torch.minimum(starts[:, 2].amin(), ends[:, 2].amin()) - radius.amax()).clamp(min=0.05)
 
     # Union of per-capsule screen-space bboxes — pixels outside can't hit any
     # capsule, so intersection only runs on the relevant subset of the canvas.
-    sz = starts[:, 2].clamp(min=z_near)
-    ez = ends[:, 2].clamp(min=z_near)
+    sz = torch.maximum(starts[:, 2], z_near)
+    ez = torch.maximum(ends[:, 2], z_near)
     sx_p = starts[:, 0] * fx / sz + cx
     sy_p = starts[:, 1] * fy / sz + cy
     ex_p = ends[:, 0] * fx / ez + cx
@@ -246,42 +234,60 @@ def _render_capsules_torch(
     xmax_t = (torch.maximum(sx_p, ex_p) + r_pix + pad).ceil().long().clamp(min=0, max=W)
     ymin_t = (torch.minimum(sy_p, ey_p) - r_pix - pad).floor().long().clamp(min=0, max=H)
     ymax_t = (torch.maximum(sy_p, ey_p) + r_pix + pad).ceil().long().clamp(min=0, max=H)
-    # One stack→tolist sync amortizes the GPU→CPU read over all M bboxes.
-    bboxes_cpu = torch.stack([xmin_t, ymin_t, xmax_t, ymax_t], dim=1).tolist()
-    coarse_mask = torch.zeros(H, W, dtype=torch.bool, device=device)
-    for xmin_i, ymin_i, xmax_i, ymax_i in bboxes_cpu:
-        if xmax_i > xmin_i and ymax_i > ymin_i:
-            coarse_mask[ymin_i:ymax_i, xmin_i:xmax_i] = True
+    # Rectangle-union mask through a 2D difference array, entirely on device.
+    stride = W + 1
+    diff = torch.zeros((H + 1) * stride, dtype=torch.int32, device=device)
+    corners = torch.cat([
+        ymin_t * stride + xmin_t,
+        ymax_t * stride + xmax_t,
+        ymin_t * stride + xmax_t,
+        ymax_t * stride + xmin_t,
+    ])
+    signs = torch.cat([
+        torch.ones(M, dtype=torch.int32, device=device),
+        torch.ones(M, dtype=torch.int32, device=device),
+        -torch.ones(M, dtype=torch.int32, device=device),
+        -torch.ones(M, dtype=torch.int32, device=device),
+    ])
+    diff.index_add_(0, corners, signs)
+    coarse_mask = diff.view(H + 1, W + 1).cumsum(0).cumsum(1)[:H, :W] > 0
 
     # Analytic ray-capsule intersection, one pass over the masked pixels.
     INF = float("inf")
-    flat_t = torch.full((N,), INF, device=device, dtype=torch.float32)
-    flat_m_idx = torch.full((N,), -1, device=device, dtype=torch.long)
     active_idx = torch.nonzero(coarse_mask.view(-1), as_tuple=False).squeeze(1)
+    active_y = torch.div(active_idx, W, rounding_mode="floor").to(torch.float32)
+    active_x = (active_idx % W).to(torch.float32)
+    ray_dirs = torch.stack([
+        (active_x - cx) / fx,
+        (active_y - cy) / fy,
+        torch.ones_like(active_x),
+    ], dim=-1)
+    ray_dirs = ray_dirs / torch.linalg.norm(ray_dirs, dim=-1, keepdim=True)
+    active_t = torch.full((active_idx.shape[0],), INF, device=device, dtype=torch.float32)
+    active_m_idx = torch.full((active_idx.shape[0],), -1, device=device, dtype=torch.long)
     if active_idx.numel() > 0:
         # Cap per-chunk (K, M) tensors to ~4M elements to bound peak memory.
         chunk_max = max(1, int(4_000_000 / max(M, 1)))
         for i0 in range(0, active_idx.numel(), chunk_max):
-            sub = active_idx[i0 : i0 + chunk_max]
             t_KM = _ray_capsule_t(
-                flat_dirs[sub], starts, ends, ba_norm, ba_len, radius,
+                ray_dirs[i0 : i0 + chunk_max], starts, ends, ba_norm, ba_len, radius,
             )
             t_min, m_idx = t_KM.min(dim=1)
             hit = t_min < INF
-            if hit.any():
-                winners = sub[hit]
-                flat_t[winners] = t_min[hit]
-                flat_m_idx[winners] = m_idx[hit]
+            hit_idx = torch.nonzero(hit, as_tuple=False).squeeze(1)
+            active_t[i0 + hit_idx] = t_min[hit_idx]
+            active_m_idx[i0 + hit_idx] = m_idx[hit_idx]
 
     # Shade via analytic normal (P - closest point on segment).
     out = torch.zeros((N, 3), dtype=torch.float32, device=device)
     if background_rgb is not None:
         out = background_rgb.to(device=device, dtype=torch.float32).reshape(N, 3).clone()
-    hit_idx = torch.nonzero(flat_m_idx >= 0, as_tuple=False).squeeze(1)
-    if hit_idx.numel() > 0:
-        rd = flat_dirs[hit_idx]
-        t_h = flat_t[hit_idx]
-        m_h = flat_m_idx[hit_idx]
+    active_hit_idx = torch.nonzero(active_m_idx >= 0, as_tuple=False).squeeze(1)
+    if active_hit_idx.numel() > 0:
+        hit_idx = active_idx[active_hit_idx]
+        rd = ray_dirs[active_hit_idx]
+        t_h = active_t[active_hit_idx]
+        m_h = active_m_idx[active_hit_idx]
         p_hit = rd * t_h.unsqueeze(-1)
 
         A_h = starts[m_h]
@@ -310,12 +316,9 @@ def _render_capsules_torch(
 
         # Mild depth fade.
         z_vals = p_hit[:, 2]
-        z_lo, z_hi = float(z_vals.min().item()), float(z_vals.max().item())
-        if z_hi - z_lo > 1e-6:
-            fade = 1.0 - (z_vals - z_lo) / (z_hi - z_lo)
-            depth_factor = 0.85 + 0.15 * fade
-        else:
-            depth_factor = torch.ones_like(z_vals)
+        z_lo, z_hi = z_vals.amin(), z_vals.amax()
+        fade = 1.0 - (z_vals - z_lo) / (z_hi - z_lo).clamp(min=1e-6)
+        depth_factor = 0.85 + 0.15 * fade
 
         base = col * diffuse.unsqueeze(-1) * depth_factor.unsqueeze(-1)
         highlight = (0.5 * spec * depth_factor).unsqueeze(-1)

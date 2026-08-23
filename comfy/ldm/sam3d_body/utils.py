@@ -58,7 +58,7 @@ def get_warp_matrices(centers, scales, output_size: Tuple[int, int]) -> torch.Te
     # With rot=0 the warp is just scale + translate (uniform x/y scale based
     # on src_w/dst_w). The closed form drops out of MMPose's 3-point solve.
     s = dst_w / src_w  # (N,)
-    mats = torch.zeros((n, 2, 3), dtype=torch.float32)
+    mats = torch.zeros((n, 2, 3), dtype=centers.dtype, device=centers.device)
     mats[:, 0, 0] = s
     mats[:, 1, 1] = s
     mats[:, 0, 2] = dst_w * 0.5 - s * centers[:, 0]
@@ -82,7 +82,7 @@ def warp_affine_batched(
 
     # Invert each forward affine; grid_sample needs dst->src.
     mats_t = mats.to(device=device, dtype=torch.float32)
-    bottom = torch.tensor([0.0, 0.0, 1.0], device=device).expand(N, 1, 3)
+    bottom = mats_t.new_tensor([0.0, 0.0, 1.0]).expand(N, 1, 3)
     mats_3 = torch.cat([mats_t, bottom], dim=1)  # (N, 3, 3)
     mats_inv = torch.linalg.inv(mats_3)[:, :2, :]  # (N, 2, 3)
 
