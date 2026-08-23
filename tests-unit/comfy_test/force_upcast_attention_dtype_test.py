@@ -2,7 +2,11 @@ import torch
 
 from comfy.cli_args import args as cli_args
 
-if not torch.cuda.is_available():
+# Only force CPU state when neither CUDA nor MPS is available (plain
+# CPU-only CI runners), where model_management would otherwise crash at
+# import time. Leaving real MPS machines alone avoids permanently
+# stamping cpu_state as CPU for the rest of the test session.
+if not torch.cuda.is_available() and not torch.backends.mps.is_available():
     cli_args.cpu = True
 
 import comfy.model_management as model_management
