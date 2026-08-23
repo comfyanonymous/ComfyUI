@@ -1,10 +1,12 @@
 import asyncio
+from types import SimpleNamespace
 
 import pytest
 
 import torch
 
 import nodes
+from execution import record_lazy_evidence
 from comfy_execution.caching import (
     BasicCache,
     CacheKeySetInputSignature,
@@ -132,3 +134,21 @@ def test_subcache_shares_evidence_record(register_stubs):
 
     child = asyncio.run(build())
     assert child.cache_key_set.lazy_evaluated is shared
+
+
+def test_record_lazy_evidence_marks_only_requested(register_stubs):
+    caches = SimpleNamespace(lazy_evaluated={})
+
+    record_lazy_evidence(caches, "2", "StubKeyLazy", {"image1"})
+    assert caches.lazy_evaluated == {("2", "image1"): True}
+
+    record_lazy_evidence(caches, "2", "StubKeyLazy", {"mask"})
+    assert caches.lazy_evaluated == {("2", "image1"): False}
+
+
+def test_record_lazy_evidence_none_request_is_noop(register_stubs):
+    caches = SimpleNamespace(lazy_evaluated={})
+
+    record_lazy_evidence(caches, "2", "StubKeyLazy", None)
+
+    assert caches.lazy_evaluated == {}

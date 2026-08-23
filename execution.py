@@ -233,6 +233,13 @@ def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=
     v3_data["hidden_inputs"] = hidden_inputs_v3
     return input_data_all, missing_keys, v3_data
 
+def record_lazy_evidence(caches, unique_id, class_type, lazy_requested):
+    """Persist which lazy inputs check_lazy_status requested for this node run."""
+    if lazy_requested is None:
+        return
+    for lazy_key in get_lazy_input_keys(class_type):
+        caches.lazy_evaluated[(unique_id, lazy_key)] = lazy_key in lazy_requested
+
 map_node_over_list = None #Don't hook this please
 
 async def resolve_map_node_over_list_results(results):
@@ -458,6 +465,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
         return (ExecutionResult.SUCCESS, None, None)
 
     input_data_all = None
+    lazy_requested = None
     try:
         if unique_id in pending_async_nodes:
             results = []
@@ -518,6 +526,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                 required_inputs = await _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, "check_lazy_status", allow_interrupt=True, v3_data=v3_data_lazy)
                 required_inputs = await resolve_map_node_over_list_results(required_inputs)
                 required_inputs = set(sum([r for r in required_inputs if isinstance(r,list)], []))
+                lazy_requested = {x for x in required_inputs if isinstance(x, str)}
                 required_inputs = [x for x in required_inputs if isinstance(x,str) and (
                     x not in input_data_all or x in missing_keys
                 )]
@@ -666,13 +675,10 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
     get_progress_state().finish_progress(unique_id)
     executed.add(unique_id)
 
-    if input_data_all is not None:
-        # Async/subgraph resumes skip input resolution; without fresh evidence we keep
-        # previous records untouched rather than guessing.
-        for lazy_key in get_lazy_input_keys(class_type):
-            caches.lazy_evaluated[(unique_id, lazy_key)] = (
-                lazy_key in input_data_all and lazy_key not in missing_keys
-            )
+    if lazy_requested is not None:
+        # Evidence comes from what check_lazy_status actually requested this pass; inputs
+        # resolved opportunistically from cache don't count as consumed.
+        record_lazy_evidence(caches, unique_id, class_type, lazy_requested)
 
     return (ExecutionResult.SUCCESS, None, None)
 
