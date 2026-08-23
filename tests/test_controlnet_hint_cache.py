@@ -27,10 +27,10 @@ def make_cn():
     return cn
 
 
-def call(cn, h, w, batch=1):
+def call(cn, h, w, batch=1, batched_number=1):
     x = torch.zeros((batch, 4, h, w))
     cond = {"c_crossattn": torch.zeros((1, 1, 1))}
-    return cn.get_control(x, torch.tensor([999.0]), cond, 1, {})
+    return cn.get_control(x, torch.tensor([999.0]), cond, batched_number, {})
 
 
 def test_alternating_area_sizes_prepare_hint_once_per_size(monkeypatch):
@@ -137,6 +137,23 @@ def test_t2i_alternating_sizes_recompute_adapter():
     assert out_1["output"][0].shape == (1, 3, 64, 64)
     assert out_2["output"][0].shape == (1, 3, 32, 32)
     assert out_3["output"][0].shape == (1, 3, 64, 64)
+
+
+def test_t2i_same_size_different_batch_recomputes():
+    adapter = make_t2i()
+    adapter.cond_hint_original = torch.zeros((2, 3, 16, 16))
+
+    call(adapter, 8, 8, batch=2)
+    call(adapter, 8, 8, batch=4, batched_number=2)
+
+    # same spatial size, but cond_hint is broadcast differently per call, so
+    # the cached control_input from the first shape must not be reused
+    assert adapter.t2i_model.calls == [((2, 3, 64, 64)), ((4, 3, 64, 64))]
+    assert len(adapter.control_inputs) == 2
+
+    # repeating the first configuration is served from the cache again
+    call(adapter, 8, 8, batch=2)
+    assert adapter.t2i_model.calls == [((2, 3, 64, 64)), ((4, 3, 64, 64))]
 
 
 def test_set_cond_hint_invalidates_cache(monkeypatch):
