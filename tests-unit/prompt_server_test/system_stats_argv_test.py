@@ -22,13 +22,15 @@ def _restore_cli_args():
     global server
     original_cpu = cli_args.cpu
     original_front_end_root = cli_args.front_end_root
-    cli_args.cpu = True
-    cli_args.front_end_root = "."
-    import server as _server
-    server = _server
-    yield
-    cli_args.cpu = original_cpu
-    cli_args.front_end_root = original_front_end_root
+    try:
+        cli_args.cpu = True
+        cli_args.front_end_root = "."
+        import server as _server
+        server = _server
+        yield
+    finally:
+        cli_args.cpu = original_cpu
+        cli_args.front_end_root = original_front_end_root
 
 
 async def _get_system_stats_argv(aiohttp_client):
