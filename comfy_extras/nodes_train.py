@@ -1441,7 +1441,10 @@ class LossGraphNode(io.ComfyNode):
         draw = ImageDraw.Draw(img)
 
         min_loss, max_loss = min(loss_values), max(loss_values)
-        scaled_loss = [(l - min_loss) / (max_loss - min_loss) for l in loss_values]
+        if max_loss > min_loss:
+            scaled_loss = [(l - min_loss) / (max_loss - min_loss) for l in loss_values]
+        else:
+            scaled_loss = [0.0] * len(loss_values)
 
         steps = len(loss_values)
 
