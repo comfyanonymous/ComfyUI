@@ -858,29 +858,7 @@ class Llama2_(nn.Module):
 
         enable_graph = self.graph_dynamic_vbar_blocks and fixed_kv_decode
         if enable_graph:
-            freqs_cis_groups = freqs_cis if isinstance(freqs_cis, list) else [freqs_cis]
-            cross_step_state_key = [(x.shape, x.stride(), x.dtype, x.device)]
-            for group in freqs_cis_groups:
-                for tensor in group:
-                    cross_step_state_key.append((tensor.shape, tensor.stride(), tensor.dtype, tensor.device))
-            cross_step_state_key = tuple(cross_step_state_key)
-            cross_step_state = getattr(self, "_comfy_cross_step_state", None)
-            if cross_step_state is None or cross_step_state["key"] != cross_step_state_key:
-                static_freqs_cis = []
-                for group in freqs_cis_groups:
-                    static_freqs_cis.append(tuple(torch.empty_like(tensor) for tensor in group))
-                if not isinstance(freqs_cis, list):
-                    static_freqs_cis = static_freqs_cis[0]
-                cross_step_state = {"key": cross_step_state_key, "x": torch.empty_like(x), "freqs_cis": static_freqs_cis}
-                self._comfy_cross_step_state = cross_step_state
-                comfy.model_management._register_cross_step(self)
-            cross_step_state["x"].copy_(x)
-            static_freqs_cis_groups = cross_step_state["freqs_cis"] if isinstance(freqs_cis, list) else [cross_step_state["freqs_cis"]]
-            for source_group, target_group in zip(freqs_cis_groups, static_freqs_cis_groups):
-                for source, target in zip(source_group, target_group):
-                    target.copy_(source)
-            x = cross_step_state["x"]
-            freqs_cis = cross_step_state["freqs_cis"]
+            x = x.clone()
 
         intermediate = None
         all_intermediate = None

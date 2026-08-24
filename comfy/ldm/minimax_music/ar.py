@@ -268,8 +268,6 @@ class MiniMaxMusic3AR(nn.Module):
             "codes": torch.empty((last_hidden.shape[0], self.num_codebooks), dtype=torch.long, device=device),
             "depth_hidden": torch.empty((1, last_hidden.shape[-1] * (self.num_codebooks - 1)), dtype=execution_dtype, device=device),
         }
-        decoder._comfy_cross_step_state = depth_io
-        comfy.model_management._register_cross_step(decoder)
         hidden_frames = []
         pending_code = None
         stop_token = None
