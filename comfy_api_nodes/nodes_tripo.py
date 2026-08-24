@@ -66,7 +66,6 @@ async def poll_until_finished(
         ],
         status_extractor=lambda x: x.data.status,
         progress_extractor=lambda x: x.data.progress,
-        price_extractor=lambda x: x.data.consumed_credit * 0.01 if x.data.consumed_credit else None,
         estimated_duration=average_duration,
     )
     if response_poll.data.status == TripoTaskStatus.SUCCESS:

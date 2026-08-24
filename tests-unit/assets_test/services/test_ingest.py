@@ -94,6 +94,47 @@ class TestIngestFileFromPath:
         ref_tags = get_reference_tags(session, reference_id=result.reference_id)
         assert set(ref_tags) == {"models", "checkpoints"}
 
+    def test_path_derived_tags_use_automatic_origin(
+        self, mock_create_session, temp_dir: Path, session: Session
+    ):
+        input_dir = temp_dir / "input"
+        output_dir = temp_dir / "output"
+        temp_root = temp_dir / "temp"
+        for directory in (input_dir, output_dir, temp_root):
+            directory.mkdir()
+        file_path = input_dir / "pasted" / "tagged.png"
+        file_path.parent.mkdir()
+        file_path.write_bytes(b"data")
+
+        with (
+            patch("app.assets.services.path_utils.folder_paths") as mock_fp,
+            patch(
+                "app.assets.services.path_utils.get_comfy_models_folders",
+                return_value=[],
+            ),
+        ):
+            mock_fp.get_input_directory.return_value = str(input_dir)
+            mock_fp.get_output_directory.return_value = str(output_dir)
+            mock_fp.get_temp_directory.return_value = str(temp_root)
+
+            result = _ingest_file_from_path(
+                abs_path=str(file_path),
+                asset_hash="blake3:pathorigin",
+                size_bytes=4,
+                mtime_ns=1234567890000000000,
+                info_name="Tagged Asset",
+                tags=["input", "manual-label"],
+            )
+
+        assert result.reference_id is not None
+        links = session.query(AssetReferenceTag).filter_by(
+            asset_reference_id=result.reference_id
+        )
+        origin_by_tag = {link.tag_name: link.origin for link in links}
+        assert origin_by_tag["input"] == "automatic"
+        assert origin_by_tag["pasted"] == "automatic"
+        assert origin_by_tag["manual-label"] == "manual"
+
     def test_idempotent_upsert(self, mock_create_session, temp_dir: Path, session: Session):
         file_path = temp_dir / "dup.bin"
         file_path.write_bytes(b"content")
@@ -286,6 +327,45 @@ class TestIngestExistingFileTagFK:
             ref_tags = sess.query(AssetReferenceTag).all()
             ref_tag_names = {rt.tag_name for rt in ref_tags}
             assert "output" in ref_tag_names
+
+
+class TestIngestExistingFileLoaderPath:
+    """Outputs saved into a subfolder must persist the subfolder-qualified
+    loader path, not the bare basename (regression: spec["fname"] was
+    os.path.basename)."""
+
+    def test_subfoldered_output_persists_relative_loader_path(
+        self, mock_create_session, temp_dir: Path, session: Session
+    ):
+        input_dir = temp_dir / "input"
+        output_dir = temp_dir / "output"
+        temp_root = temp_dir / "temp"
+        for directory in (input_dir, output_dir, temp_root):
+            directory.mkdir()
+        file_path = output_dir / "sub" / "img_00001_.png"
+        file_path.parent.mkdir()
+        file_path.write_bytes(b"image data")
+
+        with (
+            patch("app.assets.services.path_utils.folder_paths") as mock_fp,
+            patch(
+                "app.assets.services.path_utils.get_comfy_models_folders",
+                return_value=[],
+            ),
+        ):
+            mock_fp.get_input_directory.return_value = str(input_dir)
+            mock_fp.get_output_directory.return_value = str(output_dir)
+            mock_fp.get_temp_directory.return_value = str(temp_root)
+
+            assert ingest_existing_file(abs_path=str(file_path)) is True
+
+        ref = (
+            session.query(AssetReference)
+            .filter_by(file_path=str(file_path))
+            .one()
+        )
+        assert ref.loader_path == "sub/img_00001_.png"
+        assert (ref.user_metadata or {}).get("filename") == "sub/img_00001_.png"
 
 
 class TestIngestImageDimensions:

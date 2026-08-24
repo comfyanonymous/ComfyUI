@@ -76,6 +76,8 @@ class AssetReference(Base):
 
     # Cache state fields (from former AssetCacheState)
     file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # In-root loader path derived from file_path at scan/ingest time.
+    loader_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     mtime_ns: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     needs_verify: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_missing: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

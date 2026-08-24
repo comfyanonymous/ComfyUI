@@ -10,6 +10,7 @@ import math
 import numpy as np
 import struct
 import torch
+import logging
 
 import zlib
 import comfy.utils
@@ -87,6 +88,149 @@ class ImageCropV2(IO.ComfyNode):
         to_y = height + y
         img = image[:,y:to_y, x:to_x, :]
         return IO.NodeOutput(img, ui=UI.PreviewImage(img))
+
+
+def _crop_image_with_mask(item_image, item_mask, max_image_size=1024, pad_factor=1.1,
+                          mask_offset=0, mask_threshold=0.05, bg_rgb=(0.0, 0.0, 0.0),
+                          aspect_ratio=1.0):
+    img = item_image.permute(2, 0, 1).unsqueeze(0).cpu().float().clamp(0, 1)
+    mask = item_mask.unsqueeze(0).unsqueeze(0).cpu().float().clamp(0, 1)
+
+    # Detect and correct an inverted mask, only when border and center have opposite polarity.
+    m2d = mask[0, 0]
+    h, w = m2d.shape
+    border = torch.cat([m2d[0, :], m2d[-1, :], m2d[:, 0], m2d[:, -1]])
+    center = m2d[h // 4:h - h // 4, w // 4:w - w // 4]
+    if float(border.mean()) > 0.5 and float(center.mean()) < 0.5:
+        mask = 1.0 - mask
+
+    if mask_offset > 0:
+        r = mask_offset
+        mask = torch.nn.functional.max_pool2d(mask, kernel_size=2 * r + 1, stride=1, padding=r)
+    elif mask_offset < 0:
+        r = -mask_offset
+        mask = 1.0 - torch.nn.functional.max_pool2d(1.0 - mask, kernel_size=2 * r + 1, stride=1, padding=r)
+
+    if mask_threshold > 0.0:
+        mask = torch.where(mask < mask_threshold, torch.zeros_like(mask), mask)
+
+    H, W = img.shape[-2:]
+    if max(H, W) > max_image_size:
+        scale = max_image_size / max(H, W)
+        new_w, new_h = int(W * scale), int(H * scale)
+        img  = comfy.utils.common_upscale(img,  new_w, new_h, "lanczos", "disabled")
+        mask = comfy.utils.common_upscale(mask, new_w, new_h, "lanczos", "disabled")
+        # common_upscale's lanczos path drops the singleton channel dim for masks (utils.py:1062).
+        if mask.ndim == 3:
+            mask = mask.unsqueeze(1)
+        H, W = new_h, new_w
+    scene_size = (W, H)
+
+    alpha_u8 = (mask[0, 0].clamp(0, 1) * 255.0).to(torch.uint8)
+    fg_pixels = (alpha_u8 > 204).nonzero()
+    if fg_pixels.numel() == 0:
+        # Try the inverted mask — auto-invert above may have been too conservative.
+        inv_fg = ((255 - alpha_u8) > 204).nonzero()
+        if inv_fg.numel() > 0:
+            logging.info("Trellis2 preprocess: mask bbox empty, using inverted mask.")
+            mask = 1.0 - mask
+            fg_pixels = inv_fg
+    if fg_pixels.numel() > 0:
+        y_min, x_min = fg_pixels.min(dim=0).values.tolist()
+        y_max, x_max = fg_pixels.max(dim=0).values.tolist()
+        center_y, center_x = (y_min + y_max) / 2.0, (x_min + x_max) / 2.0
+        bw = x_max - x_min + 1
+        bh = y_max - y_min + 1
+        # Grow the bbox so its aspect matches `aspect_ratio` (width/height),
+        # anchored on the max side. Then apply pad_factor.
+        if bw / max(bh, 1) >= aspect_ratio:
+            crop_w = int(bw * pad_factor)
+            crop_h = int(bw / aspect_ratio * pad_factor)
+        else:
+            crop_h = int(bh * pad_factor)
+            crop_w = int(bh * aspect_ratio * pad_factor)
+        half_w, half_h = math.ceil(crop_w / 2), math.ceil(crop_h / 2)
+        crop_x1 = int(center_x - half_w)
+        crop_y1 = int(center_y - half_h)
+        crop_x2 = crop_x1 + 2 * half_w
+        crop_y2 = crop_y1 + 2 * half_h
+    else:
+        logging.warning("Mask for the image is empty; a clean foreground mask is required for best quality.")
+        crop_x1, crop_y1, crop_x2, crop_y2 = 0, 0, W, H
+    crop_bbox = (crop_x1, crop_y1, crop_x2, crop_y2)
+
+    # Zero-pad out-of-bounds slice (PIL.crop semantics).
+    pad_l = max(0, -crop_x1)
+    pad_t = max(0, -crop_y1)
+    pad_r = max(0, crop_x2 - W)
+    pad_b = max(0, crop_y2 - H)
+    if pad_l or pad_t or pad_r or pad_b:
+        img  = torch.nn.functional.pad(img,  (pad_l, pad_r, pad_t, pad_b), value=0.0)
+        mask = torch.nn.functional.pad(mask, (pad_l, pad_r, pad_t, pad_b), value=0.0)
+        crop_x1 += pad_l
+        crop_x2 += pad_l
+        crop_y1 += pad_t
+        crop_y2 += pad_t
+    cropped_img  = img [..., crop_y1:crop_y2, crop_x1:crop_x2]
+    cropped_mask = mask[..., crop_y1:crop_y2, crop_x1:crop_x2]
+
+    bg = torch.tensor(bg_rgb, dtype=cropped_img.dtype, device=cropped_img.device).view(1, 3, 1, 1)
+    composite = (cropped_img * cropped_mask + bg * (1.0 - cropped_mask)).clamp(0, 1)
+    return composite, crop_bbox, scene_size
+
+
+class ImageCropToMask(IO.ComfyNode):
+    """Crop an image to its mask's bounding box (centered square, with pad_factor
+    margin), then composite `img * mask` and resize to a square. Handles OOB crops
+    with zero-padding. Useful for 3D pipelines that expect a centered, background-free
+    subject at a fixed input resolution (Trellis2, Pixal3D, Hunyuan3D, TripoSR, etc.)."""
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="ImageCropToMask",
+            display_name="Crop Image to Mask",
+            category="image/transform",
+            search_aliases=["crop to mask", "mask crop", "crop mask", "mask crop resize", "crop mask resize", "trellis2", "pixal3d"],
+            inputs=[
+                IO.Image.Input("images"),
+                IO.Mask.Input("masks"),
+                IO.Int.Input("width", default=1024, min=64, max=4096, step=8, tooltip="Output width in pixels."),
+                IO.Int.Input("height", default=1024, min=64, max=4096, step=8, tooltip="Output height in pixels."),
+                IO.Float.Input("pad_factor", default=1.0, min=1.0, max=2.0, step=0.01, tooltip="Extra margin around the mask bounding box as a multiplier."),
+                IO.Int.Input("grow_mask", default=0, min=-32, max=32, step=1, tooltip="Grow or shrink the mask by this many pixels before cropping."),
+                IO.Color.Input("background", default="#000000", tooltip="Background color behind the masked subject."),
+            ],
+            outputs=[IO.Image.Output(display_name="images")],
+        )
+
+    @classmethod
+    def execute(cls, images, masks, width, height, pad_factor, grow_mask, background) -> IO.NodeOutput:
+        h = background.lstrip("#")
+        bg_rgb = (int(h[0:2], 16) / 255.0, int(h[2:4], 16) / 255.0, int(h[4:6], 16) / 255.0) if len(h) == 6 else (0.0, 0.0, 0.0)
+        images = images[..., :3]
+        batch_size = images.shape[0]
+        if masks.shape[0] == 1 and batch_size > 1:
+            masks = masks.expand(batch_size, -1, -1)
+        elif masks.shape[0] != batch_size:
+            raise ValueError(f"Mask batch {masks.shape[0]} does not match image batch {batch_size}")
+        if masks.shape[-2:] != images.shape[1:3]:
+            masks = comfy.utils.common_upscale(masks.unsqueeze(1).float(), images.shape[2], images.shape[1], "bilinear", "disabled").squeeze(1)
+
+        out_images = []
+        for b in range(batch_size):
+            composite, _, _ = _crop_image_with_mask(
+                images[b], masks[b], max_image_size=max(width, height), pad_factor=pad_factor,
+                mask_offset=grow_mask, bg_rgb=bg_rgb, aspect_ratio=width / height,
+            )
+            composite = comfy.utils.common_upscale(composite, width, height, "lanczos", "disabled")
+            out_images.append(composite.movedim(-3, -1))
+
+        result = torch.cat(out_images, dim=0).to(
+            device=comfy.model_management.intermediate_device(),
+            dtype=comfy.model_management.intermediate_dtype(),
+        )
+        return IO.NodeOutput(result)
 
 
 class BoundingBox(IO.ComfyNode):
@@ -844,15 +988,18 @@ class ImageMergeTileList(IO.ComfyNode):
 # Format specifications
 # ---------------------------------------------------------------------------
 
-# Maps (file_format, bit_depth, has_alpha) -> (numpy dtype scale, av pixel format,
-# stream pix_fmt). Keeps the encode path declarative instead of branchy.
+# Maps (file_format, bit_depth, num_channels) -> (quantization scale, numpy dtype,
+# av frame pix_fmt, stream pix_fmt). Keeps the encode path declarative instead of branchy.
 _FORMAT_SPECS = {
-    ("png", "8-bit", False):  {"scale": 255.0,   "dtype": np.uint8,   "frame_fmt": "rgb24",     "stream_fmt": "rgb24"},
-    ("png", "8-bit", True):   {"scale": 255.0,   "dtype": np.uint8,   "frame_fmt": "rgba",      "stream_fmt": "rgba"},
-    ("png", "16-bit", False): {"scale": 65535.0, "dtype": np.uint16,  "frame_fmt": "rgb48le",   "stream_fmt": "rgb48be"},
-    ("png", "16-bit", True):  {"scale": 65535.0, "dtype": np.uint16,  "frame_fmt": "rgba64le",  "stream_fmt": "rgba64be"},
-    ("exr", "32-bit float", False): {"scale": 1.0, "dtype": np.float32, "frame_fmt": "gbrpf32le",  "stream_fmt": "gbrpf32le"},
-    ("exr", "32-bit float", True):  {"scale": 1.0, "dtype": np.float32, "frame_fmt": "gbrapf32le", "stream_fmt": "gbrapf32le"},
+    ("png", "8-bit", 1):  {"scale": 255.0,   "dtype": np.uint8,   "frame_fmt": "gray",      "stream_fmt": "gray"},
+    ("png", "8-bit", 3):  {"scale": 255.0,   "dtype": np.uint8,   "frame_fmt": "rgb24",     "stream_fmt": "rgb24"},
+    ("png", "8-bit", 4):  {"scale": 255.0,   "dtype": np.uint8,   "frame_fmt": "rgba",      "stream_fmt": "rgba"},
+    ("png", "16-bit", 1): {"scale": 65535.0, "dtype": np.uint16,  "frame_fmt": "gray16le",  "stream_fmt": "gray16be"},
+    ("png", "16-bit", 3): {"scale": 65535.0, "dtype": np.uint16,  "frame_fmt": "rgb48le",   "stream_fmt": "rgb48be"},
+    ("png", "16-bit", 4): {"scale": 65535.0, "dtype": np.uint16,  "frame_fmt": "rgba64le",  "stream_fmt": "rgba64be"},
+    ("exr", "32-bit float", 1): {"scale": 1.0, "dtype": np.float32, "frame_fmt": "grayf32le",  "stream_fmt": "grayf32le"},
+    ("exr", "32-bit float", 3): {"scale": 1.0, "dtype": np.float32, "frame_fmt": "gbrpf32le",  "stream_fmt": "gbrpf32le"},
+    ("exr", "32-bit float", 4): {"scale": 1.0, "dtype": np.float32, "frame_fmt": "gbrapf32le", "stream_fmt": "gbrapf32le"},
 }
 
 
@@ -891,10 +1038,11 @@ def hlg_to_linear(t: torch.Tensor) -> torch.Tensor:
         return torch.cat([hlg_to_linear(rgb), alpha], dim=-1)
 
     # Piecewise: sqrt branch below 0.5, log branch above.
-    # Clamp inside the log branch so negative / out-of-range values don't blow up;
+    # Clamp the log branch at the 0.5 branch point (not above it) so the
+    # unselected lane stays finite in exp() without altering selected values;
     # values above 1.0 are allowed and extrapolate naturally.
     low = (t ** 2) / 3.0
-    high = (torch.exp((t.clamp(min=_HLG_C) - _HLG_C) / _HLG_A) + _HLG_B) / 12.0
+    high = (torch.exp((t.clamp(min=0.5) - _HLG_C) / _HLG_A) + _HLG_B) / 12.0
     return torch.where(t <= 0.5, low, high)
 
 
@@ -1087,7 +1235,8 @@ def _encode_image(
     bit_depth: str,
     colorspace: str,
 ) -> bytes:
-    """Encode a single HxWxC tensor to PNG or EXR bytes in memory.
+    """Encode a single HxWxC (or channel-less HxW grayscale) tensor to PNG or
+    EXR bytes in memory. Grayscale is written as single-channel PNG / Y-only EXR.
 
     For EXR the input is interpreted according to `colorspace` and converted
     to scene-linear (EXR's convention) before writing:
@@ -1101,10 +1250,16 @@ def _encode_image(
     For PNG, colorspace selection does not modify pixels — PNG is delivered
     sRGB-encoded and there is no PNG path for wide-gamut HDR in this node.
     """
+    if img_tensor.ndim == 2:
+        img_tensor = img_tensor.unsqueeze(-1)  # Some nodes emit grayscale as (H, W) with no channel dim, mask-style.
     height, width, num_channels = img_tensor.shape
-    has_alpha = num_channels == 4
 
-    spec = _FORMAT_SPECS[(file_format, bit_depth, has_alpha)]
+    spec = _FORMAT_SPECS.get((file_format, bit_depth, num_channels))
+    if spec is None:
+        raise ValueError(
+            f"No {file_format}/{bit_depth} encoder for {num_channels}-channel images: "
+            "supported channel counts are 1 (grayscale), 3 (RGB) and 4 (RGBA)."
+        )
 
     if spec["dtype"] == np.float32:
         # EXR path: preserve full range, no clamp.
@@ -1233,6 +1388,7 @@ class ImagesExtension(ComfyExtension):
         return [
             ImageCrop,
             ImageCropV2,
+            ImageCropToMask,
             BoundingBox,
             RepeatImageBatch,
             ImageFromBatch,
