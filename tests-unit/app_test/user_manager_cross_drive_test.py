@@ -15,15 +15,18 @@ intended rejection. Measured on the pre-fix build, user directory on `D:`:
     '../escape.json'                  -> None      (rejected, as it should be)
     'sub/ok.json'                     -> <path inside the user directory>
 
-The cross-drive case is Windows-only; the tests below simulate the drive
-mismatch on every platform by patching `os.path.commonpath` to raise the same
-ValueError, and additionally run the real thing on Windows when a second drive
-is actually available.
+The cross-drive case is Windows-only. To keep the guard covered on POSIX CI as
+well, the tests below drive the same ValueError out of `os.path.commonpath()`
+by call position rather than by comparing drive letters: on POSIX a leading
+`Z:` is an ordinary filename character, so the join lands inside the user
+directory and a drive-letter comparison would never fire. One test also does it
+for real on Windows when a second drive exists.
 """
 
 import os
 import sys
 import tempfile
+from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -52,39 +55,51 @@ def request_():
     return request
 
 
+@contextmanager
+def commonpath_raising_on_the_user_root_check():
+    """Raise a drive mismatch from the `(user_root, path)` comparison only.
+
+    Deciding when to raise by comparing drive letters would fire on Windows
+    only: on POSIX a leading `Z:` is an ordinary filename character, so the
+    join lands inside the user directory and nothing raises. Keying on the call
+    instead keeps the guard covered on every platform.
+
+    The earlier `(root_dir, user_root)` comparison in the same function keeps
+    working: both of those paths are derived from the user directory, so a real
+    drive mismatch cannot occur there.
+    """
+    real_commonpath = os.path.commonpath
+    calls = []
+
+    def fake_commonpath(paths):
+        calls.append(paths)
+        if len(calls) == 1:
+            return real_commonpath(paths)
+        raise ValueError("Paths don't have the same drive")
+
+    with patch("os.path.commonpath", side_effect=fake_commonpath):
+        yield calls
+
+
 def test_cross_drive_path_is_rejected_not_raised(user_manager, request_):
     """A drive mismatch must return None, the same as any other escape."""
-    real_commonpath = os.path.commonpath
-
-    def commonpath_raising_on_mismatch(paths):
-        first, second = paths
-        if os.path.splitdrive(first)[0].lower() != os.path.splitdrive(second)[0].lower():
-            raise ValueError("Paths don't have the same drive")
-        return real_commonpath(paths)
-
-    with patch("os.path.commonpath", side_effect=commonpath_raising_on_mismatch):
+    with commonpath_raising_on_the_user_root_check() as calls:
         result = user_manager.get_request_user_filepath(
             request_, "Z:\\Windows\\temp\\test.txt", create_dir=False
         )
 
+    assert len(calls) == 2, "the containment check under test was never reached"
     assert result is None
 
 
 def test_url_encoded_cross_drive_path_is_rejected(user_manager, request_):
     """The reported request shape: the drive letter arrives percent-encoded."""
-    real_commonpath = os.path.commonpath
-
-    def commonpath_raising_on_mismatch(paths):
-        first, second = paths
-        if os.path.splitdrive(first)[0].lower() != os.path.splitdrive(second)[0].lower():
-            raise ValueError("Paths don't have the same drive")
-        return real_commonpath(paths)
-
-    with patch("os.path.commonpath", side_effect=commonpath_raising_on_mismatch):
+    with commonpath_raising_on_the_user_root_check() as calls:
         result = user_manager.get_request_user_filepath(
             request_, "Z:%5CWindows%5Ctemp%5Ctest.txt", create_dir=False
         )
 
+    assert len(calls) == 2, "the containment check under test was never reached"
     assert result is None
 
 
