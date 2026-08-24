@@ -620,7 +620,7 @@ class Attention(nn.Module):
 
         fixed_cache = past_key_value if isinstance(past_key_value, FixedKV) else None
         if isinstance(fixed_cache, FixedKVBias):
-            if seq_length <= 3 and attention_mask is None and graph_decode:
+            if seq_length <= 6 and attention_mask is None and graph_decode:
                 # CUDA-graphable decode: device-side write position, full-capacity biased attention
                 fixed_cache.key.index_copy_(2, fixed_cache.position[:seq_length], xk)
                 fixed_cache.value.index_copy_(2, fixed_cache.position[:seq_length], xv)
@@ -874,8 +874,8 @@ class Llama2_(nn.Module):
         flash_kv = self.fixed_kv and flash is not None and flash(device)
         bias_kv = self.fixed_kv and not flash_kv
         # all layers advance in lockstep, so the bias caches share one position/bias/tracker
-        position = torch.empty((3,), device=device, dtype=torch.int64) if bias_kv else None
-        bias = torch.full((1, 1, 3, capacity), torch.finfo(dtype).min, device=device, dtype=dtype) if bias_kv else None
+        position = torch.empty((6,), device=device, dtype=torch.int64) if bias_kv else None
+        bias = torch.full((1, 1, 6, capacity), torch.finfo(dtype).min, device=device, dtype=dtype) if bias_kv else None
         tracker = {"step": -1}
         for _ in range(self.config.num_hidden_layers):
             if flash_kv:
@@ -903,7 +903,7 @@ class Llama2_(nn.Module):
                                     device=device)
 
     def forward(self, x, attention_mask=None, embeds=None, num_tokens=None, intermediate_output=None, final_layer_norm_intermediate=True,
-                dtype=None, position_ids=None, embeds_info=[], past_key_values=None, input_ids=None,deepstack_embeds=None, visual_pos_masks=None):
+                dtype=None, position_ids=None, embeds_info=[], past_key_values=None, input_ids=None,deepstack_embeds=None, visual_pos_masks=None, freqs_cis=None):
         if embeds is not None:
             x = embeds
         else:
@@ -921,14 +921,15 @@ class Llama2_(nn.Module):
         if position_ids is None:
             position_ids = torch.arange(past_len, past_len + seq_len, device=x.device).unsqueeze(0)
 
-        freqs_cis = self.compute_freqs_cis(position_ids, x.device)
+        if freqs_cis is None:
+            freqs_cis = self.compute_freqs_cis(position_ids, x.device)
 
         mask = None
         if attention_mask is not None:
             mask = 1.0 - attention_mask.to(x.dtype).reshape((attention_mask.shape[0], 1, -1, attention_mask.shape[-1])).expand(attention_mask.shape[0], 1, seq_len, attention_mask.shape[-1])
             mask = mask.masked_fill(mask.to(torch.bool), torch.finfo(x.dtype).min / 4)
 
-        spec_decode = fixed_kv and seq_len in (2, 3) and past_len > 0 and attention_mask is None
+        spec_decode = fixed_kv and 2 <= seq_len <= 6 and past_len > 0 and attention_mask is None
         if seq_len > 1 and not spec_decode:  # spec verify: the staircase decode bias is causal
             causal_mask = torch.empty(past_len + seq_len, past_len + seq_len, dtype=x.dtype, device=x.device).fill_(torch.finfo(x.dtype).min / 4).triu_(1)
             if mask is not None:
@@ -1149,12 +1150,9 @@ class BaseGenerate:
 
         return generated_token_ids
 
-    def sample_token(self, logits, temperature, top_k, top_p, min_p, repetition_penalty, token_history, generator, do_sample=True, presence_penalty=0.0):
-
-        if not do_sample or temperature == 0.0:
-            return torch.argmax(logits, dim=-1, keepdim=True)
-
-        # Sampling mode
+    def processed_probs(self, logits, temperature, top_k, top_p, min_p, repetition_penalty, token_history, presence_penalty=0.0):
+        # full sampling processing chain; returns (probs, indices) where indices
+        # maps prob columns back to vocab ids (None = probs cover the full vocab)
         if len(token_history) > 0 and (repetition_penalty != 1.0 or (presence_penalty is not None and presence_penalty != 0.0)):
             token_ids = torch.tensor(list(set(token_history)), device=logits.device)
             token_logits = logits[:, token_ids]
@@ -1167,29 +1165,10 @@ class BaseGenerate:
         if temperature != 1.0:
             logits = logits / temperature
 
+        top_indices = None
         if top_k > 0:
             top_k = min(top_k, logits.shape[-1])
             logits, top_indices = torch.topk(logits, top_k)
-
-            if min_p > 0.0:
-                probs_before_filter = torch.nn.functional.softmax(logits, dim=-1)
-                top_probs, _ = probs_before_filter.max(dim=-1, keepdim=True)
-                min_threshold = min_p * top_probs
-                indices_to_remove = probs_before_filter < min_threshold
-                logits[indices_to_remove] = torch.finfo(logits.dtype).min
-
-            if top_p < 1.0:
-                sorted_logits, sorted_indices = torch.sort(logits, descending=True)
-                cumulative_probs = torch.cumsum(torch.nn.functional.softmax(sorted_logits, dim=-1), dim=-1)
-                sorted_indices_to_remove = cumulative_probs > top_p
-                sorted_indices_to_remove[..., 0] = False
-                indices_to_remove = torch.zeros_like(logits, dtype=torch.bool)
-                indices_to_remove.scatter_(1, sorted_indices, sorted_indices_to_remove)
-                logits[indices_to_remove] = torch.finfo(logits.dtype).min
-
-            probs = torch.nn.functional.softmax(logits, dim=-1)
-            next_token = torch.multinomial(probs, num_samples=1, generator=generator)
-            return top_indices.gather(1, next_token)
 
         if min_p > 0.0:
             probs_before_filter = torch.nn.functional.softmax(logits, dim=-1)
@@ -1207,9 +1186,18 @@ class BaseGenerate:
             indices_to_remove.scatter_(1, sorted_indices, sorted_indices_to_remove)
             logits[indices_to_remove] = torch.finfo(logits.dtype).min
 
-        probs = torch.nn.functional.softmax(logits, dim=-1)
+        return torch.nn.functional.softmax(logits, dim=-1), top_indices
 
-        return torch.multinomial(probs, num_samples=1, generator=generator)
+    def sample_token(self, logits, temperature, top_k, top_p, min_p, repetition_penalty, token_history, generator, do_sample=True, presence_penalty=0.0):
+
+        if not do_sample or temperature == 0.0:
+            return torch.argmax(logits, dim=-1, keepdim=True)
+
+        probs, top_indices = self.processed_probs(logits, temperature, top_k, top_p, min_p, repetition_penalty, token_history, presence_penalty=presence_penalty)
+        next_token = torch.multinomial(probs, num_samples=1, generator=generator)
+        if top_indices is not None:
+            return top_indices.gather(1, next_token)
+        return next_token
 
 class BaseQwen3:
     def logits(self, x):

@@ -4,10 +4,12 @@ import torch.nn.functional as F
 from dataclasses import dataclass, field
 from tqdm import tqdm
 import os
+import warnings
 
 import comfy.model_management
 import comfy.model_prefetch
 import comfy.ops
+import comfy_kitchen
 from comfy.ldm.modules.attention import optimized_attention_for_device
 from comfy import sd1_clip
 import comfy.text_encoders.qwen_vl
@@ -207,7 +209,7 @@ class GatedDeltaNet(nn.Module):
         use_recurrent = (
             past_key_value is not None
             and past_key_value.index > 0
-            and seq_len <= 3
+            and seq_len <= 6
         )
 
         # Projections (shared)
@@ -268,19 +270,25 @@ class GatedDeltaNet(nn.Module):
 
             # In-place state update: [B, heads, k_dim, v_dim]
             recurrent_state = past_key_value.recurrent_state
-            outs = []
-            for s in range(seq_len):
-                recurrent_state.mul_(g_t[:, s, :, None, None])
-                kv_mem = torch.einsum('bhk,bhkv->bhv', k[:, s], recurrent_state)
-                delta = (v[:, s] - kv_mem) * beta_t[:, s, :, None]
-                # rank-1 update via baddbmm_: no materialized [B, H, D, D] outer-product temp
-                recurrent_state.view(-1, self.key_head_dim, self.value_head_dim).baddbmm_(
-                    k[:, s].reshape(-1, self.key_head_dim, 1), delta.reshape(-1, 1, self.value_head_dim))
-                outs.append(torch.einsum('bhk,bhkv->bhv', q[:, s], recurrent_state))
-                if seq_len > 1 and s < seq_len - 1:
-                    past_key_value.snapshots[s][0].copy_(recurrent_state)
-
-            core_attn_out = torch.stack(outs, dim=1).to(x.dtype)
+            snaps = getattr(past_key_value, "snap_backing", None)
+            fused = getattr(comfy_kitchen, "gated_delta_decode", None)
+            if fused is not None and x.is_cuda and self.key_head_dim == 128 and (seq_len == 1 or snaps is not None):
+                core_attn_out = fused(q.contiguous(), k.contiguous(), v.contiguous(),
+                                      beta_t.float().contiguous(), g_t.float().contiguous(), recurrent_state,
+                                      snaps[:seq_len - 1] if seq_len > 1 else None).to(x.dtype)
+            else:
+                outs = []
+                for s in range(seq_len):
+                    recurrent_state.mul_(g_t[:, s, :, None, None])
+                    kv_mem = torch.einsum('bhk,bhkv->bhv', k[:, s], recurrent_state)
+                    delta = (v[:, s] - kv_mem) * beta_t[:, s, :, None]
+                    # rank-1 update via baddbmm_: no materialized [B, H, D, D] outer-product temp
+                    recurrent_state.view(-1, self.key_head_dim, self.value_head_dim).baddbmm_(
+                        k[:, s].reshape(-1, self.key_head_dim, 1), delta.reshape(-1, 1, self.value_head_dim))
+                    outs.append(torch.einsum('bhk,bhkv->bhv', q[:, s], recurrent_state))
+                    if seq_len > 1 and s < seq_len - 1:
+                        past_key_value.snapshots[s][0].copy_(recurrent_state)
+                core_attn_out = torch.stack(outs, dim=1).to(x.dtype)
             present_key_value = past_key_value
         else:
             beta = b.sigmoid()
@@ -370,7 +378,7 @@ class GatedAttention(nn.Module):
 
         # KV cache
         present_key_value = past_key_value
-        if past_key_value is not None and seq_length <= 3 and attention_mask is None and graph_decode and past_key_value.index > 0:
+        if past_key_value is not None and seq_length <= 6 and attention_mask is None and graph_decode and past_key_value.index > 0:
             # CUDA-graphable decode: device-side write position, full-capacity biased attention
             cache = past_key_value
             cache.key.index_copy_(2, cache.position[:seq_length], xk)
@@ -403,17 +411,19 @@ class Qwen35TransformerBlock(nn.Module):
         self.input_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, add=config.rms_norm_add, device=device, dtype=dtype)
         self.post_attention_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, add=config.rms_norm_add, device=device, dtype=dtype)
 
-    def forward(self, x, attention_mask=None, freqs_cis=None, optimized_attention=None, past_key_value=None):
+    def forward(self, x, attention_mask=None, freqs_cis=None, optimized_attention=None, past_key_value=None, graph_decode=None):
         output = x
         if self.layer_type == "linear_attention":
             h, present_key_value = self.linear_attn(self.input_layernorm(x), attention_mask=attention_mask, past_key_value=past_key_value)
         else:
-            # mirror the conditions under which prefetch_queue_pop can actually capture, so
-            # eager fallbacks keep the sliced decode path instead of the full-capacity one
-            graph_decode = (getattr(self, "_v_block", None) is not None
-                            and comfy.model_management.NUM_STREAMS > 0
-                            and not comfy.model_management.args.disable_cuda_graphs
-                            and comfy.model_management.is_device_cuda(x.device))
+            if graph_decode is None:
+                # mirror the conditions under which prefetch_queue_pop can actually capture, so
+                # eager fallbacks keep the sliced decode path instead of the full-capacity one
+                graph_decode = (getattr(self, "_force_graph_decode", False)
+                                or (getattr(self, "_v_block", None) is not None
+                                    and comfy.model_management.NUM_STREAMS > 0
+                                    and not comfy.model_management.args.disable_cuda_graphs
+                                    and comfy.model_management.is_device_cuda(x.device)))
             h, present_key_value = self.self_attn(self.input_layernorm(x), attention_mask=attention_mask, freqs_cis=freqs_cis, optimized_attention=optimized_attention, past_key_value=past_key_value, graph_decode=graph_decode)
 
         # in-place into the input buffer so CUDA-graph replays land in the static x
@@ -701,7 +711,10 @@ class MTPHead(nn.Module):
     def forward(self, embeds, hidden, freqs_cis, past_key_value):
         x = self.fc(torch.cat([self.pre_fc_norm_embedding(embeds), self.pre_fc_norm_hidden(hidden)], dim=-1))
         attention = optimized_attention_for_device(x.device, mask=False, small_input=True)
-        x, _ = self.layers[0](x, attention_mask=None, freqs_cis=freqs_cis, optimized_attention=attention, past_key_value=past_key_value)
+        # graph_decode: the bias-decode path is device-indexed, so a captured draft
+        # graph stays correct as the cache position advances (the sliced fallback
+        # would bake the capture-time python index into the graph)
+        x, _ = self.layers[0](x, attention_mask=None, freqs_cis=freqs_cis, optimized_attention=attention, past_key_value=past_key_value, graph_decode=True)
         return self.norm(x), x  # (for logits, pre-norm hidden for recursive drafting)
 
 
@@ -735,17 +748,26 @@ class Qwen35(BaseLlama, BaseGenerate, torch.nn.Module):
 
     def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, seed=42, stop_tokens=None, **kwargs):
         greedy = (not do_sample) or temperature == 0.0
-        spec = (self.mtp is not None and greedy and repetition_penalty == 1.0
-                and kwargs.get("position_ids") is None
-                and not kwargs.get("presence_penalty", 0.0)
-                and kwargs.get("initial_input_ids") is None)
-        if not spec:
+        mtp = kwargs.pop("mtp", True)
+        common = (self.mtp is not None and mtp
+                  and kwargs.get("position_ids") is None
+                  and kwargs.get("initial_input_ids") is None)
+        spec = common and greedy and repetition_penalty == 1.0 and not kwargs.get("presence_penalty", 0.0)
+        sampled = common and not greedy
+        if not (spec or sampled):
             return super().generate(embeds=embeds, do_sample=do_sample, max_length=max_length, temperature=temperature,
                                     top_k=top_k, top_p=top_p, min_p=min_p, repetition_penalty=repetition_penalty,
                                     seed=seed, stop_tokens=stop_tokens, **kwargs)
-        return self._generate_mtp(embeds, max_length, stop_tokens)
+        sampling = None
+        if sampled:
+            sampling = {"temperature": temperature, "top_k": top_k, "top_p": top_p, "min_p": min_p,
+                        "repetition_penalty": repetition_penalty,
+                        "presence_penalty": kwargs.get("presence_penalty", 0.0) or 0.0,
+                        "seed": seed if seed is not None else 42}
+        fixed_depth = None if mtp is True else max(2, min(5, int(mtp)))
+        return self._generate_mtp(embeds, max_length, stop_tokens, sampling=sampling, fixed_depth=fixed_depth)
 
-    def _generate_mtp(self, embeds, max_length, stop_tokens):
+    def _generate_mtp(self, embeds, max_length, stop_tokens, sampling=None, fixed_depth=None):
         device = embeds.device
         cfg = self.model.config
         if stop_tokens is None:
@@ -754,15 +776,25 @@ class Qwen35(BaseLlama, BaseGenerate, torch.nn.Module):
         embeds = embeds.to(dt)
         if embeds.ndim == 2:
             embeds = embeds.unsqueeze(0)
-        cap = embeds.shape[1] + max_length + 3
+        # greedy acceptance sustains a third draft; sampled acceptance at typical
+        # temperatures does not (measured net-negative), so it stays at two.
+        # High-acceptance greedy runs deepen to 5 once, after a probe window.
+        depth = fixed_depth if fixed_depth is not None else (3 if sampling is None else 2)
+        cap = embeds.shape[1] + max_length + 7
         pkv = self.init_kv_cache(embeds.shape[0], cap, device, dt)
         for kv in pkv:
             if isinstance(kv, LinearKV):
-                kv.snapshots = [(torch.empty_like(kv.recurrent_state), torch.empty_like(kv.conv_state)) for _ in range(2)]
+                # recurrent snapshots share one contiguous backing so the fused
+                # kernel can write all of them; the tuples hold views into it
+                kv.snap_backing = torch.empty((depth,) + tuple(kv.recurrent_state.shape), device=device, dtype=torch.float32)
+                kv.snapshots = [(kv.snap_backing[s], torch.empty_like(kv.conv_state)) for s in range(depth)]
         mkey = torch.zeros([embeds.shape[0], cfg.num_key_value_heads, cap, cfg.head_dim], device=device, dtype=dt)
+        # 6 rows: the prepare repair window spans [i - rows + 1, i + rows), which must
+        # cover slots unmasked while drafting `depth` ahead followed by a near-full
+        # rollback — rows >= depth + 1 keeps no stale slot unmasked
         mtp_kv = FixedKVBias(mkey, torch.zeros_like(mkey), 0,
-                             torch.empty((3,), device=device, dtype=torch.int64), None,
-                             torch.full((1, 1, 3, cap), torch.finfo(dt).min, device=device, dtype=dt), {"step": -1})
+                             torch.empty((6,), device=device, dtype=torch.int64), None,
+                             torch.full((1, 1, 6, cap), torch.finfo(dt).min, device=device, dtype=dt), {"step": -1})
 
         # keep the per-step hot weights resident for the whole generate: lm_head and
         # embed_tokens run outside the captured graphs and are otherwise evicted on
@@ -773,8 +805,15 @@ class Qwen35(BaseLlama, BaseGenerate, torch.nn.Module):
             comfy.ops.cast_modules_with_vbar(pinned, None, device, None, True, return_faulted=True)
 
         nl = cfg.num_hidden_layers
+        generator = None
+        if sampling is not None:
+            generator = torch.Generator(device=device).manual_seed(sampling["seed"])
         x, inter, pkv = self.model.forward(None, embeds=embeds, attention_mask=None, past_key_values=pkv, intermediate_output=nl - 1)
-        nt = self.logits(x)[:, -1].argmax(dim=-1, keepdim=True)
+        if sampling is None:
+            nt = self.logits(x)[:, -1].argmax(dim=-1, keepdim=True)
+        else:
+            nt = self.sample_token(self.logits(x)[:, -1], sampling["temperature"], sampling["top_k"], sampling["top_p"], sampling["min_p"],
+                                   sampling["repetition_penalty"], [], generator, presence_penalty=sampling["presence_penalty"])
         h = inter[:, -1:, :].to(dt)
         ids = [nt[0].item()]
         pos = embeds.shape[1]
@@ -785,51 +824,195 @@ class Qwen35(BaseLlama, BaseGenerate, torch.nn.Module):
             progress.update(n)
             console.update(min(n, max(0, max_length - console.n)))
 
-        def mtp_step(token, hidden, p):
-            mtp_kv.prepare(1)
-            freqs = self.model.compute_freqs_cis(torch.tensor([[p]], device=device, dtype=torch.float), device)
-            out = self.mtp(self.model.embed_tokens(token).to(dt), hidden, freqs, mtp_kv)
-            mtp_kv.advance(1)
-            return out
+        # rope table once per generate: drafts and verify slice it instead of
+        # rebuilding a position tensor and recomputing freqs every step
+        ftab = self.model.compute_freqs_cis(torch.arange(cap, device=device, dtype=torch.float).unsqueeze(0), device)
 
+        def freqs_at(p, n=1):
+            return tuple(t[:, :, p:p + n] for t in ftab)
+
+        use_graph = (device.type == "cuda"
+                     and comfy.model_management.NUM_STREAMS > 0
+                     and not comfy.model_management.args.disable_cuda_graphs)
+        draft_state = {}
+
+        def drop_draft_graph():
+            # the allocator's benign "uncaptured free of a captured allocation"
+            # notice is only catchable when the free happens inside a torch API
+            # call (set_()/reset()); plain refcount-drop dealloc prints to stderr
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                for t in (draft_state.get("d"), draft_state.get("r"), *draft_state.get("keep", ())):
+                    if t is not None:
+                        t.set_()
+                g = draft_state.pop("graph", None)
+                if g is not None:
+                    g.reset()
+                draft_state.clear()
+
+        def draft(token, hidden, p):
+            # one drafted token: mtp head + lm_head argmax, graph-replayed on cuda
+            mtp_kv.prepare(1)
+            f = freqs_at(p)
+            if not use_graph:
+                n1, r1 = self.mtp(self.model.embed_tokens(token).to(dt), hidden, f, mtp_kv)
+                mtp_kv.advance(1)
+                return self.logits(n1)[:, -1].argmax(dim=-1, keepdim=True), r1
+            if "graph" not in draft_state:
+                ds = draft_state
+                ds["tok"] = token.clone()
+                ds["hid"] = hidden.clone()
+                ds["f"] = tuple(t.clone() for t in f)
+                side = torch.cuda.Stream()
+                side.wait_stream(torch.cuda.current_stream())
+                with torch.cuda.stream(side):
+                    for _ in range(2):
+                        n1, r1 = self.mtp(self.model.embed_tokens(ds["tok"]).to(dt), ds["hid"], ds["f"], mtp_kv)
+                        self.logits(n1)[:, -1].argmax(dim=-1, keepdim=True)
+                torch.cuda.current_stream().wait_stream(side)
+                del n1, r1  # free warmup temporaries outside the capture, not shadowed inside it
+                g = torch.cuda.CUDAGraph()
+                with torch.cuda.graph(g):
+                    n1, r1 = self.mtp(self.model.embed_tokens(ds["tok"]).to(dt), ds["hid"], ds["f"], mtp_kv)
+                    lg1 = self.logits(n1)
+                    ds["d"] = lg1[:, -1].argmax(dim=-1, keepdim=True)
+                    ds["r"] = r1
+                    ds["keep"] = (n1, lg1)  # captured allocations must outlive the graph
+                ds["graph"] = g
+            ds = draft_state
+            ds["tok"].copy_(token)
+            ds["hid"].copy_(hidden)
+            for buf, val in zip(ds["f"], f):
+                buf.copy_(val)
+            ds["graph"].replay()
+            mtp_kv.advance(1)
+            return ds["d"], ds["r"]
+
+        def col_dist(row, extra):
+            # per-column target distribution: committed-history penalties host-side,
+            # in-window draft tokens overlaid GPU-side (values unknown until the sync)
+            s = sampling
+            rp, pp = s["repetition_penalty"], s["presence_penalty"]
+            if rp != 1.0 or pp != 0.0:
+                seen = []
+                if ids:
+                    hist = torch.tensor(list(set(ids)), device=device)
+                    tl = row[:, hist]
+                    if rp != 1.0:
+                        tl = torch.where(tl < 0, tl * rp, tl / rp)
+                    if pp != 0.0:
+                        tl = tl - pp
+                    row[:, hist] = tl
+                    seen.append(hist)
+                for tok in extra:
+                    dup = torch.zeros((), device=device, dtype=torch.bool)
+                    for prev in seen:
+                        dup = dup | (prev == tok).any()
+                    v = row.gather(1, tok)
+                    nv = torch.where(v < 0, v * rp, v / rp) if rp != 1.0 else v
+                    if pp != 0.0:
+                        nv = nv - pp
+                    row.scatter_(1, tok, torch.where(dup, v, nv))
+                    seen.append(tok)
+            return self.processed_probs(row, s["temperature"], s["top_k"], s["top_p"], s["min_p"], 1.0, [])
+
+        def prob_of(probs, idx, tok):
+            if idx is None:
+                return probs.gather(1, tok).reshape(())
+            return (probs * (idx == tok)).sum()
+
+        def draw(probs, idx, exclude=None):
+            # residual (max(0, p - q) for one-hot q = p with the draft zeroed);
+            # the rescue term only matters when the result will be discarded anyway
+            w = probs
+            if exclude is not None:
+                if idx is None:
+                    w = probs.clone()
+                    w.scatter_(1, exclude, 0.0)
+                else:
+                    w = probs * (idx != exclude)
+                w = w + (w.sum() == 0) * probs
+            tok = torch.multinomial(w, num_samples=1, generator=generator)
+            if idx is not None:
+                return idx.gather(1, tok)
+            return tok
+
+        probe = None if fixed_depth is not None else [0, 0]  # steps, accepted drafts — settles the draft depth once
         try:
             while len(ids) < max_length and ids[-1] not in stop_tokens:
-                # draft two tokens recursively (second consumes the first draft's hidden)
-                n1, r1 = mtp_step(nt, h, pos)
-                d1 = self.logits(n1)[:, -1].argmax(dim=-1, keepdim=True)
-                n2, _ = mtp_step(d1, r1, pos + 1)
-                d2 = self.logits(n2)[:, -1].argmax(dim=-1, keepdim=True)
-                e3 = self.model.embed_tokens(torch.cat([nt, d1, d2], dim=1)).to(dt)
-                x, inter, pkv = self.model.forward(None, embeds=e3, attention_mask=None, past_key_values=pkv, intermediate_output=nl - 1)
-                # all three verify positions in one lm_head GEMV, accept decided GPU-side, one sync
+                # draft `depth` tokens recursively (each consumes the prior draft's
+                # hidden); non-final drafts are cloned because later replays overwrite
+                # the static graph output
+                drafts = []
+                tok_in, hid_in = nt, h
+                for k in range(depth):
+                    dk, rk = draft(tok_in, hid_in, pos + k)
+                    if k < depth - 1:
+                        dk = dk.clone()
+                    drafts.append(dk)
+                    tok_in, hid_in = dk, rk
+                ev = self.model.embed_tokens(torch.cat([nt] + drafts, dim=1)).to(dt)
+                x, inter, pkv = self.model.forward(None, embeds=ev, attention_mask=None, past_key_values=pkv, intermediate_output=nl - 1, freqs_cis=freqs_at(pos, depth + 1))
+                # all verify positions in one lm_head GEMV, accept decided GPU-side, one sync
                 with comfy.ops.CastBiasWeightContext(self.model.lm_head, x, offloadable=True) as (w, _bias):
-                    toks = F.linear(x, w).argmax(dim=-1)
-                t2v, t3v, t4v, d1v, d2v = torch.cat([toks[0], d1[0], d2[0]]).tolist()
-                if t2v != d1v:
-                    ids.append(t2v)
-                    for kv in pkv:
-                        kv.rollback(2)
-                    mtp_kv.rollback(1)  # the (d1, draft-hidden) entry is invalid
-                    nt = toks[:, 0:1]
-                    h = inter[:, 0:1, :].to(dt)
-                    pos += 1
-                    update_progress(1)
-                elif t3v != d2v:
-                    ids.extend((d1v, t3v))
-                    for kv in pkv:
-                        kv.rollback(1)
-                    nt = toks[:, 1:2]
-                    h = inter[:, 1:2, :].to(dt)
-                    pos += 2
-                    update_progress(2)
+                    lg = F.linear(x, w)
+                if sampling is None:
+                    toks = lg.argmax(dim=-1)
+                    vals = torch.cat([toks[0]] + [d[0] for d in drafts]).tolist()
+                    t, dr = vals[:depth + 1], vals[depth + 1:]
+                    accepts = 0
+                    while accepts < depth and t[accepts] == dr[accepts]:
+                        accepts += 1
+                    next_toks = tuple(toks[:, i:i + 1] for i in range(depth + 1))
+                    commit = tuple(dr[:accepts]) + (t[accepts],)
                 else:
-                    ids.extend((d1v, d2v, t4v))
-                    nt = toks[:, 2:3]
-                    h = inter[:, 2:3, :].to(dt)
-                    pos += 3
-                    update_progress(3)
+                    # rejection sampling with a one-hot (greedy) draft: accept draft i with
+                    # probability p_i(draft), correct from the residual, bonus from the tail
+                    lgf = lg.float()
+                    dists = tuple(col_dist(lgf[:, c], drafts[:c]) for c in range(depth + 1))
+                    corr = [draw(p, i, exclude=drafts[c]) for c, (p, i) in enumerate(dists[:depth])]
+                    corr.append(draw(*dists[depth]))
+                    u = torch.rand(depth, device=device, generator=generator)
+                    a = torch.zeros((), device=device, dtype=torch.long)
+                    live = torch.ones((), device=device, dtype=torch.bool)
+                    for c in range(depth):
+                        live = live & (u[c] < prob_of(*dists[c], drafts[c]))
+                        a = a + live.long()
+                    vals = torch.cat([d[0] for d in drafts] + [c[0] for c in corr] + [a.reshape(1)]).tolist()
+                    dr, cv, accepts = vals[:depth], vals[depth:2 * depth + 1], vals[-1]
+                    next_toks = tuple(corr)
+                    commit = tuple(dr[:accepts]) + (cv[accepts],)
+                if accepts < depth:
+                    for kv in pkv:
+                        kv.rollback(depth - accepts)
+                if accepts < depth - 1:
+                    mtp_kv.rollback(depth - 1 - accepts)  # mtp entries fed by a rejected draft token
+                ids.extend(commit)
+                nt = next_toks[accepts]
+                h = inter[:, accepts:accepts + 1, :].to(dt)
+                pos += accepts + 1
+                update_progress(accepts + 1)
+                if probe is not None:
+                    probe[0] += 1
+                    probe[1] += accepts
+                    if probe[0] == 32:
+                        # deepen once when acceptance sustains it and enough tokens
+                        # remain to amortize the recapture round the new verify shape
+                        # costs; the graph machinery needs full boundary semantics for
+                        # a shape change (a bare queue rebuild leaves stale staging)
+                        if sampling is None and max_length - len(ids) > 512 and 1 + probe[1] / probe[0] >= 2.2:
+                            for kv in pkv:
+                                if isinstance(kv, LinearKV):
+                                    kv.snap_backing = torch.empty((5,) + tuple(kv.recurrent_state.shape), device=device, dtype=torch.float32)
+                                    kv.snapshots = [(kv.snap_backing[s], torch.empty_like(kv.conv_state)) for s in range(5)]
+                            comfy.model_management.reset_cast_buffers()
+                            comfy.model_prefetch.cleanup_prefetch_queues()
+                            drop_draft_graph()  # recapture drafts against the fresh cast state
+                            depth = 5
+                        probe = None
         finally:
             console.close()
+            drop_draft_graph()
             if pinned:
                 comfy.model_prefetch.cleanup_prefetched_modules(None, pinned)
         for j, tk in enumerate(ids):
@@ -841,8 +1024,8 @@ class Qwen35(BaseLlama, BaseGenerate, torch.nn.Module):
         model_config = self.model.config
         past_key_values = []
         # all full-attention layers advance in lockstep, so they share one position/bias/tracker
-        position = torch.empty((3,), device=device, dtype=torch.int64)
-        bias = torch.full((1, 1, 3, max_cache_len), torch.finfo(execution_dtype).min, device=device, dtype=execution_dtype)
+        position = torch.empty((6,), device=device, dtype=torch.int64)
+        bias = torch.full((1, 1, 6, max_cache_len), torch.finfo(execution_dtype).min, device=device, dtype=execution_dtype)
         tracker = {"step": -1}
         for i in range(model_config.num_hidden_layers):
             if model_config.layer_types[i] == "linear_attention":
@@ -930,14 +1113,14 @@ class Qwen35ClipModel(sd1_clip.SDClipModel):
             dtype=dtype, special_tokens={"pad": 248044}, layer_norm_hidden_state=False,
             model_class=Qwen35_, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
 
-    def generate(self, tokens, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, presence_penalty=0.0):
+    def generate(self, tokens, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, presence_penalty=0.0, mtp=True):
         if isinstance(tokens, dict):
             tokens = next(iter(tokens.values()))
         tokens_only = [[t[0] for t in b] for b in tokens]
         embeds, _, _, embeds_info = self.process_tokens(tokens_only, self.execution_device)
         position_ids = comfy.text_encoders.qwen_vl.qwen2vl_mrope_position_ids(embeds_info, embeds.shape[1], embeds.device)
         return self.transformer.generate(embeds, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed,
-                                         presence_penalty=presence_penalty, position_ids=position_ids)
+                                         presence_penalty=presence_penalty, position_ids=position_ids, mtp=mtp)
 
 
 class Qwen35TEModel(sd1_clip.SD1ClipModel):
