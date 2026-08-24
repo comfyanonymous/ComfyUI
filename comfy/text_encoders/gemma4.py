@@ -517,9 +517,10 @@ class Gemma4Transformer(nn.Module):
         fixed_kv = (past_key_values is not None and len(past_key_values) > 0
                     and isinstance(past_key_values[0], FixedKV))
         decode = fixed_kv and past_len > 0 and seq_len == 1
-        # mirror the conditions under which prefetch_queue_pop can actually capture, so
-        # eager fallbacks keep the sliced decode path instead of the full-capacity one
-        enable_graph = (decode and mask is None and self.graph_dynamic_vbar_blocks
+        # Compiled decode needs fixed-capacity attention for a stable allocation trace;
+        # CUDA graph capture has additional prefetch and device requirements.
+        compiled_decode = decode and mask is None and self.graph_dynamic_vbar_blocks
+        enable_graph = (compiled_decode
                         and prefetch_queue is not None
                         and hasattr(self.layers[0], "_v_block")
                         and not comfy.model_management.args.disable_cuda_graphs
@@ -538,7 +539,7 @@ class Gemma4Transformer(nn.Module):
                 for kv in past_key_values:
                     if isinstance(kv, FixedKV) and id(kv.position) not in decode_masks:
                         decode_masks[id(kv.position)] = _fixed_kv_decode_mask(mask, kv, min_val)
-        if enable_graph:
+        if compiled_decode:
             # static buffers + per-capacity attention biases: layer graphs replay against
             # stable storage, refreshed eagerly each step
             capacities = tuple(sorted({kv.key.shape[2] for kv in past_key_values if isinstance(kv, FixedKV)}))
@@ -606,7 +607,7 @@ class Gemma4Transformer(nn.Module):
                     if shared is not None:
                         layer_kwargs['shared_kv'] = shared
 
-            if enable_graph:
+            if compiled_decode:
                 bias_cache = layer_kwargs.get('shared_kv', past_kv)
                 layer_mask = decode_bias[bias_cache.key.shape[2]]
             elif decode:
@@ -619,10 +620,17 @@ class Gemma4Transformer(nn.Module):
 
             def core():
                 nonlocal x
-                x, current_kv, shareable_kv = layer(x=x, attention_mask=layer_mask, freqs_cis=freqs_cis, past_key_value=past_kv, **layer_kwargs)
+                output, current_kv, shareable_kv = layer(x=x, attention_mask=layer_mask, freqs_cis=freqs_cis, past_key_value=past_kv, **layer_kwargs)
+                if compiled_decode:
+                    x.copy_(output)
+                else:
+                    x = output
                 result.append((current_kv, shareable_kv))
 
-            comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, x.device, layer, x.dtype, core=core, enable_graph=enable_graph)
+            comfy.model_prefetch.prefetch_queue_pop(
+                prefetch_queue, x.device, layer, x.dtype, core=core, enable_graph=enable_graph,
+                malloc_scope="block"
+            )
 
             if result:
                 current_kv, shareable_kv = result[0]
@@ -641,8 +649,10 @@ class Gemma4Transformer(nn.Module):
             if i == intermediate_output:
                 intermediate = x.clone()
 
-        if prefetch_queue is not None:
-            comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, x.device, None)
+        comfy.model_prefetch.prefetch_queue_pop(
+            prefetch_queue, x.device, None,
+            malloc_scope="block"
+        )
 
         if fixed_kv:
             for kv in past_key_values:
