@@ -1,3 +1,4 @@
+import logging
 import threading
 import warnings
 import weakref
@@ -16,11 +17,19 @@ GRAPH_MODULES = weakref.WeakSet()
 GRAPH_WARMED_MODULES = weakref.WeakSet()
 GRAPH_CAPTURE_STREAMS = {}
 ACTIVE_MALLOC_GRAPHS = {}
+MALLOC_GRAPH_BREAKS = 0
+MALLOC_GRAPH_USED = False
+
+def _malloc_graph_break():
+    global MALLOC_GRAPH_BREAKS
+    MALLOC_GRAPH_BREAKS += 1
+    logging.debug("Comfy model compiler graph break")
 
 def malloc_graph_enabled(device):
     return not args.disable_comfy_compiler and comfy.memory_management.aimdo_enabled and comfy.model_management.is_device_cuda(device)
 
 def malloc_graph_begin(module, device):
+    global MALLOC_GRAPH_USED
     if not malloc_graph_enabled(device):
         return
     graph = getattr(module, "_comfy_malloc_graph", None)
@@ -31,11 +40,12 @@ def malloc_graph_begin(module, device):
     else:
         graph.push()
     ACTIVE_MALLOC_GRAPHS[threading.get_ident()] = graph
+    MALLOC_GRAPH_USED = True
 
 def malloc_graph_end():
     graph = ACTIVE_MALLOC_GRAPHS.pop(threading.get_ident(), None)
-    if graph is not None:
-        graph.pop()
+    if graph is not None and graph.pop():
+        _malloc_graph_break()
 
 def cleanup_prefetched_modules(module, comfy_modules):
     for s in comfy_modules:
@@ -67,6 +77,8 @@ def _drop_graph(module):
 
 def cleanup_prefetch_queues():
     global PREFETCH_QUEUES
+    global MALLOC_GRAPH_BREAKS
+    global MALLOC_GRAPH_USED
 
     ACTIVE_MALLOC_GRAPHS.pop(threading.get_ident(), None)
     for queue in PREFETCH_QUEUES:
@@ -82,13 +94,18 @@ def cleanup_prefetch_queues():
         _drop_graph(module)
     GRAPH_MODULES.clear()
     GRAPH_WARMED_MODULES.clear()
+    if MALLOC_GRAPH_USED:
+        logging.info("Comfy model compiler graph breaks: %d", MALLOC_GRAPH_BREAKS)
+    MALLOC_GRAPH_BREAKS = 0
+    MALLOC_GRAPH_USED = False
 
 def prefetch_queue_pop(queue, device, module, dtype=None, core=None, enable_graph=False, generator=None, malloc_scope=None):
     malloc_graph = ACTIVE_MALLOC_GRAPHS.get(threading.get_ident())
     enable_graph = enable_graph and malloc_graph is not None and not args.disable_cuda_graphs and comfy.model_management.is_device_cuda(device) and getattr(module, "_v_block", None) is not None
     if queue is None:
         if malloc_graph is not None and malloc_scope is not None:
-            malloc_graph.iterate(malloc_scope if module is not None else None)
+            if malloc_graph.iterate(malloc_scope if module is not None else None):
+                _malloc_graph_break()
         if core is not None:
             core()
         return
@@ -117,7 +134,8 @@ def prefetch_queue_pop(queue, device, module, dtype=None, core=None, enable_grap
             graph_hit = comfy_aimdo.model_vbar.vbar_signature_compare(signature, graph["signature"])
 
     if malloc_graph is not None and malloc_scope is not None:
-        malloc_graph.iterate(malloc_scope if module is not None and not graph_hit else None)
+        if malloc_graph.iterate(malloc_scope if module is not None and not graph_hit else None):
+            _malloc_graph_break()
 
     consumed = queue.pop(0)
     if consumed is not None:
