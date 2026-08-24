@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 
 import numpy as np
@@ -1431,6 +1432,8 @@ class LossGraphNode(io.ComfyNode):
 
     @staticmethod
     def scale_loss(loss_values):
+        if not all(math.isfinite(l) for l in loss_values):
+            raise ValueError("loss values must be finite")
         min_loss, max_loss = min(loss_values), max(loss_values)
         if max_loss > min_loss:
             return [(l - min_loss) / (max_loss - min_loss) for l in loss_values]

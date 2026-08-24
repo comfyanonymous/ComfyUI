@@ -1,3 +1,4 @@
+import pytest
 import torch
 from comfy.cli_args import args
 
@@ -21,3 +22,10 @@ class TestLossGraphNode:
     def test_varying_loss_series_still_scales(self):
         assert LossGraphNode.scale_loss([1.0, 0.5, 0.0]) == [1.0, 0.5, 0.0]
         LossGraphNode.execute({"loss": [1.0, 0.5, 0.0]}, "loss_graph")
+
+    def test_non_finite_loss_raises(self):
+        # A NaN/inf loss value must not be silently flattened to 0.0.
+        with pytest.raises(ValueError):
+            LossGraphNode.scale_loss([1.0, float("nan")])
+        with pytest.raises(ValueError):
+            LossGraphNode.scale_loss([1.0, float("inf")])
