@@ -42,7 +42,7 @@ def _drop_graph(module):
     del module._comfy_graph
 
 def cleanup_prefetch_queues():
-    global PREFETCH_QUEUES, GRAPH_CAPTURE_STREAMS
+    global PREFETCH_QUEUES
 
     for queue in PREFETCH_QUEUES:
         for entry in queue:
@@ -57,7 +57,6 @@ def cleanup_prefetch_queues():
         _drop_graph(module)
     GRAPH_MODULES.clear()
     GRAPH_WARMED_MODULES.clear()
-    GRAPH_CAPTURE_STREAMS = {}
 
 def prefetch_queue_pop(queue, device, module, dtype=None, core=None, enable_graph=False, generator=None):
     enable_graph = enable_graph and not args.disable_cuda_graphs and comfy.model_management.is_device_cuda(device) and getattr(module, "_v_block", None) is not None
