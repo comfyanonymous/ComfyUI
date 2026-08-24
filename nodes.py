@@ -2505,6 +2505,8 @@ async def init_builtin_extra_nodes():
         "nodes_toolkit.py",
         "nodes_replacements.py",
         "nodes_nag.py",
+        "nodes_trellis2.py",
+        "nodes_mesh_postprocess.py",
         "nodes_sdpose.py",
         "nodes_math.py",
         "nodes_number_convert.py",
@@ -2527,6 +2529,7 @@ async def init_builtin_extra_nodes():
         "nodes_depth_anything_3.py",
         "nodes_seed.py",
         "nodes_text.py",
+        "nodes_sam3d_body.py",
     ]
 
     import_failed = []
