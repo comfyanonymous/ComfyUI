@@ -22,8 +22,8 @@ A malformed entry now warns and is skipped, so one bad key no longer takes the
 whole config — and the rest of the search paths still load.
 """
 
+import itertools
 import os
-import tempfile
 
 import pytest
 from unittest.mock import patch
@@ -33,14 +33,16 @@ from utils.extra_config import load_extra_path_config
 
 
 @pytest.fixture
-def load_yaml():
+def load_yaml(tmp_path):
     """Write a config, load it, and return the paths that were registered."""
+    counter = itertools.count()
 
     def _load(text: str) -> list[tuple]:
-        directory = tempfile.mkdtemp()
-        path = os.path.join(directory, "extra_model_paths.yaml")
-        with open(path, "w", encoding="utf-8") as handle:
-            handle.write(text)
+        # `tmp_path` is cleaned up by pytest; a fresh name per call keeps two
+        # loads in the same test from overwriting each other.
+        path = tmp_path / f"extra_model_paths_{next(counter)}.yaml"
+        path.write_text(text, encoding="utf-8")
+        path = str(path)
 
         added: list[tuple] = []
         with patch.object(
