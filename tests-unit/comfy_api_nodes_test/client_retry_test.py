@@ -33,12 +33,15 @@ class _FakeResponse:
 
 class _FakeSession:
     """A new instance is created per retry attempt (see _request_base), so the
-    response iterator must be shared across instances, not per-instance."""
+    response iterator and call counter must be shared across instances, not
+    per-instance."""
 
-    def __init__(self, responses_iter):
+    def __init__(self, responses_iter, call_count):
         self._responses = responses_iter
+        self._call_count = call_count
 
     async def request(self, method, url, **kwargs):
+        self._call_count[0] += 1
         return next(self._responses)
 
     async def close(self):
@@ -46,11 +49,14 @@ class _FakeSession:
 
 
 def _patch_session(monkeypatch, responses):
+    """Returns a single-element list holding the number of requests made so far."""
     responses_iter = iter(responses)
+    call_count = [0]
     monkeypatch.setattr(
-        client_module.aiohttp, "ClientSession", lambda *a, **kw: _FakeSession(responses_iter)
+        client_module.aiohttp, "ClientSession", lambda *a, **kw: _FakeSession(responses_iter, call_count)
     )
     monkeypatch.setattr(client_module.request_logger, "log_request_response", lambda **kw: None)
+    return call_count
 
 
 @pytest.mark.asyncio
@@ -79,7 +85,7 @@ async def test_transient_401_is_retried(monkeypatch):
 async def test_persistent_401_still_fails(monkeypatch):
     """A genuinely invalid key must still raise, after exhausting retries."""
     responses = [_FakeResponse(401, {"message": "Invalid Comfy API key"})] * 10
-    _patch_session(monkeypatch, responses)
+    call_count = _patch_session(monkeypatch, responses)
 
     with pytest.raises(Exception, match="Unauthorized"):
         await sync_op_raw(
@@ -91,3 +97,5 @@ async def test_persistent_401_still_fails(monkeypatch):
             retry_backoff=1.0,
             monitor_progress=False,
         )
+
+    assert call_count[0] == 3  # initial attempt + 2 retries, then exhausted
