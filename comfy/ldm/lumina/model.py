@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import comfy.ldm.common_dit
 import comfy.model_management
+import comfy.model_prefetch
 import comfy.ops
 import comfy.quant_ops
 
@@ -626,6 +627,17 @@ class NextDiT(nn.Module):
         self.dim = dim
         self.n_heads = n_heads
 
+    def get_dynamic_vram__units(self):
+        units = list(self.context_refiner)
+        if self.siglip_refiner is not None:
+            units.extend(self.siglip_refiner)
+        units.extend(self.noise_refiner)
+        units.extend(self.layers)
+        final_unit = getattr(self, "final_layer", None)
+        if final_unit is None:
+            final_unit = getattr(self, "dec_net", None)
+        return units, [] if final_unit is None else [final_unit]
+
     def unpatchify(
         self, x: torch.Tensor, img_size: List[Tuple[int, int]], cap_size: List[int], return_tensor=False
     ) -> List[torch.Tensor]:
@@ -771,8 +783,12 @@ class NextDiT(nn.Module):
         # refine context
         cap_feats = torch.cat(embeds[0], dim=1)
         cap_freqs_cis = torch.cat(freqs_cis[0], dim=1)
+        prefetch_queue = comfy.model_prefetch.make_prefetch_queue(list(self.context_refiner), cap_feats.device, transformer_options)
         for layer in self.context_refiner:
+            comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, cap_feats.device, layer)
             cap_feats = layer(cap_feats, cap_mask, cap_freqs_cis, transformer_options=transformer_options)
+        if prefetch_queue is not None:
+            comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, cap_feats.device, None)
 
         feats = (cap_feats,)
         fc = (cap_freqs_cis,)
@@ -782,8 +798,12 @@ class NextDiT(nn.Module):
             siglip_feats_combined = torch.cat(embeds[1], dim=1)
             siglip_feats_freqs_cis = torch.cat(freqs_cis[1], dim=1)
             if self.siglip_refiner is not None:
+                prefetch_queue = comfy.model_prefetch.make_prefetch_queue(list(self.siglip_refiner), siglip_feats_combined.device, transformer_options)
                 for layer in self.siglip_refiner:
+                    comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, siglip_feats_combined.device, layer)
                     siglip_feats_combined = layer(siglip_feats_combined, siglip_mask, siglip_feats_freqs_cis, transformer_options=transformer_options)
+                if prefetch_queue is not None:
+                    comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, siglip_feats_combined.device, None)
             feats += (siglip_feats_combined,)
             fc += (siglip_feats_freqs_cis,)
 
@@ -796,13 +816,17 @@ class NextDiT(nn.Module):
             timestep_zero_index = None
 
         x_input = x
+        prefetch_queue = comfy.model_prefetch.make_prefetch_queue(list(self.noise_refiner), x.device, transformer_options)
         for i, layer in enumerate(self.noise_refiner):
+            comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, x.device, layer)
             x = layer(x, padded_img_mask, fc_x, t, timestep_zero_index=timestep_zero_index, transformer_options=transformer_options)
             if "noise_refiner" in patches:
                 for p in patches["noise_refiner"]:
                     out = p({"img": x, "img_input": x_input, "txt": cap_feats, "pe": fc_x, "vec": t, "x": orig_x, "block_index": i, "transformer_options": transformer_options, "block_type": "noise_refiner"})
                     if "img" in out:
                         x = out["img"]
+        if prefetch_queue is not None:
+            comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, x.device, None)
 
         padded_full_embed = torch.cat(feats + (x,), dim=1)
         if timestep_zero_index is not None:
@@ -858,7 +882,9 @@ class NextDiT(nn.Module):
         transformer_options["total_blocks"] = len(self.layers)
         transformer_options["block_type"] = "double"
         img_input = img
+        prefetch_queue = comfy.model_prefetch.make_prefetch_queue(list(self.layers), img.device, transformer_options)
         for i, layer in enumerate(self.layers):
+            comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, img.device, layer)
             transformer_options["block_index"] = i
             img = layer(img, mask, freqs_cis, adaln_input, timestep_zero_index=timestep_zero_index, transformer_options=transformer_options)
             if "double_block" in patches:
@@ -868,6 +894,8 @@ class NextDiT(nn.Module):
                         img[:, cap_size[0]:] = out["img"]
                     if "txt" in out:
                         img[:, :cap_size[0]] = out["txt"]
+        if prefetch_queue is not None:
+            comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, img.device, None)
 
         img = self.final_layer(img, adaln_input, timestep_zero_index=timestep_zero_index)
         img = self.unpatchify(img, img_size, cap_size, return_tensor=x_is_tensor)[:, :, :h, :w]
@@ -1089,7 +1117,9 @@ class NextDiTPixelSpace(NextDiT):
         transformer_options["total_blocks"] = len(self.layers)
         transformer_options["block_type"] = "double"
         img_input = img
+        prefetch_queue = comfy.model_prefetch.make_prefetch_queue(list(self.layers), img.device, transformer_options)
         for i, layer in enumerate(self.layers):
+            comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, img.device, layer)
             transformer_options["block_index"] = i
             img = layer(img, mask, freqs_cis, adaln_input, timestep_zero_index=timestep_zero_index, transformer_options=transformer_options)
             if "double_block" in patches:
@@ -1099,6 +1129,8 @@ class NextDiTPixelSpace(NextDiT):
                         img[:, cap_size[0]:] = out["img"]
                     if "txt" in out:
                         img[:, :cap_size[0]] = out["txt"]
+        if prefetch_queue is not None:
+            comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, img.device, None)
 
         # ---- pixel-space decoder (replaces final_layer + unpatchify) ----
         # img may have padding tokens beyond N; only the first N are real image patches
