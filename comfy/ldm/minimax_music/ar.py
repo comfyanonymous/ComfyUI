@@ -253,6 +253,11 @@ class MiniMaxMusic3AR(nn.Module):
         output = self.model(None, embeds=text_embeds, past_key_values=past, dtype=execution_dtype)
         last_hidden = output[0][:, -1].clone()
         past = output[2]
+        del output
+        vbar = getattr(self, "dynamic_vbars", {}).get(device)
+        if vbar is not None:
+            comfy.model_management.reset_cast_buffers()
+            vbar.set_watermark(vbar.max_size)
 
         generator = torch.Generator(device=device).manual_seed(derive_seed(seed, "ar"))
         decoder = self.model.audio_decoder
