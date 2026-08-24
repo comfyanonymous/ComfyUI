@@ -34,7 +34,9 @@ def malloc_graph_begin(module, device):
         return
     graph = getattr(module, "_comfy_malloc_graph", None)
     if graph is None:
-        graph = comfy_aimdo.malloc_graph.record(comfy.model_management.current_stream(device))
+        graph = comfy_aimdo.malloc_graph.record(
+            comfy.model_management.current_stream(device), args.assert_graph_breaks
+        )
         module._comfy_malloc_graph = graph
         comfy.model_management.MALLOC_GRAPH_MODULES.add(module)
     else:
