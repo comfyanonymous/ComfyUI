@@ -17,7 +17,7 @@ import importlib.metadata
 import folder_paths
 import time
 from comfy.cli_args import enables_dynamic_vram
-from app.logger import setup_logger, log_startup_warning
+from app.logger import setup_logger
 console_log_level = get_console_log_level(args.verbose)
 file_log_outputs = get_file_log_outputs(args.verbose)
 setup_logger(log_level=console_log_level, file_outputs=file_log_outputs, use_stdout=args.log_stdout)
@@ -43,41 +43,13 @@ if __name__ == "__main__":
 
     import cuda_malloc
 
-    if os.name == "nt":
-        cuda_visibility = os.environ.get("CUDA_VISIBLE_DEVICES")
-        device_selection = args.cuda_device
-
-        try:
-            gpu_count = sum("NVIDIA" in name.upper() for name in cuda_malloc.get_gpu_names())
-        except OSError:
-            gpu_count = 0
-
-        if gpu_count > 1:
-            warning = None
-            multiple_visible = False
-            if device_selection is None and args.default_device is None and cuda_visibility is None:
-                os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-                warning = "Multiple NVIDIA GPUs detected. ComfyUI will use GPU 0 only on Windows by default. To restore all GPUs, pass --cuda-device all --disable-pinned-memory."
-            elif device_selection == "all":
-                multiple_visible = cuda_visibility is None or "," in cuda_visibility
-            elif device_selection is not None:
-                multiple_visible = "," in device_selection
-            elif args.default_device is not None:
-                multiple_visible = True
-            else:
-                multiple_visible = "," in cuda_visibility
-
-            if multiple_visible and not args.disable_pinned_memory:
-                warning = "Multiple NVIDIA GPUs are visible on Windows with pinned memory enabled. Restart with --disable-pinned-memory to avoid CUDA host-transfer failures."
-
-            if warning:
-                log_startup_warning(f"""
-________________________________________________________________________
-WARNING WARNING WARNING WARNING WARNING
-
-{warning}
-________________________________________________________________________
-""".strip())
+    if (
+        os.name == "nt"
+        and args.cuda_device is None
+        and args.default_device is None
+        and os.environ.get("CUDA_VISIBLE_DEVICES") is None
+    ):
+        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 faulthandler.enable(file=sys.stderr, all_threads=args.debug_hang)
 if __name__ == "__main__" and args.debug_hang:
