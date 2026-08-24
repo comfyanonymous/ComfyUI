@@ -15,6 +15,7 @@ import torch
 import torchaudio
 
 import nodes
+import comfy.controlnet
 import comfy.model_management
 import comfy.model_sampling
 import comfy.nested_tensor
@@ -399,6 +400,65 @@ class MiniMaxH3SigmaShift(io.ComfyNode):
         return io.NodeOutput(m)
 
 
+class MiniMaxH3FunControlNetApply(io.ComfyNode):
+    """Apply the Fun ControlNet-Union: control video, inpainting, or both.
+
+    Unconnected inputs keep their control channels zero, the checkpoint's
+    trained fallback for that mode.
+    """
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="MiniMaxH3FunControlNetApply",
+            description="Apply a MiniMax H3 Fun ControlNet with an optional control video and/or inpainting mask.",
+            display_name="Apply MiniMax H3 Fun ControlNet",
+            search_aliases=["minimax controlnet", "h3 controlnet", "video inpaint controlnet"],
+            category="model/conditioning/controlnet",
+            inputs=[
+                io.Conditioning.Input("positive"),
+                io.ControlNet.Input("control_net"),
+                io.Vae.Input("vae"),
+                io.Float.Input("strength", default=1.0, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("start_percent", default=0.0, min=0.0, max=1.0, step=0.001, advanced=True),
+                io.Float.Input("end_percent", default=1.0, min=0.0, max=1.0, step=0.001, advanced=True),
+                io.Image.Input("control_video", optional=True),
+                io.Mask.Input("mask", optional=True, tooltip="1 marks the regions to regenerate."),
+                io.Image.Input("source_video", optional=True, tooltip="Video behind the mask; only read when a mask is given."),
+            ],
+            outputs=[io.Conditioning.Output(display_name="positive")],
+        )
+
+    @classmethod
+    def execute(cls, positive, control_net, vae, strength, start_percent, end_percent,
+                control_video=None, mask=None, source_video=None) -> io.NodeOutput:
+        if strength == 0 or (control_video is None and mask is None):
+            return io.NodeOutput(positive)
+        if not isinstance(control_net, comfy.controlnet.MiniMaxH3ControlNet):
+            raise ValueError("this node needs a MiniMax H3 Fun ControlNet")
+
+        control_hint = control_video.movedim(-1, 1) if control_video is not None else None
+        source_hint = source_video.movedim(-1, 1) if source_video is not None else None
+        cnets = {}
+
+        c = []
+        for t in positive:
+            d = t[1].copy()
+            prev_cnet = d.get('control', None)
+            if prev_cnet in cnets:
+                c_net = cnets[prev_cnet]
+            else:
+                c_net = control_net.copy().set_cond_hint(control_hint, strength, (start_percent, end_percent), vae=vae)
+                if mask is not None:
+                    c_net.set_inpaint(mask, source_hint)
+                c_net.set_previous_controlnet(prev_cnet)
+                cnets[prev_cnet] = c_net
+            d['control'] = c_net
+            d['control_apply_to_uncond'] = True
+            c.append([t[0], d])
+        return io.NodeOutput(c)
+
+
 class MiniMaxH3Extension(ComfyExtension):
     async def get_node_list(self):
         return [
@@ -407,6 +467,7 @@ class MiniMaxH3Extension(ComfyExtension):
             MiniMaxH3AddGuide,
             MiniMaxH3ReferenceToVideo,
             MiniMaxH3SigmaShift,
+            MiniMaxH3FunControlNetApply,
             ]
 
 

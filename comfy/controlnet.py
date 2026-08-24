@@ -38,6 +38,7 @@ import comfy.cldm.mmdit
 import comfy.ldm.hydit.controlnet
 import comfy.ldm.flux.controlnet
 import comfy.ldm.qwen_image.controlnet
+import comfy.ldm.minimax.controlnet
 import comfy.cldm.dit_embedder
 from typing import TYPE_CHECKING, Union
 if TYPE_CHECKING:
@@ -721,6 +722,166 @@ def load_controlnet_qwen_fun(sd, model_options={}):
     )
     return control
 
+class MiniMaxH3ControlNet(ControlNet):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.inpaint_mask = None    # [T, H, W] pixel mask, 1 = regenerate
+        self.inpaint_video = None   # [T, C, H, W] source frames behind the mask
+
+    def set_inpaint(self, mask, video):
+        self.inpaint_mask = mask
+        self.inpaint_video = video
+        return self
+
+    def _fit_frames(self, frames, pixel_t, width, height):
+        # short videos hold their last frame
+        idx = torch.arange(pixel_t).clamp(max=frames.shape[0] - 1)
+        return comfy.utils.common_upscale(frames[idx], width, height, self.upscale_algorithm, "center")
+
+    def _fit_latent_t(self, latent, latent_t):
+        if latent.shape[2] > latent_t:
+            return latent[:, :, :latent_t]
+        if latent.shape[2] < latent_t:
+            return torch.nn.functional.pad(latent, (0, 0, 0, 0, 0, latent_t - latent.shape[2]))
+        return latent
+
+    def _encode(self, frames):
+        # the H3 VAE normalizes internally and returns the posterior mean
+        return self.vae.encode(frames.movedim(1, -1)).to(torch.float32)
+
+    def get_control(self, x_noisy, t, cond, batched_number, transformer_options):
+        control_prev = None
+        if self.previous_controlnet is not None:
+            control_prev = self.previous_controlnet.get_control(x_noisy, t, cond, batched_number, transformer_options)
+
+        if self.timestep_range is not None:
+            if t[0] > self.timestep_range[0] or t[0] < self.timestep_range[1]:
+                return control_prev
+
+        # target video latent geometry
+        latent_shapes = cond.get("latent_shapes", None)
+        vs = tuple(latent_shapes[0]) if latent_shapes is not None else tuple(x_noisy.shape)
+        latent_t, lat_h, lat_w = vs[2], vs[3], vs[4]
+
+        if self.cond_hint is None or self.cond_hint.shape[2:] != (latent_t, lat_h, lat_w):
+            if self.vae is None:
+                raise ValueError("This Controlnet needs a VAE but none was provided, please use a ControlNetApply node with a VAE input and connect it.")
+            del self.cond_hint
+            self.cond_hint = None
+            # frames 17k+5 <-> latents 5k+2
+            pixel_t = max((latent_t - 2) // 5, 0) * 17 + 5
+            scale = self.vae.spacial_compression_encode()
+            width, height = lat_w * scale, lat_h * scale
+            channels = self.latent_format.latent_channels
+            loaded_models = comfy.model_management.loaded_models(only_currently_used=True)
+
+            if self.cond_hint_original is not None:
+                hint = self._fit_latent_t(self._encode(self._fit_frames(self.cond_hint_original, pixel_t, width, height)), latent_t)
+            else:
+                hint = torch.zeros(1, channels, latent_t, lat_h, lat_w)
+
+            if self.inpaint_mask is not None:
+                # binarize, resize, re-harden the resampled edges; visibility is 1 - mask
+                mask = (self.inpaint_mask.reshape(-1, 1, self.inpaint_mask.shape[-2], self.inpaint_mask.shape[-1]) > 0.5).to(torch.float32)
+                idx = torch.arange(pixel_t).clamp(max=mask.shape[0] - 1)
+                mask = comfy.utils.common_upscale(mask[idx], width, height, "bilinear", "center")
+                visibility = 1.0 - (mask > 0.5).to(torch.float32)  # [T, 1, H, W]
+                if self.inpaint_video is not None:
+                    source = self._fit_frames(self.inpaint_video, pixel_t, width, height)
+                else:
+                    source = torch.zeros(pixel_t, 3, height, width)
+                masked_latent = self._fit_latent_t(self._encode(source * visibility.to(source.device)), latent_t)
+                visibility_latent = torch.nn.functional.interpolate(
+                    visibility.squeeze(1)[None, None], size=(latent_t, lat_h, lat_w), mode="trilinear", align_corners=False)
+                hint = torch.cat([hint, visibility_latent.to(hint.device), masked_latent.to(hint.device)], dim=1)
+
+            comfy.model_management.load_models_gpu(loaded_models)
+            self.cond_hint = hint
+        self.cond_hint = self.cond_hint.to(device=x_noisy.device)
+
+        out = {"minimax_fun": [{"model": self.control_model, "latent": self.cond_hint, "strength": self.strength}]}
+        if control_prev is not None:
+            for key, value in control_prev.items():
+                if key == "minimax_fun":
+                    out[key] = value + out[key]
+                else:
+                    out[key] = value
+        return out
+
+    def copy(self):
+        c = MiniMaxH3ControlNet(None, global_average_pooling=self.global_average_pooling, load_device=self.load_device, manual_cast_dtype=self.manual_cast_dtype)
+        c.control_model = self.control_model
+        c.control_model_wrapped = self.control_model_wrapped
+        self.copy_to(c)
+        c.inpaint_mask = self.inpaint_mask
+        c.inpaint_video = self.inpaint_video
+        return c
+
+
+def convert_minimax_h3_fun(sd):
+    # VideoX-Fun diffusers naming -> core naming: fused qkv, fc1 halves swapped
+    out = {}
+    for k, v in sd.items():
+        if k.endswith(".attn.to_q.weight"):
+            base = k[:-len("to_q.weight")]
+            out[base + "qkv_proj.weight"] = torch.cat([sd[base + "to_q.weight"], sd[base + "to_k.weight"], sd[base + "to_v.weight"]], dim=0)
+        elif k.endswith(".attn.to_k.weight") or k.endswith(".attn.to_v.weight"):
+            pass
+        elif k.endswith(".ff.net.0.proj.weight"):
+            half = v.shape[0] // 2
+            out[k.replace(".ff.net.0.proj.", ".mlp.fc1.")] = torch.cat([v[half:], v[:half]], dim=0)
+        else:
+            out[k.replace(".attn.norm_q.", ".attn.q_norm.").replace(".attn.norm_k.", ".attn.k_norm.")
+                .replace(".attn.to_out.0.", ".attn.out_proj.").replace(".ff.net.2.", ".mlp.fc2.")] = v
+    return out
+
+
+def load_controlnet_minimax_h3(sd, model_options={}):
+    if "control_blocks.0.attn.to_q.weight" in sd:
+        sd = convert_minimax_h3_fun(sd)
+
+    load_device = comfy.model_management.get_torch_device()
+    quant = comfy.utils.detect_layer_quantization(sd, "")
+    if quant is not None:
+        # weight_dtype would report the int8 storage dtype, not the compute dtype
+        unet_dtype = model_options.get("dtype", torch.bfloat16)
+    else:
+        unet_dtype = model_options.get("dtype", comfy.utils.weight_dtype(sd))
+    manual_cast_dtype = comfy.model_management.unet_manual_cast(unet_dtype, load_device)
+    operations = model_options.get("custom_operations", None)
+    if operations is None:
+        if quant is not None:
+            operations = comfy.ops.mixed_precision_ops(quant, unet_dtype)
+        else:
+            operations = comfy.ops.pick_operations(unet_dtype, manual_cast_dtype)
+
+    proj_in = sd["control_proj_in.weight"]
+    num_blocks = 0
+    while "control_blocks.{}.after_proj.weight".format(num_blocks) in sd:
+        num_blocks += 1
+    qkv = sd["control_blocks.0.attn.qkv_proj.weight"]
+    head_dim = sd["control_blocks.0.attn.q_norm.weight"].shape[0]
+    t_dim = sd["control_blocks.0.adaln_proj.linear.weight"].shape[1]
+    hidden = proj_in.shape[0]
+
+    model = comfy.ldm.minimax.controlnet.MiniMaxH3FunControl(
+        control_in_dim=proj_in.shape[1] // 4,
+        injection_layers=tuple(range(0, num_blocks * 10, 10)),
+        hidden_size=hidden,
+        num_attention_heads=qkv.shape[0] // (3 * head_dim),
+        attention_head_dim=head_dim,
+        ffn_hidden_size=sd["control_blocks.0.mlp.fc1.weight"].shape[0] // 2,
+        time_embed_dim=t_dim,
+        use_adaln_curves=t_dim <= 16,
+        operations=operations,
+        device=comfy.model_management.unet_offload_device(),
+        dtype=unet_dtype,
+    )
+    model = controlnet_load_state_dict(model, sd)
+    return MiniMaxH3ControlNet(model, compression_ratio=1, latent_format=comfy.latent_formats.MiniMaxH3Video(),
+                               load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=[])
+
+
 def convert_mistoline(sd):
     return comfy.utils.state_dict_prefix_replace(sd, {"single_controlnet_blocks.": "controlnet_single_blocks."})
 
@@ -732,6 +893,10 @@ def load_controlnet_state_dict(state_dict, model=None, model_options={}):
 
     if "lora_controlnet" in controlnet_data:
         return ControlLora(controlnet_data, model_options=model_options)
+
+    if ("control_proj_in.weight" in controlnet_data and "control_blocks.0.adaln_proj.linear.weight" in controlnet_data
+            and ("control_blocks.0.attn.to_q.weight" in controlnet_data or "control_blocks.0.attn.qkv_proj.weight" in controlnet_data)): # MiniMax H3 Fun
+        return load_controlnet_minimax_h3(controlnet_data, model_options=model_options)
 
     controlnet_config = None
     supported_inference_dtypes = None

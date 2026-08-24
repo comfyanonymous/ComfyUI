@@ -550,7 +550,7 @@ class MiniMaxH3Model(nn.Module):
                       + (1.0 + (scale - 1.0) * sigma_a).to(out[1].dtype) * out[1])
         return out
 
-    def _forward(self, x, timestep, context, transformer_options={}, minimax_payload=None, denoise_mask=None, audio_denoise_mask=None, **kwargs):
+    def _forward(self, x, timestep, context, transformer_options={}, minimax_payload=None, denoise_mask=None, audio_denoise_mask=None, control=None, **kwargs):
         video_x, audio_x = x[0], x[1]
         orig_t, orig_h, orig_w = video_x.shape[2], video_x.shape[3], video_x.shape[4]
         video_x = comfy.ldm.common_dit.pad_to_patch_size(video_x, self.patch_size)
@@ -693,6 +693,15 @@ class MiniMaxH3Model(nn.Module):
         # rotation table computed once per forward, consumed by the kitchen split-half rope
         rope_freqs = rope_rotation_table(self.rope_freqs(layout.position_ids, device), dtype)
 
+        # Fun controlnet streams, advanced one block per addressed layer in the loop below
+        control_streams = []
+        if control is not None:
+            audio_pos = layout.audio_pos.to(device)
+            for entry in control.get("minimax_fun", ()):
+                cm = entry["model"]
+                control_streams.append({"model": cm, "c": cm.init_stream(h, entry["latent"].to(device), layout, t_emb),
+                                        "strength": entry["strength"], "next": 0})
+
         # blocks
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
@@ -709,6 +718,13 @@ class MiniMaxH3Model(nn.Module):
                     {"original_block": block_wrap})["img"]
             else:
                 h = block(h, t_emb, mod_segments, rope_freqs, transformer_options=transformer_options)
+            for s in control_streams:
+                j = s["next"]
+                if j < len(s["model"].injection_layers) and s["model"].injection_layers[j] == i:
+                    s["c"], skip = s["model"].step(j, s["c"], t_emb, mod_segments, rope_freqs, transformer_options=transformer_options)
+                    skip[audio_pos] = 0
+                    h.add_(skip, alpha=s["strength"])
+                    s["next"] = j + 1
         if prefetch_queue is not None:
             comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, device, None)
 
