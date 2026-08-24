@@ -19,11 +19,13 @@ except (ImportError, AttributeError):
             SMPTE431 = 11
             SMPTE432 = 12
             JEDEC_P22 = 22
+            EBU3213 = 22
 
         class ColorRange(IntEnum):
             UNSPECIFIED = 0
             MPEG = 1
             JPEG = 2
+            NB = 3
 
         class ColorTrc(IntEnum):
             BT709 = 1
