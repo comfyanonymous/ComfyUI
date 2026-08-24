@@ -359,17 +359,20 @@ def redact_sensitive_argv(argv):
                 redacted.append(f"{name}=*")
             else:
                 redacted.append(tok)
-                if i + 1 < n:
+                if i + 1 < n and not argv[i + 1].startswith("-"):
                     redacted.append("*")
                     i += 1
         elif name in SENSITIVE_ARGV_MULTI_FLAGS:
-            redacted.append(tok)
-            had_value = False
-            while i + 1 < n and not argv[i + 1].startswith("-"):
-                had_value = True
-                i += 1
-            if had_value:
-                redacted.append("*")
+            if "=" in tok:
+                redacted.append(f"{name}=*")
+            else:
+                redacted.append(tok)
+                had_value = False
+                while i + 1 < n and not argv[i + 1].startswith("-"):
+                    had_value = True
+                    i += 1
+                if had_value:
+                    redacted.append("*")
         else:
             redacted.append(tok)
         i += 1

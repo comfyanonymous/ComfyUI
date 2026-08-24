@@ -98,6 +98,24 @@ def test_flag_with_missing_value_is_not_corrupted():
     assert redact_sensitive_argv(argv) == ["main.py", "--tls-keyfile"]
 
 
+def test_flag_with_missing_value_does_not_swallow_the_next_flag():
+    """If a sensitive single-value flag has no value because another flag
+    immediately follows it, that following flag must survive untouched --
+    not be consumed and replaced with "*"."""
+    argv = ["main.py", "--tls-keyfile", "--cpu"]
+    assert redact_sensitive_argv(argv) == ["main.py", "--tls-keyfile", "--cpu"]
+
+
+def test_multi_value_flag_equals_syntax_is_redacted():
+    """--extra-model-paths-config=/path.yaml (argparse also accepts "=" for
+    nargs='+' flags with a single value) must be redacted like the
+    single-value flags' equals syntax already is."""
+    argv = ["main.py", "--extra-model-paths-config=/home/alice/extra.yaml"]
+    redacted = redact_sensitive_argv(argv)
+    assert redacted == ["main.py", "--extra-model-paths-config=*"]
+    assert "alice" not in " ".join(redacted)
+
+
 def test_non_path_arguments_are_left_alone():
     argv = ["main.py", "--multi-user", "--fast", "--preview-method", "auto"]
     assert redact_sensitive_argv(argv) == argv
