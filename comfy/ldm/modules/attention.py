@@ -1,4 +1,5 @@
 import contextlib
+import contextvars
 import math
 import sys
 import inspect
@@ -271,25 +272,25 @@ def attention_basic(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
     return out
 
 _memory_chunk_cache_lock = threading.Lock()
-_memory_chunk_cache = None
+_memory_chunk_cache_var = contextvars.ContextVar("_memory_chunk_cache", default=None)
 
 
 @contextlib.contextmanager
 def deterministic_memory_chunking():
     """Freeze memory-dependent chunk-size decisions so repeated calls with identical
     shapes (e.g. a gradient-checkpoint recomputing the same forward) reuse the first
-    choice instead of picking a different one from the free memory available then."""
-    global _memory_chunk_cache
-    previous = _memory_chunk_cache
-    _memory_chunk_cache = {}
+    choice instead of picking a different one from the free memory available then.
+    The cache lives in a context-local variable so concurrent training contexts
+    (separate threads/tasks) each get their own, instead of sharing one global."""
+    token = _memory_chunk_cache_var.set({})
     try:
         yield
     finally:
-        _memory_chunk_cache = previous
+        _memory_chunk_cache_var.reset(token)
 
 
 def _cached_memory_chunk_choice(key, compute):
-    cache = _memory_chunk_cache
+    cache = _memory_chunk_cache_var.get()
     if cache is None:
         return compute()
     with _memory_chunk_cache_lock:
@@ -299,6 +300,13 @@ def _cached_memory_chunk_choice(key, compute):
     with _memory_chunk_cache_lock:
         cache[key] = value
     return value
+
+
+def _update_cached_memory_chunk_choice(key, value):
+    cache = _memory_chunk_cache_var.get()
+    if cache is not None:
+        with _memory_chunk_cache_lock:
+            cache[key] = value
 
 
 @wrap_attn
@@ -479,6 +487,8 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
                 logging.warning("out of memory error, increasing steps and trying again {}".format(steps))
             else:
                 raise e
+
+    _update_cached_memory_chunk_choice((device, mem_required), steps)
 
     del q, k, v
 
