@@ -63,22 +63,29 @@ class ForLoopOpen:
                 node_id: tuple(dynprompt.get_node(node_id)["inputs"]["next_iteration"])
                 for node_id in variable_nodes
             }
-            variable_source_nodes = {
-                source_id for source_id, _ in variable_sources.values()
+            internal_variable_sources = {
+                node_id: source
+                for node_id, source in variable_sources.items()
+                if source[0] == unique_id or source[0] in projected_nodes
+            }
+            external_variable_sources = variable_sources.keys() - internal_variable_sources.keys()
+            internal_variable_source_nodes = {
+                source_id for source_id, _ in internal_variable_sources.values()
                 if source_id != unique_id
             }
-            if not variable_source_nodes.issubset(projected_nodes):
-                raise ValueError("Loop Variable next iteration value must be produced inside its loop")
             state = {
                 "values": list(range(start, end, increment)),
                 "index": -1,
                 "projected_nodes": projected_nodes,
-                "scheduled_nodes": projected_nodes.intersection(execution_list.pendingNodes).union(variable_source_nodes),
+                "scheduled_nodes": projected_nodes.intersection(execution_list.pendingNodes).union(
+                    internal_variable_source_nodes
+                ),
                 "nested_openers": nested_openers.intersection(execution_list.pendingNodes),
                 "nested_links": nested_links,
                 "invalidated_nodes": projected_nodes.union(nested_openers),
                 "close_sources": close_sources,
                 "variable_sources": variable_sources,
+                "internal_variable_sources": internal_variable_sources,
             }
             execution_list.set_projection_state(unique_id, state)
             execution_list.project_nodes(state["projected_nodes"], state["scheduled_nodes"])
@@ -91,7 +98,9 @@ class ForLoopOpen:
                     execution_list.cache_link(source_id, unique_id, source_socket)
             for node_id, (source_id, source_socket) in variable_sources.items():
                 execution_list.set_projection_state(node_id, {})
-                if source_id != unique_id:
+                if node_id in external_variable_sources:
+                    execution_list.add_strong_link(source_id, source_socket, unique_id)
+                elif source_id != unique_id:
                     execution_list.cache_link(source_id, unique_id, source_socket)
             state["projected_nodes"] = execution_list.get_projected_nodes(unique_id)
             state["scheduled_nodes"] = execution_list.get_projection_scheduled_nodes(unique_id)
@@ -134,7 +143,7 @@ class ForLoopOpen:
         for source_id, source_socket in state["close_sources"].values():
             if source_id != unique_id:
                 execution_list.cache_link(source_id, unique_id, source_socket)
-        for source_id, source_socket in state["variable_sources"].values():
+        for source_id, source_socket in state["internal_variable_sources"].values():
             if source_id != unique_id:
                 execution_list.cache_link(source_id, unique_id, source_socket)
         execution_list.defer_staged_node()
