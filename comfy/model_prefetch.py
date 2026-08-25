@@ -193,17 +193,16 @@ def prefetch_queue_pop(queue, device, module, dtype=None, core=None, enable_grap
                 if generator is not None:
                     graph.register_generator_state(generator)
                 malloc_graph.resume()
-                # Aimdo may evict unpinned VBARs without synchronizing during capture.
-                # Complete prior work before a CUDA graph can touch those allocations.
+                # Capture-time VBAR eviction is safe after prior work completes.
                 comfy.model_management.synchronize()
                 capture_stream.wait_stream(comfy.model_management.current_stream(device))
-                malloc_graph.pause()
+                malloc_graph.pause(sync=True)
                 with malloc_graph.use_stream(capture_stream):
                     with torch.cuda.graph(graph, stream=capture_stream, capture_error_mode="thread_local"):
                         malloc_graph.resume()
                         core()
                         malloc_graph.pause()
-                malloc_graph.resume()
+                malloc_graph.resume(sync=True)
                 comfy.model_management.current_stream(device).wait_stream(capture_stream)
                 graph.replay()
                 module._comfy_graph = {"graph": graph, "signature": signature}
