@@ -89,7 +89,7 @@ def test_hash_mode_same_bytes_same_name_returns_same_record(
                 os.unlink(path)
 
 
-def test_off_mode_api_assets_creates_distinct_records_and_paths(
+def test_off_mode_api_assets_dedups_same_bytes_same_name(
     mock_create_session, hashing_off
 ):
     content = b"off-mode-bytes"
@@ -108,23 +108,23 @@ def test_off_mode_api_assets_creates_distinct_records_and_paths(
             tags=["output"],
             client_filename="off.bin",
         )
-        assert r1.ref.id != r2.ref.id
+        assert r1.ref.id == r2.ref.id
+        assert r2.created_new is False
         with mock_create_session() as session:
-            assert session.scalar(select(func.count()).select_from(Asset)) == 2
+            assert session.scalar(select(func.count()).select_from(Asset)) == 1
             contents = list(
                 session.scalars(
                     select(AssetContent).where(AssetContent.is_missing.is_(False))
                 )
             )
-            assert len(contents) == 2
-            assert contents[0].path != contents[1].path
+            assert len(contents) == 1
     finally:
         for path in (temp1, temp2):
             if os.path.exists(path):
                 os.unlink(path)
 
 
-def test_off_mode_register_file_in_place_same_path_two_records_one_content(
+def test_off_mode_register_file_in_place_same_path_dedups(
     mock_create_session, hashing_off
 ):
     import folder_paths
@@ -143,7 +143,8 @@ def test_off_mode_register_file_in_place_same_path_two_records_one_content(
         r2 = register_file_in_place(
             abs_path=path, name="image_same.png", tags=["output"]
         )
-        assert r1.ref.id != r2.ref.id
+        assert r1.ref.id == r2.ref.id
+        assert r2.created_new is False
         with mock_create_session() as session:
             contents = list(
                 session.scalars(
@@ -253,19 +254,20 @@ def test_upload_unstable_raises_after_three_attempts_no_rows(
             os.unlink(temp)
 
 
-def test_off_mode_upload_never_calls_dedup_lookup(mock_create_session, hashing_off):
+def test_off_mode_upload_calls_dedup_lookup(mock_create_session, hashing_off):
     temp = _write_temp(b"off-mode")
     try:
         with patch(
             "app.assets.services.lookup.lookup_for_upload_dedup"
         ) as mock_dedup:
+            mock_dedup.return_value = None
             upload_from_temp_path(
                 temp_path=temp,
                 name="off.bin",
                 tags=["output"],
                 client_filename="off.bin",
             )
-            mock_dedup.assert_not_called()
+            mock_dedup.assert_called_once()
     finally:
         if os.path.exists(temp):
             os.unlink(temp)

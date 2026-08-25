@@ -80,16 +80,17 @@ def test_off_mode_from_hash_returns_none(session, tmp_path):
     assert result is None
 
 
-def test_off_mode_dedup_returns_none(session, tmp_path):
+def test_dedup_not_gated_on_hashing_flag(session, tmp_path):
     class FakeArgs:
         enable_asset_hashing = False
 
     mode_module.init(FakeArgs())
     f = _make_file(tmp_path, "f4.png")
-    create_content(session, path=f, hash="abc123")
+    content = create_content(session, path=f, hash="abc123")
     session.commit()
     result = lookup_for_upload_dedup(session, "abc123", "test.png")
-    assert result is None
+    assert result is not None
+    assert result.id == content.id
 
 
 def test_stale_older_newer_live_returns_newer(session, tmp_path):

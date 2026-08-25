@@ -62,8 +62,6 @@ def lookup_for_from_hash(session: Session, hash: str) -> AssetContent | None:
 def lookup_for_upload_dedup(
     session: Session, hash: str, name: str
 ) -> Asset | AssetContent | None:
-    if not mode.hashing_enabled():
-        return None
     first_content = None
     for content in qualified_content_iterator(session, hash):
         if is_temp_path(content.path):

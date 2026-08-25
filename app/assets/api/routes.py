@@ -900,7 +900,11 @@ async def seed_assets(request: web.Request) -> web.Response:
     wait_param = request.query.get("wait", "").lower()
     should_wait = wait_param in ("true", "1", "yes")
 
-    started = asset_seeder.start(roots=valid_roots)
+    from app.assets import mode
+
+    started = asset_seeder.start(
+        roots=valid_roots, compute_hashes=mode.hashing_enabled()
+    )
     if not started:
         return web.json_response({"status": "already_running"}, status=409)
 
