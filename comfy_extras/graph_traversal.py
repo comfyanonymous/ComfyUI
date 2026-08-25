@@ -28,6 +28,64 @@ def descendants(dynprompt, node_id):
     return _walk_graph(children.get(node_id, ()), lambda child_id: children.get(child_id, ()))
 
 
+def loop_projection(dynprompt, opener_id):
+    children = _linked_children(dynprompt)
+    reachable = _walk_graph(children.get(opener_id, ()), lambda node_id: children.get(node_id, ()))
+    parent_counts = {node_id: 0 for node_id in reachable}
+    incoming_states = {node_id: [] for node_id in reachable}
+    for parent_id in reachable:
+        for child_id in children.get(parent_id, ()):
+            if child_id in reachable:
+                parent_counts[child_id] += 1
+    for node_id in children.get(opener_id, ()):
+        incoming_states[node_id].append(((opener_id,), frozenset()))
+
+    projected = set()
+    close_nodes = set()
+    ready = [node_id for node_id, count in parent_counts.items() if count == 0]
+    processed = 0
+    while ready:
+        node_id = ready.pop()
+        processed += 1
+        states = incoming_states[node_id]
+        scopes = max((state[0] for state in states), key=len)
+        closed_scopes = frozenset().union(*(state[1] for state in states))
+        if any(scopes[:len(candidate_scopes)] != candidate_scopes for candidate_scopes, _ in states):
+            raise ValueError(f"Node {node_id} belongs to incompatible nested loop scopes")
+        if set(scopes).intersection(closed_scopes):
+            raise ValueError(
+                f"Node {node_id} routes around a Loop Close; all of its looped inputs must pass through the close"
+            )
+
+        if opener_id in scopes:
+            projected.add(node_id)
+
+        class_type = dynprompt.get_node(node_id)["class_type"]
+        next_scopes = scopes
+        next_closed_scopes = closed_scopes
+        if class_type == "ForLoopOpen":
+            next_scopes = (*scopes, node_id)
+        elif class_type == "LoopClose" and scopes:
+            owner_id = scopes[-1]
+            next_scopes = scopes[:-1]
+            next_closed_scopes = closed_scopes.union((owner_id,))
+            if owner_id == opener_id:
+                close_nodes.add(node_id)
+
+        for child_id in children.get(node_id, ()):
+            if child_id not in reachable:
+                continue
+            incoming_states[child_id].append((next_scopes, next_closed_scopes))
+            parent_counts[child_id] -= 1
+            if parent_counts[child_id] == 0:
+                ready.append(child_id)
+
+    if processed != len(reachable):
+        raise ValueError(f"For Loop {opener_id} contains a dependency cycle")
+
+    return projected, close_nodes
+
+
 def ascendants(dynprompt, node_id, stop_at=None):
     stop_at = stop_at or (lambda _node_id: False)
 
