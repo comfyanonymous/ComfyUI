@@ -40,7 +40,7 @@ class ForLoopOpen:
 
         state = execution_list.get_projection_state(unique_id)
         if state is None:
-            projected_nodes, close_nodes = loop_projection(dynprompt, unique_id)
+            projected_nodes, close_nodes, variable_nodes = loop_projection(dynprompt, unique_id)
             projected_nodes.difference_update(close_nodes)
             nested_openers = {
                 node_id for node_id in projected_nodes
@@ -59,15 +59,26 @@ class ForLoopOpen:
                 node_id: tuple(dynprompt.get_node(node_id)["inputs"]["value"])
                 for node_id in close_nodes
             }
+            variable_sources = {
+                node_id: tuple(dynprompt.get_node(node_id)["inputs"]["next_iteration"])
+                for node_id in variable_nodes
+            }
+            variable_source_nodes = {
+                source_id for source_id, _ in variable_sources.values()
+                if source_id != unique_id
+            }
+            if not variable_source_nodes.issubset(projected_nodes):
+                raise ValueError("Loop Variable next iteration value must be produced inside its loop")
             state = {
                 "values": list(range(start, end, increment)),
                 "index": -1,
                 "projected_nodes": projected_nodes,
-                "scheduled_nodes": projected_nodes.intersection(execution_list.pendingNodes),
+                "scheduled_nodes": projected_nodes.intersection(execution_list.pendingNodes).union(variable_source_nodes),
                 "nested_openers": nested_openers.intersection(execution_list.pendingNodes),
                 "nested_links": nested_links,
                 "invalidated_nodes": projected_nodes.union(nested_openers),
                 "close_sources": close_sources,
+                "variable_sources": variable_sources,
             }
             execution_list.set_projection_state(unique_id, state)
             execution_list.project_nodes(state["projected_nodes"], state["scheduled_nodes"])
@@ -76,6 +87,10 @@ class ForLoopOpen:
                 node_state = close_state(execution_list, node_id)
                 node_state["values"] = []
                 node_state["unblock"] = execution_list.add_external_block(node_id)
+                if source_id != unique_id:
+                    execution_list.cache_link(source_id, unique_id, source_socket)
+            for node_id, (source_id, source_socket) in variable_sources.items():
+                execution_list.set_projection_state(node_id, {})
                 if source_id != unique_id:
                     execution_list.cache_link(source_id, unique_id, source_socket)
             state["projected_nodes"] = execution_list.get_projected_nodes(unique_id)
@@ -90,12 +105,23 @@ class ForLoopOpen:
                     if source is None:
                         raise RuntimeError(f"Loop Close {node_id} input was not produced during the iteration")
                     values.extend(source.outputs[source_socket])
+            for node_id, (source_id, source_socket) in state["variable_sources"].items():
+                if source_id == unique_id:
+                    value = state["opener_outputs"][source_socket]
+                else:
+                    source = execution_list.get_cache(source_id, unique_id)
+                    if source is None:
+                        raise RuntimeError(f"Loop Variable {node_id} next iteration value was not produced")
+                    value = source.outputs[source_socket][0]
+                execution_list.get_projection_state(node_id)["value"] = value
 
         state["index"] += 1
         if state["index"] >= len(state["values"]):
             for node_id in state["close_sources"]:
                 execution_list.get_projection_state(node_id)["unblock"]()
             execution_list.release_projected_nodes(state["projected_nodes"])
+            for node_id in state["variable_sources"]:
+                execution_list.clear_projection_state(node_id)
             execution_list.clear_projection_state(unique_id)
             return {"ui": {"text": ("<complete>",)}, "result": (None, False, True)}
 
@@ -106,6 +132,9 @@ class ForLoopOpen:
         for link in state["nested_links"]:
             execution_list.add_strong_link(*link)
         for source_id, source_socket in state["close_sources"].values():
+            if source_id != unique_id:
+                execution_list.cache_link(source_id, unique_id, source_socket)
+        for source_id, source_socket in state["variable_sources"].values():
             if source_id != unique_id:
                 execution_list.cache_link(source_id, unique_id, source_socket)
         execution_list.defer_staged_node()
@@ -156,12 +185,57 @@ class LoopClose:
         return float("NaN")
 
 
+class LoopVariable:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "initial_value": ("*", {"lazy": True}),
+                "next_iteration": ("*", {"lazy": True, "nonNavigable": True}),
+                "i": ("INT", {"lazy": True, "forceInput": True}),
+            },
+            "hidden": {
+                "execution_list": "EXECUTION_LIST",
+                "unique_id": "UNIQUE_ID",
+            },
+        }
+
+    RETURN_TYPES = ("*",)
+    RETURN_NAMES = ("current_iteration",)
+    FUNCTION = "current"
+    CATEGORY = "looping"
+
+    def check_lazy_status(self, initial_value, next_iteration, i, execution_list=None, unique_id=None):
+        state = execution_list.get_projection_state(unique_id)
+        if state is None or "value" not in state:
+            return ["initial_value", "i"]
+        return ["i"]
+
+    def current(self, initial_value, next_iteration, i, execution_list=None, unique_id=None):
+        state = execution_list.get_projection_state(unique_id)
+        if state is None:
+            raise ValueError(f"Loop Variable {unique_id} does not belong to a For Loop")
+        return (state.get("value", initial_value),)
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, i):
+        if i is not None:
+            return "Loop Variable i must be connected"
+        return True
+
+    @classmethod
+    def IS_CHANGED(cls, initial_value, next_iteration, i, execution_list=None, unique_id=None):
+        return float("NaN")
+
+
 NODE_CLASS_MAPPINGS = {
     "ForLoopOpen": ForLoopOpen,
     "LoopClose": LoopClose,
+    "LoopVariable": LoopVariable,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "ForLoopOpen": "For Loop",
     "LoopClose": "Loop Close",
+    "LoopVariable": "Loop Variable",
 }
