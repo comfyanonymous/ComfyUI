@@ -1,62 +1,103 @@
+import os
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import event, select
 
 from app.assets.database.models import Asset, AssetContent
-from app.assets.database.queries.records import create_content, create_record
-from app.assets.services.ingest import register_output_files
+from app.assets.services.ingest import register_output_file_b, register_output_files
+from app.assets.services.output_registration import (
+    OutputExecution,
+    OutputFileRegistration,
+)
 
 
-def test_register_output_files_uses_cached_path_for_existing_content(
-    session, mock_create_session
-):
+def _write_output_file(name: str) -> Path:
     import folder_paths
 
-    path = Path(folder_paths.get_output_directory()) / "cached-output-path-test.png"
+    path = Path(folder_paths.get_output_directory()) / name
     path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"cached output")
+    return path
+
+
+def test_cached_execution_binds_new_record_to_existing_content(mock_create_session):
+    path = _write_output_file("cached-execution-bind.png")
     try:
-        path.write_bytes(b"cached output")
-        content = create_content(session, str(path))
-        original_record = create_record(session, content.id, path.name, job_id="job1")
-        session.commit()
-
-        registered = register_output_files([str(path)], job_id="job2")
-
-        session.expire_all()
-        contents = list(
-            session.scalars(select(AssetContent).where(AssetContent.path == str(path)))
+        original_record = register_output_file_b(str(path), job_id="original-job")
+        registration = OutputFileRegistration(
+            path=str(path), execution=OutputExecution.CACHED
         )
-        records = list(session.scalars(select(Asset).where(Asset.content_id == content.id)))
-        assert registered == 1
-        assert len(contents) == 1
-        assert len(records) == 2
-        assert original_record.id in {record.id for record in records}
-        assert {record.job_id for record in records} == {"job1", "job2"}
+
+        registered = register_output_files((registration,), job_id="cached-job")
+
+        with mock_create_session() as session:
+            contents = list(
+                session.scalars(
+                    select(AssetContent).where(
+                        AssetContent.path == os.path.abspath(path)
+                    )
+                )
+            )
+            records = list(
+                session.scalars(
+                    select(Asset).where(
+                        Asset.content_id == original_record.content_id
+                    )
+                )
+            )
+            assert registered == 1
+            assert len(contents) == 1
+            assert len(records) == 2
+            assert original_record.id in {record.id for record in records}
+            assert {record.job_id for record in records} == {
+                "original-job",
+                "cached-job",
+            }
     finally:
         path.unlink(missing_ok=True)
 
 
-def test_register_output_files_uses_fresh_path_for_new_content(
-    session, mock_create_session
+def test_cached_execution_does_not_mutate_existing_content(
+    mock_create_session, db_engine
 ):
-    import folder_paths
+    path = _write_output_file("cached-execution-no-update.png")
+    update_statements: list[str] = []
 
-    path = Path(folder_paths.get_output_directory()) / "fresh-output-path-test.png"
-    path.parent.mkdir(parents=True, exist_ok=True)
+    def capture_updates(_, __, statement, ___, ____, _____):
+        if statement.lstrip().upper().startswith("UPDATE"):
+            update_statements.append(statement)
+
     try:
-        path.write_bytes(b"fresh output")
-        registered = register_output_files([str(path)], job_id="job1")
+        original_record = register_output_file_b(str(path), job_id="original-job")
+        with mock_create_session() as session:
+            original_content = session.get(AssetContent, original_record.content_id)
+            original_state = (
+                original_content.hash,
+                original_content.size_bytes,
+                original_content.path,
+                original_content.mtime_ns,
+                original_content.is_missing,
+                original_content.created_at,
+            )
+        event.listen(db_engine, "before_cursor_execute", capture_updates)
+        registration = OutputFileRegistration(
+            path=str(path), execution=OutputExecution.CACHED
+        )
 
-        session.expire_all()
-        contents = list(
-            session.scalars(select(AssetContent).where(AssetContent.path == str(path)))
-        )
-        assert registered == 1
-        assert len(contents) == 1
-        records = list(
-            session.scalars(select(Asset).where(Asset.content_id == contents[0].id))
-        )
-        assert len(records) == 1
-        assert records[0].job_id == "job1"
+        register_output_files((registration,), job_id="cached-job")
+
+        with mock_create_session() as session:
+            content = session.get(AssetContent, original_record.content_id)
+            current_state = (
+                content.hash,
+                content.size_bytes,
+                content.path,
+                content.mtime_ns,
+                content.is_missing,
+                content.created_at,
+            )
+            assert current_state == original_state
+            assert update_statements == []
     finally:
+        event.remove(db_engine, "before_cursor_execute", capture_updates)
         path.unlink(missing_ok=True)
