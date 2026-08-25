@@ -5,15 +5,14 @@ import os
 from typing import Any, Sequence
 
 from sqlalchemy.orm import Session
+from typing_extensions import assert_never
 
-import app.assets.services.hashing as hashing
 from app.assets.database.models import Asset
 from app.assets.database.queries import (
     add_tags_to_reference,
     count_active_siblings,
     create_stub_asset,
     ensure_tags_exist,
-    fetch_reference_and_asset,
     get_asset_by_hash,
     get_reference_by_file_path,
     get_reference_tags,
@@ -33,6 +32,10 @@ from app.assets.helpers import get_utc_now, normalize_tags
 from app.assets.services.bulk_ingest import batch_insert_seed_assets
 from app.assets.services.file_utils import get_size_and_mtime_ns
 from app.assets.services.image_dimensions import extract_image_dimensions
+from app.assets.services.output_registration import (
+    OutputExecution,
+    OutputFileRegistration,
+)
 from app.assets.services.path_utils import (
     compute_loader_path,
     get_name_and_tags_from_asset_path,
@@ -173,7 +176,7 @@ def _ingest_file_from_path(
 
 
 def register_output_files(
-    file_paths: Sequence[str],
+    registrations: Sequence[OutputFileRegistration],
     user_metadata: UserMetadata = None,
     job_id: str | None = None,
 ) -> int:
@@ -182,29 +185,23 @@ def register_output_files(
     Returns the number of files successfully registered.
     """
     registered = 0
-    for abs_path in file_paths:
-        if not os.path.isfile(abs_path):
+    for registration in registrations:
+        if not os.path.isfile(registration.path):
             continue
+
+        match registration.execution:
+            case OutputExecution.EXECUTED:
+                register = register_output_file_b
+            case OutputExecution.CACHED:
+                register = register_cached_output
+            case _:
+                assert_never(registration.execution)
+
         try:
-            from sqlalchemy import select
-
-            from app.assets.database.models import AssetContent
-
-            locator = os.path.abspath(abs_path)
-            with create_session() as session:
-                existing = session.scalars(
-                    select(AssetContent).where(
-                        AssetContent.path == locator,
-                        AssetContent.is_missing.is_(False),
-                    )
-                ).first()
-            if existing is not None:
-                register_cached_output(abs_path, job_id=job_id)
-            else:
-                register_output_file_b(abs_path, job_id=job_id)
+            register(registration.path, job_id=job_id)
             registered += 1
         except Exception:
-            logging.exception("Failed to register output: %s", abs_path)
+            logging.exception("Failed to register output: %s", registration.path)
     return registered
 
 
