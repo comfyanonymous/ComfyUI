@@ -20,7 +20,7 @@ class ForLoopOpen:
                 "increment": ("INT", {"default": 1}),
             },
             "optional": {
-                "i_outer": ("INT", {"forceInput": True}),
+                "interation_outer": ("INT", {"forceInput": True}),
             },
             "hidden": {
                 "dynprompt": "DYNPROMPT",
@@ -30,11 +30,11 @@ class ForLoopOpen:
         }
 
     RETURN_TYPES = ("INT", "BOOLEAN", "BOOLEAN")
-    RETURN_NAMES = ("i", "first", "last")
+    RETURN_NAMES = ("iteration", "first", "last")
     FUNCTION = "open"
     CATEGORY = "looping"
 
-    def open(self, start, end, increment, i_outer=None, dynprompt=None, execution_list=None, unique_id=None):
+    def open(self, start, end, increment, interation_outer=None, dynprompt=None, execution_list=None, unique_id=None):
         if increment == 0:
             raise ValueError("ForLoopOpen increment must not be 0")
 
@@ -60,7 +60,7 @@ class ForLoopOpen:
                 for node_id in close_nodes
             }
             variable_sources = {
-                node_id: tuple(dynprompt.get_node(node_id)["inputs"]["next_iteration"])
+                node_id: tuple(dynprompt.get_node(node_id)["inputs"]["next_iteration_value"])
                 for node_id in variable_nodes
             }
             internal_variable_sources = {
@@ -153,7 +153,7 @@ class ForLoopOpen:
         return outputs
 
     @classmethod
-    def IS_CHANGED(cls, start, end, increment, i_outer=None, dynprompt=None, execution_list=None, unique_id=None):
+    def IS_CHANGED(cls, start, end, increment, interation_outer=None, dynprompt=None, execution_list=None, unique_id=None):
         return float("NaN")
 
 
@@ -200,8 +200,8 @@ class LoopVariable:
         return {
             "required": {
                 "initial_value": ("*", {"lazy": True}),
-                "next_iteration": ("*", {"lazy": True, "nonNavigable": True}),
-                "i": ("INT", {"lazy": True, "forceInput": True}),
+                "next_iteration_value": ("*", {"lazy": True, "nonNavigable": True}),
+                "iteration": ("INT", {"lazy": True, "forceInput": True}),
             },
             "hidden": {
                 "execution_list": "EXECUTION_LIST",
@@ -210,30 +210,30 @@ class LoopVariable:
         }
 
     RETURN_TYPES = ("*",)
-    RETURN_NAMES = ("current_iteration",)
+    RETURN_NAMES = ("current_iteration_value",)
     FUNCTION = "current"
     CATEGORY = "looping"
 
-    def check_lazy_status(self, initial_value, next_iteration, i, execution_list=None, unique_id=None):
+    def check_lazy_status(self, initial_value, next_iteration_value, iteration, execution_list=None, unique_id=None):
         state = execution_list.get_projection_state(unique_id)
         if state is None or "value" not in state:
-            return ["initial_value", "i"]
-        return ["i"]
+            return ["initial_value", "iteration"]
+        return ["iteration"]
 
-    def current(self, initial_value, next_iteration, i, execution_list=None, unique_id=None):
+    def current(self, initial_value, next_iteration_value, iteration, execution_list=None, unique_id=None):
         state = execution_list.get_projection_state(unique_id)
         if state is None:
             raise ValueError(f"Loop Variable {unique_id} does not belong to a For Loop")
         return (state.get("value", initial_value),)
 
     @classmethod
-    def VALIDATE_INPUTS(cls, i):
-        if i is not None:
-            return "Loop Variable i must be connected"
+    def VALIDATE_INPUTS(cls, iteration):
+        if iteration is not None:
+            return "Loop Variable iteration must be connected"
         return True
 
     @classmethod
-    def IS_CHANGED(cls, initial_value, next_iteration, i, execution_list=None, unique_id=None):
+    def IS_CHANGED(cls, initial_value, next_iteration_value, iteration, execution_list=None, unique_id=None):
         return float("NaN")
 
 
