@@ -1,3 +1,4 @@
+import re
 import time
 
 
@@ -6,6 +7,9 @@ class TerminalLatencyProfiler:
 
     and pass-through overhead directly to the server terminal stdout.
     """
+
+    MAX_TAG_LENGTH = 80
+    _CONTROL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]")
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -31,6 +35,18 @@ class TerminalLatencyProfiler:
         """
         return float("nan")
 
+    @classmethod
+    def _sanitize_tag(cls, tag: str) -> str:
+        """Strip control/newline characters and cap length so a
+
+        workflow-controlled label can't inject extra terminal lines
+        or flood stdout.
+        """
+        clean = cls._CONTROL_CHARS_RE.sub("", tag).strip()
+        if len(clean) > cls.MAX_TAG_LENGTH:
+            clean = clean[: cls.MAX_TAG_LENGTH - 1].rstrip() + "…"
+        return clean or "Node Execution"
+
     def profile_latency(self, passthrough_data, tag="Node Execution"):
         start_time = time.perf_counter()
 
@@ -40,13 +56,12 @@ class TerminalLatencyProfiler:
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0
         current_time = time.strftime("%H:%M:%S")
         monotonic_stamp = time.perf_counter() * 1000.0
+        safe_tag = self._sanitize_tag(str(tag))
 
-        print("=" * 50)
-        print(f"[LATENCY LOG] {current_time}")
-        print(f"Tag: {tag}")
-        print(f"Monotonic Stamp: {monotonic_stamp:.2f} ms")
-        print(f"Profiler Passthrough Overhead: {elapsed_ms:.4f} ms")
-        print("=" * 50)
+        print(
+            f"[LATENCY LOG] {current_time} | Tag: {safe_tag} | "
+            f"Stamp: {monotonic_stamp:.2f}ms | Overhead: {elapsed_ms:.4f}ms"
+        )
 
         return (output_data,)
 
