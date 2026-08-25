@@ -41,6 +41,16 @@ if __name__ == "__main__":
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
     os.environ['DO_NOT_TRACK'] = '1'
 
+    import cuda_malloc
+
+    if (
+        os.name == "nt"
+        and args.cuda_device is None
+        and args.default_device is None
+        and os.environ.get("CUDA_VISIBLE_DEVICES") is None
+    ):
+        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
 faulthandler.enable(file=sys.stderr, all_threads=args.debug_hang)
 if __name__ == "__main__" and args.debug_hang:
     dumping_traceback = False
@@ -74,7 +84,7 @@ if os.name == "nt":
 
 if __name__ == "__main__":
     os.environ['TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL'] = '1'
-    if args.default_device is not None:
+    if args.default_device is not None and args.cuda_device != "all":
         default_dev = args.default_device
         devices = list(range(32))
         devices.remove(default_dev)
@@ -83,7 +93,9 @@ if __name__ == "__main__":
         os.environ['CUDA_VISIBLE_DEVICES'] = str(devices)
         os.environ['HIP_VISIBLE_DEVICES'] = str(devices)
 
-    if args.cuda_device is not None:
+    if args.cuda_device == "all":
+        logging.info("Set cuda devices to all")
+    elif args.cuda_device is not None:
         os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
         os.environ['HIP_VISIBLE_DEVICES'] = str(args.cuda_device)
         os.environ["ASCEND_RT_VISIBLE_DEVICES"] = str(args.cuda_device)
@@ -97,7 +109,6 @@ if __name__ == "__main__":
         if 'CUBLAS_WORKSPACE_CONFIG' not in os.environ:
             os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":4096:8"
 
-    import cuda_malloc
     if "rocm" in cuda_malloc.get_torch_version_noimport():
         os.environ['OCL_SET_SVM_SIZE'] = '262144'  # set at the request of AMD
 
@@ -582,6 +593,8 @@ if __name__ == "__main__":
 
     if sys.version_info.major == 3 and sys.version_info.minor < 10:
         logging.warning("WARNING: You are using a python version older than 3.10, please upgrade to a newer one. 3.12 and above is recommended.")
+    if sys.version_info.major == 3 and sys.version_info.minor == 10:
+        logging.warning("WARNING: Python 3.10 will be EOL on October 31 2026, please consider upgrading to a newer version.")
 
     if args.disable_dynamic_vram:
         logging.warning(

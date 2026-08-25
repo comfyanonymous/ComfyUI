@@ -18,7 +18,8 @@ class Seedream4Options(BaseModel):
 
 
 class Seedream5OptimizePromptOptions(BaseModel):
-    thinking: Literal["auto", "enabled", "disabled"] = Field(...)
+    thinking: Literal["auto", "enabled", "disabled"] | None = Field(None)
+    mode: Literal["standard", "fast"] | None = Field(None)
 
 
 class Seedream4TaskCreationRequest(BaseModel):
@@ -385,3 +386,45 @@ class SeedAudioResponse(BaseModel):
     original_duration: float | None = Field(default=None)
     code: int | None = Field(default=None)
     message: str | None = Field(default=None)
+
+
+class MediaKitVideoEnhanceRequest(BaseModel):
+    video_url: str = Field(...)
+    tool_version: str = Field(...)
+    scene: str | None = Field(None)
+    enhance_style: str | None = Field(None)
+    resolution: str | None = Field(None)
+    resolution_limit: int | None = Field(None)
+    fps: float | None = Field(None)
+    bitrate_level: str = Field(...)
+
+
+class MediaKitError(BaseModel):
+    code: str | None = Field(None)
+    type: str | None = Field(None)
+    message: str | None = Field(None)
+    param: str | None = Field(None)
+
+
+class MediaKitTaskCreateResponse(BaseModel):
+    success: bool = Field(...)
+    task_id: str | None = Field(None)
+    request_id: str | None = Field(None)
+    error: MediaKitError | None = Field(None)
+
+
+class MediaKitTaskResult(BaseModel):
+    video_url: str = Field(...)
+    duration: float | None = Field(None)
+    fps: float | None = Field(None)
+    resolution: str | None = Field(None)
+    tool_version: str | None = Field(None)
+
+
+class MediaKitTaskResponse(BaseModel):
+    success: bool = Field(...)
+    task_id: str | None = Field(None)
+    task_type: str | None = Field(None)
+    status: str | None = Field(None)
+    result: MediaKitTaskResult | None = Field(None)
+    error: MediaKitError | None = Field(None)
