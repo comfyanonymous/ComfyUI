@@ -1021,6 +1021,7 @@ def _run_training_loop(
     """
     sigmas = torch.tensor(range(num_images))
     noise = comfy_extras.nodes_custom_sampler.Noise_RandomNoise(seed)
+    ndim = latents[0].ndim
 
     if bucket_mode:
         # Use first bucket's first latent as dummy for guider (one disk read if lazy)
@@ -1028,7 +1029,7 @@ def _run_training_loop(
         row = first.realize_rows([0]) if isinstance(first, LazyBatchSamples) else first[:1]
         if dtype is not None:
             row = row.to(dtype)
-        dummy_latent = row.repeat(num_images, 1, 1, 1)
+        dummy_latent = row.repeat(num_images, *[1]*(ndim-1))
         guider.sample(
             noise.generate_noise({"samples": dummy_latent}),
             dummy_latent,
@@ -1041,7 +1042,7 @@ def _run_training_loop(
         row = _realize_latent(latents[0])
         if dtype is not None:
             row = row.to(dtype)
-        latents = row.repeat(num_images, 1, 1, 1)
+        latents = row.repeat(num_images, *[1]*(ndim-1))
         guider.sample(
             noise.generate_noise({"samples": latents}),
             latents,

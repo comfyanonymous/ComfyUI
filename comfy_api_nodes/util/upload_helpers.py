@@ -158,7 +158,14 @@ async def upload_video_to_comfyapi(
 
     # Convert VideoInput to BytesIO using specified container/codec
     video_bytes_io = BytesIO()
-    video.save_to(video_bytes_io, format=container, codec=codec)
+    try:
+        video.save_to(video_bytes_io, format=container, codec=codec)
+    except Exception as e:
+        raise ValueError(
+            f"Could not convert the input video to {container.value.upper()} for upload; "
+            f"the file may be corrupted or use an unsupported codec. "
+            f"Try re-exporting it as MP4 (H.264). Original error: {e}"
+        ) from e
     video_bytes_io.seek(0)
 
     return await upload_file_to_comfyapi(cls, video_bytes_io, filename, upload_mime_type, wait_label)

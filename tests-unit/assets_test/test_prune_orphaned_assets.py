@@ -29,7 +29,7 @@ def create_seed_file(comfy_tmp_base_dir: Path):
 def find_asset(http: requests.Session, api_base: str):
     """Query API for assets matching scope and optional name."""
     def _find(scope: str, name: str | None = None) -> list[dict]:
-        params = {"include_tags": f"unit-tests,{scope}"}
+        params = {"limit": "500"}
         if name:
             params["name_contains"] = name
         r = http.get(f"{api_base}/api/assets", params=params, timeout=120)
@@ -91,7 +91,7 @@ def test_hashed_asset_not_pruned_when_file_missing(
     data = make_asset_bytes("test", 2048)
     a = asset_factory("test.bin", ["input", "unit-tests", scope], {}, data)
 
-    path = comfy_tmp_base_dir / "input" / "unit-tests" / scope / get_asset_filename(a["asset_hash"], ".bin")
+    path = comfy_tmp_base_dir / "input" / get_asset_filename(a["asset_hash"], ".bin")
     path.unlink()
 
     trigger_sync_seed_assets(http, api_base)
@@ -108,18 +108,20 @@ def test_prune_across_multiple_roots(
 ):
     """Prune correctly handles assets across input and output roots."""
     scope = f"multi-{uuid.uuid4().hex[:6]}"
-    input_fp = create_seed_file("input", scope, "input.bin")
-    create_seed_file("output", scope, "output.bin")
+    input_name = f"{scope}-input.bin"
+    output_name = f"{scope}-output.bin"
+    input_fp = create_seed_file("input", scope, input_name)
+    create_seed_file("output", scope, output_name)
 
     trigger_sync_seed_assets(http, api_base)
-    assert len(find_asset(scope)) == 2
+    assert find_asset(scope, input_name)
+    assert find_asset(scope, output_name)
 
     input_fp.unlink()
     trigger_sync_seed_assets(http, api_base)
 
-    remaining = find_asset(scope)
-    assert len(remaining) == 1
-    assert remaining[0]["name"] == "output.bin"
+    assert not find_asset(scope, input_name)
+    assert find_asset(scope, output_name)
 
 
 @pytest.mark.parametrize("dirname", ["100%_done", "my_folder_name", "has spaces"])

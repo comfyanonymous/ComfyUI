@@ -163,3 +163,20 @@ def test_base_path_change_clears_old(set_base_dir):
 
     for name in ["controlnet", "diffusion_models", "text_encoders"]:
         assert len(folder_paths.get_folder_paths(name)) == 2
+
+
+def test_models_directory_cli_and_getters(temp_dir):
+    try:
+        with patch.object(sys, 'argv', ["main.py", "--models-directory", temp_dir]):
+            reload(comfy.cli_args)
+            reload(folder_paths)
+
+        assert folder_paths.models_dir == os.path.abspath(temp_dir)
+
+        with pytest.raises(Exception):
+            comfy.cli_args.is_valid_directory(os.path.join(temp_dir, "non_existent_folder_path"))
+    finally:
+        with patch.object(sys, 'argv', ["main.py"]):
+            reload(comfy.cli_args)
+            reload(folder_paths)
+

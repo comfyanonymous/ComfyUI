@@ -290,7 +290,7 @@ def test_metadata_filename_is_set_for_seed_asset_without_hash(
 
     r1 = http.get(
         api_base + "/api/assets",
-        params={"include_tags": f"unit-tests,{scope}", "name_contains": name},
+        params={"include_tags": root, "name_contains": name},
         timeout=120,
     )
     body = r1.json()

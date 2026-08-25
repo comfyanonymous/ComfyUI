@@ -13,11 +13,13 @@ import asyncio
 
 import torch
 
-from comfy.cli_args import args
+from comfy.cli_args import args, get_console_log_level
 import comfy.memory_management
 import comfy.model_management
+import comfy.model_patcher
 import comfy.model_prefetch
 import comfy_aimdo.model_vbar
+from comfy.internal_logging import detail
 
 from latent_preview import set_preview_method
 import nodes
@@ -29,6 +31,7 @@ from comfy_execution.caching import (
     HierarchicalCache,
     LRUCache,
     RAMPressureCache,
+    RAM_CACHE_LARGE_INTERMEDIATE,
 )
 from comfy_execution.graph import (
     DynamicPrompt,
@@ -425,12 +428,12 @@ def _is_intermediate_output(dynprompt, node_id):
 
 
 def _send_cached_ui(server, node_id, display_node_id, cached, prompt_id, ui_outputs):
+    if cached.ui is not None:
+        ui_outputs[node_id] = cached.ui
     if server.client_id is None:
         return
     cached_ui = cached.ui or {}
     server.send_sync("executed", { "node": node_id, "display_node": display_node_id, "output": cached_ui.get("output", None), "prompt_id": prompt_id }, server.client_id)
-    if cached.ui is not None:
-        ui_outputs[node_id] = cached.ui
 
 async def execute(server, dynprompt, caches, current_item, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_outputs):
     unique_id = current_item
@@ -542,7 +545,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                 output_data, output_ui, has_subgraph, has_pending_tasks = await get_output_data(prompt_id, unique_id, obj, input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb, v3_data=v3_data)
             finally:
                 if comfy.memory_management.aimdo_enabled:
-                    if args.verbose == "DEBUG":
+                    if get_console_log_level(args.verbose) == "DEBUG":
                         comfy_aimdo.control.analyze()
                     comfy.model_management.reset_cast_buffers()
                     comfy.model_prefetch.cleanup_prefetch_queues()
@@ -663,6 +666,7 @@ class PromptExecutor:
         self.cache_args = cache_args
         self.cache_type = cache_type
         self.server = server
+        self.prompt_model_tracker = comfy.model_patcher.PromptModelTracker()
         self.reset()
 
     def reset(self):
@@ -727,6 +731,7 @@ class PromptExecutor:
         set_preview_method(extra_data.get("preview_method"))
 
         nodes.interrupt_processing(False)
+        self.prompt_model_tracker.start()
 
         if "client_id" in extra_data:
             self.server.client_id = extra_data["client_id"]
@@ -769,7 +774,7 @@ class PromptExecutor:
                 pending_async_nodes = {} # TODO - Unify this with pending_subgraph_results
                 ui_node_outputs = {}
                 executed = set()
-                execution_list = ExecutionList(dynamic_prompt, self.caches.outputs)
+                execution_list = ExecutionList(dynamic_prompt, self.caches.outputs, self.prompt_model_tracker.add)
                 current_outputs = self.caches.outputs.all_node_ids()
                 for node_id in list(execute_outputs):
                     execution_list.add_node(node_id)
@@ -794,12 +799,16 @@ class PromptExecutor:
                     if self.cache_type == CacheType.RAM_PRESSURE:
                         ram_release_callback(ram_inactive_headroom)
                         ram_shortfall = ram_headroom - psutil.virtual_memory().available
-                        freed = comfy.model_management.free_pins(ram_shortfall + 512 * (1024 ** 2))
-                        if freed < ram_shortfall:
-                            if freed > 64 * (1024 ** 2):
-                                # AIMDO MEM_DECOMMIT can outrun psutil.available catching up.
-                                time.sleep(0.05)
-                            ram_release_callback(ram_headroom, free_active=True)
+                        if ram_shortfall > 0:
+                            freed = ram_release_callback(ram_headroom, free_active=True, min_entry_size=RAM_CACHE_LARGE_INTERMEDIATE)
+                            ram_shortfall -= freed
+                        if comfy.model_management.should_free_pins_for_ram_pressure(ram_shortfall):
+                            freed = comfy.model_management.free_pins(ram_shortfall + 512 * (1024 ** 2))
+                            if freed < ram_shortfall:
+                                if freed > 64 * (1024 ** 2):
+                                    # AIMDO MEM_DECOMMIT can outrun psutil.available catching up.
+                                    time.sleep(0.05)
+                                ram_release_callback(ram_headroom, free_active=True)
                 else:
                     # Only execute when the while-loop ends without break
                     # Send cached UI for intermediate output nodes that weren't executed
@@ -827,7 +836,10 @@ class PromptExecutor:
                 if comfy.model_management.DISABLE_SMART_MEMORY:
                     comfy.model_management.unload_all_models()
         finally:
+            if self.cache_type == CacheType.RAM_PRESSURE:
+                detail("RAM cache evictions: prompt=%s active=%s full=%s", prompt_id, self.caches.outputs.active_evictions, self.caches.outputs.full_evictions)
             comfy.memory_management.set_ram_cache_release_state(None, 0)
+            self.prompt_model_tracker.end()
             self._notify_prompt_lifecycle("end", prompt_id)
 
 
