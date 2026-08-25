@@ -20,7 +20,7 @@ class ForLoopOpen:
                 "increment": ("INT", {"default": 1}),
             },
             "optional": {
-                "i_outer": ("INT",),
+                "i_outer": ("INT", {"forceInput": True}),
             },
             "hidden": {
                 "dynprompt": "DYNPROMPT",
