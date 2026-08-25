@@ -795,7 +795,10 @@ class PromptExecutor:
                         break
 
                     assert node_id is not None, "Node ID should not be None at this point"
-                    result, error, ex = await execute(self.server, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_node_outputs)
+                    if execution_list.is_spent_node(node_id):
+                        result, error, ex = ExecutionResult.SUCCESS, None, None
+                    else:
+                        result, error, ex = await execute(self.server, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_node_outputs)
                     self.success = result != ExecutionResult.FAILURE
                     if result == ExecutionResult.FAILURE:
                         self.handle_execution_error(prompt_id, dynamic_prompt.original_prompt, current_outputs, executed, error, ex)
