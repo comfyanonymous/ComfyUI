@@ -515,24 +515,6 @@ def _snapshot_hash_with_retry(path: str) -> str:
     raise UploadUnstableError("upload file changed during hashing")
 
 
-def _allocate_exclusive_path(dest_dir: str, basename: str) -> str:
-    os.makedirs(dest_dir, exist_ok=True)
-    split = os.path.splitext(basename)
-    stem = split[0] or "upload"
-    ext = split[1] if len(split) > 1 else ""
-    candidate_name = basename if basename else "upload"
-    i = 1
-    while True:
-        dest_abs = os.path.abspath(os.path.join(dest_dir, candidate_name))
-        try:
-            fd = os.open(dest_abs, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            os.close(fd)
-            return dest_abs
-        except FileExistsError:
-            candidate_name = f"{stem} ({i}){ext}"
-            i += 1
-
-
 def _hash_mode_dest_path(
     tags: list[str],
     digest: str,
@@ -651,7 +633,6 @@ def upload_from_temp_path(
     mime_type: str | None = None,
     preview_id: str | None = None,
 ) -> UploadResult:
-    from app.assets import mode
     from app.assets.database.models import Asset, AssetContent
     from app.assets.database.queries.records import create_content
     from app.assets.services.lookup import lookup_for_upload_dedup
@@ -659,64 +640,36 @@ def upload_from_temp_path(
     display_name = _sanitize_filename(name or client_filename, fallback="upload")
     user_metadata = user_metadata or {}
 
-    if mode.hashing_enabled():
-        try:
-            digest = _snapshot_hash_with_retry(temp_path)
-        except UploadUnstableError:
-            _remove_temp_path(temp_path)
-            raise
-        if expected_hash and digest != _normalize_hash_input(expected_hash).lower():
-            _remove_temp_path(temp_path)
-            raise HashMismatchError("Uploaded file hash does not match provided hash.")
+    try:
+        digest = _snapshot_hash_with_retry(temp_path)
+    except UploadUnstableError:
+        _remove_temp_path(temp_path)
+        raise
+    if expected_hash and digest != _normalize_hash_input(expected_hash).lower():
+        _remove_temp_path(temp_path)
+        raise HashMismatchError("Uploaded file hash does not match provided hash.")
 
+    with create_session() as session:
+        dedup = lookup_for_upload_dedup(session, digest, display_name)
+
+    if isinstance(dedup, Asset):
+        _remove_temp_path(temp_path)
         with create_session() as session:
-            dedup = lookup_for_upload_dedup(session, digest, display_name)
+            record = session.get(Asset, dedup.id)
+            if record is None:
+                raise RuntimeError("inconsistent DB state after dedup")
+            return _record_to_upload_result(session, record, created_new=False)
 
-        if isinstance(dedup, Asset):
-            _remove_temp_path(temp_path)
-            with create_session() as session:
-                record = session.get(Asset, dedup.id)
-                if record is None:
-                    raise RuntimeError("inconsistent DB state after dedup")
-                return _record_to_upload_result(session, record, created_new=False)
-
-        if isinstance(dedup, AssetContent):
-            _remove_temp_path(temp_path)
-            with create_session() as session:
-                record = _create_upload_record(
-                    session,
-                    dedup.id,
-                    display_name,
-                    dedup.path,
-                    [*(tags or []), "uploaded"],
-                    mime_type,
-                    user_metadata,
-                    preview_id,
-                )
-                session.commit()
-                return _record_to_upload_result(session, record, created_new=True)
-
-        if not tags:
-            _remove_temp_path(temp_path)
-            raise ValueError("tags are required for new asset uploads")
-
-        dest_abs = _hash_mode_dest_path(tags, digest, client_filename, name)
-        content_type = _guess_upload_mime_type(
-            mime_type, client_filename, name, os.path.basename(dest_abs)
-        )
-        _move_temp_to_dest(temp_path, dest_abs)
-        size_bytes, mtime_ns = get_size_and_mtime_ns(dest_abs)
+    if isinstance(dedup, AssetContent):
+        _remove_temp_path(temp_path)
         with create_session() as session:
-            content = create_content(
-                session, dest_abs, digest, size_bytes, mtime_ns
-            )
             record = _create_upload_record(
                 session,
-                content.id,
+                dedup.id,
                 display_name,
-                dest_abs,
+                dedup.path,
                 [*(tags or []), "uploaded"],
-                content_type,
+                mime_type,
                 user_metadata,
                 preview_id,
             )
@@ -726,18 +679,17 @@ def upload_from_temp_path(
     if not tags:
         _remove_temp_path(temp_path)
         raise ValueError("tags are required for new asset uploads")
-    base_dir, subdirs = resolve_destination_from_tags(tags)
-    dest_dir = os.path.join(base_dir, *subdirs) if subdirs else base_dir
-    client_basename = os.path.basename(client_filename or name or "upload")
-    dest_abs = _allocate_exclusive_path(dest_dir, client_basename)
-    validate_path_within_base(dest_abs, base_dir)
+
+    dest_abs = _hash_mode_dest_path(tags, digest, client_filename, name)
     content_type = _guess_upload_mime_type(
-        mime_type, client_filename, name, client_basename
+        mime_type, client_filename, name, os.path.basename(dest_abs)
     )
     _move_temp_to_dest(temp_path, dest_abs)
     size_bytes, mtime_ns = get_size_and_mtime_ns(dest_abs)
     with create_session() as session:
-        content = create_content(session, dest_abs, None, size_bytes, mtime_ns)
+        content = create_content(
+            session, dest_abs, digest, size_bytes, mtime_ns
+        )
         record = _create_upload_record(
             session,
             content.id,
@@ -765,9 +717,6 @@ def register_file_in_place(
     ``compare_image_hash`` same-name dedup is legacy physical behavior and stays
     outside hash-mode policy (parallel to path-form ``/view`` semantics).
     """
-    from sqlalchemy import select
-
-    from app.assets import mode
     from app.assets.database.models import Asset, AssetContent
     from app.assets.database.queries.records import create_content
     from app.assets.services.lookup import lookup_for_upload_dedup
@@ -784,42 +733,24 @@ def register_file_in_place(
     )
     size_bytes, mtime_ns = get_size_and_mtime_ns(locator)
 
-    if mode.hashing_enabled():
-        digest = _snapshot_hash_with_retry(locator)
+    digest = _snapshot_hash_with_retry(locator)
+    with create_session() as session:
+        dedup = lookup_for_upload_dedup(session, digest, display_name)
+
+    if isinstance(dedup, Asset):
         with create_session() as session:
-            dedup = lookup_for_upload_dedup(session, digest, display_name)
+            record = session.get(Asset, dedup.id)
+            if record is None:
+                raise RuntimeError("inconsistent DB state after dedup")
+            return _record_to_upload_result(session, record, created_new=False)
 
-        if isinstance(dedup, Asset):
-            with create_session() as session:
-                record = session.get(Asset, dedup.id)
-                if record is None:
-                    raise RuntimeError("inconsistent DB state after dedup")
-                return _record_to_upload_result(session, record, created_new=False)
-
-        if isinstance(dedup, AssetContent):
-            with create_session() as session:
-                record = _create_upload_record(
-                    session,
-                    dedup.id,
-                    display_name,
-                    dedup.path,
-                    merged_tags,
-                    content_type,
-                    None,
-                    None,
-                )
-                session.commit()
-                return _record_to_upload_result(session, record, created_new=True)
-
+    if isinstance(dedup, AssetContent):
         with create_session() as session:
-            content = create_content(
-                session, locator, digest, size_bytes, mtime_ns
-            )
             record = _create_upload_record(
                 session,
-                content.id,
+                dedup.id,
                 display_name,
-                locator,
+                dedup.path,
                 merged_tags,
                 content_type,
                 None,
@@ -829,26 +760,9 @@ def register_file_in_place(
             return _record_to_upload_result(session, record, created_new=True)
 
     with create_session() as session:
-        live_content = session.scalars(
-            select(AssetContent).where(
-                AssetContent.path == locator, AssetContent.is_missing.is_(False)
-            )
-        ).first()
-        if live_content is not None:
-            record = _create_upload_record(
-                session,
-                live_content.id,
-                display_name,
-                locator,
-                merged_tags,
-                content_type,
-                None,
-                None,
-            )
-            session.commit()
-            return _record_to_upload_result(session, record, created_new=True)
-
-        content = create_content(session, locator, None, size_bytes, mtime_ns)
+        content = create_content(
+            session, locator, digest, size_bytes, mtime_ns
+        )
         record = _create_upload_record(
             session,
             content.id,
@@ -958,10 +872,24 @@ def register_cached_output(abs_path: str, job_id: str | None = None):
     )
 
 
+def _output_hashing_enabled() -> bool:
+    """Whether to hash workflow output files.
+
+    Product decision (2026-08-23): large outputs such as video should not be
+    force-hashed on every save. This gate is deliberately separate from the
+    upload hashing path (uploads always hash) and from the scanner hashing
+    flag (which controls background enrichment).
+
+    To reverse this decision and always hash outputs: return True.
+    """
+    from app.assets import mode
+
+    return mode.hashing_enabled()
+
+
 def register_output_file_b(abs_path: str, job_id: str | None = None):
     from sqlalchemy import select
 
-    from app.assets import mode
     from app.assets.database.models import AssetContent
     from app.assets.database.queries.records import (
         create_content,
@@ -983,7 +911,7 @@ def register_output_file_b(abs_path: str, job_id: str | None = None):
         if existing is not None:
             mark_content_missing(session, existing.id)
         content_hash = None
-        if mode.hashing_enabled():
+        if _output_hashing_enabled():
             content_hash = snapshot_hash(locator)
             if content_hash is None:
                 _verification_queue.append(locator)
