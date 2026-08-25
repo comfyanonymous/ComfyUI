@@ -40,6 +40,8 @@ class ForLoopOpen:
             }
             execution_list.set_projection_state(unique_id, state)
             execution_list.project_nodes(state["projected_nodes"], state["scheduled_nodes"])
+            state["projected_nodes"] = execution_list.get_projected_nodes(unique_id)
+            state["scheduled_nodes"] = execution_list.get_projection_scheduled_nodes(unique_id)
 
         state["index"] += 1
         if state["index"] >= len(state["values"]):

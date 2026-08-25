@@ -216,6 +216,9 @@ class ExecutionList(TopologicalSort):
         self.execution_cache = {}
         self.execution_cache_listeners = {}
         self.projected_node_counts = {}
+        self.projected_node_owners = {}
+        self.projection_nodes = {}
+        self.projection_scheduled_nodes = {}
         self.increment_pending_nodes = set()
         self.spent_nodes = set()
         self.projection_states = {}
@@ -240,15 +243,37 @@ class ExecutionList(TopologicalSort):
 
     def project_nodes(self, node_ids, scheduled_node_ids=None):
         projector_id = self.staged_node_id
+        node_ids = set(node_ids)
         scheduled_node_ids = set(node_ids if scheduled_node_ids is None else scheduled_node_ids)
+        self.projection_nodes[projector_id] = node_ids
+        self.projection_scheduled_nodes[projector_id] = scheduled_node_ids
         for node_id in node_ids:
             if node_id in scheduled_node_ids and node_id not in self.pendingNodes:
                 self.add_node(node_id)
             self.projected_node_counts[node_id] = self.projected_node_counts.get(node_id, 0) + 1
+            self.projected_node_owners.setdefault(node_id, set()).add(projector_id)
             self.increment_pending_nodes.add(node_id)
             if node_id in scheduled_node_ids:
                 self.blocking[node_id].setdefault(projector_id, {})[PROJECTED_BLOCKER] = True
                 self.blockers[projector_id].add(node_id)
+
+    def inherit_projected_nodes(self, parent_id, node_ids):
+        owners = self.projected_node_owners.get(parent_id, ())
+        for projector_id in owners:
+            projected_nodes = self.projection_nodes[projector_id]
+            scheduled_nodes = self.projection_scheduled_nodes[projector_id]
+            for node_id in node_ids:
+                if node_id in projected_nodes:
+                    continue
+                projected_nodes.add(node_id)
+                self.projected_node_counts[node_id] = self.projected_node_counts.get(node_id, 0) + 1
+                self.projected_node_owners.setdefault(node_id, set()).add(projector_id)
+                if node_id in self.pendingNodes:
+                    scheduled_nodes.add(node_id)
+                    self.blocking[node_id].setdefault(projector_id, {})[PROJECTED_BLOCKER] = True
+                    self.blockers[projector_id].add(node_id)
+                else:
+                    self.increment_pending_nodes.add(node_id)
 
     def release_projected_nodes(self, node_ids):
         projector_id = self.staged_node_id
@@ -268,6 +293,19 @@ class ExecutionList(TopologicalSort):
                     self.increment_pending_nodes.discard(node_id)
                     if node_id in self.pendingNodes:
                         self.spent_nodes.add(node_id)
+            owners = self.projected_node_owners.get(node_id)
+            if owners is not None:
+                owners.discard(projector_id)
+                if not owners:
+                    del self.projected_node_owners[node_id]
+        self.projection_nodes.pop(projector_id, None)
+        self.projection_scheduled_nodes.pop(projector_id, None)
+
+    def get_projected_nodes(self, projector_id):
+        return self.projection_nodes[projector_id]
+
+    def get_projection_scheduled_nodes(self, projector_id):
+        return self.projection_scheduled_nodes[projector_id]
 
     def is_spent_node(self, node_id):
         return node_id in self.spent_nodes

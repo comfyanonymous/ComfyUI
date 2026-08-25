@@ -620,6 +620,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                 execution_list.cache_link(node_id, unique_id)
             for link in new_output_links:
                 execution_list.add_strong_link(link[0], link[1], unique_id)
+            execution_list.inherit_projected_nodes(unique_id, new_node_ids)
             pending_subgraph_results[unique_id] = cached_outputs
             return (ExecutionResult.PENDING, None, None)
 
