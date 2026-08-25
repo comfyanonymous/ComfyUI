@@ -4,6 +4,7 @@ import asyncio
 import importlib
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import pytest_asyncio
@@ -23,6 +24,7 @@ finally:
     comfy.options.args_parsing = _original_args_parsing
 
 graph_utils = importlib.import_module("comfy_execution.graph_utils")
+caching = importlib.import_module("comfy_execution.caching")
 progress = importlib.import_module("comfy_execution.progress")
 model_management = importlib.import_module("comfy.model_management")
 latent_preview = importlib.import_module("latent_preview")
@@ -42,6 +44,24 @@ class _Server:
 
     def send_sync(self, *_args):
         return None
+
+
+class _EvictableOutput:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "value": ("STRING", {"default": "evictable-output"}),
+            },
+        }
+
+    RETURN_TYPES = ("STRING",)
+    FUNCTION = "emit"
+    CATEGORY = "Testing/Nodes"
+    OUTPUT_NODE = True
+
+    def emit(self, value):
+        return {"ui": {"values": [value]}, "result": (value,)}
 
 
 def _snapshot_globals():
@@ -181,6 +201,55 @@ async def test_lru_cached_expanded_child_is_absent_from_final_executed_ids(
     assert cached_child_id == child_id
     assert cached_child_id in executor.history_result["outputs"]
     assert cached_child_id not in executor.executed_node_ids
+
+
+async def test_ram_pressure_retained_entry_is_cached_on_rerun(loaded_test_nodes):
+    executor = _executor(execution.CacheType.RAM_PRESSURE)
+    child_id = await _run_expanded(executor, "ram-retained-first")
+
+    cached_child_id = await _run_expanded(executor, "ram-retained-second")
+
+    assert cached_child_id == child_id
+    assert cached_child_id in executor.history_result["outputs"]
+    assert cached_child_id not in executor.executed_node_ids
+
+
+async def test_ram_pressure_evicted_entry_re_executes(
+    loaded_test_nodes,
+    monkeypatch,
+):
+    executor = _executor(execution.CacheType.RAM_PRESSURE)
+    monkeypatch.setitem(
+        nodes.NODE_CLASS_MAPPINGS,
+        "TestExecutedNodeIdsEvictableOutput",
+        _EvictableOutput,
+    )
+    prompt = {
+        "evictable": {
+            "class_type": "TestExecutedNodeIdsEvictableOutput",
+            "inputs": {"value": "stable-output"},
+        }
+    }
+    await executor.execute_async(prompt, "ram-evicted-first", {}, ["evictable"])
+    assert executor.success
+    assert "evictable" in executor.executed_node_ids
+
+    outputs = executor.caches.outputs
+    monkeypatch.setattr(
+        caching.psutil,
+        "virtual_memory",
+        lambda: SimpleNamespace(available=0),
+    )
+    freed = outputs.ram_release(1, free_active=True, min_entry_size=0)
+    assert freed > 0
+    assert outputs.active_evictions
+    assert outputs.full_evictions
+
+    await executor.execute_async(prompt, "ram-evicted-second", {}, ["evictable"])
+
+    assert executor.success
+    assert "evictable" in executor.history_result["outputs"]
+    assert "evictable" in executor.executed_node_ids
 
 
 async def test_cache_none_expanded_child_is_in_final_executed_ids(loaded_test_nodes):
