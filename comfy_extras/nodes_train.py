@@ -1021,15 +1021,16 @@ def _run_training_loop(
     """
     sigmas = torch.tensor(range(num_images))
     noise = comfy_extras.nodes_custom_sampler.Noise_RandomNoise(seed)
-    ndim = latents[0].ndim
 
     if bucket_mode:
-        # Use first bucket's first latent as dummy for guider (one disk read if lazy)
+        # One row, not num_images: dataset size comes from sigmas, and sizing the
+        # dummy to it would allocate and upload that much before streaming starts.
         first = latents[0]
-        row = first.realize_rows([0]) if isinstance(first, LazyBatchSamples) else first[:1]
+        dummy_latent = (
+            first.realize_rows([0]) if isinstance(first, LazyBatchSamples) else first[:1]
+        )
         if dtype is not None:
-            row = row.to(dtype)
-        dummy_latent = row.repeat(num_images, *[1]*(ndim-1))
+            dummy_latent = dummy_latent.to(dtype)
         guider.sample(
             noise.generate_noise({"samples": dummy_latent}),
             dummy_latent,
@@ -1038,11 +1039,10 @@ def _run_training_loop(
             seed=noise.seed,
         )
     elif multi_res:
-        # use first latent as dummy latent if multi_res (one disk read if lazy)
-        row = _realize_latent(latents[0])
+        # Same one-row dummy as the bucket path above.
+        latents = _realize_latent(latents[0])
         if dtype is not None:
-            row = row.to(dtype)
-        latents = row.repeat(num_images, *[1]*(ndim-1))
+            latents = latents.to(dtype)
         guider.sample(
             noise.generate_noise({"samples": latents}),
             latents,

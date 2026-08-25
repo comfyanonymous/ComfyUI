@@ -1991,9 +1991,9 @@ class _ShardReader:
     """Random-access reader for a single shard.
 
     Loads the small skeleton pickle eagerly; opens the safetensors file lazily
-    and uses safe_open's per-tensor random access so read_sample(i) only pulls
-    the tensors belonging to sample i. read_sample_lazy(i) pulls nothing — it
-    returns (LazyLatent, LazyConditioning) handles that read on demand.
+    and uses safe_open's per-tensor random access. read_sample_lazy(i) pulls no
+    tensor bytes — it returns (LazyLatent, LazyConditioning) handles that read
+    on demand.
     """
 
     def __init__(self, shard_path, skeleton_path):
@@ -2023,20 +2023,8 @@ class _ShardReader:
     def get_tensor(self, key):
         return self._open().get_tensor(key)
 
-    def get_slice(self, key):
-        return self._open().get_slice(key)
-
     def __len__(self):
         return len(self.skeletons)
-
-    def read_sample(self, local_idx):
-        """Return (latent_dict, conditioning_list) for one sample, reading its
-        tensors eagerly."""
-        latent_skel, cond_skel = self.skeletons[local_idx]
-        st = self._open()
-        latent = _rejoin_tensors(latent_skel, st.get_tensor)
-        cond = _rejoin_tensors(cond_skel, st.get_tensor)
-        return latent, cond
 
     def read_sample_lazy(self, local_idx):
         """Return (LazyLatent, LazyConditioning) handles for one sample — no
@@ -2402,6 +2390,17 @@ class LoadTrainingDataset(io.ComfyNode):
         )
 
         if not shard_files:
+            # A pre-v2 dataset still has metadata.json, so it reaches the combo
+            # and would otherwise fail as "no shards" rather than "wrong format".
+            metadata_path = os.path.join(dataset_dir, "metadata.json")
+            if os.path.isfile(metadata_path):
+                with open(metadata_path) as f:
+                    version = json.load(f).get("format_version", 1)
+                if version < 2:
+                    raise ValueError(
+                        f"Dataset {folder_name!r} uses format_version {version}, which is no "
+                        f"longer supported. Re-save it with Save Training Dataset."
+                    )
             raise ValueError(
                 f"No shard files found in {dataset_dir} "
                 f"(expected shard_*.safetensors + shard_*.skeleton.pkl)."
