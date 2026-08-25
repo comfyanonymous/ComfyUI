@@ -2,11 +2,18 @@ from comfy_execution.graph_utils import is_link
 
 
 def _linked_children(dynprompt):
+    import nodes
+    from comfy_execution.graph import get_input_info
+
     children = {}
     for candidate_id in dynprompt.all_node_ids():
         node = dynprompt.get_node(candidate_id)
-        for value in node.get("inputs", {}).values():
+        class_def = nodes.NODE_CLASS_MAPPINGS[node["class_type"]]
+        for input_name, value in node.get("inputs", {}).items():
             if is_link(value):
+                _, _, input_info = get_input_info(class_def, input_name)
+                if input_info is not None and input_info.get("nonNavigable", False):
+                    continue
                 children.setdefault(value[0], set()).add(candidate_id)
     return children
 

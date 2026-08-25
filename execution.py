@@ -964,6 +964,8 @@ async def validate_inputs(prompt_id, prompt, item, validated, visiting=None):
                 }
                 errors.append(error)
                 continue
+            if extra_info.get("nonNavigable", False):
+                continue
             try:
                 visiting.append(unique_id)
                 try:
