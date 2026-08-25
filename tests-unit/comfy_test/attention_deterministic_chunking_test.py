@@ -120,3 +120,28 @@ def test_split_oom_retry_updates_cache_with_final_steps(monkeypatch):
         cache = attention._memory_chunk_cache_var.get()
 
     assert list(cache.values()) == [2]
+
+
+def test_memory_chunking_still_reacts_to_free_memory_outside_context_for_split(monkeypatch):
+    """Sanity check for attention_split, mirroring the sub_quad test above: outside
+    deterministic_memory_chunking(), two calls with different free memory can still
+    pick different `steps`, i.e. the fix does not change non-training behavior."""
+    _patch_free_memory(monkeypatch, [SPLIT_FREE_MEMORY, SPLIT_FREE_MEMORY // 2])
+    q, k, v = _make_qkv(*SPLIT_QKV_SHAPE)
+
+    real_einsum = attention.einsum
+    qk_call_counts = []
+
+    def counting_einsum(equation, *operands, **kwargs):
+        if equation == 'b i d, b j d -> b i j':
+            qk_call_counts[-1] += 1
+        return real_einsum(equation, *operands, **kwargs)
+
+    monkeypatch.setattr(attention, "einsum", counting_einsum)
+
+    qk_call_counts.append(0)
+    attention.attention_split(q, k, v, heads=1)
+    qk_call_counts.append(0)
+    attention.attention_split(q, k, v, heads=1)
+
+    assert qk_call_counts[0] != qk_call_counts[1]
