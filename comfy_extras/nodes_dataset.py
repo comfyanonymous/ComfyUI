@@ -1850,11 +1850,26 @@ class LazyLatent:
     realize() -> real latent dict, realize_samples() -> real "samples" tensor.
     Realization is never cached; a persistent list[LazyLatent] stays near-zero
     RAM (the OS page cache handles re-read locality).
+
+    .shape/.dtype/.ndim mirror "samples": the trainer's per-sample list holds a
+    LazyLatent where the eager path holds a row tensor, and reads it as one.
     """
 
     def __init__(self, reader, skeleton):
         self._reader = reader
         self._skel = skeleton
+
+    @property
+    def shape(self):
+        return self["samples"].shape
+
+    @property
+    def dtype(self):
+        return self["samples"].dtype
+
+    @property
+    def ndim(self):
+        return self["samples"].ndim
 
     def __getitem__(self, name):
         v = self._skel[name]
