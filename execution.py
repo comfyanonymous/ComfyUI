@@ -673,6 +673,7 @@ class PromptExecutor:
         self.caches = CacheSet(cache_type=self.cache_type, cache_args=self.cache_args)
         self.status_messages = []
         self.success = True
+        self.executed_node_ids: frozenset[str] = frozenset()
 
     def add_message(self, event, data: dict, broadcast: bool):
         data = {
@@ -728,6 +729,7 @@ class PromptExecutor:
         asyncio.run(self.execute_async(prompt, prompt_id, extra_data, execute_outputs))
 
     async def execute_async(self, prompt, prompt_id, extra_data={}, execute_outputs=[]):
+        self.executed_node_ids = frozenset()
         set_preview_method(extra_data.get("preview_method"))
 
         nodes.interrupt_processing(False)
@@ -823,6 +825,7 @@ class PromptExecutor:
                             _send_cached_ui(self.server, node_id, display_node_id, cached, prompt_id, ui_node_outputs)
                     self.add_message("execution_success", { "prompt_id": prompt_id }, broadcast=False)
 
+                self.executed_node_ids = frozenset(executed)
                 ui_outputs = {}
                 meta_outputs = {}
                 for node_id, ui_info in ui_node_outputs.items():
