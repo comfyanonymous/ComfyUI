@@ -1,59 +1,60 @@
 import time
 
-class TerminalLatencyProfiler:
-    _last_timestamp = None
 
-    def __init__(self):
-        pass
+class TerminalLatencyProfiler:
+    """A lightweight ComfyUI custom node for logging execution timestamps
+
+    and pass-through overhead directly to the server terminal stdout.
+    """
 
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {
             "required": {
-                "input_signal": ("*",),
+                "passthrough_data": ("*",),
             },
             "optional": {
-                "step_label": ("STRING", {"default": "Checkpoint / Node"}),
-                "reset_timer": ("BOOLEAN", {"default": False}),
-            }
+                "tag": ("STRING", {"default": "Node Execution"}),
+            },
         }
 
     RETURN_TYPES = ("*",)
-    RETURN_NAMES = ("output_signal",)
-    FUNCTION = "log_terminal_latency"
-    CATEGORY = "Performance"
-    OUTPUT_NODE = True
+    RETURN_NAMES = ("passthrough_data",)
+    FUNCTION = "profile_latency"
+    CATEGORY = "utils/profiling"
 
     @classmethod
-    def IS_CHANGED(cls, input_signal, step_label="Checkpoint / Node", reset_timer=False):
-        # Prevent ComfyUI from caching outputs across identical workflow submissions
+    def IS_CHANGED(cls, passthrough_data, tag="Node Execution"):
+        """Force ComfyUI to re-execute this node on every queue submission
+
+        rather than returning cached outputs.
+        """
         return float("nan")
 
-    def log_terminal_latency(self, input_signal, step_label="Checkpoint / Node", reset_timer=False):
-        current_perf = time.perf_counter()
-        current_time_str = time.strftime("%H:%M:%S")
-        timestamp_ms = current_perf * 1000.0
+    def profile_latency(self, passthrough_data, tag="Node Execution"):
+        start_time = time.perf_counter()
 
-        if reset_timer:
-            TerminalLatencyProfiler._last_timestamp = None
+        # Pass-through operation
+        output_data = passthrough_data
 
-        # Calculate elapsed time since the previous profiler marker in the graph
-        elapsed_str = "N/A (First Marker)"
-        if TerminalLatencyProfiler._last_timestamp is not None:
-            elapsed_ms = (current_perf - TerminalLatencyProfiler._last_timestamp) * 1000.0
-            elapsed_str = f"{elapsed_ms:.2f} ms"
+        elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+        current_time = time.strftime("%H:%M:%S")
+        monotonic_stamp = time.perf_counter() * 1000.0
 
-        # Update global marker timestamp
-        TerminalLatencyProfiler._last_timestamp = current_perf
+        print("=" * 50)
+        print(f"[LATENCY LOG] {current_time}")
+        print(f"Tag: {tag}")
+        print(f"Monotonic Stamp: {monotonic_stamp:.2f} ms")
+        print(f"Profiler Passthrough Overhead: {elapsed_ms:.4f} ms")
+        print("=" * 50)
 
-        print("\n" + "=" * 50)
-        print(f"[LATENCY LOG] {current_time_str}")
-        print(f"Label: {step_label}")
-        print(f"Monotonic Stamp: {timestamp_ms:.2f} ms")
-        print(f"Elapsed Since Last Marker: {elapsed_str}")
-        print("=" * 50 + "\n", flush=True)
+        return (output_data,)
 
-        return (input_signal,)
 
-NODE_CLASS_MAPPINGS = {"TerminalLatencyProfiler": TerminalLatencyProfiler}
-NODE_DISPLAY_NAME_MAPPINGS = {"TerminalLatencyProfiler": "Terminal Latency Profiler"}
+NODE_CLASS_MAPPINGS = {
+    "TerminalLatencyProfiler": TerminalLatencyProfiler,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "TerminalLatencyProfiler": "Terminal Latency Profiler",
+}
