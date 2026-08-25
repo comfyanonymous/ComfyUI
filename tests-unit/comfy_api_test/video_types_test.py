@@ -139,6 +139,19 @@ def test_video_color_space_defaults_to_srgb(simple_video_file, video_components)
     assert VideoFromComponents(video_components).get_color_space() == "sRGB"
 
 
+@pytest.mark.parametrize("color_space", ["sRGB", "HDR", "HDR PQ"])
+@pytest.mark.parametrize("bit_depth", [8, 10])
+def test_video_from_components_color_space(video_components, color_space, bit_depth):
+    video = VideoFromComponents(video_components, bit_depth=bit_depth, color_space=color_space)
+    assert video.get_color_space() == color_space
+    assert video.get_bit_depth() == bit_depth
+
+
+def test_video_from_components_rejects_invalid_color_space(video_components):
+    with pytest.raises(ValueError, match="Unsupported video color space"):
+        VideoFromComponents(video_components, color_space="Display P3")
+
+
 def test_video_from_file_bytesio_input():
     """VideoFromFile works with BytesIO input"""
     buffer = io.BytesIO()
@@ -426,14 +439,15 @@ def test_save_components_container_codec_and_audio_matrix(
 
 
 @pytest.mark.parametrize(
-    "color_space,transfer,pix_fmt,primaries,colorspace",
+    "color_space,transfer,primaries,colorspace",
     [
-        ("sRGB", ColorTrc.IEC61966_2_1, "yuv420p", ColorPrimaries.BT709, 1),
-        ("HDR", ColorTrc.ARIB_STD_B67, "yuv420p10le", ColorPrimaries.BT2020, 9),
-        ("HDR PQ", ColorTrc.SMPTE2084, "yuv420p10le", ColorPrimaries.BT2020, 9),
+        ("sRGB", ColorTrc.IEC61966_2_1, ColorPrimaries.BT709, 1),
+        ("HDR", ColorTrc.ARIB_STD_B67, ColorPrimaries.BT2020, 9),
+        ("HDR PQ", ColorTrc.SMPTE2084, ColorPrimaries.BT2020, 9),
     ],
 )
-def test_save_to_av1_mkv_color_space(tmp_path, color_space, transfer, pix_fmt, primaries, colorspace):
+@pytest.mark.parametrize("bit_depth,pix_fmt", [(8, "yuv420p"), (10, "yuv420p10le")])
+def test_save_to_av1_mkv_color_space(tmp_path, color_space, transfer, primaries, colorspace, bit_depth, pix_fmt):
     components = VideoComponents(
         images=torch.rand(2, 64, 64, 3),
         frame_rate=Fraction(30),
@@ -441,12 +455,11 @@ def test_save_to_av1_mkv_color_space(tmp_path, color_space, transfer, pix_fmt, p
     path = str(tmp_path / "hdr.mkv")
     remuxed = str(tmp_path / "remuxed.mkv")
 
-    VideoFromComponents(components).save_to(
+    VideoFromComponents(components, bit_depth=bit_depth, color_space=color_space).save_to(
         path,
         format=VideoContainer.MKV,
         codec=VideoCodec.AV1,
         crf=30,
-        color_space=color_space,
         metadata={"prompt": {"test": "hdr"}},
     )
 
@@ -485,21 +498,22 @@ def test_save_to_av1_mkv_color_space(tmp_path, color_space, transfer, pix_fmt, p
     ],
 )
 @pytest.mark.parametrize(
-    "color_space,transfer,pix_fmt,primaries,colorspace",
+    "color_space,transfer,primaries,colorspace",
     [
-        ("sRGB", ColorTrc.IEC61966_2_1, "yuv420p", ColorPrimaries.BT709, 1),
-        ("HDR", ColorTrc.ARIB_STD_B67, "yuv420p10le", ColorPrimaries.BT2020, 9),
-        ("HDR PQ", ColorTrc.SMPTE2084, "yuv420p10le", ColorPrimaries.BT2020, 9),
+        ("sRGB", ColorTrc.IEC61966_2_1, ColorPrimaries.BT709, 1),
+        ("HDR", ColorTrc.ARIB_STD_B67, ColorPrimaries.BT2020, 9),
+        ("HDR PQ", ColorTrc.SMPTE2084, ColorPrimaries.BT2020, 9),
     ],
 )
-def test_save_to_h264_color_space(tmp_path, format, suffix, color_space, transfer, pix_fmt, primaries, colorspace):
+@pytest.mark.parametrize("bit_depth,pix_fmt", [(8, "yuv420p"), (10, "yuv420p10le")])
+def test_save_to_h264_color_space(tmp_path, format, suffix, color_space, transfer, primaries, colorspace, bit_depth, pix_fmt):
     components = VideoComponents(
         images=torch.rand(2, 64, 64, 3),
         frame_rate=Fraction(30),
     )
     path = str(tmp_path / f"h264.{suffix}")
 
-    VideoFromComponents(components).save_to(
+    VideoFromComponents(components, bit_depth=bit_depth).save_to(
         path,
         format=format,
         codec=VideoCodec.H264,
@@ -604,7 +618,7 @@ def test_save_to_av1_webm_transcodes_audio(tmp_path):
     with av.open(path) as container:
         video_stream = container.streams.video[0]
         assert video_stream.codec.canonical_name == "av1"
-        assert video_stream.format.name == "yuv420p10le"
+        assert video_stream.format.name == "yuv420p"
         assert video_stream.color_primaries == ColorPrimaries.BT2020
         assert video_stream.color_trc == ColorTrc.ARIB_STD_B67
         assert video_stream.colorspace == 9

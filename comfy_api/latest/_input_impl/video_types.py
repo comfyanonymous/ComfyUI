@@ -644,8 +644,6 @@ class VideoFromFile(VideoInput):
         audio_stream = last_decodable_audio_stream(container)
         source_color_space = video_stream_color_space(video_stream)
         preserve_source_color = source_color_space is not None
-        if color_space in HDR_COLOR_TRANSFERS or source_color_space in HDR_COLOR_TRANSFERS:
-            bit_depth = max(bit_depth, 10)
         pix_fmt = "yuv420p10le" if bit_depth >= 10 else "yuv420p"
         rate = Fraction(video_stream.average_rate) if video_stream.average_rate else Fraction(1)
 
@@ -932,10 +930,13 @@ class VideoFromComponents(VideoInput):
     Class representing video input from tensors.
     """
 
-    def __init__(self, components: VideoComponents, bit_depth: int = 8):
+    def __init__(self, components: VideoComponents, bit_depth: int = 8, color_space: str = "sRGB"):
+        if color_space not in VIDEO_COLOR_TRANSFERS:
+            raise ValueError(f"Unsupported video color space: {color_space}")
         self.__components = components
         # Tensor components have no inherent bit depth; this is the depth used when encoding.
         self.__bit_depth = bit_depth
+        self.__color_space = color_space
 
     def get_components(self) -> VideoComponents:
         return VideoComponents(
@@ -948,7 +949,7 @@ class VideoFromComponents(VideoInput):
         return self.__bit_depth
 
     def get_color_space(self) -> str:
-        return "sRGB"
+        return self.__color_space
 
     def save_to(
         self,
@@ -962,15 +963,13 @@ class VideoFromComponents(VideoInput):
     ):
         """Save the video to a file path or BytesIO buffer."""
         if color_space is None:
-            color_space = "sRGB"
+            color_space = self.__color_space
         if color_space is not None and color_space not in VIDEO_COLOR_TRANSFERS:
             raise ValueError(f"Unsupported video color space: {color_space}")
         open_kwargs, output_format, output_codec = video_output_config(path, format, codec)
         # None means "use the depth this video was created with" (CreateVideo's choice).
         if bit_depth is None:
             bit_depth = self.__bit_depth
-        if color_space in HDR_COLOR_TRANSFERS:
-            bit_depth = max(bit_depth, 10)
         is_10bit = bit_depth >= 10
         with av.open(path, **open_kwargs) as output:
             # Add metadata before writing any streams
