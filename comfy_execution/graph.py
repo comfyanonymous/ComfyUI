@@ -115,7 +115,7 @@ class TopologicalSort:
     def __init__(self, dynprompt):
         self.dynprompt = dynprompt
         self.pendingNodes = {}
-        self.blockCount = {} # Number of nodes this node is directly blocked by
+        self.blockers = {} # Which nodes are directly blocking this node
         self.blocking = {} # Which nodes are blocked by this node
         self.externalBlocks = 0
         self.unblockedEvent = asyncio.Event()
@@ -140,7 +140,7 @@ class TopologicalSort:
             self.add_node(from_node_id)
             if to_node_id not in self.blocking[from_node_id]:
                 self.blocking[from_node_id][to_node_id] = {}
-                self.blockCount[to_node_id] += 1
+                self.blockers[to_node_id].add(from_node_id)
             self.blocking[from_node_id][to_node_id][from_socket] = True
 
     def add_node(self, node_unique_id, include_lazy=False, subgraph_nodes=None):
@@ -153,7 +153,7 @@ class TopologicalSort:
                 continue
 
             self.pendingNodes[unique_id] = True
-            self.blockCount[unique_id] = 0
+            self.blockers[unique_id] = set()
             self.blocking[unique_id] = {}
 
             inputs = self.dynprompt.get_node(unique_id)["inputs"]
@@ -174,12 +174,13 @@ class TopologicalSort:
             self.add_strong_link(*link)
 
     def add_external_block(self, node_id):
-        assert node_id in self.blockCount, "Can't add external block to a node that isn't pending"
+        assert node_id in self.blockers, "Can't add external block to a node that isn't pending"
         self.externalBlocks += 1
-        self.blockCount[node_id] += 1
+        blocker = object()
+        self.blockers[node_id].add(blocker)
         def unblock():
             self.externalBlocks -= 1
-            self.blockCount[node_id] -= 1
+            self.blockers[node_id].discard(blocker)
             self.unblockedEvent.set()
         return unblock
 
@@ -187,12 +188,15 @@ class TopologicalSort:
         return False
 
     def get_ready_nodes(self):
-        return [node_id for node_id in self.pendingNodes if self.blockCount[node_id] == 0]
+        return [node_id for node_id in self.pendingNodes if len(self.blockers[node_id]) == 0]
 
     def pop_node(self, unique_id):
         del self.pendingNodes[unique_id]
+        for blocker_id in self.blockers.pop(unique_id):
+            if blocker_id in self.blocking:
+                self.blocking[blocker_id].pop(unique_id, None)
         for blocked_node_id in self.blocking[unique_id]:
-            self.blockCount[blocked_node_id] -= 1
+            self.blockers[blocked_node_id].discard(unique_id)
         del self.blocking[unique_id]
 
     def is_empty(self):
