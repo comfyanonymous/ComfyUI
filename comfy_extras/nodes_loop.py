@@ -78,7 +78,7 @@ class ForLoopOpen:
                 "index": -1,
                 "projected_nodes": projected_nodes,
                 "scheduled_nodes": projected_nodes.intersection(execution_list.pendingNodes).union(
-                    internal_variable_source_nodes
+                    variable_nodes, internal_variable_source_nodes
                 ),
                 "nested_openers": nested_openers.intersection(execution_list.pendingNodes),
                 "nested_links": nested_links,
