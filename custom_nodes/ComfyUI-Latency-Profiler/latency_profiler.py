@@ -1,6 +1,6 @@
 import time
 
-class ComfyLatencyProfiler:
+class TerminalLatencyProfiler:
     def __init__(self):
         pass
 
@@ -8,27 +8,42 @@ class ComfyLatencyProfiler:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "passthrough_data": ("*",),  # Accepts any type (IMAGE, LATENT, MODEL, etc.)
+                "input_signal": ("*",),
             },
             "optional": {
-                "tag": ("STRING", {"default": "Node Execution"}),
+                "step_label": ("STRING", {"default": "Checkpoint / Node"}),
             }
         }
 
-    RETURN_TYPES = ("*", "STRING", "FLOAT")
-    RETURN_NAMES = ("passthrough_data", "latency_report", "latency_ms")
-    FUNCTION = "profile_latency"
-    CATEGORY = "Performance / Profiling"
+    RETURN_TYPES = ("*",)
+    RETURN_NAMES = ("output_signal",)
+    FUNCTION = "log_terminal_latency"
+    CATEGORY = "Performance"
+    OUTPUT_NODE = True  # Ensures execution even if outputs aren't connected
 
-    def profile_latency(self, passthrough_data, tag="Node Execution"):
+    @classmethod
+    def IS_CHANGED(s, input_signal, step_label="Checkpoint / Node"):
+        # Force execution on every queue submission by bypassing node caching
+        return float("nan")
+
+    def log_terminal_latency(self, input_signal, step_label="Checkpoint / Node"):
         start_time = time.perf_counter()
+        
+        current_time = time.strftime("%H:%M:%S")
+        timestamp_ms = start_time * 1000.0
 
-        # Pass data through cleanly without modifying it
-        output_data = passthrough_data
+        # Calculate lightweight pass-through execution overhead
+        execution_time_ms = (time.perf_counter() - start_time) * 1000.0
 
-        elapsed_ms = (time.perf_counter() - start_time) * 1000.0
-        report = f"⚡ [{tag}] Latency: {elapsed_ms:.2f} ms"
+        # Output formatted metrics to terminal
+        print("\n" + "=" * 50)
+        print(f"[LATENCY LOG] {current_time}")
+        print(f"Label: {step_label}")
+        print(f"Monotonic Stamp: {timestamp_ms:.2f} ms")
+        print(f"Pass-Through Overhead: {execution_time_ms:.4f} ms")
+        print("=" * 50 + "\n")
 
-        print(f"\n[ComfyUI-Latency-Profiler] {report}")
+        return (input_signal,)
 
-        return (output_data, report, elapsed_ms)
+NODE_CLASS_MAPPINGS = {"TerminalLatencyProfiler": TerminalLatencyProfiler}
+NODE_DISPLAY_NAME_MAPPINGS = {"TerminalLatencyProfiler": "Terminal Latency Profiler"}
