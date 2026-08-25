@@ -215,6 +215,7 @@ class ExecutionList(TopologicalSort):
         self.staged_node_id = None
         self.execution_cache = {}
         self.execution_cache_listeners = {}
+        self.deferred_output_cache = {}
         self.projected_node_counts = {}
         self.projected_node_owners = {}
         self.projection_nodes = {}
@@ -388,6 +389,8 @@ class ExecutionList(TopologicalSort):
         if to_node_id not in self.execution_cache:
             self.execution_cache[to_node_id] = {}
         value = self.output_cache.get_local(from_node_id)
+        if value is None:
+            value = self.deferred_output_cache.get(from_node_id)
         self.execution_cache[to_node_id][from_node_id] = value
         if from_node_id not in self.execution_cache_listeners:
             self.execution_cache_listeners[from_node_id] = set()
@@ -413,6 +416,10 @@ class ExecutionList(TopologicalSort):
                     self.execution_cache[to_node_id][node_id] = value
                 if from_socket is not None and self.output_link_callback is not None:
                     self.output_link_callback(value.outputs[from_socket])
+
+    def cache_deferred_output(self, node_id, value):
+        self.deferred_output_cache[node_id] = value
+        self.cache_update(node_id, value)
 
     def add_strong_link(self, from_node_id, from_socket, to_node_id):
         super().add_strong_link(from_node_id, from_socket, to_node_id)
@@ -456,6 +463,7 @@ class ExecutionList(TopologicalSort):
             return None, error_details, ex
 
         self.staged_node_id = self.ux_friendly_pick_node(available)
+        self.deferred_output_cache.pop(self.staged_node_id, None)
         return self.staged_node_id, None, None
 
     def ux_friendly_pick_node(self, node_list):
@@ -507,6 +515,7 @@ class ExecutionList(TopologicalSort):
     def complete_node_execution(self):
         node_id = self.staged_node_id
         self.deferred_staged_node_state = DeferredStagedNodeState.NOT_DEFERRED
+        self.deferred_output_cache.pop(node_id, None)
         if node_id in self.projected_node_counts:
             self.increment_pending_nodes.add(node_id)
             self.staged_node_id = None

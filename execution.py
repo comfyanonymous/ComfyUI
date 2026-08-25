@@ -569,7 +569,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
             if defer_staged_state != DeferredStagedNodeState.NOT_DEFERRED:
                 if defer_staged_state == DeferredStagedNodeState.DEFERRED_WITH_CACHE:
                     cache_entry = CacheEntry(ui=None, outputs=output_data)
-                    execution_list.cache_update(unique_id, cache_entry)
+                    execution_list.cache_deferred_output(unique_id, cache_entry)
                 return (ExecutionResult.PENDING, None, None)
         if len(output_ui) > 0:
             # Enrich at output-processing time (not in the send path) so assets
