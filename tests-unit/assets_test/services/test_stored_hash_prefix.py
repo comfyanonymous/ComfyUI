@@ -58,8 +58,9 @@ def test_upload_stores_prefixed_hash_expected_hash_succeeds_and_dedups(
 ):
     content_bytes = b"prefixed-stored-upload-bytes"
     temp1 = _write_temp(content_bytes)
-    digest = snapshot_hash(temp1)
-    assert digest is not None
+    snapshot = snapshot_hash(temp1)
+    assert snapshot is not None
+    digest, _ = snapshot
     expected = f"blake3:{digest}"
     assert expected.startswith("blake3:")
 
@@ -151,8 +152,9 @@ def test_enrich_fills_deferred_hash_prefixed(session, temp_dir):
     stored = session.get(AssetContent, content.id).hash
     assert stored is not None
     assert stored.startswith("blake3:")
-    digest = snapshot_hash(str(path))
-    assert digest is not None
+    snapshot = snapshot_hash(str(path))
+    assert snapshot is not None
+    digest, _ = snapshot
     assert stored == f"blake3:{digest}"
 
 
@@ -160,8 +162,9 @@ def test_recovery_matches_prefixed_stored_hash(session, temp_dir):
     path = temp_dir / "recover.bin"
     original_bytes = b"recover-me-bytes"
     path.write_bytes(original_bytes)
-    digest = snapshot_hash(str(path))
-    assert digest is not None
+    snapshot = snapshot_hash(str(path))
+    assert snapshot is not None
+    digest, _ = snapshot
     stored = f"blake3:{digest}"
     assert stored.startswith("blake3:")
 
@@ -208,8 +211,9 @@ async def test_all_read_surfaces_agree_on_prefixed_hash(
 
     content_bytes = b"one-asset-all-surfaces-agree"
     temp = _write_temp(content_bytes)
-    digest = snapshot_hash(temp)
-    assert digest is not None
+    snapshot = snapshot_hash(temp)
+    assert snapshot is not None
+    digest, _ = snapshot
     expected = f"blake3:{digest}"
 
     try:

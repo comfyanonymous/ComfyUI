@@ -453,13 +453,14 @@ def enrich_asset(
     stored_hash: str | None = None
     if compute_hash:
         try:
-            digest = snapshot_hash(file_path)
-            if digest is None:
+            snapshot = snapshot_hash(file_path)
+            if snapshot is None:
                 logging.warning(
                     "File modified during hashing (snapshot unstable), discarding hash: %s",
                     file_path,
                 )
                 return False
+            digest, _ = snapshot
             stored_hash = to_stored_hash(digest)
         except Exception as e:
             logging.warning("Failed to hash %s: %s", file_path, e)

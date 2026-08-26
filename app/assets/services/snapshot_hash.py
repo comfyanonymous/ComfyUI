@@ -25,19 +25,22 @@ def _snapshot(stat_result: os.stat_result) -> _Snapshot:
     )
 
 
-def snapshot_hash(path: str, chunk_size: int = 8 * 1024 * 1024) -> str | None:
-    """Return a BLAKE3 digest only when all path and descriptor snapshots match."""
-    pre_stat = _snapshot(os.stat(path))
-    hasher = blake3()
-    with open(path, "rb") as file:
-        open_stat = _snapshot(os.fstat(file.fileno()))
-        while chunk := file.read(chunk_size):
-            hasher.update(chunk)
-        post_hash_stat = _snapshot(os.fstat(file.fileno()))
+def snapshot_hash(
+    path: str, chunk_size: int = 8 * 1024 * 1024
+) -> tuple[str, os.stat_result] | None:
+    """Return a digest and its verified path stat only for a stable file snapshot."""
     try:
-        post_stat = _snapshot(os.stat(path))
+        pre_stat = _snapshot(os.stat(path))
+        hasher = blake3()
+        with open(path, "rb") as file:
+            open_stat = _snapshot(os.fstat(file.fileno()))
+            while chunk := file.read(chunk_size):
+                hasher.update(chunk)
+            post_hash_stat = _snapshot(os.fstat(file.fileno()))
+        post_stat_result = os.stat(path)
     except FileNotFoundError:
         return None
+    post_stat = _snapshot(post_stat_result)
     if len({pre_stat, open_stat, post_hash_stat, post_stat}) != 1:
         return None
-    return hasher.hexdigest()
+    return hasher.hexdigest(), post_stat_result

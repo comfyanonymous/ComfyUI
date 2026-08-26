@@ -203,8 +203,9 @@ def test_unhashed_missing_content_gets_tagged(session, temp_dir: Path):
 def test_enrichment_keeps_equal_hash_contents_distinct(session, temp_dir: Path):
     path = temp_dir / "new.bin"
     path.write_bytes(b"same bytes")
-    digest = snapshot_hash(str(path))
-    assert digest is not None
+    snapshot = snapshot_hash(str(path))
+    assert snapshot is not None
+    digest, _ = snapshot
 
     content = AssetContent(
         path=str(path),

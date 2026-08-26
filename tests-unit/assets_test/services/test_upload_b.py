@@ -192,8 +192,9 @@ def test_off_mode_register_file_in_place_different_bytes_two_paths(
 def test_upload_matching_missing_row_stores_bytes(mock_create_session, hashing_on):
     content_bytes = b"fresh-upload-bytes"
     temp = _write_temp(content_bytes)
-    digest = snapshot_hash(temp)
-    assert digest is not None
+    snapshot = snapshot_hash(temp)
+    assert snapshot is not None
+    digest, _ = snapshot
 
     missing_path = os.path.abspath("/nonexistent/missing-upload.bin")
     with mock_create_session() as session:

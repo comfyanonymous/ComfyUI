@@ -34,11 +34,20 @@ class _MutatingReader:
 
 
 def test_snapshot_hash_returns_digest_for_quiescent_file(tmp_path: Path) -> None:
+    # Given
     payload = b"quiescent" * 1024
     path = tmp_path / "asset.bin"
     path.write_bytes(payload)
 
-    assert snapshot_hash(str(path), chunk_size=64) == blake3(payload).hexdigest()
+    # When
+    result = snapshot_hash(str(path), chunk_size=64)
+
+    # Then
+    assert result is not None
+    digest, stat_result = result
+    assert digest == blake3(payload).hexdigest()
+    assert isinstance(stat_result, os.stat_result)
+    assert stat_result.st_size == len(payload)
 
 
 @pytest.mark.parametrize("mutation", ["bytes", "replace", "unlink", "truncate", "append"])

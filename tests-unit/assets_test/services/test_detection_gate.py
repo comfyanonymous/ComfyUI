@@ -12,6 +12,7 @@ from app.assets.scanner import (
     drain_pending_verifications,
     sync_prefixes_with_filesystem,
 )
+from app.assets.scanner_changes import queue_pending_verification
 from app.assets.services.snapshot_hash import snapshot_hash
 
 
@@ -44,8 +45,9 @@ def _bump_mtime(path: Path) -> None:
 
 
 def _stored_hash(path: Path) -> str:
-    digest = snapshot_hash(str(path))
-    assert digest is not None
+    snapshot = snapshot_hash(str(path))
+    assert snapshot is not None
+    digest, _ = snapshot
     return to_stored_hash(digest)
 
 
@@ -136,3 +138,34 @@ def test_old_record_id_resolves_to_missing_content_after_split(session, temp_dir
     assert original_record is not None
     assert original_record.content_id == old_content.id
     assert original_record.content.is_missing is True
+
+
+def test_hash_mode_split_uses_stat_from_the_verified_snapshot(session, temp_dir: Path, monkeypatch):
+    # Given
+    input_root = temp_dir / "input"
+    input_root.mkdir()
+    path = input_root / "changed.bin"
+    monkeypatch.setattr("folder_paths.get_input_directory", lambda: str(input_root))
+    path.write_bytes(b"old")
+    content, _ = _seed_content(session, path, _stored_hash(path))
+    queue_pending_verification(content.id)
+    new_payload = b"new bytes with a different size"
+    real_snapshot_hash = snapshot_hash
+
+    def mutate_then_hash(candidate_path: str):
+        path.write_bytes(new_payload)
+        return real_snapshot_hash(candidate_path)
+
+    monkeypatch.setattr("app.assets.scanner_changes.snapshot_hash", mutate_then_hash)
+
+    # When
+    processed = drain_pending_verifications(session)
+
+    # Then
+    live_content = session.scalar(
+        select(AssetContent).where(AssetContent.is_missing.is_(False))
+    )
+    assert processed == 1
+    assert live_content is not None
+    assert live_content.size_bytes == len(new_payload)
+    assert live_content.mtime_ns == path.stat().st_mtime_ns

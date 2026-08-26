@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -16,10 +14,14 @@ from app.assets.services.snapshot_hash import snapshot_hash
 
 _KEY = "hash_mode"
 _PENDING_QUEUE: list[str] = []
+_off_to_on_transition_in_flight = False
 
 
 def clear_transition_queue() -> None:
+    global _off_to_on_transition_in_flight
+
     _PENDING_QUEUE.clear()
+    _off_to_on_transition_in_flight = False
 
 
 def pending_transition_count() -> int:
@@ -55,8 +57,11 @@ def record_transition_intent(session: Session) -> str | None:
 
 
 def enqueue_transition_work(session: Session, transition: str | None) -> None:
+    global _off_to_on_transition_in_flight
+
     if transition != "off_to_on":
         return
+    _off_to_on_transition_in_flight = True
     rows = session.scalars(
         select(AssetContent).where(AssetContent.is_missing.is_(False))
     )
@@ -66,16 +71,20 @@ def enqueue_transition_work(session: Session, transition: str | None) -> None:
 
 
 def drain_transition_queue(session: Session) -> None:
+    global _off_to_on_transition_in_flight
+
     pending_count = len(_PENDING_QUEUE)
     for _ in range(pending_count):
         path = _PENDING_QUEUE.pop(0)
         try:
-            digest = snapshot_hash(path)
-        except FileNotFoundError:
-            continue
-        if digest is None:
+            snapshot = snapshot_hash(path)
+        except OSError:
             _PENDING_QUEUE.append(path)
             continue
+        if snapshot is None:
+            _PENDING_QUEUE.append(path)
+            continue
+        digest, stat = snapshot
         stored_hash = to_stored_hash(digest)
         content = session.scalars(
             select(AssetContent).where(
@@ -86,9 +95,10 @@ def drain_transition_queue(session: Session) -> None:
             continue
         if content.hash is None:
             content.hash = stored_hash
+            content.size_bytes = stat.st_size
+            content.mtime_ns = stat.st_mtime_ns
         elif content.hash != stored_hash:
             mark_content_missing(session, content.id)
-            stat = os.stat(path)
             name, tags = get_name_and_tags_from_asset_path(path)
             replacement = create_content(
                 session,
@@ -104,5 +114,6 @@ def drain_transition_queue(session: Session) -> None:
                 loader_path=compute_loader_path(path),
                 tags=tags,
             )
-    if not _PENDING_QUEUE:
+    if _off_to_on_transition_in_flight and not _PENDING_QUEUE:
         write_stored_mode(session, "on")
+        _off_to_on_transition_in_flight = False

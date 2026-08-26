@@ -52,8 +52,9 @@ def _spec(path: Path) -> SeedAssetSpec:
 
 
 def _stored_hash(path: Path) -> str:
-    digest = snapshot_hash(str(path))
-    assert digest is not None
+    snapshot = snapshot_hash(str(path))
+    assert snapshot is not None
+    digest, _ = snapshot
     return to_stored_hash(digest)
 
 

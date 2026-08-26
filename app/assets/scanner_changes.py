@@ -44,11 +44,12 @@ def recover_missing_content(
     """Recover only an unambiguous missing row with the current stable hash."""
     if not hashing_is_enabled:
         return "no_match"
-    digest = snapshot_hash(path)
-    if digest is None:
+    snapshot = snapshot_hash(path)
+    if snapshot is None:
         if path not in _pending_recovery_paths:
             _pending_recovery_paths.append(path)
         return "unstable"
+    digest, verified_stat = snapshot
     stored_hash = to_stored_hash(digest)
     matches = list(
         session.scalars(
@@ -63,8 +64,8 @@ def recover_missing_content(
         return "no_match"
     recovered = matches[0]
     unset_content_missing(session, recovered.id)
-    recovered.size_bytes = stat_result.st_size
-    recovered.mtime_ns = stat_result.st_mtime_ns
+    recovered.size_bytes = verified_stat.st_size
+    recovered.mtime_ns = verified_stat.st_mtime_ns
     return "recovered"
 
 
@@ -119,7 +120,7 @@ def drain_pending_verifications(session: Session, limit: int | None = None) -> i
         if content is None or content.is_missing:
             continue
         try:
-            stat_result = os.stat(content.path, follow_symlinks=True)
+            os.stat(content.path, follow_symlinks=True)
         except FileNotFoundError:
             mark_content_missing(session, content.id)
             processed += 1
@@ -128,18 +129,23 @@ def drain_pending_verifications(session: Session, limit: int | None = None) -> i
             queue_pending_verification(content_id)
             continue
 
-        digest = snapshot_hash(content.path)
-        if digest is None:
+        try:
+            snapshot = snapshot_hash(content.path)
+        except OSError:
             queue_pending_verification(content_id)
             continue
+        if snapshot is None:
+            queue_pending_verification(content_id)
+            continue
+        digest, verified_stat = snapshot
         stored_hash = to_stored_hash(digest)
 
         if content.hash == stored_hash or content.hash is None:
             content.hash = stored_hash
-            content.size_bytes = stat_result.st_size
-            content.mtime_ns = stat_result.st_mtime_ns
+            content.size_bytes = verified_stat.st_size
+            content.mtime_ns = verified_stat.st_mtime_ns
         else:
-            split_content(session, content, stat_result, hash_value=stored_hash)
+            split_content(session, content, verified_stat, hash_value=stored_hash)
         processed += 1
     return processed
 

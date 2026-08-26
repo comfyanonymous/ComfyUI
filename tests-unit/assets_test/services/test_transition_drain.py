@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from blake3 import blake3
 from sqlalchemy import select
 
 from app.assets.database.models import Asset, AssetContent
@@ -26,8 +27,9 @@ def transition_queue():
 
 
 def _stored_hash(path: Path) -> str:
-    digest = snapshot_hash(str(path))
-    assert digest is not None
+    snapshot = snapshot_hash(str(path))
+    assert snapshot is not None
+    digest, _ = snapshot
     return to_stored_hash(digest)
 
 
@@ -54,8 +56,9 @@ def test_transition_drain_splits_changed_content(session, temp_dir, monkeypatch)
     path = temp_dir / "changed.bin"
     monkeypatch.setattr("folder_paths.get_input_directory", lambda: str(temp_dir))
     path.write_bytes(b"old bytes")
-    old_digest = snapshot_hash(str(path))
-    assert old_digest is not None
+    old_snapshot = snapshot_hash(str(path))
+    assert old_snapshot is not None
+    old_digest, _ = old_snapshot
     stat = path.stat()
     old_content = create_content(
         session, str(path), to_stored_hash(old_digest), stat.st_size, stat.st_mtime_ns
@@ -75,3 +78,40 @@ def test_transition_drain_splits_changed_content(session, temp_dir, monkeypatch)
     assert live_content.hash == _stored_hash(path)
     assert len(records) == 2
     assert any(record.content_id == live_content.id for record in records)
+
+
+def test_transition_drain_requeues_permission_errors_and_processes_other_paths(
+    session, temp_dir, monkeypatch
+):
+    # Given
+    protected_path = temp_dir / "protected.bin"
+    healthy_path = temp_dir / "healthy.bin"
+    protected_path.write_bytes(b"protected")
+    healthy_payload = b"healthy"
+    healthy_path.write_bytes(healthy_payload)
+    for path in (protected_path, healthy_path):
+        stat = path.stat()
+        create_content(session, str(path), size_bytes=stat.st_size, mtime_ns=stat.st_mtime_ns)
+    write_stored_mode(session, "off")
+    monkeypatch.setattr(hash_mode_state._mode, "hashing_enabled", lambda: True)
+
+    def hash_or_raise(candidate_path: str):
+        if candidate_path == str(protected_path):
+            raise PermissionError("denied")
+        return snapshot_hash(candidate_path)
+
+    monkeypatch.setattr(hash_mode_state, "snapshot_hash", hash_or_raise)
+    transition = record_transition_intent(session)
+    enqueue_transition_work(session, transition)
+
+    # When
+    drain_transition_queue(session)
+
+    # Then
+    healthy_content = session.scalar(
+        select(AssetContent).where(AssetContent.path == str(healthy_path))
+    )
+    assert healthy_content is not None
+    assert healthy_content.hash == to_stored_hash(blake3(healthy_payload).hexdigest())
+    assert hash_mode_state.pending_transition_count() == 1
+    assert read_stored_mode(session) == "off"

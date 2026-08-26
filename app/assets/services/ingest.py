@@ -126,8 +126,9 @@ def _remove_temp_path(temp_path: str | None) -> None:
 
 def _snapshot_hash_with_retry(path: str) -> str:
     for _ in range(_UPLOAD_HASH_ATTEMPTS):
-        digest = snapshot_hash(path)
-        if digest is not None:
+        snapshot = snapshot_hash(path)
+        if snapshot is not None:
+            digest, _ = snapshot
             return digest
     raise UploadUnstableError("upload file changed during hashing")
 

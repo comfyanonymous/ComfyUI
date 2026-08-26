@@ -27,7 +27,7 @@ def test_enrichment_uses_snapshot_hash_not_direct_blake3(session, temp_dir: Path
     content, record = _create_unhashed_record(session, path)
 
     with patch(
-        "app.assets.scanner.snapshot_hash", return_value="snapshot-digest"
+        "app.assets.scanner.snapshot_hash", return_value=("snapshot-digest", path.stat())
     ) as mocked_snapshot_hash:
         enriched = enrich_asset(
             session,
