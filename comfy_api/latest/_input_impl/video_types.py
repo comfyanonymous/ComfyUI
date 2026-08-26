@@ -1,6 +1,78 @@
 from av.container import InputContainer
 from av.subtitles.stream import SubtitleStream
-from av.video.reformatter import ColorPrimaries, ColorRange, ColorTrc
+from enum import IntEnum
+
+class _FallbackColorPrimaries(IntEnum):
+    BT709 = 1
+    UNSPECIFIED = 2
+    BT470M = 4
+    BT470BG = 5
+    SMPTE170M = 6
+    SMPTE240M = 7
+    FILM = 8
+    BT2020 = 9
+    SMPTE428 = 10
+    SMPTE431 = 11
+    SMPTE432 = 12
+    JEDEC_P22 = 22
+
+class _FallbackColorRange(IntEnum):
+    UNSPECIFIED = 0
+    MPEG = 1
+    JPEG = 2
+
+class _FallbackColorTrc(IntEnum):
+    BT709 = 1
+    UNSPECIFIED = 2
+    GAMMA22 = 4
+    GAMMA28 = 5
+    SMPTE170M = 6
+    SMPTE240M = 7
+    LINEAR = 8
+    LOG = 9
+    LOG_SQRT = 10
+    IEC61966_2_4 = 11
+    BT1361_ECG = 12
+    IEC61966_2_1 = 13
+    BT2020_10 = 14
+    BT2020_12 = 15
+    SMPTE2084 = 16
+    SMPTE428 = 17
+    ARIB_STD_B67 = 18
+
+try:
+    from av.video.reformatter import ColorPrimaries
+except (ImportError, AttributeError):
+    try:
+        from av.video import ColorPrimaries
+    except (ImportError, AttributeError):
+        try:
+            from av.codec.context import ColorPrimaries
+        except (ImportError, AttributeError):
+            ColorPrimaries = _FallbackColorPrimaries
+
+try:
+    from av.video.reformatter import ColorRange
+except (ImportError, AttributeError):
+    try:
+        from av.video import ColorRange
+    except (ImportError, AttributeError):
+        try:
+            from av.codec.context import ColorRange
+        except (ImportError, AttributeError):
+            ColorRange = _FallbackColorRange
+
+try:
+    from av.video.reformatter import ColorTrc
+except (ImportError, AttributeError):
+    try:
+        from av.video import ColorTrc
+    except (ImportError, AttributeError):
+        try:
+            from av.codec.context import ColorTrc
+        except (ImportError, AttributeError):
+            ColorTrc = _FallbackColorTrc
+
 from fractions import Fraction
 from typing import Optional
 from .._input import AudioInput, VideoInput
