@@ -15,6 +15,10 @@ import logging
 import zlib
 import comfy.utils
 from fractions import Fraction
+from io import BytesIO
+from xml.sax.saxutils import escape, quoteattr
+
+from PIL import Image as PILImage, features
 
 from server import PromptServer
 from comfy_api.latest import ComfyExtension, IO, UI
@@ -1051,6 +1055,7 @@ def hlg_to_linear(t: torch.Tensor) -> torch.Tensor:
 # ---------------------------------------------------------------------------
 
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+COMFYUI_XMP_NAMESPACE = "https://github.com/Comfy-Org/ComfyUI"
 
 
 def _png_chunk(chunk_type: bytes, data: bytes) -> bytes:
@@ -1083,6 +1088,47 @@ def inject_png_metadata(png_bytes: bytes, prompt: dict | None, extra_pnginfo: di
     ihdr_length = struct.unpack(">I", png_bytes[8:12])[0]
     ihdr_end = 8 + 8 + ihdr_length + 4  # signature + (len+type) + data + crc
     return png_bytes[:ihdr_end] + b"".join(chunks) + png_bytes[ihdr_end:]
+
+
+def build_avif_xmp(prompt: dict | None, extra_pnginfo: dict | None) -> bytes | None:
+    """Build the XMP item used to preserve ComfyUI AVIF metadata."""
+    workflow = extra_pnginfo.get("workflow") if extra_pnginfo else None
+    if prompt is None and not extra_pnginfo:
+        return None
+
+    prompt_attribute = ""
+    if prompt is not None:
+        prompt_attribute = f" comfy:prompt={quoteattr(json.dumps(prompt))}"
+
+    workflow_element = ""
+    if workflow is not None:
+        workflow_element = f"      <comfy:workflow>{escape(json.dumps(workflow))}</comfy:workflow>"
+
+    extra_pnginfo_element = ""
+    if extra_pnginfo:
+        extra_pnginfo_element = (
+            "      <comfy:extra_pnginfo>"
+            f"{escape(json.dumps(extra_pnginfo))}"
+            "</comfy:extra_pnginfo>"
+        )
+
+    packet = [
+        '<?xpacket begin="\ufeff" id="W5M0MpCehiHzreSzNTczkc9d"?>',
+        '<x:xmpmeta xmlns:x="adobe:ns:meta/">',
+        '  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">',
+        f'    <rdf:Description xmlns:comfy="{COMFYUI_XMP_NAMESPACE}" rdf:about=""{prompt_attribute}>',
+    ]
+    if workflow_element:
+        packet.append(workflow_element)
+    if extra_pnginfo_element:
+        packet.append(extra_pnginfo_element)
+    packet.extend([
+        "    </rdf:Description>",
+        "  </rdf:RDF>",
+        "</x:xmpmeta>",
+        '<?xpacket end="w"?>',
+    ])
+    return "\n".join(packet).encode("utf-8")
 
 
 # Standard chromaticities (CIE 1931 xy) for the colorspaces this node writes.
@@ -1229,6 +1275,43 @@ def inject_exr_metadata(
 # Encoding
 # ---------------------------------------------------------------------------
 
+def encode_avif_image(
+    img_tensor: torch.Tensor,
+    quality: int,
+    xmp: bytes | None,
+) -> bytes:
+    """Encode one sRGB image tensor as an 8-bit AVIF with optional XMP."""
+    PILImage.init()
+    if not features.check("avif") or "AVIF" not in PILImage.SAVE:
+        raise RuntimeError("Saving AVIF images requires a Pillow build with AVIF support.")
+
+    if img_tensor.ndim == 2:
+        img_tensor = img_tensor.unsqueeze(-1)
+    num_channels = img_tensor.shape[-1]
+    if num_channels not in (1, 3, 4):
+        raise ValueError(
+            f"No AVIF encoder for {num_channels}-channel images: "
+            "supported channel counts are 1 (grayscale), 3 (RGB) and 4 (RGBA)."
+        )
+
+    img_np = (img_tensor * 255.0).clamp(0, 255).to(torch.uint8).cpu().numpy()
+    if num_channels == 1:
+        img_np = img_np[..., 0]
+
+    image = PILImage.fromarray(img_np)
+    output = BytesIO()
+    save_options: dict[str, int | str | bytes] = {
+        "format": "AVIF",
+        "quality": quality,
+        "subsampling": "4:2:0",
+        "range": "full",
+    }
+    if xmp is not None:
+        save_options["xmp"] = xmp
+    image.save(output, **save_options)
+    return output.getvalue()
+
+
 def _encode_image(
     img_tensor: torch.Tensor,
     file_format: str,
@@ -1335,6 +1418,15 @@ class SaveImageAdvanced(IO.ComfyNode):
                                 ),
                             ),
                         ]),
+                        IO.DynamicCombo.Option("avif", [
+                            IO.Int.Input(
+                                "quality",
+                                default=75,
+                                min=0,
+                                max=100,
+                                tooltip="AVIF quality. Higher values preserve more detail and produce larger files.",
+                            ),
+                        ]),
                     ],
                     tooltip="The file format in which to save the image.",
                 ),
@@ -1347,7 +1439,6 @@ class SaveImageAdvanced(IO.ComfyNode):
     @classmethod
     def execute(cls, images, filename_prefix: str, format: dict) -> IO.NodeOutput:
         file_format = format["format"]
-        bit_depth = format["bit_depth"]
         colorspace = format.get("input_color_space", "sRGB")
 
         output_dir = folder_paths.get_output_directory()
@@ -1360,10 +1451,14 @@ class SaveImageAdvanced(IO.ComfyNode):
         prompt = cls.hidden.prompt
         extra_pnginfo = cls.hidden.extra_pnginfo
         write_metadata = not args.disable_metadata
+        avif_xmp = build_avif_xmp(prompt, extra_pnginfo) if file_format == "avif" and write_metadata else None
 
         results = []
         for batch_number, image in enumerate(images):
-            encoded = _encode_image(image, file_format, bit_depth, colorspace)
+            if file_format == "avif":
+                encoded = encode_avif_image(image, format["quality"], avif_xmp)
+            else:
+                encoded = _encode_image(image, file_format, format["bit_depth"], colorspace)
 
             if write_metadata:
                 if file_format == "png":
