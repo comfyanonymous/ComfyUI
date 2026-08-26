@@ -75,7 +75,7 @@ class Asset(Base):
     )
     name: Mapped[str] = mapped_column(String(512), nullable=False)
     mime_type: Mapped[str | None] = mapped_column(String(255))
-    system_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    system_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True))
     job_id: Mapped[str | None] = mapped_column(String(36))
     user_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     loader_path: Mapped[str | None] = mapped_column(Text)
