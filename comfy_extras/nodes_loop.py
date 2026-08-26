@@ -1,6 +1,7 @@
 from comfy_api.latest import io
 from comfy_extras.graph_traversal import loop_projection
 from comfy_execution.graph_utils import is_link
+from server import PromptServer
 
 
 def close_state(execution_list, node_id):
@@ -142,6 +143,8 @@ class Loop(io.ComfyNode):
 
         state["index"] += 1
         if state["index"] >= len(state["values"]):
+            if not state["values"]:
+                PromptServer.instance.send_progress_text("Iteration 0 / 0", unique_id)
             for node_id in state["close_sources"]:
                 execution_list.get_projection_state(node_id)["unblock"]()
             execution_list.release_projected_nodes(state["projected_nodes"])
@@ -166,6 +169,10 @@ class Loop(io.ComfyNode):
         value = state["values"][state["index"]]
         outputs = (value, state["index"] == 0, state["index"] == len(state["values"]) - 1)
         state["opener_outputs"] = outputs
+        PromptServer.instance.send_progress_text(
+            f"Iteration {state['index'] + 1} / {len(state['values'])}",
+            unique_id,
+        )
         return io.NodeOutput(*outputs)
 
     @classmethod
