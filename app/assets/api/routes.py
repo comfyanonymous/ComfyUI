@@ -306,20 +306,16 @@ def _build_asset_response(
     else:
         preview_url = None
     if result.ref.file_path:
-        paths = compute_asset_response_paths(result.ref.file_path)
-        display_name = paths[1] if paths else None
         # In-root loader path (model category dropped): what model loaders consume.
         loader_path = result.ref.loader_path
     else:
-        display_name, loader_path = None, None
+        loader_path = None
     asset_content_hash = result.asset.hash if result.asset else None
     return schemas_out.Asset(
         id=result.ref.id,
         name=result.ref.name,
         hash=asset_content_hash,
         loader_path=loader_path,
-        display_name=display_name,
-        asset_hash=asset_content_hash,
         size=int(result.asset.size_bytes) if result.asset else None,
         mime_type=result.asset.mime_type if result.asset else None,
         tags=result.tags,

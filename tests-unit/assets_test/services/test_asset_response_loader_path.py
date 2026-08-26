@@ -70,7 +70,6 @@ def test_null_stored_loader_path_is_served_as_null(tmp_path: Path):
         resp = _build_asset_response(result, {})
 
         assert resp.loader_path is None
-        assert resp.display_name == "checkpoints/bar.safetensors"
 
 
 def test_all_path_fields_null_without_file_path():
@@ -80,4 +79,3 @@ def test_all_path_fields_null_without_file_path():
     resp = _build_asset_response(result, {})
 
     assert resp.loader_path is None
-    assert resp.display_name is None
