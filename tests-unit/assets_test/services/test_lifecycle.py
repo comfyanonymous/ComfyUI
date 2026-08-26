@@ -137,6 +137,13 @@ def test_run_startup_enabled_delegates_to_asset_startup_not_bare_sweep():
     cleanup_mock.assert_not_called()
 
 
+def test_run_startup_logs_and_absorbs_disabled_filesystem_failure(caplog):
+    with patch("app.assets.lifecycle.cleanup_temp_filesystem", side_effect=RuntimeError("filesystem failure")):
+        run_startup(enable_assets=False)
+
+    assert "Asset startup maintenance failed" in caplog.text
+
+
 def test_rmtree_failure_excludes_temp_from_scan(session, comfy_dirs, mock_create_session):
     record_id, content_id = _seed_temp_rows(session, comfy_dirs)
 
@@ -191,6 +198,20 @@ def test_shutdown_cleanup_wipes_rows_then_rmtree(session, comfy_dirs, mock_creat
     assert calls == ["wipe", "rmtree"]
     assert session.get(Asset, record_id) is None
     assert session.get(AssetContent, content_id) is None
+
+
+def test_run_shutdown_without_session_sweeps_temp_filesystem(comfy_dirs):
+    stale = comfy_dirs / "stale.png"
+    stale.write_bytes(b"\x00" * 10)
+
+    with (
+        patch("app.assets.lifecycle.can_create_session", return_value=False),
+        patch("app.assets.lifecycle.wipe_temp_db_rows") as wipe_mock,
+    ):
+        lifecycle.run_shutdown()
+
+    assert not stale.exists()
+    wipe_mock.assert_not_called()
 
 
 def test_wipe_temp_db_rows_deletes_records_before_content(session, comfy_dirs):

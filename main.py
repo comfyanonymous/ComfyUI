@@ -23,7 +23,7 @@ file_log_outputs = get_file_log_outputs(args.verbose)
 setup_logger(log_level=console_log_level, file_outputs=file_log_outputs, use_stdout=args.log_stdout)
 
 from app.assets import mode
-from app.assets.lifecycle import init_db_and_state, run_startup
+from app.assets.lifecycle import cleanup_temp_filesystem, init_db_and_state, run_shutdown, run_startup
 from app.assets.seeder import asset_seeder
 import itertools
 import utils.extra_config
@@ -479,11 +479,12 @@ def hijack_progress(server_instance):
 
 
 def setup_database():
+    if not dependencies_available():
+        return
+
     try:
-        if dependencies_available():
-            mode.init(args)
-            init_db_and_state()
-            run_startup(enable_assets=args.enable_assets)
+        mode.init(args)
+        init_db_and_state()
     except Exception as e:
         if "database is locked" in str(e):
             logging.error(
@@ -503,6 +504,8 @@ def setup_database():
             )
             sys.exit(1)
         logging.error(f"Failed to initialize database. Please ensure you have installed the latest requirements. If the error persists, please report this as in future the database will be required: {e}")
+    else:
+        run_startup(enable_assets=args.enable_assets)
 
 
 def start_comfyui(asyncio_loop=None):
@@ -514,6 +517,9 @@ def start_comfyui(asyncio_loop=None):
         temp_dir = os.path.join(os.path.abspath(args.temp_directory), "temp")
         logging.info(f"Setting temp directory to: {temp_dir}")
         folder_paths.set_temp_directory(temp_dir)
+
+    if not (args.enable_assets and dependencies_available()):
+        cleanup_temp_filesystem()
 
     if not asyncio_loop:
         asyncio_loop = asyncio.new_event_loop()
@@ -595,7 +601,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logging.info("\nStopped server")
     finally:
-        from app.assets.lifecycle import run_asset_shutdown_cleanup
-
-        if asset_seeder.shutdown():
-            run_asset_shutdown_cleanup()
+        asset_seeder.shutdown()
+        run_shutdown()

@@ -15,7 +15,7 @@ from app.assets.services.hash_mode_state import drain_transition_queue
 from app.assets.services.hash_mode_state import enqueue_transition_work
 from app.assets.services.hash_mode_state import record_transition_intent
 from app.assets.services.lookup import is_temp_path
-from app.database.db import create_session, init_db
+from app.database.db import can_create_session, create_session, init_db
 from comfy.cli_args import args
 
 _excluded_scan_roots: set[str] = set()
@@ -131,14 +131,31 @@ def run_startup(*, enable_assets: bool) -> None:
     the wipe fails. Disabled: filesystem sweep only (master parity -- master called
     cleanup_temp() unconditionally); with assets off there are no asset rows to wipe.
     """
-    if enable_assets:
-        run_asset_startup()
-    else:
-        cleanup_temp_filesystem()
+    try:
+        if enable_assets:
+            run_asset_startup()
+        else:
+            cleanup_temp_filesystem()
+    except Exception:
+        logging.exception("Asset startup maintenance failed")
 
 
 def run_asset_shutdown_cleanup() -> None:
-    with create_session() as session:
-        wipe_temp_db_rows(session)
-        session.commit()
-    cleanup_temp_filesystem()
+    try:
+        with create_session() as session:
+            wipe_temp_db_rows(session)
+            session.commit()
+    except Exception:
+        logging.exception("Temp DB row wipe failed during shutdown")
+    finally:
+        cleanup_temp_filesystem()
+
+
+def run_shutdown() -> None:
+    try:
+        if can_create_session():
+            run_asset_shutdown_cleanup()
+        else:
+            cleanup_temp_filesystem()
+    except Exception:
+        logging.exception("Asset shutdown cleanup failed")
