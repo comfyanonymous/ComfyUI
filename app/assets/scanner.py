@@ -14,6 +14,7 @@ from app.assets.database.queries import (
     create_record,
 )
 from app.assets.database.models import Asset, AssetContent
+from app.assets.helpers import to_stored_hash
 from app.assets.scanner_changes import (
     clear_pending_verifications,
     detect_content_change,
@@ -24,12 +25,12 @@ from app.assets.scanner_changes import (
     recover_missing_content,
 )
 from app.assets.scanner_admission import (
-    PARTIAL_DOWNLOAD_EXTENSIONS,
-    _WATCH_LIST,
-    _WatchEntry,
+    PARTIAL_DOWNLOAD_EXTENSIONS as PARTIAL_DOWNLOAD_EXTENSIONS,
+    _WATCH_LIST as _WATCH_LIST,
+    _WatchEntry as _WatchEntry,
     _should_skip_extension,
     _two_stat_admit,
-    tick_watch_list,
+    tick_watch_list as tick_watch_list,
 )
 from app.assets.services.bulk_ingest import SeedAssetSpec
 from app.assets.services.file_utils import get_mtime_ns, is_visible, list_files_recursively
@@ -449,16 +450,18 @@ def enrich_asset(
         if metadata:
             mime_type = metadata.content_type
 
-    full_hash: str | None = None
+    digest: str | None = None
+    stored_hash: str | None = None
     if compute_hash:
         try:
-            full_hash = snapshot_hash(file_path)
-            if full_hash is None:
+            digest = snapshot_hash(file_path)
+            if digest is None:
                 logging.warning(
                     "File modified during hashing (snapshot unstable), discarding hash: %s",
                     file_path,
                 )
                 return False
+            stored_hash = to_stored_hash(digest)
         except Exception as e:
             logging.warning("Failed to hash %s: %s", file_path, e)
 
@@ -483,14 +486,14 @@ def enrich_asset(
                 system_metadata.update(dims)
         record.system_metadata = {**(record.system_metadata or {}), **system_metadata}
 
-    if full_hash:
-        content.hash = full_hash
+    if stored_hash:
+        content.hash = stored_hash
     if mime_type:
         record.mime_type = mime_type
 
     session.commit()
 
-    return full_hash is not None or metadata is not None or mime_type is not None
+    return stored_hash is not None or metadata is not None or mime_type is not None
 
 
 def enrich_assets_batch(

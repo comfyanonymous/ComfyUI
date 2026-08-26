@@ -202,9 +202,8 @@ def asset_exists(asset_hash: str) -> bool:
         canonical = validate_blake3_hash(asset_hash)
     except ValueError:
         return False
-    digest = canonical.partition(":")[2]
     with create_session() as session:
-        return lookup_for_view(session, digest) is not None
+        return lookup_for_view(session, canonical) is not None
 
 
 def get_asset_by_hash(asset_hash: str) -> AssetData | None:
@@ -347,12 +346,16 @@ def resolve_hash_to_path(
     from sqlalchemy import select
 
     from app.assets.database.models import Asset
+    from app.assets.helpers import validate_blake3_hash
     from app.assets.services.lookup import lookup_for_view
 
     del tenant_id
-    digest = asset_hash.partition(":")[2] or asset_hash
+    try:
+        canonical = validate_blake3_hash(asset_hash)
+    except ValueError:
+        return None
     with create_session() as session:
-        content = lookup_for_view(session, digest)
+        content = lookup_for_view(session, canonical)
         if content is None:
             return None
 

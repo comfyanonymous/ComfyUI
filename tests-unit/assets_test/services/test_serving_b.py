@@ -17,6 +17,7 @@ from app.assets.database.queries.records import (
     get_record_by_id,
     mark_content_missing,
 )
+from app.assets.helpers import to_stored_hash
 from app.assets.services.asset_management import (
     asset_exists,
     get_asset_detail,
@@ -103,7 +104,7 @@ def test_resolve_hash_to_path_refuses_temp_content(mock_create_session, session,
     digest = "e" * 64
     f = temp_dir / "temp_only.bin"
     f.write_bytes(b"temp")
-    create_content(session, path=str(f), hash=digest)
+    create_content(session, path=str(f), hash=to_stored_hash(digest))
     session.commit()
 
     with patch("app.assets.services.lookup.is_temp_path", return_value=True):
@@ -147,7 +148,7 @@ def test_view_hash_read_updates_last_access_time(
     digest = "a" * 64
     f = temp_dir / "view.bin"
     f.write_bytes(b"view")
-    content = create_content(session, path=str(f), hash=digest)
+    content = create_content(session, path=str(f), hash=to_stored_hash(digest))
     record = create_record(session, content_id=content.id, name="view.bin")
     session.commit()
     record_id = record.id
@@ -169,11 +170,11 @@ def test_lookup_for_view_returns_none_for_temp_content(session, temp_dir):
     digest = "b" * 64
     f = temp_dir / "view_temp.bin"
     f.write_bytes(b"temp")
-    create_content(session, path=str(f), hash=digest)
+    create_content(session, path=str(f), hash=to_stored_hash(digest))
     session.commit()
 
     with patch("app.assets.services.lookup.is_temp_path", return_value=True):
-        assert lookup_for_view(session, digest) is None
+        assert lookup_for_view(session, to_stored_hash(digest)) is None
 
 
 def test_asset_exists_false_for_temp_content(mock_create_session, session, temp_dir):
@@ -181,7 +182,7 @@ def test_asset_exists_false_for_temp_content(mock_create_session, session, temp_
     digest = "c" * 64
     f = temp_dir / "exists_temp.bin"
     f.write_bytes(b"temp")
-    create_content(session, path=str(f), hash=digest)
+    create_content(session, path=str(f), hash=to_stored_hash(digest))
     session.commit()
 
     with patch("app.assets.services.lookup.is_temp_path", return_value=True):
@@ -196,7 +197,7 @@ async def test_head_hash_route_404_for_temp_content(
     digest = "d" * 64
     f = temp_dir / "head_temp.bin"
     f.write_bytes(b"temp")
-    create_content(session, path=str(f), hash=digest)
+    create_content(session, path=str(f), hash=to_stored_hash(digest))
     session.commit()
 
     monkeypatch.setattr(routes, "_ASSETS_ENABLED", True)
@@ -220,7 +221,7 @@ def test_resolve_hash_to_path_temp_does_not_bump_last_access_time(
     digest = "f" * 64
     f = temp_dir / "noaccess_temp.bin"
     f.write_bytes(b"temp")
-    content = create_content(session, path=str(f), hash=digest)
+    content = create_content(session, path=str(f), hash=to_stored_hash(digest))
     record = create_record(session, content_id=content.id, name="noaccess_temp.bin")
     session.commit()
     record_id = record.id

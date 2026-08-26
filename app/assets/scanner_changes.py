@@ -16,6 +16,7 @@ from app.assets.database.queries.records import (
     mark_content_missing,
     unset_content_missing,
 )
+from app.assets.helpers import to_stored_hash
 from app.assets.services.path_utils import compute_loader_path, get_name_and_tags_from_asset_path
 from app.assets.services.snapshot_hash import snapshot_hash
 
@@ -48,12 +49,13 @@ def recover_missing_content(
         if path not in _pending_recovery_paths:
             _pending_recovery_paths.append(path)
         return "unstable"
+    stored_hash = to_stored_hash(digest)
     matches = list(
         session.scalars(
             sa.select(AssetContent).where(
                 AssetContent.path == path,
                 AssetContent.is_missing.is_(True),
-                AssetContent.hash == digest,
+                AssetContent.hash == stored_hash,
             )
         )
     )
@@ -130,14 +132,14 @@ def drain_pending_verifications(session: Session, limit: int | None = None) -> i
         if digest is None:
             queue_pending_verification(content_id)
             continue
+        stored_hash = to_stored_hash(digest)
 
-        current_hash = digest
-        if content.hash == current_hash or content.hash is None:
-            content.hash = current_hash
+        if content.hash == stored_hash or content.hash is None:
+            content.hash = stored_hash
             content.size_bytes = stat_result.st_size
             content.mtime_ns = stat_result.st_mtime_ns
         else:
-            split_content(session, content, stat_result, hash_value=current_hash)
+            split_content(session, content, stat_result, hash_value=stored_hash)
         processed += 1
     return processed
 

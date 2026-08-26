@@ -27,7 +27,7 @@ from app.assets.database.queries import (
     upsert_reference as _legacy_upsert_reference,  # wave-3-fixes: replaced by B-schema write paths in Wave 3
     validate_tags_exist,
 )
-from app.assets.helpers import get_utc_now, normalize_tags
+from app.assets.helpers import get_utc_now, normalize_tags, to_stored_hash
 from app.assets.services.bulk_ingest import batch_insert_seed_assets
 from app.assets.services.file_utils import get_mtime_ns, get_size_and_mtime_ns
 from app.assets.services.image_dimensions import extract_image_dimensions
@@ -53,10 +53,12 @@ from app.database.db import create_session
 
 
 def _normalize_hash_input(hash_str: str) -> str:
-    """Strip blake3: prefix from client-supplied hashes for DB lookup."""
-    if hash_str and hash_str.lower().startswith("blake3:"):
-        return hash_str[7:]
-    return hash_str
+    """Canonicalise a client-supplied hash to stored form."""
+    if not hash_str:
+        return hash_str
+    normalized = hash_str.strip().lower()
+    digest = normalized.partition(":")[2] or normalized
+    return to_stored_hash(digest)
 
 
 def _extract_system_metadata_sync(
@@ -663,12 +665,13 @@ def upload_from_temp_path(
     except UploadUnstableError:
         _remove_temp_path(temp_path)
         raise
-    if expected_hash and digest != _normalize_hash_input(expected_hash).lower():
+    stored_hash = to_stored_hash(digest)
+    if expected_hash and stored_hash != _normalize_hash_input(expected_hash):
         _remove_temp_path(temp_path)
         raise HashMismatchError("Uploaded file hash does not match provided hash.")
 
     with create_session() as session:
-        dedup = lookup_for_upload_dedup(session, digest, display_name)
+        dedup = lookup_for_upload_dedup(session, stored_hash, display_name)
 
     if isinstance(dedup, Asset):
         _remove_temp_path(temp_path)
@@ -706,7 +709,7 @@ def upload_from_temp_path(
     size_bytes, mtime_ns = get_size_and_mtime_ns(dest_abs)
     with create_session() as session:
         content = create_content(
-            session, dest_abs, digest, size_bytes, mtime_ns
+            session, dest_abs, stored_hash, size_bytes, mtime_ns
         )
         record = _create_upload_record(
             session,
@@ -752,8 +755,9 @@ def register_file_in_place(
     size_bytes, mtime_ns = get_size_and_mtime_ns(locator)
 
     digest = _snapshot_hash_with_retry(locator)
+    stored_hash = to_stored_hash(digest)
     with create_session() as session:
-        dedup = lookup_for_upload_dedup(session, digest, display_name)
+        dedup = lookup_for_upload_dedup(session, stored_hash, display_name)
 
     if isinstance(dedup, Asset):
         with create_session() as session:
@@ -779,7 +783,7 @@ def register_file_in_place(
 
     with create_session() as session:
         content = create_content(
-            session, locator, digest, size_bytes, mtime_ns
+            session, locator, stored_hash, size_bytes, mtime_ns
         )
         record = _create_upload_record(
             session,
@@ -810,13 +814,14 @@ def create_from_hash(
     if not mode.hashing_enabled():
         return None
 
-    digest = _normalize_hash_input(hash_str)
+    stored_hash = _normalize_hash_input(hash_str)
+    bare_digest = stored_hash.partition(":")[2] or stored_hash
     display_name = _sanitize_filename(
-        name, fallback=digest
+        name, fallback=bare_digest
     )
 
     with create_session() as session:
-        content = lookup_for_from_hash(session, digest)
+        content = lookup_for_from_hash(session, stored_hash)
         if content is None:
             logging.warning("create_from_hash: no asset found for hash %s", hash_str)
             return None

@@ -47,6 +47,11 @@ def normalize_tags(tags: list[str] | None) -> list[str]:
     return list(dict.fromkeys(t.strip() for t in (tags or []) if (t or "").strip()))
 
 
+def to_stored_hash(digest: str) -> str:
+    """Convert a bare BLAKE3 digest to its stored form."""
+    return f"blake3:{digest}"
+
+
 def validate_blake3_hash(s: str) -> str:
     """Validate and normalize a blake3 hash string.
 

@@ -2,6 +2,7 @@ from sqlalchemy import select
 
 from app.assets.database.models import Asset
 from app.assets.database.queries.records import create_content
+from app.assets.helpers import to_stored_hash
 from app.assets.services.ingest import create_from_hash
 
 
@@ -14,7 +15,7 @@ def test_create_from_hash_with_prefixed_hash_finds_existing_content(
     monkeypatch.setattr("app.assets.mode.hashing_enabled", lambda: True)
 
     with mock_create_session() as session:
-        content = create_content(session, str(path), digest, path.stat().st_size)
+        content = create_content(session, str(path), to_stored_hash(digest), path.stat().st_size)
         content_id = content.id
         session.commit()
 
@@ -38,7 +39,7 @@ def test_create_from_hash_with_bare_hash_also_works(
     monkeypatch.setattr("app.assets.mode.hashing_enabled", lambda: True)
 
     with mock_create_session() as session:
-        content = create_content(session, str(path), digest, path.stat().st_size)
+        content = create_content(session, str(path), to_stored_hash(digest), path.stat().st_size)
         content_id = content.id
         session.commit()
 

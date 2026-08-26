@@ -17,10 +17,10 @@ modes), the scanner assertion skips (see ``server_hashing_enabled``), and the
 output assertion is self-contained (it drives the ingest function in-process
 with the flag forced off).
 
-The authoritative hash signal is the ``asset_contents.hash`` column: a raw
-64-char BLAKE3 hex digest when hashed, or ``NULL`` when not. (The HTTP layer
-omits null hashes entirely via ``exclude_none=True`` and prefixes non-null ones
-with ``blake3:``, so the DB column is the stable thing to assert on.)
+The authoritative hash signal is the ``asset_contents.hash`` column: the stored
+canonical ``blake3:<hex>`` form when hashed, or ``NULL`` when not. (The HTTP
+layer omits null hashes entirely via ``exclude_none=True`` and returns that same
+stored form, so the DB column is the stable thing to assert on.)
 """
 from __future__ import annotations
 
@@ -63,7 +63,7 @@ def _query(db_path: str, sql: str, params: tuple[Any, ...] = ()) -> list[tuple[A
 
 
 def _content_hash_for_asset(db_path: str, asset_id: str) -> str | None:
-    """Return the ``asset_contents.hash`` backing an asset record (raw hex or None)."""
+    """Return the ``asset_contents.hash`` backing an asset record (stored ``blake3:<hex>`` or None)."""
     rows = _query(
         db_path,
         "SELECT c.hash FROM asset_contents c "
@@ -75,13 +75,12 @@ def _content_hash_for_asset(db_path: str, asset_id: str) -> str | None:
     return rows[0][0]
 
 
-def _is_blake3_hex(value: str | None) -> bool:
-    """True iff ``value`` is a bare 64-char lowercase BLAKE3 hex digest."""
-    return (
-        isinstance(value, str)
-        and len(value) == 64
-        and all(c in "0123456789abcdef" for c in value.lower())
-    )
+def _is_stored_blake3_hash(value: str | None) -> bool:
+    """True iff ``value`` is the stored canonical ``blake3:<hex>`` form."""
+    if not isinstance(value, str) or not value.startswith("blake3:"):
+        return False
+    digest = value[len("blake3:") :]
+    return len(digest) == 64 and all(c in "0123456789abcdef" for c in digest.lower())
 
 
 # --------------------------------------------------------------------------- #
@@ -144,7 +143,7 @@ def test_upload_via_api_hashes_in_on_mode(http, api_base, comfy_tmp_base_dir, re
     )
     assert status in (200, 201), body
     digest = _content_hash_for_asset(db_path, body["id"])
-    assert _is_blake3_hex(digest), f"expected a blake3 digest, got {digest!r}"
+    assert _is_stored_blake3_hash(digest), f"expected a stored blake3 hash, got {digest!r}"
 
 
 def test_upload_via_image_hashes_in_on_mode(http, api_base, comfy_tmp_base_dir, request):
@@ -156,7 +155,7 @@ def test_upload_via_image_hashes_in_on_mode(http, api_base, comfy_tmp_base_dir, 
     asset = body.get("asset")
     assert asset and asset.get("id"), f"/upload/image did not register an asset: {body}"
     digest = _content_hash_for_asset(db_path, asset["id"])
-    assert _is_blake3_hex(digest), f"expected a blake3 digest, got {digest!r}"
+    assert _is_stored_blake3_hash(digest), f"expected a stored blake3 hash, got {digest!r}"
 
 
 def test_upload_dedup_works_in_on_mode(http, api_base):

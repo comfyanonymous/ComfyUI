@@ -5,11 +5,13 @@ import pytest
 from sqlalchemy import select
 
 from app.assets.database.models import Asset, AssetContent, AssetTag, Tag
+from app.assets.helpers import to_stored_hash
 from app.assets.scanner import (
     clear_pending_verifications,
     pending_recovery_count,
     seed_asset_specs,
 )
+from app.assets.services.bulk_ingest import SeedAssetSpec
 from app.assets.services.snapshot_hash import snapshot_hash
 
 
@@ -34,7 +36,7 @@ def _missing_content(session, path: Path, hash_value: str) -> tuple[AssetContent
     return content, record
 
 
-def _spec(path: Path) -> dict:
+def _spec(path: Path) -> SeedAssetSpec:
     stat = path.stat()
     return {
         "abs_path": str(path),
@@ -50,10 +52,16 @@ def _spec(path: Path) -> dict:
     }
 
 
+def _stored_hash(path: Path) -> str:
+    digest = snapshot_hash(str(path))
+    assert digest is not None
+    return to_stored_hash(digest)
+
+
 def test_single_hash_match_recovers(session, temp_dir: Path):
     path = temp_dir / "restored.bin"
     path.write_bytes(b"restored bytes")
-    content, record = _missing_content(session, path, snapshot_hash(str(path)))
+    content, record = _missing_content(session, path, _stored_hash(path))
 
     with patch("app.assets.scanner.mode.hashing_enabled", return_value=True):
         created = seed_asset_specs(session, [_spec(path)])
@@ -67,7 +75,7 @@ def test_single_hash_match_recovers(session, temp_dir: Path):
 def test_ambiguous_hash_match_recovers_nothing(session, temp_dir: Path):
     path = temp_dir / "ambiguous.bin"
     path.write_bytes(b"same bytes")
-    digest = snapshot_hash(str(path))
+    digest = _stored_hash(path)
     first, _ = _missing_content(session, path, digest)
     second, _ = _missing_content(session, path, digest)
 
@@ -98,7 +106,7 @@ def test_no_hash_match_creates_fresh_rows(session, temp_dir: Path):
 def test_off_mode_no_recovery(session, temp_dir: Path):
     path = temp_dir / "off.bin"
     path.write_bytes(b"bytes")
-    missing, _ = _missing_content(session, path, snapshot_hash(str(path)))
+    missing, _ = _missing_content(session, path, _stored_hash(path))
 
     with (
         patch("app.assets.scanner.mode.hashing_enabled", return_value=False),

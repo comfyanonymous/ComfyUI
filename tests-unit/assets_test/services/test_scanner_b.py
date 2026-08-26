@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.assets.database.models import Asset, AssetContent, AssetTag
+from app.assets.helpers import to_stored_hash
 from app.assets.scanner import (
     build_asset_specs,
     enrich_asset,
@@ -213,7 +214,7 @@ def test_enrichment_keeps_equal_hash_contents_distinct(session, temp_dir: Path):
     )
     existing = AssetContent(
         path=str(temp_dir / "existing.bin"),
-        hash=digest,
+        hash=to_stored_hash(digest),
         size_bytes=path.stat().st_size,
         mtime_ns=path.stat().st_mtime_ns,
     )
@@ -234,6 +235,6 @@ def test_enrichment_keeps_equal_hash_contents_distinct(session, temp_dir: Path):
     )
 
     assert enriched is True
-    assert session.get(AssetContent, content.id).hash == digest
+    assert session.get(AssetContent, content.id).hash == to_stored_hash(digest)
     assert session.get(Asset, record.id).content_id == content.id
     assert session.get(Asset, existing_record.id).content_id == existing.id

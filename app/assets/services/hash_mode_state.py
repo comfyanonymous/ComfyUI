@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.assets import mode as _mode
 from app.assets.database.models import AssetContent, AssetSystemState
 from app.assets.database.queries.records import create_content, create_record, mark_content_missing
+from app.assets.helpers import to_stored_hash
 from app.assets.services.path_utils import compute_loader_path, get_name_and_tags_from_asset_path
 from app.assets.services.snapshot_hash import snapshot_hash
 
@@ -75,6 +76,7 @@ def drain_transition_queue(session: Session) -> None:
         if digest is None:
             _PENDING_QUEUE.append(path)
             continue
+        stored_hash = to_stored_hash(digest)
         content = session.scalars(
             select(AssetContent).where(
                 AssetContent.path == path, AssetContent.is_missing.is_(False)
@@ -82,17 +84,16 @@ def drain_transition_queue(session: Session) -> None:
         ).first()
         if content is None:
             continue
-        current_hash = digest
         if content.hash is None:
-            content.hash = current_hash
-        elif content.hash != current_hash:
+            content.hash = stored_hash
+        elif content.hash != stored_hash:
             mark_content_missing(session, content.id)
             stat = os.stat(path)
             name, tags = get_name_and_tags_from_asset_path(path)
             replacement = create_content(
                 session,
                 path=path,
-                hash=current_hash,
+                hash=stored_hash,
                 size_bytes=stat.st_size,
                 mtime_ns=stat.st_mtime_ns,
             )

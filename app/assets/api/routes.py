@@ -351,14 +351,10 @@ def _build_record_response(
         else:
             preview_url = None
 
-    content_hash = content.hash
-    if content_hash is not None and not content_hash.startswith("blake3:"):
-        content_hash = f"blake3:{content_hash}"
-
     return schemas_out.Asset(
         id=record.id,
         name=record.name,
-        hash=content_hash,
+        hash=content.hash,
         loader_path=record.loader_path,
         size=content.size_bytes,
         mime_type=record.mime_type,

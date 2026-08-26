@@ -2,6 +2,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from app.assets.database.models import Asset, AssetContent
+from app.assets.helpers import to_stored_hash
 from app.assets.scanner import enrich_asset
 
 
@@ -38,7 +39,7 @@ def test_enrichment_uses_snapshot_hash_not_direct_blake3(session, temp_dir: Path
         )
 
     assert enriched is True
-    assert session.get(AssetContent, content.id).hash == "snapshot-digest"
+    assert session.get(AssetContent, content.id).hash == to_stored_hash("snapshot-digest")
     mocked_snapshot_hash.assert_called_once_with(str(path))
 
 
