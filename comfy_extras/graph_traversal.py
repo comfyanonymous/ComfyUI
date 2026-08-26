@@ -62,7 +62,7 @@ def loop_projection(dynprompt, opener_id):
             raise ValueError(f"Node {node_id} belongs to incompatible nested loop scopes")
         if set(scopes).intersection(closed_scopes):
             raise ValueError(
-                f"Node {node_id} routes around a Loop Close; all of its looped inputs must pass through the close"
+                f"Node {node_id} routes around a Close Loop; all of its looped inputs must pass through the close"
             )
 
         if opener_id in scopes:
@@ -75,7 +75,7 @@ def loop_projection(dynprompt, opener_id):
             next_scopes = (*scopes, node_id)
         elif class_type == "LoopVariable" and scopes and scopes[-1] == opener_id:
             variable_nodes.add(node_id)
-        elif class_type == "LoopClose" and scopes:
+        elif class_type == "CloseLoop" and scopes:
             owner_id = scopes[-1]
             next_scopes = scopes[:-1]
             next_closed_scopes = closed_scopes.union((owner_id,))

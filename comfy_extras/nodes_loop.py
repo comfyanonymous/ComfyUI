@@ -128,7 +128,7 @@ class ForLoopOpen(io.ComfyNode):
                 else:
                     source = execution_list.get_cache(source_id, unique_id)
                     if source is None:
-                        raise RuntimeError(f"Loop Close {node_id} input was not produced during the iteration")
+                        raise RuntimeError(f"Close Loop {node_id} input was not produced during the iteration")
                     values.extend(source.outputs[source_socket])
             for node_id, (source_id, source_socket) in state["variable_sources"].items():
                 if source_id == unique_id:
@@ -173,7 +173,7 @@ class ForLoopOpen(io.ComfyNode):
         return float("NaN")
 
 
-class LoopClose:
+class CloseLoop:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -200,7 +200,7 @@ class LoopClose:
     def close(self, value, execution_list=None, unique_id=None):
         state = execution_list.get_projection_state(unique_id)
         if state is None or "values" not in state:
-            raise ValueError(f"Loop Close {unique_id} does not belong to a For Loop")
+            raise ValueError(f"Close Loop {unique_id} does not belong to a For Loop")
         execution_list.clear_projection_state(unique_id)
         values = state["values"]
         return (values, values[-1] if values else None)
@@ -255,12 +255,12 @@ class LoopVariable:
 
 NODE_CLASS_MAPPINGS = {
     "ForLoopOpen": ForLoopOpen,
-    "LoopClose": LoopClose,
+    "CloseLoop": CloseLoop,
     "LoopVariable": LoopVariable,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "ForLoopOpen": "For Loop",
-    "LoopClose": "Loop Close",
+    "CloseLoop": "Close Loop",
     "LoopVariable": "Loop Variable",
 }
