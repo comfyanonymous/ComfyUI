@@ -1,14 +1,35 @@
+"""Cached-replay emission adapter against a real DB (D6).
+
+``register_cached_outputs`` replays a cached node's UI wrapper: it reuses the
+existing live content and mints a *new* delivery record bound to the current
+job id, without mutating the content row (no UPDATE) and without touching the
+input wrapper (S10.5). These integration tests drive the adapter through the
+real ``register_cached_output`` primitive on an in-memory database.
+"""
 import os
+import sys
+import types
+from contextlib import contextmanager
 from pathlib import Path
+from unittest.mock import patch
 
 from sqlalchemy import event, select
 
 from app.assets.database.models import Asset, AssetContent
-from app.assets.services.ingest import register_executed_output, register_output_files
-from app.assets.services.output_registration import (
-    OutputExecution,
-    OutputFileRegistration,
+from comfy_execution.asset_enrichment import (
+    register_cached_outputs,
+    register_executed_outputs,
 )
+
+
+@contextmanager
+def _assets_enabled(enabled: bool = True):
+    """Patch only the adapter's ``args.enable_assets`` gate (real fs + DB)."""
+    with patch.dict(
+        sys.modules,
+        {"comfy.cli_args": types.SimpleNamespace(args=types.SimpleNamespace(enable_assets=enabled))},
+    ):
+        yield
 
 
 def _write_output_file(name: str) -> Path:
@@ -20,46 +41,51 @@ def _write_output_file(name: str) -> Path:
     return path
 
 
-def test_cached_execution_binds_new_record_to_existing_content(mock_create_session):
+def _output_ui(name: str) -> dict:
+    return {"images": [{"filename": name, "subfolder": "", "type": "output"}]}
+
+
+def _wrapper(name: str, node_id: str = "1") -> dict:
+    return {"meta": {"node_id": node_id}, "output": _output_ui(name)}
+
+
+def test_cached_replay_binds_new_record_to_existing_content(mock_create_session):
     path = _write_output_file("cached-execution-bind.png")
     try:
-        original_record = register_executed_output(str(path), job_id="original-job")
-        registration = OutputFileRegistration(
-            path=str(path), execution=OutputExecution.CACHED
-        )
+        with _assets_enabled():
+            executed = register_executed_outputs(_output_ui(path.name), "original-job")
+        original_id = executed["images"][0]["id"]
+        with mock_create_session() as session:
+            original_content_id = session.get(Asset, original_id).content_id
 
-        registered = register_output_files((registration,), job_id="cached-job")
+        wrapper = _wrapper(path.name)
+        with _assets_enabled():
+            enriched = register_cached_outputs(wrapper, "cached-job")
+        cached_id = enriched["output"]["images"][0]["id"]
 
         with mock_create_session() as session:
             contents = list(
                 session.scalars(
-                    select(AssetContent).where(
-                        AssetContent.path == os.path.abspath(path)
-                    )
+                    select(AssetContent).where(AssetContent.path == os.path.abspath(path))
                 )
             )
             records = list(
                 session.scalars(
-                    select(Asset).where(
-                        Asset.content_id == original_record.content_id
-                    )
+                    select(Asset).where(Asset.content_id == original_content_id)
                 )
             )
-            assert registered == 1
             assert len(contents) == 1
             assert len(records) == 2
-            assert original_record.id in {record.id for record in records}
-            assert {record.job_id for record in records} == {
-                "original-job",
-                "cached-job",
-            }
+            assert original_id in {r.id for r in records}
+            assert cached_id in {r.id for r in records}
+            assert {r.job_id for r in records} == {"original-job", "cached-job"}
+        # the input wrapper (cache UI) is never mutated (S10.5)
+        assert "id" not in wrapper["output"]["images"][0]
     finally:
         path.unlink(missing_ok=True)
 
 
-def test_cached_execution_does_not_mutate_existing_content(
-    mock_create_session, db_engine
-):
+def test_cached_replay_does_not_update_existing_content(mock_create_session, db_engine):
     path = _write_output_file("cached-execution-no-update.png")
     update_statements: list[str] = []
 
@@ -68,10 +94,15 @@ def test_cached_execution_does_not_mutate_existing_content(
             update_statements.append(statement)
 
     try:
-        original_record = register_executed_output(str(path), job_id="original-job")
+        with _assets_enabled():
+            executed = register_executed_outputs(_output_ui(path.name), "original-job")
+        original_id = executed["images"][0]["id"]
         with mock_create_session() as session:
-            original_content = session.get(AssetContent, original_record.content_id)
+            original_content = session.get(
+                AssetContent, session.get(Asset, original_id).content_id
+            )
             original_state = (
+                original_content.id,
                 original_content.hash,
                 original_content.size_bytes,
                 original_content.path,
@@ -79,16 +110,16 @@ def test_cached_execution_does_not_mutate_existing_content(
                 original_content.is_missing,
                 original_content.created_at,
             )
-        event.listen(db_engine, "before_cursor_execute", capture_updates)
-        registration = OutputFileRegistration(
-            path=str(path), execution=OutputExecution.CACHED
-        )
 
-        register_output_files((registration,), job_id="cached-job")
+        event.listen(db_engine, "before_cursor_execute", capture_updates)
+        wrapper = _wrapper(path.name)
+        with _assets_enabled():
+            register_cached_outputs(wrapper, "cached-job")
 
         with mock_create_session() as session:
-            content = session.get(AssetContent, original_record.content_id)
+            content = session.get(AssetContent, original_state[0])
             current_state = (
+                content.id,
                 content.hash,
                 content.size_bytes,
                 content.path,

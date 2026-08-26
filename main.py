@@ -23,8 +23,6 @@ file_log_outputs = get_file_log_outputs(args.verbose)
 setup_logger(log_level=console_log_level, file_outputs=file_log_outputs, use_stdout=args.log_stdout)
 
 from app.assets.seeder import asset_seeder
-from app.assets.services import register_output_files
-from app.assets.services.output_registration import collect_output_registrations
 import itertools
 import utils.extra_config
 from utils.mime_types import init_mime_types
@@ -410,10 +408,6 @@ def prompt_worker(q, server_instance):
                 logging.info(f"Prompt executed in {execution_time}", extra={'color': 'green'})
             else:
                 logging.info("Prompt executed in {:.2f} seconds".format(execution_time), extra={'color': 'green'})
-
-            if not asset_seeder.is_disabled():
-                registrations = collect_output_registrations(e.history_result, e.executed_node_ids, folder_paths.get_directory_by_type)
-                register_output_files(registrations, job_id=prompt_id)
 
         flags = q.get_flags()
         free_memory = flags.get("free_memory", False)

@@ -6,7 +6,6 @@ from app.assets.services.ingest import (
     upload_from_temp_path,
     create_from_hash,
     register_file_in_place,
-    register_output_files,
 )
 from app.assets.services.asset_management import (
     get_asset_detail,
@@ -31,7 +30,6 @@ __all__ = [
     "upload_from_temp_path",
     "create_from_hash",
     "register_file_in_place",
-    "register_output_files",
     "get_asset_detail",
     "update_asset_metadata",
     "delete_asset_reference",

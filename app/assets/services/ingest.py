@@ -5,7 +5,6 @@ import os
 from typing import Any, Sequence
 
 from sqlalchemy.orm import Session
-from typing_extensions import assert_never
 
 from app.assets.database.models import Asset
 from app.assets.database.queries import (
@@ -33,10 +32,6 @@ from app.assets.services.bulk_ingest import batch_insert_seed_assets
 from app.assets.services.file_utils import get_mtime_ns, get_size_and_mtime_ns
 from app.assets.services.image_dimensions import extract_image_dimensions
 from app.assets.services.metadata_extract import extract_file_metadata
-from app.assets.services.output_registration import (
-    OutputExecution,
-    OutputFileRegistration,
-)
 from app.assets.services.path_utils import (
     compute_loader_path,
     get_name_and_tags_from_asset_path,
@@ -228,36 +223,6 @@ def _ingest_file_from_path(
         ref_updated=ref_updated,
         reference_id=reference_id,
     )
-
-
-def register_output_files(
-    registrations: Sequence[OutputFileRegistration],
-    user_metadata: UserMetadata = None,
-    job_id: str | None = None,
-) -> int:
-    """Register a batch of output file paths as assets.
-
-    Returns the number of files successfully registered.
-    """
-    registered = 0
-    for registration in registrations:
-        if not os.path.isfile(registration.path):
-            continue
-
-        match registration.execution:
-            case OutputExecution.EXECUTED:
-                register = register_executed_output
-            case OutputExecution.CACHED:
-                register = register_cached_output
-            case _:
-                assert_never(registration.execution)
-
-        try:
-            register(registration.path, job_id=job_id)
-            registered += 1
-        except Exception:
-            logging.exception("Failed to register output: %s", registration.path)
-    return registered
 
 
 def ingest_existing_file(

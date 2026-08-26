@@ -1,15 +1,39 @@
-import os
-from pathlib import Path
+"""Emission-time output-registration adapters against a real DB (D6).
 
-import pytest
-from sqlalchemy import event, select
+These integration tests drive the ``comfy_execution.asset_enrichment`` adapters
+through the real ``register_executed_output`` / ``register_cached_output``
+primitives and an in-memory SQLite database (``mock_create_session``). They
+replace the retired batch dispatch and the post-hoc execution-state
+classification it depended on.
+
+The adapters gate on ``args.enable_assets``; that flag is provided by patching
+``comfy.cli_args`` in ``sys.modules`` so the real ``folder_paths`` and DB layers
+stay live.
+"""
+import os
+import sys
+import types
+from contextlib import contextmanager
+from pathlib import Path
+from unittest.mock import patch
+
+from sqlalchemy import select
 
 from app.assets.database.models import Asset, AssetContent
-from app.assets.services.ingest import register_executed_output, register_output_files
-from app.assets.services.output_registration import (
-    OutputExecution,
-    OutputFileRegistration,
+from comfy_execution.asset_enrichment import (
+    register_cached_outputs,
+    register_executed_outputs,
 )
+
+
+@contextmanager
+def _assets_enabled(enabled: bool = True):
+    """Patch only the adapter's ``args.enable_assets`` gate (real fs + DB)."""
+    with patch.dict(
+        sys.modules,
+        {"comfy.cli_args": types.SimpleNamespace(args=types.SimpleNamespace(enable_assets=enabled))},
+    ):
+        yield
 
 
 def _write_output_file(name: str, data: bytes) -> Path:
@@ -21,156 +45,120 @@ def _write_output_file(name: str, data: bytes) -> Path:
     return path
 
 
-def test_executed_registration_replaces_existing_live_content(mock_create_session):
-    path = _write_output_file("executed-registration-replacement.png", b"original")
+def _output_ui(name: str) -> dict:
+    return {"images": [{"filename": name, "subfolder": "", "type": "output"}]}
+
+
+def _wrapper(name: str, node_id: str = "1") -> dict:
+    return {"meta": {"node_id": node_id}, "output": _output_ui(name)}
+
+
+def test_executed_adapter_registers_new_output(mock_create_session):
+    path = _write_output_file("adapter-executed-new.png", b"exec")
     try:
-        original_record = register_executed_output(str(path), job_id="original-job")
+        output_ui = _output_ui(path.name)
+
+        with _assets_enabled():
+            enriched = register_executed_outputs(output_ui, "exec-job")
+
+        new_id = enriched["images"][0]["id"]
+        # the raw dict the cache stores is never enriched (S10.5)
+        assert "id" not in output_ui["images"][0]
+        with mock_create_session() as session:
+            record = session.get(Asset, new_id)
+            content = session.get(AssetContent, record.content_id)
+            assert record.job_id == "exec-job"
+            assert content.path == os.path.abspath(path)
+            assert content.is_missing is False
+    finally:
+        path.unlink(missing_ok=True)
+
+
+def test_executed_adapter_over_existing_path_marks_old_missing(mock_create_session):
+    path = _write_output_file("adapter-executed-replace.png", b"original")
+    try:
+        with _assets_enabled():
+            first = register_executed_outputs(_output_ui(path.name), "job-1")
+        old_id = first["images"][0]["id"]
+
         path.write_bytes(b"replacement")
-        registration = OutputFileRegistration(
-            path=str(path), execution=OutputExecution.EXECUTED
-        )
+        with _assets_enabled():
+            second = register_executed_outputs(_output_ui(path.name), "job-2")
+        new_id = second["images"][0]["id"]
 
-        registered = register_output_files((registration,), job_id="replacement-job")
-
+        assert new_id != old_id
         with mock_create_session() as session:
+            old_content = session.get(AssetContent, session.get(Asset, old_id).content_id)
+            new_content = session.get(AssetContent, session.get(Asset, new_id).content_id)
+            assert old_content.is_missing is True
+            assert new_content.is_missing is False
             contents = list(
                 session.scalars(
-                    select(AssetContent).where(
-                        AssetContent.path == os.path.abspath(path)
-                    )
+                    select(AssetContent).where(AssetContent.path == os.path.abspath(path))
                 )
             )
-            original_content = session.get(AssetContent, original_record.content_id)
-            replacement_content = next(
-                content
-                for content in contents
-                if content.id != original_record.content_id
-            )
-            replacement_record = session.scalars(
-                select(Asset).where(Asset.job_id == "replacement-job")
-            ).one()
-            assert registered == 1
             assert len(contents) == 2
-            assert original_content.is_missing is True
-            assert replacement_content.is_missing is False
-            assert replacement_record.content_id == replacement_content.id
     finally:
         path.unlink(missing_ok=True)
 
 
-def test_cached_registration_reuses_existing_content_without_update(
-    mock_create_session, db_engine
-):
-    path = _write_output_file("cached-registration-replay.png", b"cached")
-    update_statements: list[str] = []
-
-    def capture_updates(_, __, statement, ___, ____, _____):
-        if statement.lstrip().upper().startswith("UPDATE"):
-            update_statements.append(statement)
-
+def test_executed_adapter_disabled_registers_nothing(mock_create_session):
+    path = _write_output_file("adapter-executed-disabled.png", b"noop")
     try:
-        original_record = register_executed_output(str(path), job_id="original-job")
-        event.listen(db_engine, "before_cursor_execute", capture_updates)
-        registration = OutputFileRegistration(
-            path=str(path), execution=OutputExecution.CACHED
-        )
+        output_ui = _output_ui(path.name)
 
-        registered = register_output_files((registration,), job_id="cached-job")
+        with _assets_enabled(False):
+            enriched = register_executed_outputs(output_ui, "job")
 
+        assert "id" not in enriched["images"][0]
         with mock_create_session() as session:
             contents = list(
                 session.scalars(
-                    select(AssetContent).where(
-                        AssetContent.path == os.path.abspath(path)
-                    )
-                )
-            )
-            records = list(
-                session.scalars(
-                    select(Asset).where(
-                        Asset.content_id == original_record.content_id
-                    )
-                )
-            )
-            assert registered == 1
-            assert len(contents) == 1
-            assert {record.job_id for record in records} == {
-                "original-job",
-                "cached-job",
-            }
-            assert update_statements == []
-    finally:
-        event.remove(db_engine, "before_cursor_execute", capture_updates)
-        path.unlink(missing_ok=True)
-
-
-def test_cached_registration_without_live_content_is_nonevent(
-    mock_create_session,
-):
-    """S10.4: a CACHED disposition with no live content creates nothing.
-
-    Previously this fell back to a fresh executed registration; the cached
-    primitive now treats missing live content as a logged non-event, so no
-    content row and no delivery record are created. (The dispatch still counts
-    it as handled; that wart is removed with the dispatch in a later todo.)
-    """
-    path = _write_output_file("cached-registration-missing.png", b"new content")
-    try:
-        registration = OutputFileRegistration(
-            path=str(path), execution=OutputExecution.CACHED
-        )
-
-        register_output_files((registration,), job_id="fallback-job")
-
-        with mock_create_session() as session:
-            contents = list(
-                session.scalars(
-                    select(AssetContent).where(
-                        AssetContent.path == os.path.abspath(path)
-                    )
-                )
-            )
-            records = list(
-                session.scalars(
-                    select(Asset).where(Asset.job_id == "fallback-job")
+                    select(AssetContent).where(AssetContent.path == os.path.abspath(path))
                 )
             )
             assert contents == []
-            assert records == []
     finally:
         path.unlink(missing_ok=True)
 
 
-def test_invalid_execution_disposition_propagates(mock_create_session):
-    path = _write_output_file("invalid-execution-disposition.png", b"invalid")
+def test_executed_adapter_registration_failure_never_raises(mock_create_session):
+    """S10.4: a registration failure leaves the entry id-free and does not raise."""
+    path = _write_output_file("adapter-executed-error.png", b"exec")
     try:
-        registration = OutputFileRegistration(
-            path=str(path), execution=OutputExecution.EXECUTED
-        )
-        object.__setattr__(registration, "execution", "invalid")
+        output_ui = _output_ui(path.name)
 
-        with pytest.raises(AssertionError):
-            register_output_files((registration,), job_id="invalid-job")
+        with _assets_enabled(), patch(
+            "app.assets.services.ingest.register_executed_output",
+            side_effect=RuntimeError("boom"),
+        ):
+            enriched = register_executed_outputs(output_ui, "job")
+
+        assert "id" not in enriched["images"][0]
     finally:
         path.unlink(missing_ok=True)
 
 
-def test_positional_metadata_and_job_id_compatibility(mock_create_session):
-    path = _write_output_file("positional-registration.png", b"positional")
+def test_cached_adapter_without_live_content_is_nonevent(mock_create_session):
+    """S10.4: a cached replay with no live content creates nothing."""
+    path = _write_output_file("adapter-cached-missing.png", b"new content")
     try:
-        registration = OutputFileRegistration(
-            path=str(path), execution=OutputExecution.EXECUTED
-        )
+        wrapper = _wrapper(path.name)
 
-        registered = register_output_files(
-            (registration,), {"source": "positional"}, "positional-job"
-        )
+        with _assets_enabled():
+            enriched = register_cached_outputs(wrapper, "cached-job")
 
+        assert "id" not in enriched["output"]["images"][0]
         with mock_create_session() as session:
-            record = session.scalars(
-                select(Asset).where(Asset.job_id == "positional-job")
-            ).one()
-            assert registered == 1
-            assert record.job_id == "positional-job"
+            contents = list(
+                session.scalars(
+                    select(AssetContent).where(AssetContent.path == os.path.abspath(path))
+                )
+            )
+            records = list(
+                session.scalars(select(Asset).where(Asset.job_id == "cached-job"))
+            )
+            assert contents == []
+            assert records == []
     finally:
         path.unlink(missing_ok=True)
