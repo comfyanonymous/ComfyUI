@@ -215,8 +215,9 @@ def _post_multipart_asset(
 @pytest.fixture
 def make_asset_bytes() -> Callable[[str, int], bytes]:
     # Salt content per test so it never collides with assets left over from
-    # earlier tests. Delete is now always a soft delete (content is preserved),
-    # so the suite can no longer rely on hard-deleting content for isolation.
+    # earlier tests. Delete hard-deletes the record but preserves content
+    # (content rows and files are untouched), so the suite cannot rely on delete
+    # removing content for isolation.
     # Deterministic within a test: the same (name, size) yields the same bytes.
     salt = uuid.uuid4().bytes
 
@@ -262,8 +263,9 @@ def seeded_asset(request: pytest.FixtureRequest, http: requests.Session, api_bas
         tags = ["models", "model_type:checkpoints", "unit-tests", "alpha"]
     meta = {"purpose": "test", "epoch": 1, "flags": ["x", "y"], "nullable": None}
     # Unique content per test so the seed always creates a fresh asset (201).
-    # Delete is now always a soft delete, so content from a prior test survives
-    # and would otherwise dedup this upload into an existing asset (200).
+    # Delete preserves content (only the record is hard-deleted), so content
+    # from a prior test survives and would otherwise dedup this upload into an
+    # existing asset (200).
     content = uuid.uuid4().bytes + b"A" * (4096 - 16)
     files = {"file": (name, content, "application/octet-stream")}
     form_data = {

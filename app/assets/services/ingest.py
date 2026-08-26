@@ -5,7 +5,7 @@ import os
 from types import SimpleNamespace
 from typing import Any, Sequence
 
-from sqlalchemy import event, func, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.assets import mode
@@ -243,7 +243,6 @@ def upload_from_temp_path(
     tags: list[str] | None = None,
     user_metadata: dict | None = None,
     client_filename: str | None = None,
-    tenant_id: str = "",
     expected_hash: str | None = None,
     mime_type: str | None = None,
     preview_id: str | None = None,
@@ -350,7 +349,6 @@ def register_file_in_place(
     abs_path: str,
     name: str,
     tags: list[str],
-    tenant_id: str = "",
     mime_type: str | None = None,
 ) -> UploadResult:
     """Register an already-saved file in the asset database without moving it.
@@ -428,7 +426,6 @@ def create_from_hash(
     name: str,
     tags: list[str] | None = None,
     user_metadata: dict | None = None,
-    tenant_id: str = "",
     mime_type: str | None = None,
     preview_id: str | None = None,
 ) -> UploadResult | None:
@@ -474,12 +471,6 @@ def register_cached_output(abs_path: str, job_id: str | None = None):
     locator = os.path.abspath(abs_path)
     try:
         with create_session() as session:
-            update_count = [0]
-
-            @event.listens_for(session, "after_bulk_update")
-            def _count_update(update_context):
-                update_count[0] += 1
-
             existing = session.scalars(
                 select(AssetContent).where(
                     AssetContent.path == locator, AssetContent.is_missing.is_(False)
@@ -522,14 +513,6 @@ def register_cached_output(abs_path: str, job_id: str | None = None):
                     tags=path_tags,
                     system_metadata=system_metadata,
                 )
-                if update_count[0] != 0:
-                    logging.error(
-                        "Cached save must not UPDATE any row; got %d for %s; discarding",
-                        update_count[0],
-                        locator,
-                    )
-                    session.rollback()
-                    return None
                 session.commit()
             except Exception:
                 session.rollback()

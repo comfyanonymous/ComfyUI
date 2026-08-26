@@ -53,10 +53,7 @@ def qualified_content_iterator(session: Session, hash: str) -> Iterator[AssetCon
 def lookup_for_from_hash(session: Session, hash: str) -> AssetContent | None:
     if not mode.hashing_enabled():
         return None
-    return next(
-        (content for content in qualified_content_iterator(session, hash) if not is_temp_path(content.path)),
-        None,
-    )
+    return next(qualified_content_iterator(session, hash), None)
 
 
 def lookup_for_upload_dedup(
@@ -64,8 +61,6 @@ def lookup_for_upload_dedup(
 ) -> Asset | AssetContent | None:
     first_content = None
     for content in qualified_content_iterator(session, hash):
-        if is_temp_path(content.path):
-            continue
         if first_content is None:
             first_content = content
         match = session.scalars(

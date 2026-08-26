@@ -741,7 +741,6 @@ async def upload_asset(request: web.Request) -> web.Response:
                 name=spec.name or (spec.hash.split(":", 1)[1]),
                 tags=spec.tags,
                 user_metadata=spec.user_metadata or {},
-                tenant_id=tenant_id,
                 mime_type=spec.mime_type,
                 preview_id=spec.preview_id,
             )
@@ -756,7 +755,6 @@ async def upload_asset(request: web.Request) -> web.Response:
                 tags=spec.tags,
                 user_metadata=spec.user_metadata or {},
                 client_filename=parsed.file_client_name,
-                tenant_id=tenant_id,
                 expected_hash=spec.hash,
                 mime_type=spec.mime_type,
                 preview_id=spec.preview_id,
@@ -972,6 +970,7 @@ async def delete_asset_tags(request: web.Request) -> web.Response:
             removed=result.removed,
             not_present=result.not_present,
             total_tags=result.total_tags,
+            protected=result.protected,
         )
     except PermissionError as pe:
         return _build_error_response(403, "FORBIDDEN", str(pe), {"id": reference_id})

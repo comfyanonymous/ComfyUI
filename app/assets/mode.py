@@ -19,4 +19,9 @@ def init(args: _HashingArguments) -> None:
 
 def hashing_enabled() -> bool:
     """Return whether startup enabled asset hashing."""
-    return bool(getattr(_args, "enable_asset_hashing", False))
+    if _args is None:
+        raise RuntimeError(
+            "app.assets.mode.init() was not called before hashing_enabled(); "
+            "hash-mode state is uninitialised"
+        )
+    return bool(_args.enable_asset_hashing)

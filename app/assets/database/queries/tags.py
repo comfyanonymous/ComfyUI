@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from typing import Iterable, Sequence
+from typing import Sequence
 
 from sqlalchemy import func, select
-from sqlalchemy.dialects import sqlite
 from sqlalchemy.orm import Session
 
 from app.assets.database.models import (
@@ -17,7 +16,7 @@ from app.assets.database.models import (
 from app.assets.database.queries.records import (
     build_record_tag_filter_clauses,
 )
-from app.assets.helpers import escape_sql_like_string, normalize_tags
+from app.assets.helpers import escape_sql_like_string
 
 
 @dataclass(frozen=True)
@@ -36,30 +35,6 @@ class RemoveTagsResult:
     # cannot be removed via this API. Kept distinct from ``not_present`` so a
     # caller can tell "the tag wasn't there" apart from "the tag is protected".
     protected: list[str] = field(default_factory=list)
-
-
-def validate_tags_exist(session: Session, tags: list[str]) -> None:
-    """Raise ValueError if any of the given tag names do not exist."""
-    existing_tag_names = set(
-        name
-        for (name,) in session.execute(select(Tag.name).where(Tag.name.in_(tags))).all()
-    )
-    missing = [t for t in tags if t not in existing_tag_names]
-    if missing:
-        raise ValueError(f"Unknown tags: {missing}")
-
-
-def ensure_tags_exist(session: Session, names: Iterable[str]) -> None:
-    wanted = normalize_tags(list(names))
-    if not wanted:
-        return
-    rows = [{"name": n} for n in list(dict.fromkeys(wanted))]
-    ins = (
-        sqlite.insert(Tag)
-        .values(rows)
-        .on_conflict_do_nothing(index_elements=[Tag.name])
-    )
-    session.execute(ins)
 
 
 def list_tags_with_usage(

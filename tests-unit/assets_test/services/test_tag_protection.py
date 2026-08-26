@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -66,7 +67,7 @@ async def test_other_tags_unaffected(monkeypatch):
     def remove_tags(**kwargs):
         calls.append(("remove", kwargs["tags"]))
         return SimpleNamespace(
-            removed=kwargs["tags"], not_present=[], total_tags=[]
+            removed=kwargs["tags"], not_present=[], total_tags=[], protected=[]
         )
 
     monkeypatch.setattr(routes, "apply_tags", apply_tags)
@@ -80,3 +81,24 @@ async def test_other_tags_unaffected(monkeypatch):
     assert add_response.status == 200
     assert remove_response.status == 200
     assert calls == [("add", ["manual"]), ("remove", ["manual"])]
+
+
+@pytest.mark.asyncio
+async def test_remove_tags_response_exposes_protected_bucket(monkeypatch):
+    """The DELETE /tags route must serialise the ``protected`` bucket rather than
+    drop it: a present-but-automatic tag the service reports as protected has to
+    reach the HTTP body so the contract matches RemoveTagsResult (review2-18)."""
+    monkeypatch.setattr(routes, "USER_MANAGER", _UserManager())
+    monkeypatch.setattr(
+        routes,
+        "remove_tags",
+        lambda **_kwargs: SimpleNamespace(
+            removed=[], not_present=[], total_tags=["auto"], protected=["auto"]
+        ),
+    )
+
+    response = await routes.delete_asset_tags.__wrapped__(_JsonRequest(["auto"]))
+
+    assert response.status == 200
+    body = json.loads(response.body)
+    assert body["protected"] == ["auto"]

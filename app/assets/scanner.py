@@ -130,13 +130,11 @@ def sync_references_with_filesystem(
     session,
     root: RootType,
     collect_existing_paths: bool = False,
-    update_missing_tags: bool = False,
 ) -> set[str] | None:
     return sync_prefixes_with_filesystem(
         session,
         get_scan_prefixes_for_root(root),
         collect_existing_paths=collect_existing_paths,
-        update_missing_tags=update_missing_tags,
     )
 
 
@@ -144,14 +142,8 @@ def sync_prefixes_with_filesystem(
     session: Session,
     prefixes: list[str],
     collect_existing_paths: bool = False,
-    update_missing_tags: bool = False,
 ) -> set[str] | None:
-    """Mark disappeared content missing and return live filesystem paths.
-
-    ``update_missing_tags`` remains for callers from the pre-B scanner API. The B
-    schema has one authoritative missing state on content, so its record-tag
-    projection is always maintained rather than conditionally enabled.
-    """
+    """Mark disappeared content missing and return live filesystem paths."""
     if not prefixes:
         return set() if collect_existing_paths else None
 
@@ -193,7 +185,6 @@ def sync_root_safely(root: RootType) -> set[str]:
                 sess,
                 root,
                 collect_existing_paths=True,
-                update_missing_tags=True,
             )
             sess.commit()
             return survivors or set()

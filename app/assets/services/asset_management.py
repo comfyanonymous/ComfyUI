@@ -52,9 +52,7 @@ def _record_to_detail_result(session, record) -> AssetDetailResult:
 
 def get_asset_detail(
     reference_id: str,
-    tenant_id: str = "",
 ) -> AssetDetailResult | None:
-    del tenant_id
     with create_session() as session:
         record = get_record_by_id(session, reference_id)
         if record is None:
@@ -68,11 +66,9 @@ def update_asset_metadata(
     tags: Sequence[str] | None = None,
     user_metadata: UserMetadata = None,
     tag_origin: str = "manual",
-    tenant_id: str = "",
     mime_type: str | None = None,
     preview_id: str | None = None,
 ) -> AssetDetailResult:
-    del tenant_id
     with create_session() as session:
         record = get_record_by_id(session, reference_id)
         if record is None:
@@ -132,11 +128,8 @@ def update_asset_metadata(
 
 def delete_asset_reference(
     reference_id: str,
-    tenant_id: str = "",
-    delete_content_if_orphan: bool = True,
 ) -> bool:
     """Hard-delete an asset record. Content rows and files are untouched (D-3 floor)."""
-    del tenant_id, delete_content_if_orphan
     with create_session() as session:
         if get_record_by_id(session, reference_id) is None:
             return False
@@ -156,7 +149,6 @@ def asset_exists(asset_hash: str) -> bool:
 
 def resolve_hash_to_path(
     asset_hash: str,
-    tenant_id: str = "",
 ) -> DownloadResolutionResult | None:
     """Resolve a blake3 hash to an on-disk file path via lookup_for_view.
 
@@ -165,7 +157,6 @@ def resolve_hash_to_path(
     temp content returns None. Updates last_access_time on every record pointing
     at the served content.
     """
-    del tenant_id
     try:
         canonical = validate_blake3_hash(asset_hash)
     except ValueError:
@@ -213,9 +204,7 @@ def get_preview_file_paths(preview_ids: list[str]) -> dict[str, str]:
 
 def resolve_asset_for_download(
     reference_id: str,
-    tenant_id: str = "",
 ) -> DownloadResolutionResult:
-    del tenant_id
     with create_session() as session:
         record = get_record_by_id(session, reference_id)
         if record is None:

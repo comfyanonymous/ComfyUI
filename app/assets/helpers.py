@@ -1,26 +1,4 @@
-import os
 from datetime import datetime, timezone
-from typing import Sequence
-
-
-def select_live_path(states: Sequence) -> str:
-    """
-    Return the best on-disk path among cache states:
-      1) Prefer a path that exists with pending_verification == False (already verified).
-      2) Otherwise, pick the first path that exists.
-      3) Otherwise return empty string.
-    """
-    alive = [
-        s
-        for s in states
-        if getattr(s, "file_path", None) and os.path.isfile(s.file_path)
-    ]
-    if not alive:
-        return ""
-    for s in alive:
-        if not getattr(s, "pending_verification", False):
-            return s.file_path
-    return alive[0].file_path
 
 
 def escape_sql_like_string(s: str, escape: str = "!") -> tuple[str, str]:

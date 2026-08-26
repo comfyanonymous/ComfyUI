@@ -18,9 +18,7 @@ def apply_tags(
     reference_id: str,
     tags: list[str],
     origin: str = "manual",
-    tenant_id: str = "",
 ) -> AddTagsResult:
-    del tenant_id
     with create_session() as session:
         if session.get(Asset, reference_id) is None:
             raise ValueError(f"Asset {reference_id} not found")
@@ -64,9 +62,7 @@ def apply_tags(
 def remove_tags(
     reference_id: str,
     tags: list[str],
-    tenant_id: str = "",
 ) -> RemoveTagsResult:
-    del tenant_id
     with create_session() as session:
         if session.get(Asset, reference_id) is None:
             raise ValueError(f"Asset {reference_id} not found")
@@ -125,9 +121,7 @@ def list_tags(
     offset: int = 0,
     order: str = "count_desc",
     include_zero: bool = True,
-    tenant_id: str = "",
 ) -> tuple[list[TagUsage], int]:
-    del tenant_id
     limit = max(1, min(1000, limit))
     offset = max(0, offset)
 
@@ -145,7 +139,6 @@ def list_tags(
 
 
 def list_tag_histogram(
-    tenant_id: str = "",
     include_tags: Sequence[str] | None = None,
     exclude_tags: Sequence[str] | None = None,
     name_contains: str | None = None,
@@ -153,7 +146,6 @@ def list_tag_histogram(
     # Appended last so pre-existing positional callers keep binding correctly.
     any_tags: Sequence[str] | None = None,
 ) -> dict[str, int]:
-    del tenant_id
     with create_session() as session:
         return list_tag_counts_for_filtered_assets(
             session,
