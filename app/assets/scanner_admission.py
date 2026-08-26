@@ -34,6 +34,8 @@ def _should_skip_extension(path: str) -> bool:
 
 
 def _two_stat_admit(paths_with_stats: list[tuple[str, os.stat_result]]) -> tuple[list[str], list[str]]:
+    if not paths_with_stats:
+        return [], []
     time.sleep(0.1)
     admitted: list[str] = []
     watched: list[str] = []

@@ -1,4 +1,5 @@
 """Todo 16: startup/shutdown temp wipe ordering and failure behavior."""
+import os
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -223,3 +224,24 @@ def test_wipe_temp_db_rows_deletes_records_before_content(session, comfy_dirs):
     assert contents_deleted == 1
     assert session.get(Asset, record_id) is None
     assert session.get(AssetContent, content_id) is None
+
+
+def test_wipe_temp_db_rows_preserves_non_temp_rows(session, comfy_dirs):
+    # Given one temp asset and one non-temp asset whose path is a lexical sibling
+    # of the temp dir (…-sibling) — shares the characters but is NOT under it.
+    temp_record_id, temp_content_id = _seed_temp_rows(session, comfy_dirs)
+    keep_path = str(comfy_dirs) + "-sibling" + os.sep + "keep.safetensors"
+    keep_content = create_content(session, path=keep_path)
+    keep_record = create_record(session, content_id=keep_content.id, name="keep.safetensors")
+    session.commit()
+
+    records_deleted, contents_deleted = wipe_temp_db_rows(session)
+    session.commit()
+
+    # Then only the temp rows are wiped; the non-temp rows survive (the SQL
+    # prefix is anchored on <temp>/, so the sibling is not swept).
+    assert (records_deleted, contents_deleted) == (1, 1)
+    assert session.get(Asset, temp_record_id) is None
+    assert session.get(AssetContent, temp_content_id) is None
+    assert session.get(Asset, keep_record.id) is not None
+    assert session.get(AssetContent, keep_content.id) is not None

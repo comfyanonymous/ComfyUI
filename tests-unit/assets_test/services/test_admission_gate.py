@@ -134,3 +134,38 @@ def test_evicted_path_is_admitted_by_later_stable_scan(temp_dir: Path, monkeypat
     assert entries_after_overflow == [str(paths[1]), str(paths[2])]
     assert admitted == [str(paths[0])]
     assert watched == []
+
+
+def test_empty_candidate_batch_returns_without_paying_stability_gap(monkeypatch):
+    # Given an empty candidate batch (nothing survived the earlier filters)
+    sleeps: list[float] = []
+    monkeypatch.setattr(
+        "app.assets.scanner_admission.time.sleep", lambda seconds: sleeps.append(seconds)
+    )
+
+    # When admission runs
+    admitted, watched = _two_stat_admit([])
+
+    # Then it returns immediately and never pays the 100ms inter-observation gap
+    assert admitted == []
+    assert watched == []
+    assert sleeps == []
+
+
+def test_nonempty_candidate_batch_still_pays_stability_gap(temp_dir: Path, monkeypatch):
+    # Given a real, stable candidate file
+    path = temp_dir / "stable.bin"
+    path.write_bytes(b"complete")
+    first_stat = path.stat()
+    sleeps: list[float] = []
+    monkeypatch.setattr(
+        "app.assets.scanner_admission.time.sleep", lambda seconds: sleeps.append(seconds)
+    )
+
+    # When admission runs on a non-empty batch
+    admitted, watched = _two_stat_admit([(str(path), first_stat)])
+
+    # Then the two-stat stability gap still fires exactly once
+    assert sleeps == [0.1]
+    assert admitted == [str(path)]
+    assert watched == []

@@ -11,6 +11,7 @@ system_metadata is not.
 
 from __future__ import annotations
 
+import os
 from contextlib import contextmanager
 from collections.abc import Iterator
 from pathlib import Path
@@ -21,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.assets.database.queries import create_content, create_record
 from app.assets.scanner import get_unenriched_assets_for_roots
+from app.assets.scanner_changes import is_path_under_prefixes
 
 
 @contextmanager
@@ -102,3 +104,82 @@ def test_off_mode_excludes_asset_with_system_metadata(
 
     # Then it is not returned as an enrich candidate
     assert record_id not in {row.record_id for row in rows}
+
+
+def test_query_pushes_limit_into_sql(session: Session, temp_dir: Path) -> None:
+    # Given more unenriched candidates under the prefix than the requested limit
+    for index in range(5):
+        path = temp_dir / f"cand-{index}.safetensors"
+        content = create_content(session, str(path), hash=None)
+        create_record(session, content.id, path.name)
+    session.commit()
+
+    statements: list[str] = []
+
+    def _capture(_conn, _cursor, statement, _params, _context, _executemany) -> None:
+        statements.append(statement)
+
+    engine = session.bind
+    sa.event.listen(engine, "before_cursor_execute", _capture)
+    try:
+        with (
+            patch("app.assets.scanner.create_session", lambda: _reuse_session(session)),
+            patch(
+                "app.assets.scanner.get_scan_prefixes_for_root",
+                return_value=[str(temp_dir)],
+            ),
+        ):
+            rows = get_unenriched_assets_for_roots(
+                ("models",), compute_hashes=False, limit=2
+            )
+    finally:
+        sa.event.remove(engine, "before_cursor_execute", _capture)
+
+    # Then only `limit` rows come back ...
+    assert len(rows) == 2
+    # ... and the bound came from SQL, not a Python slice: the SELECT over
+    # asset_contents carries a LIMIT clause (query is bounded at the DB).
+    content_selects = [
+        s for s in statements if "asset_contents" in s.lower() and s.lower().lstrip().startswith("select")
+    ]
+    assert content_selects, f"expected a SELECT over asset_contents; got {statements}"
+    assert any("limit" in s.lower() for s in content_selects), (
+        f"enrichment query must push LIMIT into SQL; got: {content_selects}"
+    )
+
+
+def test_prefix_filter_matches_is_path_under_prefixes(
+    session: Session, temp_dir: Path
+) -> None:
+    # Given one asset under the prefix and one lexical sibling (…-sibling) that
+    # shares the prefix's characters but is NOT a child directory. A naive
+    # ``LIKE prefix%`` (no separator) would wrongly admit the sibling.
+    prefix = str(temp_dir)
+    inside_path = os.path.join(prefix, "sub", "inside.safetensors")
+    sibling_path = prefix + "-sibling" + os.sep + "outside.safetensors"
+
+    inside = create_record(
+        session, create_content(session, inside_path, hash=None).id, "inside.safetensors"
+    )
+    sibling = create_record(
+        session, create_content(session, sibling_path, hash=None).id, "outside.safetensors"
+    )
+    session.commit()
+
+    with (
+        patch("app.assets.scanner.create_session", lambda: _reuse_session(session)),
+        patch(
+            "app.assets.scanner.get_scan_prefixes_for_root",
+            return_value=[prefix],
+        ),
+    ):
+        returned = {
+            row.record_id
+            for row in get_unenriched_assets_for_roots(("models",), compute_hashes=False)
+        }
+
+    # Then SQL prefix filtering agrees with is_path_under_prefixes exactly.
+    assert is_path_under_prefixes(inside_path, [prefix]) is True
+    assert is_path_under_prefixes(sibling_path, [prefix]) is False
+    assert inside.id in returned
+    assert sibling.id not in returned
