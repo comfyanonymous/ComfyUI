@@ -478,14 +478,13 @@ def hijack_progress(server_instance):
 
 def setup_database():
     from app.assets import mode
-    from app.assets.lifecycle import init_db_and_state, run_asset_startup
+    from app.assets.lifecycle import init_db_and_state, run_startup
 
     try:
         if dependencies_available():
             mode.init(args)
             init_db_and_state()
-            if args.enable_assets:
-                run_asset_startup()
+            run_startup(enable_assets=args.enable_assets)
     except Exception as e:
         if "database is locked" in str(e):
             logging.error(

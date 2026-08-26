@@ -124,6 +124,20 @@ def run_asset_startup() -> None:
     start_asset_seeder()
 
 
+def run_startup(*, enable_assets: bool) -> None:
+    """Startup temp maintenance entry point, owning the enabled/disabled policy.
+
+    Enabled: full asset startup (DB temp-row wipe -> filesystem sweep -> seeder), which
+    intentionally orders row deletion before filesystem deletion and skips the sweep when
+    the wipe fails. Disabled: filesystem sweep only (master parity -- master called
+    cleanup_temp() unconditionally); with assets off there are no asset rows to wipe.
+    """
+    if enable_assets:
+        run_asset_startup()
+    else:
+        cleanup_temp_filesystem()
+
+
 def run_asset_shutdown_cleanup() -> None:
     with create_session() as session:
         wipe_temp_db_rows(session)

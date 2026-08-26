@@ -15,6 +15,7 @@ from app.assets.lifecycle import (
     get_excluded_scan_roots,
     run_asset_shutdown_cleanup,
     run_asset_startup,
+    run_startup,
     wipe_temp_db_rows,
 )
 from app.assets.scanner import get_temp_prefixes, sync_temp_references_safely
@@ -101,6 +102,41 @@ def test_db_wipe_failure_skips_rmtree_and_continues(mock_create_session):
 
     cleanup_mock.assert_not_called()
     seeder_mock.assert_called_once()
+
+
+def test_run_startup_disabled_sweeps_temp_filesystem_without_db_work(comfy_dirs):
+    """D9 — Given assets disabled and a stale temp file, When run_startup runs, Then the
+    filesystem sweep removes it and no DB-row wipe or seeder work happens (master parity:
+    master called cleanup_temp() unconditionally; with assets off there are no rows to wipe)."""
+    stale = comfy_dirs / "stale.png"
+    stale.write_bytes(b"\x00" * 10)
+    assert stale.exists()
+
+    with (
+        patch("app.assets.lifecycle.run_asset_startup") as asset_startup_mock,
+        patch("app.assets.lifecycle.wipe_temp_db_rows") as wipe_mock,
+        patch("app.assets.lifecycle.start_asset_seeder") as seeder_mock,
+    ):
+        run_startup(enable_assets=False)
+
+    assert not stale.exists()
+    asset_startup_mock.assert_not_called()
+    wipe_mock.assert_not_called()
+    seeder_mock.assert_not_called()
+
+
+def test_run_startup_enabled_delegates_to_asset_startup_not_bare_sweep():
+    """D9 — Given assets enabled, When run_startup runs, Then it delegates to the ordered
+    run_asset_startup (sole owner of DB-row-before-filesystem deletion) and never calls the
+    bare filesystem sweep directly, so S12's enabled-path ordering is preserved."""
+    with (
+        patch("app.assets.lifecycle.run_asset_startup") as asset_startup_mock,
+        patch("app.assets.lifecycle.cleanup_temp_filesystem") as cleanup_mock,
+    ):
+        run_startup(enable_assets=True)
+
+    asset_startup_mock.assert_called_once_with()
+    cleanup_mock.assert_not_called()
 
 
 def test_rmtree_failure_excludes_temp_from_scan(session, comfy_dirs, mock_create_session):
