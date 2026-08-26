@@ -53,13 +53,13 @@ def test_temp_only_match_from_hash_returns_none(session, tmp_path):
     assert result is None
 
 
-def test_temp_only_match_view_still_serves(session, tmp_path):
+def test_temp_only_match_view_returns_none(session, tmp_path):
     f = _make_file(tmp_path, "f2.png")
     create_content(session, path=f, hash="abc123")
     session.commit()
     with patch("app.assets.services.lookup.is_temp_path", return_value=True):
         result = lookup_for_view(session, "abc123")
-    assert result is not None
+    assert result is None
 
 
 def test_sibling_prefix_not_temp(tmp_path):

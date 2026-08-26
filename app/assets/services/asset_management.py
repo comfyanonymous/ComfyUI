@@ -339,9 +339,10 @@ def resolve_hash_to_path(
 ) -> DownloadResolutionResult | None:
     """Resolve a blake3 hash to an on-disk file path via lookup_for_view.
 
-    Uses the first qualified live content row (temp paths included — temp
-    exclusion applies only to from-hash/dedup). Updates last_access_time on
-    every record pointing at the served content.
+    Uses the first qualified live content row. Temp paths are excluded from all
+    hash lookups inside qualified_content_iterator, so a hash resolving only to
+    temp content returns None. Updates last_access_time on every record pointing
+    at the served content.
     """
     from sqlalchemy import select
 

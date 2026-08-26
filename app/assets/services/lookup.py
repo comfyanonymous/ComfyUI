@@ -46,7 +46,7 @@ def qualified_content_iterator(session: Session, hash: str) -> Iterator[AssetCon
         .order_by(AssetContent.created_at, AssetContent.id)
     )
     for row in rows:
-        if os.path.isfile(row.path) and _stat_consistent(row):
+        if os.path.isfile(row.path) and _stat_consistent(row) and not is_temp_path(row.path):
             yield row
 
 
