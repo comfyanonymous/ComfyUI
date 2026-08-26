@@ -324,18 +324,27 @@ def seed_asset_specs(session: Session, specs: list[SeedAssetSpec]) -> int:
     """Create one B content row and one birth-classified record per new path."""
     created = 0
     for spec in specs:
-        stat_result = os.stat(spec["abs_path"], follow_symlinks=True)
-        recovery = recover_missing_content(
-            session,
-            os.path.abspath(spec["abs_path"]),
-            stat_result,
-            hashing_is_enabled=mode.hashing_enabled(),
-        )
+        path = os.path.abspath(spec["abs_path"])
+        try:
+            stat_result = os.stat(path, follow_symlinks=True)
+        except OSError:
+            logging.warning("Skipping vanished asset during scan: %s", path)
+            continue
+        try:
+            recovery = recover_missing_content(
+                session,
+                path,
+                stat_result,
+                hashing_is_enabled=mode.hashing_enabled(),
+            )
+        except OSError:
+            logging.warning("Skipping vanished asset during scan: %s", path)
+            continue
         if recovery != "no_match":
             continue
         content = create_content(
             session,
-            path=os.path.abspath(spec["abs_path"]),
+            path=path,
             hash=None,
             size_bytes=spec["size_bytes"],
             mtime_ns=spec["mtime_ns"],
