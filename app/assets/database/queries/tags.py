@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
+
 from typing import Iterable, Sequence
 
 import sqlalchemy as sa

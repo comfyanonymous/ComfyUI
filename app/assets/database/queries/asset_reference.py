@@ -4,6 +4,8 @@ This module replaces the separate asset_info.py and cache_state.py query modules
 providing a unified interface for the merged asset_references table.
 """
 
+from __future__ import annotations
+
 from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
