@@ -41,6 +41,7 @@ from app.assets.services.path_utils import (
     get_comfy_models_folders,
     get_name_and_tags_from_asset_path,
 )
+from app.assets.services.ingest import _discard_unreferenced_content
 from app.assets.services.snapshot_hash import snapshot_hash
 from app.database.db import create_session
 
@@ -321,49 +322,65 @@ def build_asset_specs(
 
 
 def seed_asset_specs(session: Session, specs: list[SeedAssetSpec]) -> int:
-    """Create one B content row and one birth-classified record per new path."""
+    """Create one B content row and one birth-classified record per new path.
+
+    ``create_content`` inserts inside a SAVEPOINT that survives an outer rollback
+    under pysqlite, so a mid-batch ``create_record`` failure would leak the live
+    content rows created so far as unreferenced orphans (and a live orphan at a
+    path makes later scans skip it indefinitely). On any failure we roll the
+    aborted batch back and discard every content row we created, mirroring the
+    executed-output path, before letting the error propagate.
+    """
     created = 0
-    for spec in specs:
-        path = os.path.abspath(spec["abs_path"])
-        try:
-            stat_result = os.stat(path, follow_symlinks=True)
-        except OSError:
-            logging.warning("Skipping vanished asset during scan: %s", path)
-            continue
-        try:
-            recovery = recover_missing_content(
+    created_content_ids: list[str] = []
+    try:
+        for spec in specs:
+            path = os.path.abspath(spec["abs_path"])
+            try:
+                stat_result = os.stat(path, follow_symlinks=True)
+            except OSError:
+                logging.warning("Skipping vanished asset during scan: %s", path)
+                continue
+            try:
+                recovery = recover_missing_content(
+                    session,
+                    path,
+                    stat_result,
+                    hashing_is_enabled=mode.hashing_enabled(),
+                )
+            except OSError:
+                logging.warning("Skipping vanished asset during scan: %s", path)
+                continue
+            if recovery != "no_match":
+                continue
+            content = create_content(
                 session,
-                path,
-                stat_result,
-                hashing_is_enabled=mode.hashing_enabled(),
+                path=path,
+                hash=None,
+                size_bytes=spec["size_bytes"],
+                mtime_ns=spec["mtime_ns"],
             )
-        except OSError:
-            logging.warning("Skipping vanished asset during scan: %s", path)
-            continue
-        if recovery != "no_match":
-            continue
-        content = create_content(
-            session,
-            path=path,
-            hash=None,
-            size_bytes=spec["size_bytes"],
-            mtime_ns=spec["mtime_ns"],
-        )
-        existing_record = session.scalar(
-            sa.select(Asset.id).where(Asset.content_id == content.id).limit(1)
-        )
-        if existing_record is not None:
-            continue
-        create_record(
-            session,
-            content_id=content.id,
-            name=spec["info_name"],
-            mime_type=spec["mime_type"],
-            job_id=spec["job_id"],
-            loader_path=spec["fname"],
-            tags=spec["tags"],
-        )
-        created += 1
+            created_content_ids.append(content.id)
+            existing_record = session.scalar(
+                sa.select(Asset.id).where(Asset.content_id == content.id).limit(1)
+            )
+            if existing_record is not None:
+                continue
+            create_record(
+                session,
+                content_id=content.id,
+                name=spec["info_name"],
+                mime_type=spec["mime_type"],
+                job_id=spec["job_id"],
+                loader_path=spec["fname"],
+                tags=spec["tags"],
+            )
+            created += 1
+    except Exception:
+        session.rollback()
+        for content_id in created_content_ids:
+            _discard_unreferenced_content(session, content_id)
+        raise
     return created
 
 

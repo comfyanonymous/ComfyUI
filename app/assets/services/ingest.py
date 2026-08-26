@@ -302,17 +302,23 @@ def upload_from_temp_path(
         content = create_content(
             session, dest_abs, stored_hash, size_bytes, mtime_ns
         )
-        record = _create_upload_record(
-            session,
-            content.id,
-            display_name,
-            dest_abs,
-            [*(tags or []), "uploaded"],
-            content_type,
-            user_metadata,
-            preview_id,
-        )
-        session.commit()
+        created_content_id = content.id
+        try:
+            record = _create_upload_record(
+                session,
+                content.id,
+                display_name,
+                dest_abs,
+                [*(tags or []), "uploaded"],
+                content_type,
+                user_metadata,
+                preview_id,
+            )
+            session.commit()
+        except Exception:
+            session.rollback()
+            _discard_unreferenced_content(session, created_content_id)
+            raise
         return _record_to_upload_result(session, record, created_new=True)
 
 
@@ -397,17 +403,23 @@ def register_file_in_place(
         content = create_content(
             session, locator, stored_hash, size_bytes, mtime_ns
         )
-        record = _create_upload_record(
-            session,
-            content.id,
-            display_name,
-            locator,
-            merged_tags,
-            content_type,
-            None,
-            None,
-        )
-        session.commit()
+        created_content_id = content.id
+        try:
+            record = _create_upload_record(
+                session,
+                content.id,
+                display_name,
+                locator,
+                merged_tags,
+                content_type,
+                None,
+                None,
+            )
+            session.commit()
+        except Exception:
+            session.rollback()
+            _discard_unreferenced_content(session, created_content_id)
+            raise
         return _record_to_upload_result(session, record, created_new=True)
 
 
