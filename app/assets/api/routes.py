@@ -37,14 +37,12 @@ from app.assets.services import (
     delete_asset_reference,
     get_asset_detail,
     get_preview_file_paths,
-    list_assets_page,
     list_tags,
     remove_tags,
     resolve_asset_for_download,
     update_asset_metadata,
     upload_from_temp_path,
 )
-from app.assets.services.cursor import InvalidCursorError
 from app.assets.services.path_utils import compute_asset_response_paths
 from app.assets.services.tagging import list_tag_histogram
 from app.database.db import create_session
@@ -363,6 +361,15 @@ async def list_assets_route(request: web.Request) -> web.Response:
     """
     GET request to list assets.
     """
+    if "metadata_filter" in request.query:
+        return web.json_response(
+            {
+                "error": "UNSUPPORTED_PARAM",
+                "message": "metadata_filter is no longer supported",
+            },
+            status=400,
+        )
+
     query_dict = get_query_dict(request)
     try:
         q = schemas_in.ListAssetsQuery.model_validate(query_dict)
@@ -851,6 +858,15 @@ async def delete_asset_tags(request: web.Request) -> web.Response:
 @_require_assets_feature_enabled
 async def get_tags_refine(request: web.Request) -> web.Response:
     """GET request to get tag histogram for filtered assets."""
+    if "metadata_filter" in request.query:
+        return web.json_response(
+            {
+                "error": "UNSUPPORTED_PARAM",
+                "message": "metadata_filter is no longer supported",
+            },
+            status=400,
+        )
+
     query_dict = get_query_dict(request)
     try:
         q = schemas_in.TagsRefineQuery.model_validate(query_dict)
@@ -867,7 +883,6 @@ async def get_tags_refine(request: web.Request) -> web.Response:
         exclude_tags=tags_none,
         any_tags=tags_any,
         name_contains=q.name_contains,
-        metadata_filter=q.metadata_filter,
         limit=q.limit,
     )
     payload = schemas_out.TagHistogram(tag_counts=tag_counts)
