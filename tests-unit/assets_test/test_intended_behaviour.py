@@ -86,7 +86,8 @@ def test_scenario_6_upload_dedup(session, tmp_path, hashing_mode):
 
 def test_scenario_7_same_bytes_new_name(session, tmp_path):
     """Ruling 7: a new name creates a new record."""
-    path = tmp_path / "bytes.bin"; path.write_bytes(b"bytes")
+    path = tmp_path / "bytes.bin"
+    path.write_bytes(b"bytes")
     content = create_content(session, str(path), hash="digest")
     assert create_record(session, content.id, "one").id != create_record(session, content.id, "two").id
 
@@ -110,9 +111,14 @@ def test_scenario_10_cached_delivery_record(session, tmp_path):
 def test_scenario_11_restart_survival(tmp_path):
     """Ruling 11: non-temp records survive reopening the database."""
     database = tmp_path / "assets.sqlite"
-    engine = create_engine(f"sqlite:///{database}"); Base.metadata.create_all(engine)
-    with Session(engine) as session: record = create_record(session, create_content(session, "/durable").id, "durable"); session.commit(); record_id = record.id
-    with Session(engine) as session: assert session.get(type(record), record_id) is not None
+    engine = create_engine(f"sqlite:///{database}")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        record = create_record(session, create_content(session, "/durable").id, "durable")
+        session.commit()
+        record_id = record.id
+    with Session(engine) as session:
+        assert session.get(type(record), record_id) is not None
 
 
 def test_scenario_12_temp_wipe_both_layers(session, tmp_path):
@@ -129,7 +135,9 @@ def test_scenario_15_two_locations_hash_relation(session, tmp_path):
 
 def test_scenario_17_move_is_missing_plus_new(session, tmp_path):
     """Ruling 17: a move is missing old content plus a new record."""
-    old = _record(session, tmp_path / "old", "old"); mark_content_missing(session, old.content_id); new = _record(session, tmp_path / "new", "new")
+    old = _record(session, tmp_path / "old", "old")
+    mark_content_missing(session, old.content_id)
+    new = _record(session, tmp_path / "new", "new")
     assert old.content_id != new.content_id
 
 
@@ -162,7 +170,8 @@ def test_scenario_26_view_forms(session, tmp_path):
 
 def test_scenario_27_fail_closed_previews_fromhash(session, tmp_path):
     """Ruling 27: missing content is never a serving candidate."""
-    record = _record(session, tmp_path / "missing", "missing", "digest"); mark_content_missing(session, record.content_id)
+    record = _record(session, tmp_path / "missing", "missing", "digest")
+    mark_content_missing(session, record.content_id)
     assert record.content.is_missing is True
 
 
