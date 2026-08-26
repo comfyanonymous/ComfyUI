@@ -144,6 +144,40 @@ def test_resolve_hash_to_path_refuses_temp_content(mock_create_session, session,
     assert result is None
 
 
+def test_resolve_hash_to_path_uses_newest_record_for_name_and_content_type(
+    mock_create_session, session, temp_dir
+):
+    digest = "c" * 64
+    f = temp_dir / "shared.bin"
+    f.write_bytes(b"data")
+    content = create_content(session, path=str(f), hash=to_stored_hash(digest))
+    older = create_record(
+        session,
+        content_id=content.id,
+        name="older.txt",
+        mime_type="text/plain",
+    )
+    newer = create_record(
+        session,
+        content_id=content.id,
+        name="newer.png",
+        mime_type="image/png",
+    )
+    older.created_at = _TS
+    older.updated_at = _TS
+    older.last_access_time = _TS
+    newer.created_at = _TS.replace(microsecond=1)
+    newer.updated_at = _TS.replace(microsecond=1)
+    newer.last_access_time = _TS.replace(microsecond=1)
+    session.commit()
+
+    result = resolve_hash_to_path(f"blake3:{digest}")
+
+    assert result is not None
+    assert result.download_name == "newer.png"
+    assert result.content_type == "image/png"
+
+
 def test_resolve_hash_to_path_unknown_hash(mock_create_session):
     assert resolve_hash_to_path("blake3:" + "f" * 64) is None
 
@@ -163,13 +197,17 @@ def test_content_read_updates_last_access_time(
     )
     session.commit()
 
-    before = get_record_by_id(session, record_id).last_access_time
+    before_record = get_record_by_id(session, record_id)
+    assert before_record is not None
+    before = before_record.last_access_time
     assert before is None
 
     resolve_asset_for_download(record_id)
 
     session.expire_all()
-    after = get_record_by_id(session, record_id).last_access_time
+    after_record = get_record_by_id(session, record_id)
+    assert after_record is not None
+    after = after_record.last_access_time
     assert after is not None
 
 
@@ -193,7 +231,9 @@ def test_view_hash_read_updates_last_access_time(
     assert result is not None
 
     session.expire_all()
-    assert get_record_by_id(session, record_id).last_access_time is not None
+    record_after = get_record_by_id(session, record_id)
+    assert record_after is not None
+    assert record_after.last_access_time is not None
 
 
 def test_lookup_for_view_returns_none_for_temp_content(session, temp_dir):
@@ -267,7 +307,9 @@ def test_resolve_hash_to_path_temp_does_not_bump_last_access_time(
 
     assert result is None
     session.expire_all()
-    assert get_record_by_id(session, record_id).last_access_time is None
+    record_after = get_record_by_id(session, record_id)
+    assert record_after is not None
+    assert record_after.last_access_time is None
 
 
 @pytest.fixture

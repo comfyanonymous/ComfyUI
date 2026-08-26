@@ -182,13 +182,10 @@ def resolve_hash_to_path(
                 .order_by(Asset.created_at, Asset.id)
             )
         )
-        display_name = os.path.basename(content.path)
-        mime_type = None
+        latest_record = records[-1]
+        display_name = latest_record.name or os.path.basename(content.path)
+        mime_type = latest_record.mime_type
         for record in records:
-            if record.name:
-                display_name = record.name
-            if mime_type is None and record.mime_type:
-                mime_type = record.mime_type
             update_record_access_time(session, record.id)
         abs_path = content.path
         session.commit()
