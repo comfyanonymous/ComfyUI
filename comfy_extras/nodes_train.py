@@ -1441,7 +1441,18 @@ class LossGraphNode(io.ComfyNode):
         draw = ImageDraw.Draw(img)
 
         min_loss, max_loss = min(loss_values), max(loss_values)
-        scaled_loss = [(l - min_loss) / (max_loss - min_loss) for l in loss_values]
+        loss_range = max_loss - min_loss
+        if loss_range > 0:
+            scaled_loss = [(l - min_loss) / loss_range for l in loss_values]
+        else:
+            # Every recorded loss is identical, so there is no range to
+            # normalize against and the division above would raise. This is not
+            # a degenerate input: a steps=1 run has exactly one value by
+            # definition, and it is the cheapest way to validate a training
+            # config before committing to a long run. Draw the series flat at
+            # mid-height -- 0.0 or 1.0 would pin it to the axis and read as
+            # "lowest"/"highest" when the only true statement is "unchanged".
+            scaled_loss = [0.5 for _ in loss_values]
 
         steps = len(loss_values)
 
