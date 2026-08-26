@@ -23,13 +23,13 @@ class Loop(io.ComfyNode):
                     io.DynamicCombo.Option("simple", [
                         io.Int.Input("num_iterations", default=4, min=0),
                     ]),
-                    io.DynamicCombo.Option("strided", [
+                    io.DynamicCombo.Option("For", [
                         io.Int.Input("start_iteration", default=0),
                         io.Int.Input("max_iteration", default=4),
                         io.Int.Input("step", default=1),
                     ]),
                 ]),
-                io.Int.Input("iteration_outer", optional=True, force_input=True),
+                io.Int.Input("iteration_outer", optional=True, force_input=True, advanced=True),
             ],
             outputs=[
                 io.Int.Output("iteration"),
