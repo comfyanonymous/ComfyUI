@@ -110,8 +110,14 @@ def detect_content_change(
     if content.size_bytes == stat_result.st_size:
         # User identity rule: a same-size mtime bump (rsync, cloud sync, backup
         # restore) is the same file. Without a hash to prove a content change,
-        # treat it as a no-op rather than split and destroy the user's tags and
+        # keep the record rather than split and destroy the user's tags and
         # metadata. Hash mode above defers to the snapshot hash instead.
+        # Identity is kept, but the stat snapshot must adopt the observed values:
+        # lookup._stat_consistent demands exact mtime equality, so a stale stored
+        # mtime would make the file unservable by hash and re-trigger this branch
+        # on every later scan.
+        content.size_bytes = stat_result.st_size
+        content.mtime_ns = stat_result.st_mtime_ns
         return
     split_content(session, content, stat_result, hash_value=None)
 
