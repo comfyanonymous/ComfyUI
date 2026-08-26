@@ -10,6 +10,7 @@ import app.assets.mode as mode_module
 import folder_paths
 from app.assets.database.models import Asset, AssetContent
 from app.assets.database.queries.records import create_content, mark_content_missing
+from app.assets.helpers import to_stored_hash
 from app.assets.services.ingest import (
     UploadUnstableError,
     register_file_in_place,
@@ -187,6 +188,95 @@ def test_off_mode_register_file_in_place_different_bytes_two_paths(
         for path in (path1, path2):
             if os.path.exists(path):
                 os.unlink(path)
+
+
+def test_register_file_in_place_overwrite_returns_new_file_hash_and_size(
+    mock_create_session, hashing_on
+):
+    """Given a path already registered, When it is re-registered in place with
+    new bytes, Then the result reports the NEW file's hash and size - not the
+    stale row that create_content's uniqueness-conflict path would return.
+
+    The reported hash must equal the actual on-disk hash of the new file.
+    """
+    output_dir = folder_paths.get_output_directory()
+    os.makedirs(output_dir, exist_ok=True)
+    path = os.path.join(output_dir, "overwrite_hash.png")
+
+    v1 = b"overwrite-version-one"
+    v2 = b"v2"
+    try:
+        with open(path, "wb") as file:
+            file.write(v1)
+        r1 = register_file_in_place(
+            abs_path=path, name="overwrite_hash.png", tags=["output"]
+        )
+
+        with open(path, "wb") as file:
+            file.write(v2)
+        snapshot = snapshot_hash(path)
+        assert snapshot is not None
+        expected_new_hash = to_stored_hash(snapshot[0])
+
+        r2 = register_file_in_place(
+            abs_path=path, name="overwrite_hash.png", tags=["output"]
+        )
+
+        assert r2.asset.hash == expected_new_hash
+        assert r2.asset.hash != r1.asset.hash
+        assert r2.asset.size_bytes == len(v2)
+    finally:
+        if os.path.exists(path):
+            os.unlink(path)
+
+
+def test_register_file_in_place_overwrite_marks_old_content_missing(
+    mock_create_session, hashing_on
+):
+    """Given a path already registered, When it is re-registered in place with
+    new bytes, Then the previous content row is marked missing and exactly one
+    live row (carrying the new hash) remains at that path.
+    """
+    output_dir = folder_paths.get_output_directory()
+    os.makedirs(output_dir, exist_ok=True)
+    path = os.path.join(output_dir, "overwrite_missing.png")
+
+    v1 = b"overwrite-version-one"
+    v2 = b"v2"
+    try:
+        with open(path, "wb") as file:
+            file.write(v1)
+        r1 = register_file_in_place(
+            abs_path=path, name="overwrite_missing.png", tags=["output"]
+        )
+
+        with open(path, "wb") as file:
+            file.write(v2)
+        snapshot = snapshot_hash(path)
+        assert snapshot is not None
+        expected_new_hash = to_stored_hash(snapshot[0])
+
+        register_file_in_place(
+            abs_path=path, name="overwrite_missing.png", tags=["output"]
+        )
+
+        with mock_create_session() as session:
+            rows = list(
+                session.scalars(
+                    select(AssetContent).where(
+                        AssetContent.path == os.path.abspath(path)
+                    )
+                )
+            )
+            live = [row for row in rows if not row.is_missing]
+            missing = [row for row in rows if row.is_missing]
+            assert len(live) == 1
+            assert live[0].hash == expected_new_hash
+            assert len(missing) == 1
+            assert missing[0].hash == r1.asset.hash
+    finally:
+        if os.path.exists(path):
+            os.unlink(path)
 
 
 def test_upload_matching_missing_row_stores_bytes(mock_create_session, hashing_on):

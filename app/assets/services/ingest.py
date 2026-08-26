@@ -314,6 +314,30 @@ def upload_from_temp_path(
         return _record_to_upload_result(session, record, created_new=True)
 
 
+def _retire_stale_live_content(
+    session: Session, locator: str, new_hash: str | None
+) -> None:
+    """Retire a live content row at ``locator`` whose bytes no longer match.
+
+    ``create_content`` resolves a live-path uniqueness conflict
+    (``uq_asset_contents_path_live``) by returning the existing row, so
+    re-registering a path in place without first retiring the previous content
+    would hand the caller the OLD file's hash/size. When the on-disk bytes have
+    changed (hash differs) we mark the stale row missing so the fresh
+    ``create_content`` inserts a new live row; when the hash matches we leave the
+    row untouched and let ``create_content``'s dedup path reuse it (same-bytes
+    dedup is unchanged).
+    """
+    existing = session.scalars(
+        select(AssetContent).where(
+            AssetContent.path == locator,
+            AssetContent.is_missing.is_(False),
+        )
+    ).first()
+    if existing is not None and existing.hash != new_hash:
+        mark_content_missing(session, existing.id)
+
+
 def register_file_in_place(
     abs_path: str,
     name: str,
@@ -367,6 +391,7 @@ def register_file_in_place(
             return _record_to_upload_result(session, record, created_new=True)
 
     with create_session() as session:
+        _retire_stale_live_content(session, locator, stored_hash)
         content = create_content(
             session, locator, stored_hash, size_bytes, mtime_ns
         )
