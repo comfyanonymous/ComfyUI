@@ -1,3 +1,5 @@
+import time as _time
+
 import pytest
 
 
@@ -10,7 +12,6 @@ def test_missing_content_disappears_from_list_after_rm(
     )
     next((comfy_tmp_base_dir / "output").glob("*.png")).unlink()
 
-    import time as _time
     response = None
     for _attempt in range(5):
         response = http.post(

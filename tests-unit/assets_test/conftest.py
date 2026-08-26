@@ -13,6 +13,8 @@ from typing import Callable, Iterator, Optional
 import pytest
 import requests
 
+from .helpers import assert_hash_fields_consistent
+
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     """
@@ -272,7 +274,6 @@ def seeded_asset(request: pytest.FixtureRequest, http: requests.Session, api_bas
     r = http.post(api_base + "/api/assets", files=files, data=form_data, timeout=120)
     body = r.json()
     assert r.status_code == 201, body
-    from .helpers import assert_hash_fields_consistent
     assert_hash_fields_consistent(body)
     return body
 

@@ -29,11 +29,21 @@ import json
 import sqlite3
 import time
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
 import pytest
 import requests
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session as SASession
+
+import app.assets.mode as mode_module
+import folder_paths
+from app.assets.database.models import AssetContent, Base
+from app.assets.services.ingest import register_executed_output
+
+from .helpers import trigger_sync_seed_assets
 
 # --------------------------------------------------------------------------- #
 # DB access helpers (read the subprocess's sqlite file directly, read-only)
@@ -192,8 +202,6 @@ def test_seeded_file_not_hashed_in_on_mode(
             "scanner hashing gate only observable with the hashing flag OFF; "
             "a full-suite run forces the shared server into hash mode"
         )
-    from .helpers import trigger_sync_seed_assets
-
     db_path = _db_path(comfy_tmp_base_dir, request)
     ckpt_dir = comfy_tmp_base_dir / "models" / "checkpoints"
     ckpt_dir.mkdir(parents=True, exist_ok=True)
@@ -225,15 +233,6 @@ def test_output_not_hashed_in_on_mode(monkeypatch):
     the DB pointed at an in-memory engine. This is deterministic regardless of
     the shared subprocess's mode.
     """
-    from contextlib import contextmanager
-
-    from sqlalchemy import create_engine, select
-    from sqlalchemy.orm import Session as SASession
-
-    import app.assets.mode as mode_module
-    import folder_paths
-    from app.assets.database.models import AssetContent, Base
-
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
 
@@ -246,8 +245,6 @@ def test_output_not_hashed_in_on_mode(monkeypatch):
     monkeypatch.setattr(
         "app.assets.services.ingest.create_session", _fake_create_session
     )
-
-    from app.assets.services.ingest import register_executed_output
 
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)

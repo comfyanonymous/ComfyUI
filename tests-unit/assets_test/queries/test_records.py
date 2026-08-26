@@ -83,9 +83,6 @@ def test_preview_cleanup_on_delete(session):
 
 def test_concurrent_create_content_same_path(tmp_path):
     """Concurrent inserts for the same live path: exactly one live row wins."""
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import Session
-
     db_path = str(tmp_path / "concurrent.db")
     engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
     Base.metadata.create_all(engine)

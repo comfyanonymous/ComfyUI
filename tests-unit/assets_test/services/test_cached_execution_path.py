@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 from sqlalchemy import event, select
 
+import folder_paths
 from app.assets.database.models import Asset, AssetContent
 from comfy_execution.asset_enrichment import (
     register_cached_outputs,
@@ -33,8 +34,6 @@ def _assets_enabled(enabled: bool = True):
 
 
 def _write_output_file(name: str) -> Path:
-    import folder_paths
-
     path = Path(folder_paths.get_output_directory()) / name
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"cached output")

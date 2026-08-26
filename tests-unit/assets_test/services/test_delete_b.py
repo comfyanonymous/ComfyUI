@@ -2,8 +2,9 @@
 import os
 
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import update
 
+import folder_paths
 from app.assets.database.models import Asset, AssetContent
 from app.assets.database.queries.records import (
     create_content,
@@ -62,8 +63,6 @@ def test_missing_content_record_deletable(mock_create_session, session):
 
 
 def test_reregister_same_path_fresh_ids(mock_create_session, monkeypatch):
-    import folder_paths
-
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
     f = os.path.join(output_dir, "test_delete_reregister.png")

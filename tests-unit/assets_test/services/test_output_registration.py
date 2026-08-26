@@ -17,6 +17,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
+import folder_paths
 from sqlalchemy import select
 
 from app.assets.database.models import Asset, AssetContent
@@ -37,8 +38,6 @@ def _assets_enabled(enabled: bool = True):
 
 
 def _write_output_file(name: str, data: bytes) -> Path:
-    import folder_paths
-
     path = Path(folder_paths.get_output_directory()) / name
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)

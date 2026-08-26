@@ -3,18 +3,25 @@ from __future__ import annotations
 import json
 import os
 import uuid
+from contextlib import contextmanager
 from unittest.mock import AsyncMock
 
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import make_mocked_request
 from sqlalchemy import func, select
+from sqlalchemy.orm import Session as SASession
 
+from app.assets import mode
+from app.assets.api import routes
 import app.assets.mode as mode_module
+import folder_paths
 from app.assets.database.models import Asset, AssetContent
 from app.assets.database.queries.records import create_record
 from app.assets.scanner import enrich_asset
 from app.assets.scanner_changes import recover_missing_content
+from app.assets.services import asset_management, ingest
+from app.assets.services.asset_management import get_asset_detail
 from app.assets.services.ingest import (
     HashMismatchError,
     upload_from_temp_path,
@@ -36,8 +43,6 @@ def hashing_on():
 
 
 def _write_temp(content: bytes) -> str:
-    import folder_paths
-
     uploads_root = os.path.join(
         folder_paths.get_temp_directory(), "uploads", uuid.uuid4().hex
     )
@@ -190,15 +195,6 @@ def test_recovery_matches_prefixed_stored_hash(session, temp_dir):
 async def test_all_read_surfaces_agree_on_prefixed_hash(
     db_engine, monkeypatch, hashing_on
 ):
-    from contextlib import contextmanager
-
-    from sqlalchemy.orm import Session as SASession
-
-    from app.assets import mode
-    from app.assets.api import routes
-    from app.assets.services import asset_management, ingest
-    from app.assets.services.asset_management import get_asset_detail
-
     @contextmanager
     def _factory():
         with SASession(db_engine) as sess:

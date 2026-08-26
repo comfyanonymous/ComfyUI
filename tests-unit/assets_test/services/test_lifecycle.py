@@ -1,13 +1,15 @@
 """Todo 16: startup/shutdown temp wipe ordering and failure behavior."""
-import os
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session as SASession
 
+from app.assets import lifecycle
 from app.assets.database.models import Asset, AssetContent, Base
 from app.assets.database.queries.records import create_content, create_record
 from app.assets.lifecycle import (
@@ -19,12 +21,11 @@ from app.assets.lifecycle import (
     wipe_temp_db_rows,
 )
 from app.assets.scanner import get_temp_prefixes, sync_temp_references_safely
+from app.assets.seeder import asset_seeder
 
 
 @pytest.fixture(autouse=True)
 def autoclean_unit_test_assets():
-    from app.assets import lifecycle
-
     lifecycle._excluded_scan_roots.clear()
     yield
     lifecycle._excluded_scan_roots.clear()
@@ -40,9 +41,6 @@ def session():
 
 @pytest.fixture
 def mock_create_session(session):
-    from contextlib import contextmanager
-    from sqlalchemy.orm import Session as SASession
-
     engine = session.bind
 
     @contextmanager
@@ -163,8 +161,6 @@ def test_rmtree_failure_excludes_temp_from_scan(session, comfy_dirs, mock_create
 
 def test_shutdown_skips_cleanup_when_seeder_join_times_out(session, comfy_dirs, mock_create_session, caplog):
     record_id, _ = _seed_temp_rows(session, comfy_dirs)
-
-    from app.assets.seeder import asset_seeder
 
     with patch("app.assets.lifecycle.wipe_temp_db_rows") as wipe_mock:
         with patch.object(asset_seeder, "shutdown", return_value=False):

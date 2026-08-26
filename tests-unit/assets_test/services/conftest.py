@@ -1,11 +1,11 @@
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
-import tempfile
 from unittest.mock import patch
 
 import pytest
 from sqlalchemy import create_engine, event
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, Session as SASession
 
 from app.assets.database.models import Base
 
@@ -49,9 +49,6 @@ def session(db_engine):
 @pytest.fixture
 def mock_create_session(db_engine):
     """Patch create_session to use our in-memory database."""
-    from contextlib import contextmanager
-    from sqlalchemy.orm import Session as SASession
-
     @contextmanager
     def _create_session():
         with SASession(db_engine) as sess:

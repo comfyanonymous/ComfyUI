@@ -2,13 +2,13 @@ import os
 
 from sqlalchemy import event, select
 
+import folder_paths
 from app.assets.database.models import Asset, AssetContent
+from app.assets.database.queries.records import mark_content_missing
+from app.assets.services.ingest import register_cached_output, register_executed_output
 
 
 def test_cached_save_creates_delivery_record(mock_create_session, db_engine):
-    import folder_paths
-    from app.assets.services.ingest import register_cached_output, register_executed_output
-
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
     path = os.path.join(output_dir, "test_cached_save.png")
@@ -48,10 +48,6 @@ def test_cached_save_against_missing_content_is_nonevent(mock_create_session):
     no longer falls back to a fresh executed registration - it returns None and
     creates nothing, leaving only the original (now-missing) content row.
     """
-    import folder_paths
-    from app.assets.database.queries.records import mark_content_missing
-    from app.assets.services.ingest import register_cached_output, register_executed_output
-
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
     path = os.path.join(output_dir, "test_cached_save_missing.png")

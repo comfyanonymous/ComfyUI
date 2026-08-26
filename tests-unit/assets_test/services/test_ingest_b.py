@@ -5,7 +5,9 @@ import pytest
 from sqlalchemy import select
 
 import app.assets.mode as mode_module
+import folder_paths
 from app.assets.database.models import Asset, AssetContent
+from app.assets.services.ingest import register_executed_output
 
 
 @pytest.fixture(autouse=True)
@@ -20,9 +22,6 @@ def hashing_off():
 
 def test_new_path_save_off_mode_hash_null(mock_create_session):
     """New file registered in off mode: content row has hash=NULL."""
-    import folder_paths
-    from app.assets.services.ingest import register_executed_output
-
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
     f = os.path.join(output_dir, "test_ingest_b_new.png")
@@ -49,9 +48,6 @@ def test_new_path_save_off_mode_hash_null(mock_create_session):
 
 def test_overwrite_at_live_path_marks_old_missing(mock_create_session):
     """Overwriting a live path marks the old content row missing; old record's job_id unchanged."""
-    import folder_paths
-    from app.assets.services.ingest import register_executed_output
-
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
     f = os.path.join(output_dir, "test_ingest_b_overwrite.png")
