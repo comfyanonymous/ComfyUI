@@ -46,6 +46,7 @@ def render(tmp_path):
     folder_paths.set_temp_directory(str(tmp_path))
 
     def _render(loss_values):
+        """Render one series and return the rows its blue plot occupies."""
         result = LossGraphNode.execute(
             loss={"loss": loss_values}, filename_prefix="loss_graph"
         )
@@ -54,10 +55,12 @@ def render(tmp_path):
         assert written, "node did not write a preview image"
         image = Image.open(written[0]).convert("RGB")
         width, _ = image.size
+        # tobytes() rather than getdata(), which Pillow 14 removes.
+        raw = image.tobytes()
         rows = {
-            index // width
-            for index, (r, g, b) in enumerate(image.getdata())
-            if b > 200 and r < 100 and g < 100
+            (offset // 3) // width
+            for offset in range(0, len(raw), 3)
+            if raw[offset + 2] > 200 and raw[offset] < 100 and raw[offset + 1] < 100
         }
         return sorted(rows)
 
@@ -99,3 +102,36 @@ def test_varying_series_still_spans_the_plot(render):
     rows = render([3.0, 2.0, 1.0])
     assert min(rows) <= 2, "highest loss should reach the top of the plot"
     assert max(rows) >= HEIGHT - 2, "lowest loss should reach the bottom"
+
+
+def test_single_step_run_draws_a_visible_marker(render):
+    """A one-point series has no segment to draw, so the plot would come back
+    empty -- the node marks the single sample instead.
+
+    Empty output is not much better than a crash for the case this node exists
+    to cover: a steps=1 run is done precisely to look at the result.
+    """
+    rows = render([3.1607])
+    assert rows, "a single-step run must still plot something"
+    assert abs(sum(rows) / len(rows) - HEIGHT / 2) <= 2
+
+
+@pytest.mark.parametrize(
+    "loss_values",
+    [
+        [float("nan"), float("nan")],
+        [float("inf"), float("inf")],
+        [3.0, float("nan"), 1.0],
+        [3.0, float("inf")],
+    ],
+    ids=["all-nan", "all-inf", "one-nan", "one-inf"],
+)
+def test_non_finite_series_is_refused_by_name(render, loss_values):
+    """A diverged run must not be drawn as a healthy flat line.
+
+    NaN fails every comparison, so min, max and the range are all NaN, the
+    range is not > 0, and the series would otherwise fall into the constant
+    branch and render flat -- reporting a diverged run as a stable one.
+    """
+    with pytest.raises(ValueError, match="non-finite"):
+        render(loss_values)
