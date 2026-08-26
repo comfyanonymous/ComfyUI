@@ -472,7 +472,7 @@ def enrich_asset(
             dims = extract_image_dimensions(file_path, mime_type=mime_type)
             if dims:
                 system_metadata.update(dims)
-        record.system_metadata = system_metadata
+        record.system_metadata = {**(record.system_metadata or {}), **system_metadata}
 
     if full_hash:
         content.hash = full_hash
