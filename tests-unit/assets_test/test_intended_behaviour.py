@@ -1,18 +1,23 @@
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from app.assets.database.models import Base
+from app.assets.database.models import AssetContent, Base
 from app.assets.database.queries import (
     create_content,
     create_record,
     delete_record,
     fetch_record_tags,
+    get_record_by_id,
     mark_content_missing,
     rename_record,
 )
+from app.assets.database.queries.records import get_record_by_path_or_none
+from app.assets.scanner_admission import _should_skip_extension
+from app.assets.services.lookup import lookup_for_upload_dedup
 
 
 @pytest.fixture
@@ -21,11 +26,6 @@ def session():
     Base.metadata.create_all(engine)
     with Session(engine) as database_session:
         yield database_session
-
-
-@pytest.fixture(params=[False, True], ids=["hash-off", "hash-on"])
-def hashing_mode(request):
-    return request.param
 
 
 def _record(session, path: Path, name: str, hash_value: str | None = None):
@@ -48,9 +48,10 @@ def test_scenario_2_edit_split(session, tmp_path):
     mark_content_missing(session, old.content_id)
     path.write_bytes(b"new")
     new = _record(session, path, "new")
-    old_id_content_read = 404
-    assert old_id_content_read == 404
     assert old.content_id != new.content_id
+    assert old.content.is_missing is True
+    assert new.content.is_missing is False
+    assert get_record_by_path_or_none(session, str(path)).id == new.id
 
 
 def test_scenario_3_path_reuse_convergence(session, tmp_path):
@@ -59,6 +60,8 @@ def test_scenario_3_path_reuse_convergence(session, tmp_path):
     mark_content_missing(session, old.content_id)
     new = _record(session, tmp_path / "same.bin", "new")
     assert old.content_id != new.content_id
+    assert old.content.is_missing is True
+    assert new.content.is_missing is False
 
 
 def test_scenario_4_delete_no_revival(session, tmp_path):
@@ -75,13 +78,16 @@ def test_scenario_5_rename_always(session):
     assert rename_record(session, second.id, "same").name == first.name
 
 
-def test_scenario_6_upload_dedup(session, tmp_path, hashing_mode):
+def test_scenario_6_upload_dedup(session, tmp_path):
     """Ruling 6: only hash mode permits upload deduplication."""
     path = tmp_path / "upload.bin"
     path.write_bytes(b"bytes")
-    first = _record(session, path, "upload", "digest" if hashing_mode else None)
-    second = first if hashing_mode else _record(session, path.with_name("upload-2.bin"), "upload")
-    assert (first.id == second.id) is hashing_mode
+    record = _record(session, path, "upload", "digest")
+    assert lookup_for_upload_dedup(session, "digest", "upload").id == record.id
+    shared = lookup_for_upload_dedup(session, "digest", "renamed")
+    assert isinstance(shared, AssetContent)
+    assert shared.id == record.content_id
+    assert lookup_for_upload_dedup(session, "absent", "upload") is None
 
 
 def test_scenario_7_same_bytes_new_name(session, tmp_path):
@@ -89,23 +95,39 @@ def test_scenario_7_same_bytes_new_name(session, tmp_path):
     path = tmp_path / "bytes.bin"
     path.write_bytes(b"bytes")
     content = create_content(session, str(path), hash="digest")
-    assert create_record(session, content.id, "one").id != create_record(session, content.id, "two").id
+    one = create_record(session, content.id, "one")
+    two = create_record(session, content.id, "two")
+    assert one.id != two.id
+    assert one.content_id == two.content_id == content.id
+    assert {one.name, two.name} == {"one", "two"}
 
 
 def test_scenario_8_diff_bytes_same_name(session, tmp_path):
     """Ruling 8: different bytes may share a display name."""
-    assert _record(session, tmp_path / "one", "same").name == _record(session, tmp_path / "two", "same").name
+    a = _record(session, tmp_path / "one", "same")
+    b = _record(session, tmp_path / "two", "same")
+    assert a.id != b.id
+    assert a.name == b.name == "same"
+    assert a.content_id != b.content_id
 
 
 def test_scenario_9_equal_hashes_no_merge(session, tmp_path):
     """Ruling 9: equal hashes never impose content uniqueness."""
-    assert _record(session, tmp_path / "one", "one", "digest").content_id != _record(session, tmp_path / "two", "two", "digest").content_id
+    a = _record(session, tmp_path / "one", "one", "digest")
+    b = _record(session, tmp_path / "two", "two", "digest")
+    assert a.content_id != b.content_id
+    assert a.content.hash == b.content.hash == "digest"
+    assert a.content.is_missing is False
+    assert b.content.is_missing is False
 
 
 def test_scenario_10_cached_delivery_record(session, tmp_path):
     """Ruling 10: cached delivery creates another record for existing content."""
     content = create_content(session, str(tmp_path / "cached"))
-    assert create_record(session, content.id, "one").id != create_record(session, content.id, "two").id
+    one = create_record(session, content.id, "one")
+    two = create_record(session, content.id, "two")
+    assert one.id != two.id
+    assert one.content_id == two.content_id == content.id
 
 
 def test_scenario_11_restart_survival(tmp_path):
@@ -130,7 +152,11 @@ def test_scenario_12_temp_wipe_both_layers(session, tmp_path):
 
 def test_scenario_15_two_locations_hash_relation(session, tmp_path):
     """Ruling 15: locations retain separate rows even with equal hashes."""
-    assert _record(session, tmp_path / "a", "a", "digest").content_id != _record(session, tmp_path / "b", "b", "digest").content_id
+    a = _record(session, tmp_path / "a", "a", "digest")
+    b = _record(session, tmp_path / "b", "b", "digest")
+    assert a.content_id != b.content_id
+    assert a.content.hash == b.content.hash == "digest"
+    assert a.content.path != b.content.path
 
 
 def test_scenario_17_move_is_missing_plus_new(session, tmp_path):
@@ -139,22 +165,38 @@ def test_scenario_17_move_is_missing_plus_new(session, tmp_path):
     mark_content_missing(session, old.content_id)
     new = _record(session, tmp_path / "new", "new")
     assert old.content_id != new.content_id
+    assert old.content.is_missing is True
+    assert new.content.is_missing is False
+    assert "missing" in fetch_record_tags(session, old.id)
 
 
 def test_scenario_18_edit_during_hash_discard(session, tmp_path):
     """Ruling 18: unstable hashing must not overwrite a content identity."""
     record = _record(session, tmp_path / "unstable", "unstable")
-    assert record.content.hash is None
+    content_id = record.content_id
+    again = create_content(session, str(tmp_path / "unstable"))
+    assert again.id == content_id
+    assert again.hash is None
 
 
-def test_scenario_20_partial_download(session, tmp_path):
+def test_scenario_20_partial_download(tmp_path):
     """Ruling 20: partial-download admission is separate from content creation."""
-    assert not (tmp_path / "model.safetensors.part").exists()
+    partial = tmp_path / "model.safetensors.part"
+    partial.write_bytes(b"partial")
+    complete = tmp_path / "model.safetensors"
+    complete.write_bytes(b"complete")
+    assert _should_skip_extension(str(partial)) is True
+    assert _should_skip_extension(str(complete)) is False
 
 
 def test_scenario_21_symlink_two_rows(session, tmp_path):
     """Ruling 21: lexical locations always retain separate content rows."""
-    assert _record(session, tmp_path / "link-a", "a").content_id != _record(session, tmp_path / "link-b", "b").content_id
+    a = _record(session, tmp_path / "link-a", "a")
+    b = _record(session, tmp_path / "link-b", "b")
+    assert a.content_id != b.content_id
+    assert a.content.path != b.content.path
+    assert a.content.is_missing is False
+    assert b.content.is_missing is False
 
 
 def test_scenario_25_registry_birth_fact(session, tmp_path):
@@ -165,7 +207,8 @@ def test_scenario_25_registry_birth_fact(session, tmp_path):
 
 def test_scenario_26_view_forms(session, tmp_path):
     """Ruling 26: record identity is stable for the canonical view form."""
-    assert _record(session, tmp_path / "view", "view").id
+    record = _record(session, tmp_path / "view", "view")
+    assert get_record_by_id(session, record.id).id == record.id
 
 
 def test_scenario_27_fail_closed_previews_fromhash(session, tmp_path):
@@ -177,4 +220,10 @@ def test_scenario_27_fail_closed_previews_fromhash(session, tmp_path):
 
 def test_scenario_28_temp_exclusion(session, tmp_path):
     """Ruling 28: a temporary location cannot become permanent shared content."""
-    assert _record(session, tmp_path / "temp", "temp").content.is_missing is False
+    path = tmp_path / "temp.bin"
+    path.write_bytes(b"bytes")
+    record = _record(session, path, "temp", "digest")
+    with patch("app.assets.services.lookup.is_temp_path", return_value=True):
+        assert lookup_for_upload_dedup(session, "digest", "temp") is None
+    with patch("app.assets.services.lookup.is_temp_path", return_value=False):
+        assert lookup_for_upload_dedup(session, "digest", "temp").id == record.id
