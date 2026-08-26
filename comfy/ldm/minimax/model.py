@@ -303,7 +303,7 @@ class FinalLayer(nn.Module):
         self.video_out = operations.Linear(hidden, video_dim, bias=True, dtype=torch.float32, device=device)
         self.audio_out = operations.Linear(hidden, audio_dim, bias=True, dtype=torch.float32, device=device)
 
-    def forward(self, x, t_emb, video_seg, audio_seg):
+    def forward(self, x, t_emb, video_seg, audio_seg, sigma, sample_sigmas, shifts):
         # video_seg / audio_seg: (start, stop, row) of the target streams, where row
         # is a mod-row index or a per-token blend (see _mod_row)
         shift, scale = self.adaln_proj(t_emb)
@@ -312,7 +312,31 @@ class FinalLayer(nn.Module):
             a, b, row = seg
             return (self.norm(x[a:b]) * (1.0 + _mod_row(scale, row, scale.dtype)) + _mod_row(shift, row, shift.dtype)).to(torch.float32)
 
-        return self.video_out(mod(video_seg)), self.audio_out(mod(audio_seg))
+        n = self.video_out.weight.shape[0] // self.video_out.out_features
+        if n == 1:
+            return self.video_out(mod(video_seg)), self.audio_out(mod(audio_seg))
+
+        # PDD head bank: one head per interval of the base time grid. The step to the sampler's
+        # next sigma consumes the dt-weighted mean of the heads it spans, the block's mean velocity.
+        if sample_sigmas is None:
+            raise ValueError("MiniMax H3 PDD heads need the sampler's sigma schedule")
+        i = int((sample_sigmas - sigma).abs().argmin())
+        sigma_next = sample_sigmas[min(i + 1, sample_sigmas.shape[0] - 1)]
+        start, stop = (round(float(1.0 - time_shift_sigma(s, shifts[0], 1.0)) * n) for s in (sigma, sigma_next))
+        stop = max(stop, start + 1)
+        return (_pdd_head(self.video_out, mod(video_seg), n, start, stop, shifts[0]),
+                _pdd_head(self.audio_out, mod(audio_seg), n, start, stop, shifts[1]))
+
+
+def _pdd_head(head, h, n, start, stop, flow_shift):
+    grid = torch.linspace(1.0, 0.0, n + 1, dtype=torch.float64)
+    dt = (1.0 - flow_shift * grid / (1.0 + (flow_shift - 1.0) * grid)).diff()[start:stop]
+    w = (dt / dt.sum()).to(h)
+    weight, bias, offload_stream = comfy.ops.cast_bias_weight(head, h, offloadable=True)
+    out = nn.functional.linear(h, torch.einsum("n,noi->oi", w, weight.reshape(n, -1, weight.shape[1])[start:stop]),
+                               torch.einsum("n,no->o", w, bias.reshape(n, -1)[start:stop]))
+    comfy.ops.uncast_bias_weight(head, weight, bias, offload_stream)
+    return out
 
 
 class PackedLayout:
@@ -723,7 +747,7 @@ class MiniMaxH3Model(nn.Module):
             audio_seg = (aa, ab, rows_to_mod_index(audio_rows_t, 0) // 3)
         else:
             audio_seg = (aa, ab, t_row[seg_t["audio"]])
-        v, a = self.final_layer(h, t_emb, video_seg, audio_seg)
+        v, a = self.final_layer(h, t_emb, video_seg, audio_seg, sigma_v, transformer_options.get("sample_sigmas"), (shift_v, shift_a))
 
         video_out = unpatchify_video(v, latent_t, lat_h // 2, lat_w // 2, self.latents_dim, self.patch_size)
         video_out = video_out[:, :, :orig_t, :orig_h, :orig_w]
