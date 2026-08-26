@@ -31,6 +31,7 @@ import faulthandler
 import logging
 import signal
 import sys
+import comfy.browser
 from comfy_execution.progress import get_progress_state
 from comfy_execution.utils import get_executing_context
 from comfy_api import feature_flags
@@ -572,7 +573,6 @@ def start_comfyui(asyncio_loop=None):
 
             url = f"{scheme}://{address}:{port}"
             
-            import comfy.browser
             comfy.browser.open_browser(
                 url,
                 browser_path=args.browser_path,
