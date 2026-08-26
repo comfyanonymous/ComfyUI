@@ -7,11 +7,11 @@ import os
 import shutil
 
 import folder_paths
-from sqlalchemy import or_, select
+from sqlalchemy import select
 
 from app.assets.database.models import Asset, AssetContent
 from app.assets.database.queries.records import delete_record
-from app.assets.helpers import escape_sql_like_string
+from app.assets.helpers import sql_path_under_prefix
 from app.assets.services.hash_mode_state import drain_transition_queue
 from app.assets.services.hash_mode_state import enqueue_transition_work
 from app.assets.services.hash_mode_state import record_transition_intent
@@ -59,15 +59,10 @@ def wipe_temp_db_rows(session) -> tuple[int, int]:
         # Matches is_temp_path's OSError guard: an unresolvable temp dir means
         # no row is a temp row, so wipe nothing and let the sweep proceed.
         return 0, 0
-    base = temp_root if temp_root.endswith(os.sep) else temp_root + os.sep
-    escaped, esc = escape_sql_like_string(base)
-    # Push temp filtering into SQL. ``path == temp_root OR path LIKE <temp>/%``
-    # reproduces is_temp_path's Path.is_relative_to, replacing two full-table
-    # scans (plus a per-row relationship load) at every startup and shutdown.
-    under_temp = or_(
-        AssetContent.path == temp_root,
-        AssetContent.path.like(escaped + "%", escape=esc),
-    )
+    # Filtering in SQL replaces two full-table scans at every startup/shutdown.
+    # These rows are hard-deleted, so the predicate must stay case-SENSITIVE:
+    # admitting a case-different persistent directory destroys user assets.
+    under_temp = sql_path_under_prefix(AssetContent.path, temp_root)
 
     temp_record_ids = list(
         session.scalars(

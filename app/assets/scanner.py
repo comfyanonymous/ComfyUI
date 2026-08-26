@@ -14,7 +14,7 @@ from app.assets.database.queries import (
     create_record,
 )
 from app.assets.database.models import Asset, AssetContent
-from app.assets.helpers import escape_sql_like_string, to_stored_hash
+from app.assets.helpers import sql_path_under_prefix, to_stored_hash
 from app.assets.lifecycle import get_excluded_scan_roots
 from app.assets.scanner_changes import (
     clear_pending_verifications,
@@ -416,18 +416,16 @@ def get_unenriched_assets_for_roots(
             )
         else:
             query = query.where(Asset.system_metadata.is_(None))
-        # Push the prefix filter and the LIMIT into SQL. Matching a directory
-        # prefix as ``path LIKE <prefix>/%`` reproduces is_path_under_prefixes'
-        # is_relative_to semantics (a child path, not a mere lexical prefix), so
-        # the seeder no longer materialises the whole table per 100-row batch.
-        prefix_conditions = []
-        for prefix in prefixes:
-            base = os.path.abspath(prefix)
-            if not base.endswith(os.sep):
-                base += os.sep
-            escaped, esc = escape_sql_like_string(base)
-            prefix_conditions.append(AssetContent.path.like(escaped + "%", escape=esc))
-        query = query.where(sa.or_(*prefix_conditions))
+        # Push the prefix filter and the LIMIT into SQL so the seeder no longer
+        # materialises the whole table per 100-row batch. The predicate must
+        # agree with is_path_under_prefixes exactly: rows it admits get enriched
+        # and mutated, and it runs before LIMIT, so an over-match both touches
+        # rows outside the root and displaces legitimate candidates.
+        query = query.where(
+            sa.or_(
+                *(sql_path_under_prefix(AssetContent.path, p) for p in prefixes)
+            )
+        )
         rows = sess.execute(query.order_by(Asset.id).limit(limit)).all()
 
     return [

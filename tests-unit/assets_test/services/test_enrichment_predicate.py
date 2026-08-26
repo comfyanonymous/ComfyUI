@@ -24,6 +24,8 @@ from app.assets.database.queries import create_content, create_record
 from app.assets.scanner import get_unenriched_assets_for_roots
 from app.assets.scanner_changes import is_path_under_prefixes
 
+from .path_prefix_cases import prefix_case_paths
+
 
 @contextmanager
 def _reuse_session(session: Session) -> Iterator[Session]:
@@ -183,3 +185,69 @@ def test_prefix_filter_matches_is_path_under_prefixes(
     assert is_path_under_prefixes(sibling_path, [prefix]) is False
     assert inside.id in returned
     assert sibling.id not in returned
+
+
+def _seed_paths(session: Session, paths: list[str]) -> dict[str, str]:
+    by_record: dict[str, str] = {}
+    for index, path in enumerate(paths):
+        content = create_content(session, path, hash=None)
+        record = create_record(session, content.id, f"case-{index}.safetensors")
+        by_record[record.id] = path
+    session.commit()
+    return by_record
+
+
+def _candidate_paths(session: Session, prefix: str) -> set[str]:
+    with (
+        patch("app.assets.scanner.create_session", lambda: _reuse_session(session)),
+        patch(
+            "app.assets.scanner.get_scan_prefixes_for_root",
+            return_value=[prefix],
+        ),
+    ):
+        rows = get_unenriched_assets_for_roots(("models",), compute_hashes=False)
+    return {row.file_path for row in rows}
+
+
+def test_prefix_filter_result_set_equals_python_predicate(
+    session: Session, temp_dir: Path
+) -> None:
+    """The strongest form: SQL selection == is_path_under_prefixes, path for path.
+
+    Covers the case-different sibling (``<root>`` vs ``<ROOT>``) that SQLite's
+    case-insensitive ``LIKE`` wrongly admitted, the exact-root path that a bare
+    ``<root>/%`` prefix wrongly dropped, and a child holding LIKE/GLOB
+    metacharacters.
+    """
+    # Given one unenriched record for every relation a path can have to the root
+    root = str(temp_dir / "root")
+    paths = prefix_case_paths(root)
+    by_record = _seed_paths(session, paths)
+
+    # When enrichment candidates are queried for that root
+    returned = _candidate_paths(session, root)
+
+    # Then the SQL result set is exactly what the Python predicate accepts
+    expected = {p for p in by_record.values() if is_path_under_prefixes(p, [root])}
+    assert returned == expected
+    # ... and the table really did exercise both outcomes
+    assert expected and expected != set(paths)
+
+
+def test_prefix_holding_metacharacters_matches_only_literal_children(
+    session: Session, temp_dir: Path
+) -> None:
+    """A root containing ``_ % * ? [`` must match literally, never as wildcards."""
+    # Given a root whose own name holds LIKE and GLOB metacharacters, plus a
+    # decoy that only matches if those characters are treated as wildcards
+    root = str(temp_dir / "a_b%c*d?e[f")
+    inside_path = os.path.join(root, "inside.safetensors")
+    decoy_path = os.path.join(str(temp_dir), "aXbYcZdWeQf", "decoy.safetensors")
+    _seed_paths(session, [inside_path, decoy_path])
+
+    # When enrichment candidates are queried for that root
+    returned = _candidate_paths(session, root)
+
+    # Then only the literal child is a candidate
+    assert is_path_under_prefixes(decoy_path, [root]) is False
+    assert returned == {inside_path}

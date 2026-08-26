@@ -22,7 +22,10 @@ from app.assets.lifecycle import (
     wipe_temp_db_rows,
 )
 from app.assets.scanner import get_temp_prefixes, sync_temp_references_safely
+from app.assets.scanner_changes import is_path_under_prefixes
 from app.assets.seeder import asset_seeder
+
+from .path_prefix_cases import prefix_case_paths
 
 
 @pytest.fixture(autouse=True)
@@ -245,3 +248,60 @@ def test_wipe_temp_db_rows_preserves_non_temp_rows(session, comfy_dirs):
     assert session.get(AssetContent, temp_content_id) is None
     assert session.get(Asset, keep_record.id) is not None
     assert session.get(AssetContent, keep_content.id) is not None
+
+
+def _seed_paths(session: Session, paths: list[str]) -> None:
+    for index, path in enumerate(paths):
+        content = create_content(session, path=path)
+        create_record(session, content_id=content.id, name=f"case-{index}.png")
+    session.commit()
+
+
+def _surviving_paths(session: Session) -> set[str]:
+    return set(session.scalars(select(AssetContent.path)).all())
+
+
+def test_wipe_deletes_exactly_what_is_path_under_prefixes_accepts(session, comfy_dirs):
+    """The strongest form: the wiped set == is_path_under_prefixes, path for path.
+
+    The case-different row is the data-loss case. SQLite's ``LIKE`` is ASCII
+    case-insensitive, so ``'<base>/TEMP/case.png' LIKE '<base>/temp/%'`` is TRUE
+    and the wipe hard-deleted a real user directory's records and content at
+    every startup and shutdown.
+    """
+    # Given one record+content per way a stored path can relate to the temp root
+    temp_root = str(comfy_dirs)
+    paths = prefix_case_paths(temp_root)
+    _seed_paths(session, paths)
+
+    # When the temp wipe runs
+    records_deleted, contents_deleted = wipe_temp_db_rows(session)
+    session.commit()
+
+    # Then exactly the paths the Python predicate accepts were wiped ...
+    wiped = {p for p in paths if is_path_under_prefixes(p, [temp_root])}
+    assert _surviving_paths(session) == set(paths) - wiped
+    assert (records_deleted, contents_deleted) == (len(wiped), len(wiped))
+    # ... and the table really did exercise both outcomes
+    assert wiped and wiped != set(paths)
+    # ... including the case-different persistent directory, which must survive
+    case_different = os.path.join(
+        os.path.dirname(temp_root), os.path.basename(temp_root).upper(), "case.png"
+    )
+    assert case_different in _surviving_paths(session)
+
+
+def test_wipe_with_metacharacter_temp_root_matches_only_literal_children(session):
+    """A temp root containing ``_ % * ? [`` must match literally, never as wildcards."""
+    with tempfile.TemporaryDirectory() as base:
+        temp_root = os.path.join(base, "a_b%c*d?e[f")
+        inside = os.path.join(temp_root, "preview.png")
+        decoy = os.path.join(base, "aXbYcZdWeQf", "keep.safetensors")
+        _seed_paths(session, [inside, decoy])
+
+        with patch("folder_paths.get_temp_directory", return_value=temp_root):
+            wipe_temp_db_rows(session)
+        session.commit()
+
+    assert is_path_under_prefixes(decoy, [temp_root]) is False
+    assert _surviving_paths(session) == {decoy}

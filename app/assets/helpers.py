@@ -1,4 +1,34 @@
+import os
 from datetime import datetime, timezone
+
+import sqlalchemy as sa
+from sqlalchemy.sql import ColumnElement
+
+
+def sql_path_under_prefix(
+    column: ColumnElement[str], prefix: str
+) -> ColumnElement[bool]:
+    """SQL predicate for ``Path(column).is_relative_to(prefix)`` on this platform.
+
+    Case-SENSITIVE and component-bounded: prefix ``/a/b`` matches ``/a/b`` and
+    ``/a/b/c`` but not ``/a/bc``, ``/a/b-other`` or ``/a/B/c``.
+
+    ``LIKE`` cannot express this. SQLite's ``LIKE`` is ASCII case-insensitive by
+    default, so ``'/data/TEMP/f' LIKE '/data/temp/%'`` is TRUE — which let the
+    temp wipe hard-delete records under a case-different persistent directory,
+    and let the enrichment scan mutate rows outside the requested root.
+    ``GLOB`` is case-sensitive but carries its own metacharacters (``*``, ``?``,
+    ``[``) with no ESCAPE clause, so every caller would need bracket-quoting.
+    ``substr(column, 1, n) = <prefix>`` compares under the column's BINARY
+    collation and has no metacharacters at all, so a path containing ``%``,
+    ``_``, ``*``, ``?`` or ``[`` needs no escaping and cannot inject.
+    """
+    base = os.path.abspath(prefix)
+    stem = base if base.endswith(os.sep) else base + os.sep
+    return sa.or_(
+        column == base,
+        sa.func.substr(column, 1, len(stem)) == stem,
+    )
 
 
 def escape_sql_like_string(s: str, escape: str = "!") -> tuple[str, str]:
