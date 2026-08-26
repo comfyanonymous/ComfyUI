@@ -40,6 +40,25 @@ def get_record_by_id(session: Session, id: str) -> Asset | None:
     return session.get(Asset, id)
 
 
+def get_preview_file_paths_by_ids(
+    session: Session,
+    preview_ids: Sequence[str],
+) -> dict[str, str]:
+    """Map live preview asset ids to their content paths in one statement."""
+    if not preview_ids:
+        return {}
+
+    rows = session.execute(
+        sa.select(Asset.id, AssetContent.path)
+        .join(AssetContent, Asset.content_id == AssetContent.id)
+        .where(
+            Asset.id.in_(preview_ids),
+            AssetContent.is_missing.is_(False),
+        )
+    )
+    return {preview_id: path for preview_id, path in rows}
+
+
 def get_record_by_path_or_none(session: Session, path: str) -> Asset | None:
     return session.scalar(
         sa.select(Asset)

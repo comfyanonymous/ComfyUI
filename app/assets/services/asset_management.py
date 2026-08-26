@@ -19,21 +19,14 @@ from app.assets.database.queries import (
     delete_record,
     fetch_record_tags,
     get_record_by_id,
-    get_reference_paths_by_ids,
     fetch_reference_asset_and_tags,
     get_asset_by_hash as queries_get_asset_by_hash,
-    get_reference_by_id,
     get_reference_with_owner_check,
     list_references_page,
-    set_reference_metadata,
     set_reference_preview,
-    set_reference_tags,
-    update_asset_hash_and_mime,
     update_record_access_time,
-    update_reference_name,
-    update_reference_updated_at,
 )
-from app.assets.services.path_utils import compute_loader_path
+from app.assets.database.queries.records import get_preview_file_paths_by_ids
 from app.assets.helpers import normalize_tags
 from app.assets.services.schemas import (
     AssetData,
@@ -398,7 +391,7 @@ def get_preview_file_paths(preview_ids: list[str]) -> dict[str, str]:
     if not preview_ids:
         return {}
     with create_session() as session:
-        return get_reference_paths_by_ids(session, reference_ids=preview_ids)
+        return get_preview_file_paths_by_ids(session, preview_ids=preview_ids)
 
 
 def resolve_asset_for_download(
