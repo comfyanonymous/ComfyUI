@@ -71,7 +71,7 @@ def loop_projection(dynprompt, opener_id):
         class_type = dynprompt.get_node(node_id)["class_type"]
         next_scopes = scopes
         next_closed_scopes = closed_scopes
-        if class_type == "ForLoopOpen":
+        if class_type == "OpenLoop":
             next_scopes = (*scopes, node_id)
         elif class_type == "LoopVariable" and scopes and scopes[-1] == opener_id:
             variable_nodes.add(node_id)
@@ -91,7 +91,7 @@ def loop_projection(dynprompt, opener_id):
                 ready.append(child_id)
 
     if processed != len(reachable):
-        raise ValueError(f"For Loop {opener_id} contains a dependency cycle")
+        raise ValueError(f"Open Loop {opener_id} contains a dependency cycle")
 
     return projected, close_nodes, variable_nodes
 

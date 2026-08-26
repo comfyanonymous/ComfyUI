@@ -11,12 +11,12 @@ def close_state(execution_list, node_id):
     return state
 
 
-class ForLoopOpen(io.ComfyNode):
+class OpenLoop(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="ForLoopOpen",
-            display_name="For Loop",
+            node_id="OpenLoop",
+            display_name="Open Loop",
             category="looping",
             inputs=[
                 io.DynamicCombo.Input("mode", options=[
@@ -47,7 +47,7 @@ class ForLoopOpen(io.ComfyNode):
         else:
             step = mode.get("step", 1)
             if step == 0:
-                raise ValueError("ForLoopOpen step must not be 0")
+                raise ValueError("OpenLoop step must not be 0")
             values = list(range(mode.get("start_iteration", 0), mode.get("max_iteration", 4), step))
 
         dynprompt = cls.hidden.dynprompt
@@ -60,7 +60,7 @@ class ForLoopOpen(io.ComfyNode):
             projected_nodes.difference_update(close_nodes)
             nested_openers = {
                 node_id for node_id in projected_nodes
-                if dynprompt.get_node(node_id)["class_type"] == "ForLoopOpen"
+                if dynprompt.get_node(node_id)["class_type"] == "OpenLoop"
             }
             nested_links = []
             for node_id in projected_nodes.union(close_nodes):
@@ -200,7 +200,7 @@ class CloseLoop:
     def close(self, value, execution_list=None, unique_id=None):
         state = execution_list.get_projection_state(unique_id)
         if state is None or "values" not in state:
-            raise ValueError(f"Close Loop {unique_id} does not belong to a For Loop")
+            raise ValueError(f"Close Loop {unique_id} does not belong to an Open Loop")
         execution_list.clear_projection_state(unique_id)
         values = state["values"]
         return (values, values[-1] if values else None)
@@ -239,7 +239,7 @@ class LoopVariable:
     def current(self, initial_value, next_value, iteration, execution_list=None, unique_id=None):
         state = execution_list.get_projection_state(unique_id)
         if state is None:
-            raise ValueError(f"Loop Variable {unique_id} does not belong to a For Loop")
+            raise ValueError(f"Loop Variable {unique_id} does not belong to an Open Loop")
         return (state.get("value", initial_value),)
 
     @classmethod
@@ -254,13 +254,13 @@ class LoopVariable:
 
 
 NODE_CLASS_MAPPINGS = {
-    "ForLoopOpen": ForLoopOpen,
+    "OpenLoop": OpenLoop,
     "CloseLoop": CloseLoop,
     "LoopVariable": LoopVariable,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "ForLoopOpen": "For Loop",
+    "OpenLoop": "Open Loop",
     "CloseLoop": "Close Loop",
     "LoopVariable": "Loop Variable",
 }
