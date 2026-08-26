@@ -6,6 +6,7 @@ import mimetypes
 import os
 import urllib.parse
 import uuid
+from datetime import timezone
 from typing import Any
 
 from aiohttp import web
@@ -25,7 +26,14 @@ from app.assets.api.upload import (
     parse_multipart_upload,
 )
 from app.assets.database.models import Asset
-from app.assets.database.queries.records import fetch_record_tags, list_records_page
+from app.assets.database.queries.records import (
+    RecordCursorBoundary,
+    RecordPageSpec,
+    RecordSortField,
+    RecordSortOrder,
+    get_preview_file_paths_by_ids,
+    list_records_page,
+)
 from app.assets.seeder import ScanInProgressError, asset_seeder
 from app.assets.services import (
     DependencyMissingError,
@@ -44,6 +52,14 @@ from app.assets.services import (
     upload_from_temp_path,
 )
 from app.assets.services.path_utils import compute_asset_response_paths
+from app.assets.services.cursor import (
+    InvalidCursorError,
+    decode_cursor,
+    decode_cursor_int,
+    decode_cursor_time,
+    encode_cursor,
+    encode_cursor_from_time,
+)
 from app.assets.services.tagging import list_tag_histogram
 from app.database.db import create_session
 
@@ -51,6 +67,12 @@ ROUTES = web.RouteTableDef()
 USER_MANAGER: user_manager.UserManager | None = None
 _ASSETS_ENABLED = False
 SYSTEM_TAGS = frozenset({"missing"})
+_CURSOR_SORT_FIELDS: tuple[RecordSortField, ...] = (
+    "created_at",
+    "updated_at",
+    "name",
+    "size",
+)
 
 
 def _require_assets_feature_enabled(handler):
@@ -211,13 +233,22 @@ def _resolve_tag_filters(
     return all_list, tags_any, none_list
 
 
-def _validate_sort_field(requested: str | None) -> str:
+def _validate_sort_field(requested: str | None) -> RecordSortField:
     if not requested:
         return "created_at"
-    v = requested.lower()
-    if v in {"name", "created_at", "updated_at", "size", "last_access_time"}:
-        return v
-    return "created_at"
+    match requested.lower():
+        case "name":
+            return "name"
+        case "created_at":
+            return "created_at"
+        case "updated_at":
+            return "updated_at"
+        case "size":
+            return "size"
+        case "last_access_time":
+            return "last_access_time"
+        case _:
+            return "created_at"
 
 
 # What a client can render from the bytes themselves; anything else needs a nominated preview.
@@ -303,21 +334,24 @@ def _build_asset_response(
     )
 
 
-def _build_record_response(session, record: Asset) -> schemas_out.Asset:
+def _build_record_response(
+    record: Asset,
+    tags: list[str],
+    preview_paths: dict[str, str],
+) -> schemas_out.Asset:
     content = record.content
-    preview_url = None
     if record.preview_id:
-        preview = session.get(Asset, record.preview_id)
-        if preview is not None:
-            preview_url = _build_view_url(preview.content.path)
-    elif content is not None:
+        preview_url = _build_view_url(preview_paths.get(record.preview_id))
+    else:
         mime_type = record.mime_type or mimetypes.guess_type(content.path)[0] or ""
         if mime_type.split(";", 1)[0].strip().lower().startswith(
             PREVIEWABLE_MIME_PREFIXES
         ):
             preview_url = _build_view_url(content.path)
+        else:
+            preview_url = None
 
-    content_hash = content.hash if content is not None else None
+    content_hash = content.hash
     if content_hash is not None and not content_hash.startswith("blake3:"):
         content_hash = f"blake3:{content_hash}"
 
@@ -326,9 +360,9 @@ def _build_record_response(session, record: Asset) -> schemas_out.Asset:
         name=record.name,
         hash=content_hash,
         loader_path=record.loader_path,
-        size=content.size_bytes if content is not None else None,
+        size=content.size_bytes,
         mime_type=record.mime_type,
-        tags=fetch_record_tags(session, record.id),
+        tags=tags,
         preview_url=preview_url,
         preview_id=record.preview_id,
         user_metadata=record.user_metadata or {},
@@ -338,6 +372,69 @@ def _build_record_response(session, record: Asset) -> schemas_out.Asset:
         created_at=record.created_at,
         updated_at=record.updated_at,
         last_access_time=record.last_access_time,
+    )
+
+
+def _decode_record_cursor(
+    after: str | None,
+    sort: RecordSortField,
+    order: RecordSortOrder,
+) -> RecordCursorBoundary | None:
+    if after is None:
+        return None
+    if sort not in _CURSOR_SORT_FIELDS:
+        raise InvalidCursorError(
+            f"cursor pagination is not supported for sort={sort!r}"
+        )
+    payload = decode_cursor(
+        after,
+        _CURSOR_SORT_FIELDS,
+        expected_order=order,
+    )
+    if payload.sort_field != sort:
+        raise InvalidCursorError(
+            f"cursor sort field {payload.sort_field!r} does not match request sort {sort!r}"
+        )
+    match payload.sort_field:
+        case "created_at" | "updated_at":
+            value = decode_cursor_time(payload).replace(tzinfo=None)
+        case "size":
+            value = decode_cursor_int(payload)
+        case "name":
+            value = payload.value
+        case unsupported:
+            raise InvalidCursorError(f"unsupported sort field {unsupported!r}")
+    return RecordCursorBoundary(value=value, id=payload.id)
+
+
+def _encode_record_cursor(
+    record: Asset,
+    sort: RecordSortField,
+    order: RecordSortOrder,
+) -> str:
+    match sort:
+        case "name":
+            return encode_cursor("name", record.name, record.id, order=order)
+        case "size":
+            return encode_cursor(
+                "size",
+                str(record.content.size_bytes),
+                record.id,
+                order=order,
+            )
+        case "created_at":
+            timestamp = record.created_at
+        case "updated_at":
+            timestamp = record.updated_at
+        case "last_access_time":
+            raise InvalidCursorError(
+                "cursor pagination is not supported for sort='last_access_time'"
+            )
+    return encode_cursor_from_time(
+        sort,
+        timestamp.replace(tzinfo=timezone.utc),
+        record.id,
+        order=order,
     )
 
 
@@ -381,27 +478,57 @@ async def list_assets_route(request: web.Request) -> web.Response:
     except InvalidTagFilterError as e:
         return _build_error_response(400, "INVALID_TAG_FILTER", str(e), e.details)
 
-    if tags_any:
-        return _build_error_response(
-            400,
-            "INVALID_TAG_FILTER",
-            "tags_any is unavailable while records are paged directly.",
-        )
+    sort = _validate_sort_field(q.sort)
+    order = q.order
 
-    with create_session() as session:
-        records, next_cursor = list_records_page(
-            session,
-            cursor=q.after,
-            limit=q.limit,
-            include_tags=tags_all,
-            exclude_tags=tags_none,
-        )
-        summaries = [_build_record_response(session, record) for record in records]
+    try:
+        cursor_boundary = _decode_record_cursor(q.after, sort, order)
+        cursor_supported = sort in _CURSOR_SORT_FIELDS
+        fetch_limit = q.limit + 1 if cursor_supported else q.limit
+        with create_session() as session:
+            records, tag_map, total = list_records_page(
+                session,
+                RecordPageSpec(
+                    all_tags=tuple(tags_all),
+                    any_tags=tuple(tags_any),
+                    none_tags=tuple(tags_none),
+                    name_contains=q.name_contains,
+                    limit=fetch_limit,
+                    offset=q.offset,
+                    sort=sort,
+                    order=order,
+                    after=cursor_boundary,
+                ),
+            )
+            next_cursor = None
+            if cursor_supported and len(records) > q.limit:
+                records = records[: q.limit]
+                next_cursor = _encode_record_cursor(records[-1], sort, order)
+
+            preview_ids = sorted(
+                {record.preview_id for record in records if record.preview_id}
+            )
+            preview_paths = get_preview_file_paths_by_ids(session, preview_ids)
+            summaries = [
+                _build_record_response(
+                    record,
+                    tag_map.get(record.id, []),
+                    preview_paths,
+                )
+                for record in records
+            ]
+    except InvalidCursorError as e:
+        return _build_error_response(400, "INVALID_CURSOR", str(e))
+
+    if q.after is not None:
+        has_more = next_cursor is not None
+    else:
+        has_more = q.offset + len(summaries) < total
 
     payload = schemas_out.AssetsList(
         assets=summaries,
-        total=len(summaries),
-        has_more=next_cursor is not None,
+        total=total,
+        has_more=has_more,
         next_cursor=next_cursor,
     )
     return web.json_response(payload.model_dump(mode="json", exclude_none=True))

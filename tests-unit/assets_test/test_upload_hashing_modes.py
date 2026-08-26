@@ -193,7 +193,7 @@ def test_seeded_file_not_hashed_in_on_mode(
             "scanner hashing gate only observable with the hashing flag OFF; "
             "a full-suite run forces the shared server into hash mode"
         )
-    from helpers import trigger_sync_seed_assets
+    from .helpers import trigger_sync_seed_assets
 
     db_path = _db_path(comfy_tmp_base_dir, request)
     ckpt_dir = comfy_tmp_base_dir / "models" / "checkpoints"

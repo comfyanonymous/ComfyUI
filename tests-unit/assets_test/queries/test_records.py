@@ -5,13 +5,13 @@ from sqlalchemy.orm import Session
 
 from app.assets.database.models import Asset, AssetContent
 from app.assets.database.queries.records import (
+    RecordPageSpec,
     create_content,
     create_record,
     delete_record,
     get_record_by_id,
     list_records_page,
     mark_content_missing,
-    unset_content_missing,
 )
 from app.database.models import Base
 
@@ -24,25 +24,29 @@ def session():
         yield sess
 
 
-def test_listing_includes_missing_by_default(session):
-    """Missing-content records appear in unfiltered listings."""
+def test_listing_excludes_missing_by_default(session):
     content = create_content(session, path="/tmp/f1")
     record = create_record(session, content_id=content.id, name="test")
     mark_content_missing(session, content.id)
     session.commit()
 
-    results, _ = list_records_page(session)
-    assert any(r.id == record.id for r in results), "Missing record should appear in default listing"
+    results, _, total = list_records_page(session, RecordPageSpec())
+
+    assert not any(r.id == record.id for r in results)
+    assert total == 0
 
 
 def test_listing_excludes_missing_with_filter(session):
-    """exclude_tags=['missing'] hides missing-content records."""
     content = create_content(session, path="/tmp/f2")
     record = create_record(session, content_id=content.id, name="test2")
     mark_content_missing(session, content.id)
     session.commit()
 
-    results, _ = list_records_page(session, exclude_tags=["missing"])
+    results, _, _ = list_records_page(
+        session,
+        RecordPageSpec(none_tags=("missing",)),
+    )
+
     assert not any(r.id == record.id for r in results), "Missing record should be excluded"
 
 
@@ -87,10 +91,10 @@ def test_concurrent_create_content_same_path(tmp_path):
     Base.metadata.create_all(engine)
 
     with Session(engine) as s1, Session(engine) as s2:
-        c1 = create_content(s1, path="/tmp/shared")
+        create_content(s1, path="/tmp/shared")
         s1.commit()
         # Second session: same path — should get the winner back
-        c2 = create_content(s2, path="/tmp/shared")
+        create_content(s2, path="/tmp/shared")
         s2.commit()
 
     with Session(engine) as s:

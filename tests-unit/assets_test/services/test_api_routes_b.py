@@ -1,7 +1,9 @@
 import json
 from collections.abc import Callable
+from unittest.mock import AsyncMock
 
 import pytest
+from aiohttp import web
 from aiohttp.test_utils import make_mocked_request
 from sqlalchemy.orm import Session
 
@@ -14,20 +16,12 @@ from app.assets.database.queries.records import (
 )
 
 
-class _JsonRequest:
-    def __init__(self, payload: dict[str, str]) -> None:
-        self._payload = payload
-
-    async def json(self) -> dict[str, str]:
-        return self._payload
-
-
 def _session_factory(engine) -> Callable[[], Session]:
     return lambda: Session(engine)
 
 
 @pytest.mark.asyncio
-async def test_unfiltered_listing_contains_missing_entity(
+async def test_unfiltered_listing_excludes_missing_entity(
     db_engine, session, temp_dir, monkeypatch
 ):
     content = create_content(session, path=str(temp_dir / "missing.png"))
@@ -42,14 +36,18 @@ async def test_unfiltered_listing_contains_missing_entity(
     session.commit()
 
     monkeypatch.setattr(routes, "create_session", _session_factory(db_engine))
+    monkeypatch.setattr(routes, "_ASSETS_ENABLED", True)
 
-    response = await routes.list_assets_route.__wrapped__(
+    response = await routes.list_assets_route(
         make_mocked_request("GET", "/api/assets")
     )
 
-    body = json.loads(response.body)
-    asset = next(item for item in body["assets"] if item["id"] == record.id)
-    assert "missing" in asset["tags"]
+    assert isinstance(response, web.Response)
+    response_body = response.body
+    assert isinstance(response_body, bytes | bytearray)
+    body = json.loads(response_body)
+    assert record.id not in {item["id"] for item in body["assets"]}
+    assert body["total"] == 0
 
 
 @pytest.mark.asyncio
@@ -65,22 +63,30 @@ async def test_exclude_tags_missing_hides_it(db_engine, session, temp_dir, monke
     session.commit()
 
     monkeypatch.setattr(routes, "create_session", _session_factory(db_engine))
+    monkeypatch.setattr(routes, "_ASSETS_ENABLED", True)
 
-    response = await routes.list_assets_route.__wrapped__(
+    response = await routes.list_assets_route(
         make_mocked_request("GET", "/api/assets?exclude_tags=missing")
     )
 
-    body = json.loads(response.body)
+    assert isinstance(response, web.Response)
+    response_body = response.body
+    assert isinstance(response_body, bytes | bytearray)
+    body = json.loads(response_body)
     assert record.id not in {item["id"] for item in body["assets"]}
 
 
 @pytest.mark.asyncio
 async def test_from_hash_off_mode_returns_400(monkeypatch):
     monkeypatch.setattr(mode, "hashing_enabled", lambda: False)
+    monkeypatch.setattr(routes, "_ASSETS_ENABLED", True)
+    request = AsyncMock(spec=web.Request)
+    request.json.return_value = {"hash": f"blake3:{'a' * 64}"}
 
-    response = await routes.create_asset_from_hash_route.__wrapped__(
-        _JsonRequest({"hash": f"blake3:{'a' * 64}"})
-    )
+    response = await routes.create_asset_from_hash_route(request)
 
+    assert isinstance(response, web.Response)
     assert response.status == 400
-    assert json.loads(response.body)["error"]["code"] == "FEATURE_DISABLED"
+    response_body = response.body
+    assert isinstance(response_body, bytes | bytearray)
+    assert json.loads(response_body)["error"]["code"] == "FEATURE_DISABLED"

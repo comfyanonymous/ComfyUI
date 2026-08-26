@@ -2,13 +2,37 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime
+from typing import Literal, NamedTuple, TypeAlias
 
 import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, noload
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.assets.database.models import Asset, AssetContent, AssetTag, Tag
-from app.assets.helpers import get_utc_now
+from app.assets.helpers import escape_sql_like_string, get_utc_now
+
+RecordSortField: TypeAlias = Literal[
+    "name", "created_at", "updated_at", "size", "last_access_time"
+]
+RecordSortOrder: TypeAlias = Literal["asc", "desc"]
+
+
+class RecordCursorBoundary(NamedTuple):
+    value: datetime | int | str
+    id: str
+
+
+class RecordPageSpec(NamedTuple):
+    all_tags: tuple[str, ...] = ()
+    any_tags: tuple[str, ...] = ()
+    none_tags: tuple[str, ...] = ()
+    name_contains: str | None = None
+    limit: int = 20
+    offset: int = 0
+    sort: RecordSortField = "created_at"
+    order: RecordSortOrder = "desc"
+    after: RecordCursorBoundary | None = None
 
 
 def create_content(session: Session, path: str, hash: str | None = None, size_bytes: int = 0, mtime_ns: int | None = None) -> AssetContent:
@@ -97,16 +121,127 @@ def update_record_access_time(
     session.execute(stmt.values(last_access_time=ts))
 
 
-def list_records_page(session: Session, cursor: str | None = None, limit: int = 50, include_tags: Sequence[str] | None = None, exclude_tags: Sequence[str] | None = None) -> tuple[list[Asset], str | None]:
-    statement = sa.select(Asset).order_by(Asset.created_at.asc(), Asset.id.asc()).limit(limit)
-    if cursor is not None:
-        statement = statement.where(Asset.id > cursor)
-    for tag_name in include_tags or ():
-        statement = statement.where(sa.exists(sa.select(AssetTag.asset_id).where(AssetTag.asset_id == Asset.id, AssetTag.tag_name == tag_name)))
-    for tag_name in exclude_tags or ():
-        statement = statement.where(~sa.exists(sa.select(AssetTag.asset_id).where(AssetTag.asset_id == Asset.id, AssetTag.tag_name == tag_name)))
-    records = list(session.execute(statement).scalars())
-    return records, records[-1].id if len(records) == limit else None
+def live_asset_content_clause() -> ColumnElement[bool]:
+    """Join an Asset to its non-missing AssetContent row."""
+    return sa.and_(
+        Asset.content_id == AssetContent.id,
+        AssetContent.is_missing.is_(False),
+    )
+
+
+def build_record_tag_filter_clauses(
+    all_tags: Sequence[str],
+    any_tags: Sequence[str],
+    none_tags: Sequence[str],
+) -> tuple[ColumnElement[bool], ...]:
+    """Build correlated all/any/none AssetTag predicates for an Asset query."""
+    clauses: list[ColumnElement[bool]] = []
+    for tag_name in all_tags:
+        clauses.append(
+            sa.exists(
+                sa.select(AssetTag.asset_id).where(
+                    AssetTag.asset_id == Asset.id,
+                    AssetTag.tag_name == tag_name,
+                )
+            )
+        )
+    if any_tags:
+        clauses.append(
+            sa.exists(
+                sa.select(AssetTag.asset_id).where(
+                    AssetTag.asset_id == Asset.id,
+                    AssetTag.tag_name.in_(any_tags),
+                )
+            )
+        )
+    if none_tags:
+        clauses.append(
+            ~sa.exists(
+                sa.select(AssetTag.asset_id).where(
+                    AssetTag.asset_id == Asset.id,
+                    AssetTag.tag_name.in_(none_tags),
+                )
+            )
+        )
+    return tuple(clauses)
+
+
+def list_records_page(
+    session: Session,
+    spec: RecordPageSpec,
+) -> tuple[list[Asset], dict[str, list[str]], int]:
+    filters = list(build_record_tag_filter_clauses(spec.all_tags, spec.any_tags, spec.none_tags))
+    if spec.name_contains:
+        escaped_name, escape_character = escape_sql_like_string(spec.name_contains)
+        filters.append(
+            Asset.name.ilike(f"%{escaped_name}%", escape=escape_character)
+        )
+
+    sort_columns = {
+        "name": Asset.name,
+        "created_at": Asset.created_at,
+        "updated_at": Asset.updated_at,
+        "size": AssetContent.size_bytes,
+        "last_access_time": Asset.last_access_time,
+    }
+    sort_column = sort_columns[spec.sort]
+    descending = spec.order == "desc"
+    sort_expression = sort_column.desc() if descending else sort_column.asc()
+    id_expression = Asset.id.desc() if descending else Asset.id.asc()
+
+    statement = (
+        sa.select(Asset)
+        .join(AssetContent, live_asset_content_clause())
+        .where(*filters)
+        .options(joinedload(Asset.content), noload(Asset.tags))
+    )
+    if spec.after is not None:
+        comparison = (
+            sort_column < spec.after.value
+            if descending
+            else sort_column > spec.after.value
+        )
+        tied_comparison = (
+            Asset.id < spec.after.id
+            if descending
+            else Asset.id > spec.after.id
+        )
+        statement = statement.where(
+            sa.or_(
+                comparison,
+                sa.and_(
+                    sort_column == spec.after.value,
+                    tied_comparison,
+                ),
+            )
+        )
+
+    statement = statement.order_by(sort_expression, id_expression).limit(spec.limit)
+    if spec.after is None:
+        statement = statement.offset(spec.offset)
+    records = list(session.scalars(statement))
+
+    total = session.scalar(
+        sa.select(sa.func.count())
+        .select_from(Asset)
+        .join(AssetContent, live_asset_content_clause())
+        .where(*filters)
+    )
+
+    record_ids = [record.id for record in records]
+    tag_map: dict[str, list[str]] = {}
+    if record_ids:
+        rows = session.execute(
+            sa.select(AssetTag.asset_id, AssetTag.tag_name)
+            .join(Asset, AssetTag.asset_id == Asset.id)
+            .join(AssetContent, live_asset_content_clause())
+            .where(AssetTag.asset_id.in_(record_ids))
+            .order_by(AssetTag.tag_name.asc())
+        )
+        for record_id, tag_name in rows:
+            tag_map.setdefault(record_id, []).append(tag_name)
+
+    return records, tag_map, int(total or 0)
 
 
 def rename_record(session: Session, id: str, name: str) -> Asset:

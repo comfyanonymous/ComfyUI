@@ -17,7 +17,7 @@ from typing import Any
 
 import pytest
 
-from helpers import trigger_sync_seed_assets
+from .helpers import trigger_sync_seed_assets
 
 
 def _db_path(comfy_tmp_base_dir: Path, request: pytest.FixtureRequest) -> str:
