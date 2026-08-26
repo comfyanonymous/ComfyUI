@@ -56,8 +56,9 @@ def test_listing_excludes_missing_with_filter(session):
     assert total == 0
 
 
-def test_preview_cleanup_on_delete(session):
-    """Deleting the last record referencing a preview deletes the preview record but not its content."""
+def test_delete_record_never_deletes_referenced_preview(session):
+    """Record deletion never cascades into the asset its preview_id points at,
+    even when the deleted record was the last one referencing that preview."""
     preview_content = create_content(session, path="/tmp/preview")
     preview_record = create_record(session, content_id=preview_content.id, name="preview")
     content1 = create_content(session, path="/tmp/f3")
@@ -70,17 +71,20 @@ def test_preview_cleanup_on_delete(session):
     session.execute(update(Asset).where(Asset.id == r2.id).values(preview_id=preview_record.id))
     session.commit()
 
-    # Delete r1 — preview should survive (r2 still references it)
+    # Delete r1 — preview survives (r2 still references it, and delete never cascades).
     delete_record(session, r1.id)
     session.commit()
-    assert get_record_by_id(session, preview_record.id) is not None, "Preview should survive"
+    assert get_record_by_id(session, preview_record.id) is not None, "Preview must survive"
 
-    # Delete r2 — preview should be deleted (no more references)
+    # Delete r2, the last referrer — preview STILL survives; record deletion
+    # never destroys another asset row.
     delete_record(session, r2.id)
     session.commit()
-    assert get_record_by_id(session, preview_record.id) is None, "Preview should be deleted"
+    assert get_record_by_id(session, preview_record.id) is not None, (
+        "Preview must survive even with no referrers"
+    )
 
-    # Preview content row should still exist (D-3 floor)
+    # Preview content row is untouched too (D-3 floor).
     content_row = session.execute(
         select(AssetContent).where(AssetContent.id == preview_content.id)
     ).scalar_one_or_none()

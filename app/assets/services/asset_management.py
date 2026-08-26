@@ -100,6 +100,10 @@ def update_asset_metadata(
                 .values(mime_type=mime_type)
             )
         if preview_id is not None:
+            if session.get(Asset, preview_id) is None:
+                raise ValueError(
+                    f"preview_id {preview_id!r} does not reference an existing asset"
+                )
             session.execute(
                 update(Asset)
                 .where(Asset.id == reference_id)

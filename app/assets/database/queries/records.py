@@ -250,13 +250,7 @@ def delete_record(session: Session, id: str) -> None:
     record = session.get(Asset, id)
     if record is None:
         return
-    preview_id = record.preview_id
     session.delete(record)
-    session.flush()
-    if preview_id is not None and session.scalar(sa.select(sa.func.count()).select_from(Asset).where(Asset.preview_id == preview_id)) == 0:
-        preview = session.get(Asset, preview_id)
-        if preview is not None:
-            session.delete(preview)
     session.flush()
 
 

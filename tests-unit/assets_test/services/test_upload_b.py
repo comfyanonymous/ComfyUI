@@ -339,6 +339,27 @@ def test_upload_unstable_raises_after_three_attempts_no_rows(
             os.unlink(temp)
 
 
+def test_upload_unknown_preview_id_raises(mock_create_session, hashing_on):
+    """Given a preview_id that references no Asset, When upload_from_temp_path
+    runs, Then it raises ValueError before writing — the upload route maps this
+    to 4xx (INVALID_BODY), never a 500 from an FK IntegrityError."""
+    temp = _write_temp(b"preview-validate-upload-bytes")
+    try:
+        with pytest.raises(ValueError):
+            upload_from_temp_path(
+                temp_path=temp,
+                name="pv.bin",
+                tags=["output"],
+                client_filename="pv.bin",
+                preview_id="00000000-0000-0000-0000-000000000000",
+            )
+        with mock_create_session() as session:
+            assert session.scalar(select(func.count()).select_from(Asset)) == 0
+    finally:
+        if os.path.exists(temp):
+            os.unlink(temp)
+
+
 def test_off_mode_upload_calls_dedup_lookup(mock_create_session, hashing_off):
     temp = _write_temp(b"off-mode")
     try:

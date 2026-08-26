@@ -1,7 +1,6 @@
 """Todo 16: hard delete via delete_record — record gone, content and file remain."""
 import os
 
-import pytest
 from sqlalchemy import update
 
 import folder_paths
@@ -48,6 +47,25 @@ def test_two_records_one_content_other_unaffected(mock_create_session, session):
     assert get_record_by_id(session, r1_id) is None
     assert get_record_by_id(session, r2_id) is not None
     assert session.get(AssetContent, content.id) is not None
+
+
+def test_delete_record_never_deletes_pointed_at_preview(mock_create_session, session):
+    """Given A.preview_id points at an ordinary asset B, When A is deleted,
+    Then B must still exist — record deletion never cascades into another asset."""
+    b_content = create_content(session, path="/tmp/preview_target.png")
+    b = create_record(session, content_id=b_content.id, name="B")
+    a_content = create_content(session, path="/tmp/owner.png")
+    a = create_record(session, content_id=a_content.id, name="A")
+    session.execute(update(Asset).where(Asset.id == a.id).values(preview_id=b.id))
+    session.commit()
+    a_id = a.id
+    b_id = b.id
+
+    assert delete_asset_reference(a_id) is True
+
+    session.expire_all()
+    assert get_record_by_id(session, a_id) is None
+    assert get_record_by_id(session, b_id) is not None
 
 
 def test_missing_content_record_deletable(mock_create_session, session):
@@ -98,30 +116,3 @@ def test_delete_order_record_before_content(mock_create_session, session):
 
     assert session.get(Asset, record.id) is None
     assert session.get(AssetContent, content_id) is not None
-
-
-def test_preview_cleanup_rollback(mock_create_session, session, monkeypatch):
-    preview_content = create_content(session, path="/tmp/preview.png")
-    preview_record = create_record(session, content_id=preview_content.id, name="preview")
-    content = create_content(session, path="/tmp/main.png")
-    record = create_record(session, content_id=content.id, name="main")
-    session.execute(update(Asset).where(Asset.id == record.id).values(preview_id=preview_record.id))
-    session.commit()
-    record_id = record.id
-
-    original_delete = session.delete
-
-    def failing_delete(obj):
-        if isinstance(obj, Asset) and obj.id == preview_record.id:
-            raise RuntimeError("preview cleanup failed")
-        return original_delete(obj)
-
-    monkeypatch.setattr(session, "delete", failing_delete)
-
-    with pytest.raises(RuntimeError, match="preview cleanup failed"):
-        delete_record(session, record_id)
-        session.commit()
-
-    session.rollback()
-    session.expire_all()
-    assert get_record_by_id(session, record_id) is not None

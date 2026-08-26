@@ -185,6 +185,8 @@ def _create_upload_record(
     user_metadata: UserMetadata,
     preview_id: str | None,
 ) -> Asset:
+    if preview_id is not None and session.get(Asset, preview_id) is None:
+        raise ValueError(f"preview_id {preview_id!r} does not reference an existing asset")
     record = create_record(
         session,
         content_id,

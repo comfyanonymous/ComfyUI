@@ -682,14 +682,17 @@ async def create_asset_from_hash_route(request: web.Request) -> web.Response:
             400, "FEATURE_DISABLED", "Asset hashing is disabled."
         )
 
-    result = create_from_hash(
-        hash_str=body.hash,
-        name=name,
-        tags=body.tags,
-        user_metadata=body.user_metadata,
-        mime_type=body.mime_type,
-        preview_id=body.preview_id,
-    )
+    try:
+        result = create_from_hash(
+            hash_str=body.hash,
+            name=name,
+            tags=body.tags,
+            user_metadata=body.user_metadata,
+            mime_type=body.mime_type,
+            preview_id=body.preview_id,
+        )
+    except ValueError as e:
+        return _build_error_response(400, "INVALID_BODY", str(e))
     if result is None:
         return _build_error_response(
             404, "ASSET_NOT_FOUND", f"Asset content {body.hash} does not exist"

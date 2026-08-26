@@ -1,3 +1,5 @@
+import pytest
+
 from app.assets.database.models import Asset, AssetTag, Tag
 from app.assets.database.queries.records import (
     create_content,
@@ -43,3 +45,18 @@ def test_remove_tags_removes_non_automatic(session, mock_create_session):
 
     session.expire_all()
     assert fetch_record_tags(session, record.id) == ["automatic"]
+
+
+def test_update_asset_metadata_unknown_preview_id_raises(session, mock_create_session):
+    """Given a preview_id that references no Asset, When update_asset_metadata
+    runs, Then it raises ValueError before writing — the PUT route maps this to
+    4xx (ASSET_NOT_FOUND), never a 500 from an FK IntegrityError."""
+    record = _create_record(session, "/output/preview-validate.png")
+
+    with pytest.raises(ValueError):
+        update_asset_metadata(
+            record.id, preview_id="00000000-0000-0000-0000-000000000000"
+        )
+
+    session.expire_all()
+    assert session.get(Asset, record.id).preview_id is None
