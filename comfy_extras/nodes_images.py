@@ -1654,7 +1654,7 @@ class SaveImageAdvanced(IO.ComfyNode):
                             ),
                             IO.Int.Input(
                                 "crf",
-                                default=25,
+                                default=18,
                                 min=1,
                                 max=63,
                                 advanced=True,
