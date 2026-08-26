@@ -7,6 +7,10 @@ components:
                     description: Timestamp when the asset was created
                     format: date-time
                     type: string
+                display_name:
+                    description: Human-facing label for the asset. Not unique.
+                    nullable: true
+                    type: string
                 file_path:
                     description: Relative path in global-namespace-root form (e.g. "models/checkpoints/flux.safetensors")
                     nullable: true
@@ -141,6 +145,10 @@ components:
         AssetUpdated:
             description: Response returned when an existing asset is successfully updated.
             properties:
+                display_name:
+                    description: Human-facing label for the asset. Not unique.
+                    nullable: true
+                    type: string
                 file_path:
                     description: Relative path in global-namespace-root form (e.g. "models/checkpoints/flux.safetensors")
                     nullable: true

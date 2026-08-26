@@ -15,6 +15,9 @@ def test_tag_refine_rejects_metadata_filter(http, api_base):
 
     assert response.status_code == 400
     assert response.json() == {
-        "error": "UNSUPPORTED_PARAM",
-        "message": "metadata_filter is no longer supported",
+        "error": {
+            "code": "UNSUPPORTED_PARAM",
+            "message": "metadata_filter is no longer supported",
+            "details": {},
+        }
     }

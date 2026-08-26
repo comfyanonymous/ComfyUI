@@ -15,7 +15,14 @@ class Asset(BaseModel):
         default=None,
         description="The value a loader consumes to load this asset. `None` when no loader can resolve the file.",
     )
-    display_name: str | None = Field(default=None, exclude=True)
+    display_name: str | None = Field(
+        default=None,
+        description="Human-facing label for the asset. Not unique.",
+    )
+    file_path: str | None = Field(
+        default=None,
+        description='Relative path in global-namespace-root form (e.g. "models/checkpoints/flux.safetensors").',
+    )
     size: int | None = None
     mime_type: str | None = None
     tags: list[str] = Field(default_factory=list)

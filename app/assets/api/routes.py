@@ -306,9 +306,13 @@ def _build_asset_response(
     else:
         preview_url = None
     if result.ref.file_path:
+        paths = compute_asset_response_paths(result.ref.file_path)
+        logical_path = paths[0] if paths else None
+        display_name = paths[1] if paths else None
         # In-root loader path (model category dropped): what model loaders consume.
         loader_path = result.ref.loader_path
     else:
+        logical_path, display_name = None, None
         loader_path = None
     asset_content_hash = result.asset.hash if result.asset else None
     return schemas_out.Asset(
@@ -316,6 +320,8 @@ def _build_asset_response(
         name=result.ref.name,
         hash=asset_content_hash,
         loader_path=loader_path,
+        display_name=display_name,
+        file_path=logical_path,
         size=int(result.asset.size_bytes) if result.asset else None,
         mime_type=result.asset.mime_type if result.asset else None,
         tags=result.tags,
@@ -337,6 +343,9 @@ def _build_record_response(
     preview_paths: dict[str, str],
 ) -> schemas_out.Asset:
     content = record.content
+    paths = compute_asset_response_paths(content.path)
+    logical_path = paths[0] if paths else None
+    display_name = paths[1] if paths else None
     if record.preview_id:
         preview_url = _build_view_url(preview_paths.get(record.preview_id))
     else:
@@ -353,6 +362,8 @@ def _build_record_response(
         name=record.name,
         hash=content.hash,
         loader_path=record.loader_path,
+        display_name=display_name,
+        file_path=logical_path,
         size=content.size_bytes,
         mime_type=record.mime_type,
         tags=tags,
@@ -452,12 +463,8 @@ async def list_assets_route(request: web.Request) -> web.Response:
     GET request to list assets.
     """
     if "metadata_filter" in request.query:
-        return web.json_response(
-            {
-                "error": "UNSUPPORTED_PARAM",
-                "message": "metadata_filter is no longer supported",
-            },
-            status=400,
+        return _build_error_response(
+            400, "UNSUPPORTED_PARAM", "metadata_filter is no longer supported"
         )
 
     query_dict = get_query_dict(request)
@@ -977,12 +984,8 @@ async def delete_asset_tags(request: web.Request) -> web.Response:
 async def get_tags_refine(request: web.Request) -> web.Response:
     """GET request to get tag histogram for filtered assets."""
     if "metadata_filter" in request.query:
-        return web.json_response(
-            {
-                "error": "UNSUPPORTED_PARAM",
-                "message": "metadata_filter is no longer supported",
-            },
-            status=400,
+        return _build_error_response(
+            400, "UNSUPPORTED_PARAM", "metadata_filter is no longer supported"
         )
 
     query_dict = get_query_dict(request)
