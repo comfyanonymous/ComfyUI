@@ -1,3 +1,4 @@
+from comfy_api.latest import io
 from comfy_extras.graph_traversal import loop_projection
 from comfy_execution.graph_utils import is_link
 
@@ -10,33 +11,48 @@ def close_state(execution_list, node_id):
     return state
 
 
-class ForLoopOpen:
+class ForLoopOpen(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "start": ("INT", {"default": 0}),
-                "end": ("INT", {"default": 4}),
-                "increment": ("INT", {"default": 1}),
-            },
-            "optional": {
-                "iteration_outer": ("INT", {"forceInput": True}),
-            },
-            "hidden": {
-                "dynprompt": "DYNPROMPT",
-                "execution_list": "EXECUTION_LIST",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ForLoopOpen",
+            display_name="For Loop",
+            category="looping",
+            inputs=[
+                io.DynamicCombo.Input("mode", options=[
+                    io.DynamicCombo.Option("simple", [
+                        io.Int.Input("num_iterations", default=4, min=0),
+                    ]),
+                    io.DynamicCombo.Option("strided", [
+                        io.Int.Input("start_iteration", default=0),
+                        io.Int.Input("max_iteration", default=4),
+                        io.Int.Input("step", default=1),
+                    ]),
+                ]),
+                io.Int.Input("iteration_outer", optional=True, force_input=True),
+            ],
+            outputs=[
+                io.Int.Output("iteration"),
+                io.Boolean.Output("is_first"),
+                io.Boolean.Output("is_last"),
+            ],
+            hidden=[io.Hidden.dynprompt, io.Hidden.execution_list, io.Hidden.unique_id],
+        )
 
-    RETURN_TYPES = ("INT", "BOOLEAN", "BOOLEAN")
-    RETURN_NAMES = ("iteration", "is_first", "is_last")
-    FUNCTION = "open"
-    CATEGORY = "looping"
+    @classmethod
+    def execute(cls, mode, iteration_outer=None):
+        selected_mode = mode.get("mode", "simple")
+        if selected_mode == "simple":
+            values = list(range(mode.get("num_iterations", 4)))
+        else:
+            step = mode.get("step", 1)
+            if step == 0:
+                raise ValueError("ForLoopOpen step must not be 0")
+            values = list(range(mode.get("start_iteration", 0), mode.get("max_iteration", 4), step))
 
-    def open(self, start, end, increment, iteration_outer=None, dynprompt=None, execution_list=None, unique_id=None):
-        if increment == 0:
-            raise ValueError("ForLoopOpen increment must not be 0")
+        dynprompt = cls.hidden.dynprompt
+        execution_list = cls.hidden.execution_list
+        unique_id = cls.hidden.unique_id
 
         state = execution_list.get_projection_state(unique_id)
         if state is None:
@@ -74,7 +90,7 @@ class ForLoopOpen:
                 if source_id != unique_id
             }
             state = {
-                "values": list(range(start, end, increment)),
+                "values": values,
                 "index": -1,
                 "projected_nodes": projected_nodes,
                 "scheduled_nodes": projected_nodes.intersection(execution_list.pendingNodes).union(
@@ -132,7 +148,7 @@ class ForLoopOpen:
             for node_id in state["variable_sources"]:
                 execution_list.clear_projection_state(node_id)
             execution_list.clear_projection_state(unique_id)
-            return {"ui": {"text": ("<complete>",)}, "result": (None, False, True)}
+            return io.NodeOutput(None, False, True, ui={"text": ("<complete>",)})
 
         execution_list.requeue_nodes(
             state["scheduled_nodes"].union(state["nested_openers"]),
@@ -150,10 +166,10 @@ class ForLoopOpen:
         value = state["values"][state["index"]]
         outputs = (value, state["index"] == 0, state["index"] == len(state["values"]) - 1)
         state["opener_outputs"] = outputs
-        return outputs
+        return io.NodeOutput(*outputs)
 
     @classmethod
-    def IS_CHANGED(cls, start, end, increment, iteration_outer=None, dynprompt=None, execution_list=None, unique_id=None):
+    def fingerprint_inputs(cls, **kwargs):
         return float("NaN")
 
 
