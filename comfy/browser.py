@@ -14,6 +14,7 @@ def open_browser(url: str, browser_path: str = None, browser_profile: str = None
         cmd.append(url)
 
         try:
+            logging.info(f"Launching custom browser: {browser_path}")
             subprocess.Popen(cmd)
             return
         except Exception as e:
