@@ -15,7 +15,7 @@ class CreateCameraInfo(IO.ComfyNode):
             display_name="Create Camera Info",
             search_aliases=["camera position", "make camera info", "orbit camera", "look at camera"],
             category="3d",
-            description="Build a camera_info"
+            description="Build a camera_info. "
                         "Mode 'orbit' aims with yaw/pitch/distance around the target; "
                         "'look_at' places the camera at world position. Coordinates are the viewer's world space (right-handed,Y-up).",
             inputs=[
