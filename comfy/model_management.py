@@ -36,6 +36,103 @@ import comfy_aimdo.host_buffer
 import comfy_aimdo.vram_buffer
 from comfy.internal_logging import detail
 
+
+# --- cgroup-aware memory reporting -------------------------------------------------
+#
+# psutil reads /proc, which reports the *host* memory even when this process runs inside a
+# container with a memory limit. Every RAM pressure decision (cache eviction, model
+# unloading, pinned memory sizing) then sees memory that this process may not use, and the
+# container gets OOM-killed instead of freeing anything. See #5625 and #14938.
+#
+# Taking the minimum of the cgroup limit and what psutil reports leaves the
+# non-containerised path untouched: with no limit in effect there is nothing to read.
+
+CGROUP_V2 = ("/sys/fs/cgroup", "memory.max", "memory.current")
+CGROUP_V1 = ("/sys/fs/cgroup/memory", "memory.limit_in_bytes", "memory.usage_in_bytes")
+
+
+def _read_cgroup_int(path):
+    """Read a cgroup file holding a byte count, or None when it is absent or unlimited."""
+    try:
+        with open(path, "r") as f:
+            raw = f.read().strip()
+    except OSError:
+        return None
+    if raw == "max":
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        return None
+
+
+def _cgroup_self_paths():
+    """The memory hierarchies this process belongs to, as (root, limit file, usage file, path).
+
+    The mount root is not this process's cgroup: under a host cgroup namespace
+    /sys/fs/cgroup/memory.max does not exist at all, and under systemd or Kubernetes the
+    process sits several levels down. /proc/self/cgroup gives the path to walk.
+    """
+    try:
+        with open("/proc/self/cgroup", "r") as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return []
+    hierarchies = []
+    for line in lines:
+        fields = line.split(":", 2)
+        if len(fields) != 3:
+            continue
+        hierarchy_id, controllers, path = fields
+        if hierarchy_id == "0" and not controllers:
+            hierarchies.append(CGROUP_V2 + (path,))
+        elif "memory" in controllers.split(","):
+            hierarchies.append(CGROUP_V1 + (path,))
+    return hierarchies
+
+
+def _cgroup_memory_constraint():
+    """The smallest limit that applies to this process, with the usage file that goes with it.
+
+    A cgroup is bound by its ancestors' limits too, so every level is considered and the
+    usage is read from whichever level carries the binding limit. Nothing is cached:
+    memory.max is writable, a pod can be resized in place, and a process can be moved to
+    another cgroup while it runs.
+    """
+    constraint = None
+    for root, limit_file, usage_file, path in _cgroup_self_paths():
+        parts = [part for part in path.split("/") if part]
+        while True:
+            directory = os.path.join(root, *parts)
+            limit = _read_cgroup_int(os.path.join(directory, limit_file))
+            if limit is not None and (constraint is None or limit < constraint[0]):
+                constraint = (limit, os.path.join(directory, usage_file))
+            if not parts:
+                break
+            parts.pop()
+    return constraint
+
+
+def virtual_memory():
+    """psutil.virtual_memory() clamped to the cgroup limit when one applies."""
+    mem = psutil.virtual_memory()
+    constraint = _cgroup_memory_constraint()
+    if constraint is None:
+        return mem
+    limit, usage_file = constraint
+    if limit >= mem.total:
+        return mem
+    used = _read_cgroup_int(usage_file)
+    if used is None:
+        used = max(0, mem.total - mem.available)
+    used = min(used, limit)
+    available = min(mem.available, limit - used)
+    return mem._replace(total=limit, available=available, used=used,
+                        free=min(mem.free, available),
+                        percent=round(used * 100.0 / limit, 1))
+
+# -----------------------------------------------------------------------------------
+
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from comfy.model_patcher import ModelPatcher
@@ -318,7 +415,7 @@ def get_total_memory(dev=None, torch_total_too=False):
         dev = get_torch_device()
 
     if hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps'):
-        mem_total = psutil.virtual_memory().total
+        mem_total = virtual_memory().total
         mem_total_torch = mem_total
     else:
         if directml_enabled:
@@ -361,7 +458,7 @@ def mac_version():
         return None
 
 total_vram = get_total_memory(get_torch_device()) / (1024 * 1024)
-total_ram = psutil.virtual_memory().total / (1024 * 1024)
+total_ram = virtual_memory().total / (1024 * 1024)
 logging.info("Total VRAM {:0.0f} MB, total RAM {:0.0f} MB".format(total_vram, total_ram))
 
 try:
@@ -703,7 +800,7 @@ def should_free_pins_for_ram_pressure(shortfall):
         return False
     if not WINDOWS:
         return True
-    if psutil.virtual_memory().available < WINDOWS_PIN_EVICTION_EMERGENCY_AVAILABLE:
+    if virtual_memory().available < WINDOWS_PIN_EVICTION_EMERGENCY_AVAILABLE:
         return True
     try:
         return psutil.swap_memory().percent >= WINDOWS_PIN_EVICTION_SWAP_PERCENT
@@ -717,7 +814,7 @@ def ensure_pin_budget(size, evict_active=False, loaded=False):
     if args.fast_disk:
         shortfall = TOTAL_PINNED_MEMORY + size - MAX_PINNED_MEMORY
     else:
-        shortfall = size + max(comfy.memory_management.RAM_CACHE_HEADROOM / 2, 2048 * 1024 ** 2) - psutil.virtual_memory().available
+        shortfall = size + max(comfy.memory_management.RAM_CACHE_HEADROOM / 2, 2048 * 1024 ** 2) - virtual_memory().available
     if shortfall <= 0:
         return True
 
@@ -1751,7 +1848,7 @@ def get_free_memory(dev=None, torch_free_too=False):
         dev = get_torch_device()
 
     if hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps'):
-        mem_free_total = psutil.virtual_memory().available
+        mem_free_total = virtual_memory().available
         mem_free_torch = mem_free_total
     else:
         if directml_enabled:
