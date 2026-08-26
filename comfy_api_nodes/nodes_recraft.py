@@ -27,6 +27,7 @@ from comfy_api_nodes.util import (
     ApiEndpoint,
     bytesio_to_image_tensor,
     download_url_as_bytesio,
+    pad_images_to_common_channels,
     resize_mask_to_image,
     sync_op,
     tensor_to_bytesio,
@@ -621,7 +622,7 @@ class RecraftImageToImageNode(IO.ComfyNode):
                 images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
             pbar.update(1)
 
-        return IO.NodeOutput(torch.cat(images, dim=0))
+        return IO.NodeOutput(torch.cat(pad_images_to_common_channels(images), dim=0))
 
 
 class RecraftImageInpaintingNode(IO.ComfyNode):
@@ -723,7 +724,7 @@ class RecraftImageInpaintingNode(IO.ComfyNode):
                 images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
             pbar.update(1)
 
-        return IO.NodeOutput(torch.cat(images, dim=0))
+        return IO.NodeOutput(torch.cat(pad_images_to_common_channels(images), dim=0))
 
 
 class RecraftTextToVectorNode(IO.ComfyNode):
@@ -954,7 +955,7 @@ class RecraftReplaceBackgroundNode(IO.ComfyNode):
             images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
             pbar.update(1)
 
-        return IO.NodeOutput(torch.cat(images, dim=0))
+        return IO.NodeOutput(torch.cat(pad_images_to_common_channels(images), dim=0))
 
 
 class RecraftRemoveBackgroundNode(IO.ComfyNode):
@@ -995,7 +996,7 @@ class RecraftRemoveBackgroundNode(IO.ComfyNode):
                 image=image[i],
                 path="/proxy/recraft/images/removeBackground",
             )
-            images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
+            images.append(torch.cat([bytesio_to_image_tensor(x, mode="RGBA") for x in sub_bytes], dim=0))
             pbar.update(1)
 
         images_tensor = torch.cat(images, dim=0)
@@ -1047,7 +1048,7 @@ class RecraftCrispUpscaleNode(IO.ComfyNode):
             images.append(torch.cat([bytesio_to_image_tensor(x) for x in sub_bytes], dim=0))
             pbar.update(1)
 
-        return IO.NodeOutput(torch.cat(images, dim=0))
+        return IO.NodeOutput(torch.cat(pad_images_to_common_channels(images), dim=0))
 
 
 class RecraftCreativeUpscaleNode(RecraftCrispUpscaleNode):

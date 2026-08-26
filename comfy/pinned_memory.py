@@ -56,7 +56,7 @@ def get_pin(module, subset="weights"):
 
     _, _, stack_split, pinned_size, *_ = module._pin_state[subset]
     size = pin.nbytes
-    comfy.model_management.ensure_pin_registerable(size, loaded=subset.endswith("-loaded"))
+    comfy.model_management.ensure_pin_registerable(size)
 
     if torch.cuda.cudart().cudaHostRegister(pin.data_ptr(), size, 1) != 0:
         comfy.model_management.discard_cuda_async_error()
@@ -93,7 +93,7 @@ def pin_memory(module, subset="weights", size=None):
 
     comfy.memory_management.extra_ram_release(comfy.memory_management.RAM_CACHE_HEADROOM)
     if (not comfy.model_management.ensure_pin_budget(size, loaded=loaded) or
-        not comfy.model_management.ensure_pin_registerable(registerable_size, loaded=loaded)):
+        not comfy.model_management.ensure_pin_registerable(registerable_size)):
         return _steal_pin(module, stack, buckets, size, priority, subset)
 
     offset = hostbuf.size
@@ -105,7 +105,7 @@ def pin_memory(module, subset="weights", size=None):
         pin.untyped_storage()._comfy_hostbuf = hostbuf
         if torch.cuda.cudart().cudaHostRegister(pin.data_ptr(), size, 1) != 0:
             comfy.model_management.discard_cuda_async_error()
-            comfy.model_management.free_registrations(size, loaded=loaded)
+            comfy.model_management.free_registrations(size)
             if torch.cuda.cudart().cudaHostRegister(pin.data_ptr(), size, 1) != 0:
                 comfy.model_management.discard_cuda_async_error()
                 del pin

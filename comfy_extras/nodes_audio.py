@@ -96,10 +96,14 @@ class VAEEncodeAudio(IO.ComfyNode):
 
 
 def vae_decode_audio(vae, samples, tile=None, overlap=None):
+    latent = samples["samples"]
+    if latent.is_nested:
+        latent = latent.unbind()[-1]
+
     if tile is not None:
-        audio = vae.decode_tiled(samples["samples"], tile_x=tile, tile_y=tile, overlap=overlap).movedim(-1, 1)
+        audio = vae.decode_tiled(latent, tile_x=tile, tile_y=tile, overlap=overlap).movedim(-1, 1)
     else:
-        audio = vae.decode(samples["samples"]).movedim(-1, 1)
+        audio = vae.decode(latent).movedim(-1, 1)
 
     std = torch.std(audio, dim=[1, 2], keepdim=True) * 5.0
     std[std < 1.0] = 1.0
