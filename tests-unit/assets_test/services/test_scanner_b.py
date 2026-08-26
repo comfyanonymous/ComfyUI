@@ -1,8 +1,11 @@
 import os
+from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from unittest.mock import patch
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.assets.database.models import Asset, AssetContent, AssetTag
 from app.assets.scanner import (
@@ -15,12 +18,119 @@ from app.assets.scanner import (
 from app.assets.services.snapshot_hash import snapshot_hash
 
 
+@dataclass(frozen=True, slots=True)
+class _ExtractedMetadata:
+    content_type: str | None
+    system_metadata: Mapping[str, int | str]
+
+    def to_user_metadata(self) -> dict[str, int | str]:
+        return dict(self.system_metadata)
+
+
 def _build_seed_specs(root: Path) -> list:
     return build_asset_specs(
         [str(path) for path in sorted(root.iterdir())],
         existing_paths=set(),
         enable_metadata_extraction=False,
     )[0]
+
+
+def _create_enrichment_target(
+    session: Session,
+    path: Path,
+    system_metadata: dict[str, int | str] | None = None,
+) -> tuple[AssetContent, Asset]:
+    content = AssetContent(
+        path=str(path),
+        hash=None,
+        size_bytes=path.stat().st_size,
+        mtime_ns=path.stat().st_mtime_ns,
+    )
+    session.add(content)
+    session.flush()
+    record = Asset(
+        content_id=content.id,
+        name=path.name,
+        system_metadata=system_metadata,
+    )
+    session.add(record)
+    session.commit()
+    return content, record
+
+
+def test_enrichment_retains_absent_system_metadata_keys(session: Session, temp_dir: Path):
+    # Given
+    path = temp_dir / "metadata.bin"
+    path.write_bytes(b"metadata")
+    content, record = _create_enrichment_target(session, path)
+
+    # When
+    with patch(
+        "app.assets.scanner.extract_file_metadata",
+        side_effect=[
+            _ExtractedMetadata(None, {"a": 1, "b": 2}),
+            _ExtractedMetadata(None, {"b": 3}),
+        ],
+    ):
+        enrich_asset(session, str(path), content.id, record.id)
+        enrich_asset(session, str(path), content.id, record.id)
+
+    # Then
+    assert record.system_metadata == {"a": 1, "b": 3}
+
+
+def test_enrichment_retains_dimensions_when_image_extraction_degrades(
+    session: Session, temp_dir: Path
+):
+    # Given
+    path = temp_dir / "image.png"
+    path.write_bytes(b"not a complete image")
+    content, record = _create_enrichment_target(
+        session,
+        path,
+        {"kind": "image", "width": 64, "height": 64},
+    )
+
+    # When
+    with (
+        patch(
+            "app.assets.scanner.extract_file_metadata",
+            return_value=_ExtractedMetadata("image/png", {"filename": "image.png"}),
+        ),
+        patch("app.assets.scanner.extract_image_dimensions", return_value=None),
+    ):
+        enrich_asset(session, str(path), content.id, record.id)
+
+    # Then
+    assert record.system_metadata == {
+        "filename": "image.png",
+        "kind": "image",
+        "width": 64,
+        "height": 64,
+    }
+
+
+def test_enrichment_overrides_content_length_with_zero(
+    session: Session, temp_dir: Path
+):
+    # Given
+    path = temp_dir / "empty.bin"
+    path.write_bytes(b"")
+    content, record = _create_enrichment_target(
+        session,
+        path,
+        {"content_length": 1024},
+    )
+
+    # When
+    with patch(
+        "app.assets.scanner.extract_file_metadata",
+        return_value=_ExtractedMetadata(None, {"content_length": 0}),
+    ):
+        enrich_asset(session, str(path), content.id, record.id)
+
+    # Then
+    assert record.system_metadata == {"content_length": 0}
 
 
 def test_seed_creates_content_and_record(session, temp_dir: Path):
