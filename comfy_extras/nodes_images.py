@@ -17,7 +17,7 @@ import zlib
 import comfy.utils
 from av.video.reformatter import ColorPrimaries, ColorRange, ColorTrc
 from fractions import Fraction
-from xml.sax.saxutils import escape
+from PIL.Image import Exif
 
 from server import PromptServer
 from comfy_api.latest import ComfyExtension, IO, UI
@@ -1263,21 +1263,20 @@ def _bmff_boxes(data: bytes, start: int, end: int) -> list[tuple[int, int, bytes
     return boxes
 
 
-def _avif_xmp(metadata: dict) -> bytes:
-    payload = escape(json.dumps(metadata, ensure_ascii=False, separators=(",", ":")))
-    return (
-        "<?xpacket begin='\ufeff' id='W5M0MpCehiHzreSzNTczkc9d'?>\n"
-        "<x:xmpmeta xmlns:x='adobe:ns:meta/' x:xmptk='ComfyUI'>"
-        "<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#' "
-        "xmlns:dc='http://purl.org/dc/elements/1.1/'>"
-        "<rdf:Description rdf:about=''><dc:description><rdf:Alt>"
-        f"<rdf:li xml:lang='x-default'>{payload}</rdf:li>"
-        "</rdf:Alt></dc:description></rdf:Description></rdf:RDF></x:xmpmeta>\n"
-        "<?xpacket end='w'?>"
-    ).encode("utf-8")
+def _avif_exif(metadata: dict) -> bytes:
+    exif = Exif()
+    if "prompt" in metadata:
+        exif[0x0110] = f"prompt:{json.dumps(metadata['prompt'])}"
+    next_tag = 0x010F
+    for key, value in metadata.items():
+        if key == "prompt":
+            continue
+        exif[next_tag] = f"{key}:{json.dumps(value)}"
+        next_tag -= 1
+    return b"\x00\x00\x00\x00" + exif.tobytes()[6:]
 
 
-def _add_avif_xmp_item(meta: bytes, xmp_offset: int, xmp_length: int, offset_delta: int) -> bytes:
+def _add_avif_exif_item(meta: bytes, exif_offset: int, exif_length: int, offset_delta: int) -> bytes:
     if meta[4:8] != b"meta" or len(meta) < 12:
         raise ValueError("AVIF metadata requires a valid meta box.")
     children = _bmff_boxes(meta, 12, len(meta))
@@ -1308,11 +1307,11 @@ def _add_avif_xmp_item(meta: bytes, xmp_offset: int, xmp_length: int, offset_del
             cursor += 8
     if cursor != len(iloc):
         raise ValueError("Unsupported AVIF item-location entries.")
-    xmp_item_id = max(item_ids) + 1
-    if xmp_item_id > 0xFFFF or xmp_offset > 0xFFFFFFFF or xmp_length > 0xFFFFFFFF:
+    exif_item_id = max(item_ids) + 1
+    if exif_item_id > 0xFFFF or exif_offset > 0xFFFFFFFF or exif_length > 0xFFFFFFFF:
         raise ValueError("AVIF metadata exceeds 32-bit item limits.")
     struct.pack_into(">H", iloc, 14, item_count + 1)
-    iloc.extend(struct.pack(">HHHII", xmp_item_id, 0, 1, xmp_offset, xmp_length))
+    iloc.extend(struct.pack(">HHHII", exif_item_id, 0, 1, exif_offset, exif_length))
     struct.pack_into(">I", iloc, 0, len(iloc))
 
     iinf_pos, iinf_size, _ = child_by_type[b"iinf"]
@@ -1321,11 +1320,11 @@ def _add_avif_xmp_item(meta: bytes, xmp_offset: int, xmp_length: int, offset_del
         raise ValueError("Unsupported AVIF item-information format.")
     iinf_count = struct.unpack_from(">H", iinf, 12)[0]
     struct.pack_into(">H", iinf, 12, iinf_count + 1)
-    infe_payload = b"\x02\x00\x00\x00" + struct.pack(">HH4s", xmp_item_id, 0, b"mime") + b"\x00application/rdf+xml\x00"
+    infe_payload = b"\x02\x00\x00\x00" + struct.pack(">HH4s", exif_item_id, 0, b"Exif") + b"\x00"
     iinf.extend(_bmff_box(b"infe", infe_payload))
     struct.pack_into(">I", iinf, 0, len(iinf))
 
-    cdsc = _bmff_box(b"cdsc", struct.pack(">HHH", xmp_item_id, 1, primary_item_id))
+    cdsc = _bmff_box(b"cdsc", struct.pack(">HHH", exif_item_id, 1, primary_item_id))
     if b"iref" in child_by_type:
         iref_pos, iref_size, _ = child_by_type[b"iref"]
         iref = bytearray(meta[iref_pos:iref_pos + iref_size])
@@ -1387,10 +1386,10 @@ def _copy_file_bytes(source, destination, size: int) -> None:
 
 
 def inject_avif_metadata(path: str, metadata: dict) -> None:
-    """Add an XMP item to FFmpeg's AVIF layout without loading media data into memory."""
+    """Add a ComfyUI-compatible EXIF item without loading media data into memory."""
     if not metadata:
         return
-    xmp = _avif_xmp(metadata)
+    exif = _avif_exif(metadata)
     file_size = os.path.getsize(path)
     top_level_boxes = []
     with open(path, "rb") as source:
@@ -1423,22 +1422,28 @@ def inject_avif_metadata(path: str, metadata: dict) -> None:
         source.seek(meta_box[0])
         meta = source.read(meta_box[1])
 
-    provisional_meta = _add_avif_xmp_item(meta, 0, len(xmp), 0)
+    provisional_meta = _add_avif_exif_item(meta, 0, len(exif), 0)
     offset_delta = len(provisional_meta) - len(meta)
-    xmp_offset = mdat_box[0] + mdat_box[1] + offset_delta
-    updated_meta = _add_avif_xmp_item(meta, xmp_offset, len(xmp), offset_delta)
+    exif_offset = mdat_box[0] + mdat_box[1] + offset_delta
+    updated_meta = _add_avif_exif_item(meta, exif_offset, len(exif), offset_delta)
 
     fd, temp_path = tempfile.mkstemp(prefix=f".{os.path.basename(path)}.", dir=os.path.dirname(path) or ".")
     try:
         with os.fdopen(fd, "wb") as destination, open(path, "rb") as source:
             for pos, size, box_type, header_size, size_field in top_level_boxes:
                 source.seek(pos)
-                if box_type == b"meta":
+                if box_type == b"ftyp":
+                    ftyp = bytearray(source.read(size))
+                    # The frontend metadata reader recognizes the avif major brand; avis remains a compatible sequence brand.
+                    if ftyp[8:12] == b"avis" and b"avif" in ftyp[16:]:
+                        ftyp[8:12] = b"avif"
+                    destination.write(ftyp)
+                elif box_type == b"meta":
                     destination.write(updated_meta)
                 elif box_type == b"moov":
                     destination.write(_adjust_avif_chunk_offsets(source.read(size), offset_delta))
                 elif box_type == b"mdat":
-                    new_size = size + len(xmp)
+                    new_size = size + len(exif)
                     if size_field == 1:
                         destination.write(struct.pack(">I4sQ", 1, b"mdat", new_size))
                     elif size_field == 0:
@@ -1449,7 +1454,7 @@ def inject_avif_metadata(path: str, metadata: dict) -> None:
                         raise ValueError("AVIF media-data box exceeds its 32-bit size field.")
                     source.seek(pos + header_size)
                     _copy_file_bytes(source, destination, size - header_size)
-                    destination.write(xmp)
+                    destination.write(exif)
                 else:
                     _copy_file_bytes(source, destination, size)
         os.chmod(temp_path, os.stat(path).st_mode)
