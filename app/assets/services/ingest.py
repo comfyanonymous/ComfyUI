@@ -3,7 +3,7 @@ import logging
 import mimetypes
 import os
 from types import SimpleNamespace
-from typing import Any, Sequence
+from typing import Any, NamedTuple, Sequence
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -237,6 +237,55 @@ def _record_to_upload_result(
     return UploadResult(ref=ref, asset=asset, tags=tag_names, created_new=created_new)
 
 
+class _ContentFacts(NamedTuple):
+    """What we know about the bytes now sitting at a path."""
+
+    stored_hash: str
+    size_bytes: int
+    mtime_ns: int
+
+
+def _reconcile_live_content_at_path(
+    session: Session, locator: str, facts: _ContentFacts
+) -> None:
+    """Make the live content row at ``locator`` honest about the bytes there.
+
+    ``create_content`` resolves a live-path uniqueness conflict
+    (``uq_asset_contents_path_live``) by handing back the row already at that
+    path, so a caller that registers a path without reconciling first gets the
+    OLD row's hash and size. Three cases, in order:
+
+    * the hash already matches - the row is honest; leave it completely
+      untouched so same-bytes dedup reuses it as before.
+    * the hash is ``None`` - "not yet hashed", which is NOT evidence of
+      different bytes. Scanner-seeded rows and executed outputs (D14a) both
+      defer hashing to the enrich pass, so retiring here would mark every
+      record on the row missing for a file that never changed. Adopt the hash
+      we just computed the way ``scanner.enrich_asset`` would, unless the row's
+      recorded ``size_bytes`` positively contradicts the file. A differing
+      ``mtime_ns`` is deliberately not treated as contradiction: renaming a
+      file into place, copying it, or touching it all move the mtime while the
+      bytes stay identical.
+    * anything else - a known, different hash means the row describes bytes
+      that are no longer at ``locator``; retire it so the fresh
+      ``create_content`` inserts a new live row.
+    """
+    existing = session.scalars(
+        select(AssetContent).where(
+            AssetContent.path == locator,
+            AssetContent.is_missing.is_(False),
+        )
+    ).first()
+    if existing is None or existing.hash == facts.stored_hash:
+        return
+    if existing.hash is None and existing.size_bytes == facts.size_bytes:
+        existing.hash = facts.stored_hash
+        existing.mtime_ns = facts.mtime_ns
+        session.flush()
+        return
+    mark_content_missing(session, existing.id)
+
+
 def upload_from_temp_path(
     temp_path: str,
     name: str | None = None,
@@ -298,6 +347,11 @@ def upload_from_temp_path(
     _move_temp_to_dest(temp_path, dest_abs)
     size_bytes, mtime_ns = get_size_and_mtime_ns(dest_abs)
     with create_session() as session:
+        # Reconciled after the move, unlike register_file_in_place: the dedup
+        # lookup above ran while the destination still held the old bytes.
+        _reconcile_live_content_at_path(
+            session, dest_abs, _ContentFacts(stored_hash, size_bytes, mtime_ns)
+        )
         content = create_content(
             session, dest_abs, stored_hash, size_bytes, mtime_ns
         )
@@ -319,30 +373,6 @@ def upload_from_temp_path(
             _discard_unreferenced_content(session, created_content_id)
             raise
         return _record_to_upload_result(session, record, created_new=True)
-
-
-def _retire_stale_live_content(
-    session: Session, locator: str, new_hash: str | None
-) -> None:
-    """Retire a live content row at ``locator`` whose bytes no longer match.
-
-    ``create_content`` resolves a live-path uniqueness conflict
-    (``uq_asset_contents_path_live``) by returning the existing row, so
-    re-registering a path in place without first retiring the previous content
-    would hand the caller the OLD file's hash/size. When the on-disk bytes have
-    changed (hash differs) we mark the stale row missing so the fresh
-    ``create_content`` inserts a new live row; when the hash matches we leave the
-    row untouched and let ``create_content``'s dedup path reuse it (same-bytes
-    dedup is unchanged).
-    """
-    existing = session.scalars(
-        select(AssetContent).where(
-            AssetContent.path == locator,
-            AssetContent.is_missing.is_(False),
-        )
-    ).first()
-    if existing is not None and existing.hash != new_hash:
-        mark_content_missing(session, existing.id)
 
 
 def register_file_in_place(
@@ -372,6 +402,13 @@ def register_file_in_place(
     digest = _snapshot_hash_with_retry(locator)
     stored_hash = to_stored_hash(digest)
     with create_session() as session:
+        # Must run above the dedup lookup, not beside create_content: both dedup
+        # branches return early, and only a reconciled row is visible to
+        # lookup_for_upload_dedup as the record to reuse.
+        _reconcile_live_content_at_path(
+            session, locator, _ContentFacts(stored_hash, size_bytes, mtime_ns)
+        )
+        session.commit()
         dedup = lookup_for_upload_dedup(session, stored_hash, display_name)
 
     if isinstance(dedup, Asset):
@@ -397,7 +434,6 @@ def register_file_in_place(
             return _record_to_upload_result(session, record, created_new=True)
 
     with create_session() as session:
-        _retire_stale_live_content(session, locator, stored_hash)
         content = create_content(
             session, locator, stored_hash, size_bytes, mtime_ns
         )

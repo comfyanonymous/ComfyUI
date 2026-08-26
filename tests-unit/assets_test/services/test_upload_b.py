@@ -8,9 +8,14 @@ from sqlalchemy import func, select
 
 import app.assets.mode as mode_module
 import folder_paths
-from app.assets.database.models import Asset, AssetContent
-from app.assets.database.queries.records import create_content, mark_content_missing
+from app.assets.database.models import Asset, AssetContent, AssetTag
+from app.assets.database.queries.records import (
+    create_content,
+    create_record,
+    mark_content_missing,
+)
 from app.assets.helpers import to_stored_hash
+from app.assets.services.file_utils import get_size_and_mtime_ns
 from app.assets.services.ingest import (
     UploadUnstableError,
     register_file_in_place,
@@ -277,6 +282,250 @@ def test_register_file_in_place_overwrite_marks_old_content_missing(
     finally:
         if os.path.exists(path):
             os.unlink(path)
+
+
+def _digest_of(path: str) -> str:
+    snapshot = snapshot_hash(path)
+    assert snapshot is not None
+    return snapshot[0]
+
+
+def _seed_live_content(session, path: str, stored_hash: str | None) -> tuple[str, str]:
+    """Seed a live content row (+ one record) for a file already on disk.
+
+    Mirrors what ``scanner.create_asset_batch`` leaves behind: real stat values,
+    and ``stored_hash=None`` when hashing is deferred to the enrich pass.
+    """
+    size_bytes, mtime_ns = get_size_and_mtime_ns(path)
+    content = create_content(session, path, stored_hash, size_bytes, mtime_ns)
+    record = create_record(
+        session, content.id, os.path.basename(path), tags=["output"]
+    )
+    session.commit()
+    return content.id, record.id
+
+
+def _is_missing_tagged(session, record_id: str) -> bool:
+    return (
+        session.get(AssetTag, {"asset_id": record_id, "tag_name": "missing"})
+        is not None
+    )
+
+
+def test_register_file_in_place_unhashed_unchanged_file_is_not_retired(
+    mock_create_session, hashing_on
+):
+    """Given a live content row at a path with hash=None (scanner-seeded, or an
+    executed output whose hashing is deferred to enrich), When the SAME
+    unchanged file is registered in place, Then the row stays live and its
+    records are not tagged missing - an unknown hash is not evidence of
+    different bytes.
+    """
+    output_dir = folder_paths.get_output_directory()
+    os.makedirs(output_dir, exist_ok=True)
+    path = os.path.join(output_dir, "unhashed_noop.png")
+    payload = b"scanner-seeded-bytes"
+    try:
+        with open(path, "wb") as file:
+            file.write(payload)
+        with mock_create_session() as session:
+            content_id, record_id = _seed_live_content(
+                session, os.path.abspath(path), None
+            )
+
+        register_file_in_place(
+            abs_path=path, name="unhashed_noop.png", tags=["output"]
+        )
+
+        with mock_create_session() as session:
+            content = session.get(AssetContent, content_id)
+            assert content is not None
+            assert content.is_missing is False
+            assert _is_missing_tagged(session, record_id) is False
+            live = list(
+                session.scalars(
+                    select(AssetContent).where(
+                        AssetContent.path == os.path.abspath(path),
+                        AssetContent.is_missing.is_(False),
+                    )
+                )
+            )
+            assert [row.id for row in live] == [content_id]
+    finally:
+        if os.path.exists(path):
+            os.unlink(path)
+
+
+def test_register_file_in_place_unhashed_unchanged_file_adopts_hash(
+    mock_create_session, hashing_on
+):
+    """Given a live content row at a path with hash=None, When the SAME
+    unchanged file is registered in place, Then the existing row adopts the
+    freshly-computed hash and the call resolves to the record already on it -
+    a no-op re-registration stays a no-op.
+    """
+    output_dir = folder_paths.get_output_directory()
+    os.makedirs(output_dir, exist_ok=True)
+    path = os.path.join(output_dir, "unhashed_adopt.png")
+    payload = b"scanner-seeded-adopt-bytes"
+    try:
+        with open(path, "wb") as file:
+            file.write(payload)
+        with mock_create_session() as session:
+            content_id, record_id = _seed_live_content(
+                session, os.path.abspath(path), None
+            )
+        expected_hash = to_stored_hash(_digest_of(path))
+
+        result = register_file_in_place(
+            abs_path=path, name="unhashed_adopt.png", tags=["output"]
+        )
+
+        assert result.ref.id == record_id
+        assert result.created_new is False
+        assert result.asset.hash == expected_hash
+        assert result.asset.size_bytes == len(payload)
+        with mock_create_session() as session:
+            content = session.get(AssetContent, content_id)
+            assert content is not None
+            assert content.hash == expected_hash
+    finally:
+        if os.path.exists(path):
+            os.unlink(path)
+
+
+def test_register_file_in_place_unhashed_changed_file_is_retired(
+    mock_create_session, hashing_on
+):
+    """Given a live content row at a path with hash=None, When the file is
+    overwritten with bytes of a different size and re-registered, Then the row
+    is retired and its records tagged missing - a recorded size the file no
+    longer has is positive evidence the bytes changed.
+    """
+    output_dir = folder_paths.get_output_directory()
+    os.makedirs(output_dir, exist_ok=True)
+    path = os.path.join(output_dir, "unhashed_changed.png")
+    try:
+        with open(path, "wb") as file:
+            file.write(b"scanner-seeded-original-bytes")
+        with mock_create_session() as session:
+            content_id, record_id = _seed_live_content(
+                session, os.path.abspath(path), None
+            )
+        with open(path, "wb") as file:
+            file.write(b"v2")
+        expected_hash = to_stored_hash(_digest_of(path))
+
+        result = register_file_in_place(
+            abs_path=path, name="unhashed_changed.png", tags=["output"]
+        )
+
+        assert result.asset.hash == expected_hash
+        with mock_create_session() as session:
+            stale = session.get(AssetContent, content_id)
+            assert stale is not None
+            assert stale.is_missing is True
+            assert _is_missing_tagged(session, record_id) is True
+            live = list(
+                session.scalars(
+                    select(AssetContent).where(
+                        AssetContent.path == os.path.abspath(path),
+                        AssetContent.is_missing.is_(False),
+                    )
+                )
+            )
+            assert len(live) == 1
+            assert live[0].hash == expected_hash
+    finally:
+        if os.path.exists(path):
+            os.unlink(path)
+
+
+def test_upload_unhashed_row_at_destination_is_not_retired(
+    mock_create_session, hashing_on
+):
+    """Given a hash-derived destination already carrying a live row with
+    hash=None for the same bytes, When those bytes are uploaded, Then the row
+    adopts the upload's hash instead of being retired, and the result reports
+    that hash rather than the row's stale None.
+    """
+    payload = b"upload-adopt-destination-bytes"
+    probe = _write_temp(payload)
+    digest = _digest_of(probe)
+    os.unlink(probe)
+    output_dir = folder_paths.get_output_directory()
+    os.makedirs(output_dir, exist_ok=True)
+    dest = os.path.join(output_dir, f"{digest}.bin")
+    temp = _write_temp(payload)
+    try:
+        with open(dest, "wb") as file:
+            file.write(payload)
+        with mock_create_session() as session:
+            content_id, record_id = _seed_live_content(session, dest, None)
+
+        result = upload_from_temp_path(
+            temp_path=temp, name="up.bin", tags=["output"], client_filename="up.bin"
+        )
+
+        assert result.asset.hash == to_stored_hash(digest)
+        assert result.asset.size_bytes == len(payload)
+        with mock_create_session() as session:
+            content = session.get(AssetContent, content_id)
+            assert content is not None
+            assert content.is_missing is False
+            assert _is_missing_tagged(session, record_id) is False
+    finally:
+        for path in (temp, dest):
+            if os.path.exists(path):
+                os.unlink(path)
+
+
+def test_upload_stale_destination_row_is_retired(mock_create_session, hashing_on):
+    """Given a destination whose live row carries a hash for bytes that were
+    externally replaced, When an upload writes its own bytes there, Then the
+    stale row is retired and exactly one live row - carrying the uploaded
+    hash and size - remains at that path.
+    """
+    payload = b"upload-retire-destination-bytes"
+    probe = _write_temp(payload)
+    digest = _digest_of(probe)
+    os.unlink(probe)
+    output_dir = folder_paths.get_output_directory()
+    os.makedirs(output_dir, exist_ok=True)
+    dest = os.path.join(output_dir, f"{digest}.bin")
+    temp = _write_temp(payload)
+    foreign_hash = to_stored_hash("f" * 64)
+    try:
+        with open(dest, "wb") as file:
+            file.write(b"externally-replaced")
+        with mock_create_session() as session:
+            content_id, record_id = _seed_live_content(session, dest, foreign_hash)
+
+        result = upload_from_temp_path(
+            temp_path=temp, name="up.bin", tags=["output"], client_filename="up.bin"
+        )
+
+        assert result.asset.hash == to_stored_hash(digest)
+        with mock_create_session() as session:
+            stale = session.get(AssetContent, content_id)
+            assert stale is not None
+            assert stale.is_missing is True
+            assert _is_missing_tagged(session, record_id) is True
+            live = list(
+                session.scalars(
+                    select(AssetContent).where(
+                        AssetContent.path == dest,
+                        AssetContent.is_missing.is_(False),
+                    )
+                )
+            )
+            assert len(live) == 1
+            assert live[0].hash == to_stored_hash(digest)
+            assert live[0].size_bytes == len(payload)
+    finally:
+        for path in (temp, dest):
+            if os.path.exists(path):
+                os.unlink(path)
 
 
 def test_upload_matching_missing_row_stores_bytes(mock_create_session, hashing_on):
