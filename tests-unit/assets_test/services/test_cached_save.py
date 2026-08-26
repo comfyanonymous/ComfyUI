@@ -7,7 +7,7 @@ from app.assets.database.models import Asset, AssetContent
 
 def test_cached_save_creates_delivery_record(mock_create_session, db_engine):
     import folder_paths
-    from app.assets.services.ingest import register_cached_output, register_output_file_b
+    from app.assets.services.ingest import register_cached_output, register_executed_output
 
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
@@ -23,7 +23,7 @@ def test_cached_save_creates_delivery_record(mock_create_session, db_engine):
     try:
         with open(path, "wb") as file:
             file.write(b"pixels")
-        original = register_output_file_b(path, job_id="executed-job")
+        original = register_executed_output(path, job_id="executed-job")
         update_count = 0
 
         cached = register_cached_output(path, job_id="delivery-job")
@@ -41,10 +41,16 @@ def test_cached_save_creates_delivery_record(mock_create_session, db_engine):
             os.unlink(path)
 
 
-def test_cached_save_against_missing_content_creates_fresh_rows(mock_create_session):
+def test_cached_save_against_missing_content_is_nonevent(mock_create_session):
+    """S10.4: cached registration against non-live content is a logged non-event.
+
+    Once the live content at the path is gone (marked missing), a cached replay
+    no longer falls back to a fresh executed registration - it returns None and
+    creates nothing, leaving only the original (now-missing) content row.
+    """
     import folder_paths
     from app.assets.database.queries.records import mark_content_missing
-    from app.assets.services.ingest import register_cached_output, register_output_file_b
+    from app.assets.services.ingest import register_cached_output, register_executed_output
 
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
@@ -53,22 +59,27 @@ def test_cached_save_against_missing_content_creates_fresh_rows(mock_create_sess
     try:
         with open(path, "wb") as file:
             file.write(b"pixels")
-        original = register_output_file_b(path, job_id="executed-job")
+        original = register_executed_output(path, job_id="executed-job")
         with mock_create_session() as session:
             mark_content_missing(session, original.content_id)
             session.commit()
 
         cached = register_cached_output(path, job_id="delivery-job")
 
+        assert cached is None
         with mock_create_session() as session:
             contents = list(
                 session.scalars(
                     select(AssetContent).where(AssetContent.path == os.path.abspath(path))
                 )
             )
-            assert len(contents) == 2
-            assert cached.content_id != original.content_id
-            assert session.get(AssetContent, cached.content_id).is_missing is False
+            assert len(contents) == 1
+            assert contents[0].id == original.content_id
+            assert contents[0].is_missing is True
+            records = list(
+                session.scalars(select(Asset).where(Asset.job_id == "delivery-job"))
+            )
+            assert records == []
     finally:
         if os.path.exists(path):
             os.unlink(path)

@@ -1,4 +1,4 @@
-"""Tests for the B-schema ingest service (register_output_file_b)."""
+"""Tests for the B-schema ingest service (register_executed_output)."""
 import os
 
 import pytest
@@ -21,7 +21,7 @@ def hashing_off():
 def test_new_path_save_off_mode_hash_null(mock_create_session):
     """New file registered in off mode: content row has hash=NULL."""
     import folder_paths
-    from app.assets.services.ingest import register_output_file_b
+    from app.assets.services.ingest import register_executed_output
 
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
@@ -30,7 +30,7 @@ def test_new_path_save_off_mode_hash_null(mock_create_session):
         fh.write(b"pixels")
 
     try:
-        record = register_output_file_b(f, job_id="job1")
+        record = register_executed_output(f, job_id="job1")
         record_id = record.id
         with mock_create_session() as session:
             content = session.execute(
@@ -50,7 +50,7 @@ def test_new_path_save_off_mode_hash_null(mock_create_session):
 def test_overwrite_at_live_path_marks_old_missing(mock_create_session):
     """Overwriting a live path marks the old content row missing; old record's job_id unchanged."""
     import folder_paths
-    from app.assets.services.ingest import register_output_file_b
+    from app.assets.services.ingest import register_executed_output
 
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
@@ -59,13 +59,13 @@ def test_overwrite_at_live_path_marks_old_missing(mock_create_session):
     try:
         with open(f, "wb") as fh:
             fh.write(b"v1")
-        r1 = register_output_file_b(f, job_id="job1")
+        r1 = register_executed_output(f, job_id="job1")
         old_content_id = r1.content_id
         old_record_id = r1.id
 
         with open(f, "wb") as fh:
             fh.write(b"v2")
-        r2 = register_output_file_b(f, job_id="job2")
+        r2 = register_executed_output(f, job_id="job2")
         new_record_id = r2.id
 
         with mock_create_session() as session:

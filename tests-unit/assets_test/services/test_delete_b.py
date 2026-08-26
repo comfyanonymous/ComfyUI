@@ -13,7 +13,7 @@ from app.assets.database.queries.records import (
     mark_content_missing,
 )
 from app.assets.services.asset_management import delete_asset_reference
-from app.assets.services.ingest import register_output_file_b
+from app.assets.services.ingest import register_executed_output
 
 
 def test_hard_delete_record_content_and_file_remain(mock_create_session, session, temp_dir):
@@ -71,13 +71,13 @@ def test_reregister_same_path_fresh_ids(mock_create_session, monkeypatch):
     try:
         with open(f, "wb") as fh:
             fh.write(b"v1")
-        first = register_output_file_b(f, job_id="job1")
+        first = register_executed_output(f, job_id="job1")
         first_id = first.id
         assert delete_asset_reference(first_id) is True
 
         with open(f, "wb") as fh:
             fh.write(b"v2")
-        second = register_output_file_b(f, job_id="job2")
+        second = register_executed_output(f, job_id="job2")
         assert second.id != first_id
     finally:
         if os.path.exists(f):

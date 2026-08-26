@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Literal, NamedTuple, TypeAlias
+from typing import Any, Literal, NamedTuple, TypeAlias
 
 import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
@@ -47,8 +47,8 @@ def create_content(session: Session, path: str, hash: str | None = None, size_by
         return winner
 
 
-def create_record(session: Session, content_id: str, name: str, mime_type: str | None = None, job_id: str | None = None, loader_path: str | None = None, tags: Sequence[str] | None = None) -> Asset:
-    record = Asset(content_id=content_id, name=name, mime_type=mime_type, job_id=job_id, loader_path=loader_path)
+def create_record(session: Session, content_id: str, name: str, mime_type: str | None = None, job_id: str | None = None, loader_path: str | None = None, tags: Sequence[str] | None = None, *, system_metadata: dict[str, Any] | None = None) -> Asset:
+    record = Asset(content_id=content_id, name=name, mime_type=mime_type, job_id=job_id, loader_path=loader_path, system_metadata=system_metadata)
     session.add(record)
     session.flush()
     for tag_name in tags or ():

@@ -221,7 +221,7 @@ def test_seeded_file_not_hashed_in_on_mode(
 def test_output_not_hashed_in_on_mode(monkeypatch):
     """A workflow output is NOT hashed while the flag is off (output gate held).
 
-    Drives ``register_output_file_b`` in-process — the exact function main.py
+    Drives ``register_executed_output`` in-process — the exact function main.py
     calls for each saved output — with the runtime hashing flag forced off and
     the DB pointed at an in-memory engine. This is deterministic regardless of
     the shared subprocess's mode.
@@ -248,7 +248,7 @@ def test_output_not_hashed_in_on_mode(monkeypatch):
         "app.assets.services.ingest.create_session", _fake_create_session
     )
 
-    from app.assets.services.ingest import register_output_file_b
+    from app.assets.services.ingest import register_executed_output
 
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
@@ -257,7 +257,7 @@ def test_output_not_hashed_in_on_mode(monkeypatch):
         fh.write(b"fake-output-bytes")
 
     try:
-        register_output_file_b(out_path, job_id="job-out")
+        register_executed_output(out_path, job_id="job-out")
         with SASession(engine) as session:
             content = session.execute(
                 select(AssetContent).where(

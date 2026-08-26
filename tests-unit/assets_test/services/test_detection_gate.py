@@ -15,7 +15,7 @@ from app.assets.services.snapshot_hash import snapshot_hash
 
 
 @pytest.fixture(autouse=True)
-def _clear_verification_queue():
+def _clear_pending_verifications():
     clear_pending_verifications()
     yield
     clear_pending_verifications()

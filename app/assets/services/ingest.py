@@ -30,8 +30,9 @@ from app.assets.database.queries import (
 )
 from app.assets.helpers import get_utc_now, normalize_tags
 from app.assets.services.bulk_ingest import batch_insert_seed_assets
-from app.assets.services.file_utils import get_size_and_mtime_ns
+from app.assets.services.file_utils import get_mtime_ns, get_size_and_mtime_ns
 from app.assets.services.image_dimensions import extract_image_dimensions
+from app.assets.services.metadata_extract import extract_file_metadata
 from app.assets.services.output_registration import (
     OutputExecution,
     OutputFileRegistration,
@@ -61,6 +62,60 @@ def _normalize_hash_input(hash_str: str) -> str:
     if hash_str and hash_str.lower().startswith("blake3:"):
         return hash_str[7:]
     return hash_str
+
+
+def _extract_system_metadata_sync(
+    locator: str,
+    mime_type: str | None,
+    stat_result: os.stat_result | None = None,
+) -> dict[str, Any]:
+    """Extract ``system_metadata`` at registration time (S29/D8).
+
+    Mirrors the ``scanner.enrich`` pass: tier-1/tier-2 file metadata plus image
+    dimensions for image MIME types, so records carry metadata at creation
+    instead of waiting for the background enrich pass to fill it.
+    """
+    metadata = extract_file_metadata(
+        locator,
+        stat_result=stat_result,
+        relative_filename=compute_loader_path(locator),
+    )
+    system_metadata = metadata.to_user_metadata()
+    if mime_type and mime_type.startswith("image/"):
+        dims = extract_image_dimensions(locator, mime_type=mime_type)
+        if dims:
+            system_metadata.update(dims)
+    return system_metadata
+
+
+def _discard_unreferenced_content(session: Session, content_id: str) -> None:
+    """Remove a content row left orphaned by a failed registration.
+
+    ``create_content`` inserts inside a SAVEPOINT (``begin_nested``); under
+    pysqlite that insert survives the enclosing ``rollback`` because pysqlite
+    has no real nested transaction. When the follow-on ``create_record`` fails
+    we would otherwise leak an unreferenced content row, so delete it explicitly
+    once we have confirmed no record points at it. Best-effort: cleanup errors
+    are logged and swallowed so the original failure is what surfaces.
+    """
+    from sqlalchemy import func, select
+
+    from app.assets.database.models import Asset, AssetContent
+
+    try:
+        ref_count = session.scalar(
+            select(func.count())
+            .select_from(Asset)
+            .where(Asset.content_id == content_id)
+        )
+        if ref_count:
+            return
+        content = session.get(AssetContent, content_id)
+        if content is not None:
+            session.delete(content)
+            session.commit()
+    except Exception:
+        logging.exception("Failed to discard orphan content %s", content_id)
 
 
 def _ingest_file_from_path(
@@ -191,7 +246,7 @@ def register_output_files(
 
         match registration.execution:
             case OutputExecution.EXECUTED:
-                register = register_output_file_b
+                register = register_executed_output
             case OutputExecution.CACHED:
                 register = register_cached_output
             case _:
@@ -573,6 +628,7 @@ def _create_upload_record(
         mime_type=mime_type,
         loader_path=compute_loader_path(abs_path),
         tags=list(tags),
+        system_metadata=_extract_system_metadata_sync(abs_path, mime_type),
     )
     if user_metadata:
         record.user_metadata = dict(user_metadata)
@@ -813,51 +869,92 @@ def create_from_hash(
         return _record_to_upload_result(session, record, created_new=True)
 
 
-_verification_queue: list[str] = []
-
-
 def register_cached_output(abs_path: str, job_id: str | None = None):
-    """Register a replayed output as a new delivery record without mutations."""
+    """Register a replayed output as a new delivery record without mutations.
+
+    S10.4: missing live content is a logged non-event - it creates nothing and
+    returns ``None``, and is never re-registered as a fresh executed output.
+    S29: the new record copies ``system_metadata`` from the earliest sibling
+    record of the same content (``created_at`` ascending, ``id`` ascending as
+    the tiebreak); when the content is orphaned (no sibling record survives,
+    e.g. after ``delete_asset_reference``) metadata is extracted fresh from the
+    file instead - the only behaviour satisfying both S10.4 and S29.
+    """
     from sqlalchemy import event, select
 
-    from app.assets.database.models import AssetContent
+    from app.assets.database.models import Asset, AssetContent
     from app.assets.database.queries.records import create_record
 
     locator = os.path.abspath(abs_path)
-    with create_session() as session:
-        update_count = [0]
+    try:
+        with create_session() as session:
+            update_count = [0]
 
-        @event.listens_for(session, "after_bulk_update")
-        def _count_update(update_context):
-            update_count[0] += 1
+            @event.listens_for(session, "after_bulk_update")
+            def _count_update(update_context):
+                update_count[0] += 1
 
-        existing = session.scalars(
-            select(AssetContent).where(
-                AssetContent.path == locator, AssetContent.is_missing.is_(False)
-            )
-        ).first()
-        if existing is None:
-            return register_output_file_b(abs_path, job_id=job_id)
+            existing = session.scalars(
+                select(AssetContent).where(
+                    AssetContent.path == locator, AssetContent.is_missing.is_(False)
+                )
+            ).first()
+            if existing is None:
+                logging.info(
+                    "Cached output registration is a non-event; no live content "
+                    "for %s",
+                    locator,
+                )
+                return None
 
-        name, path_tags = get_name_and_tags_from_asset_path(locator)
-        mime_type = mimetypes.guess_type(locator, strict=False)[0]
-        record = create_record(
-            session,
-            existing.id,
-            name,
-            mime_type=mime_type,
-            job_id=job_id,
-            loader_path=compute_loader_path(locator),
-            tags=path_tags,
-        )
-        session.commit()
-        assert update_count[0] == 0, (
-            f"Cached save must not UPDATE any row; got {update_count[0]}"
-        )
-        record_id = record.id
-        record_content_id = record.content_id
-        record_job_id = record.job_id
-        record_name = record.name
+            name, path_tags = get_name_and_tags_from_asset_path(locator)
+            mime_type = mimetypes.guess_type(locator, strict=False)[0]
+
+            sibling = session.scalars(
+                select(Asset)
+                .where(Asset.content_id == existing.id)
+                .order_by(Asset.created_at.asc(), Asset.id.asc())
+                .limit(1)
+            ).first()
+            if sibling is not None:
+                system_metadata = (
+                    dict(sibling.system_metadata)
+                    if sibling.system_metadata is not None
+                    else None
+                )
+            else:
+                system_metadata = _extract_system_metadata_sync(locator, mime_type)
+
+            try:
+                record = create_record(
+                    session,
+                    existing.id,
+                    name,
+                    mime_type=mime_type,
+                    job_id=job_id,
+                    loader_path=compute_loader_path(locator),
+                    tags=path_tags,
+                    system_metadata=system_metadata,
+                )
+                if update_count[0] != 0:
+                    logging.error(
+                        "Cached save must not UPDATE any row; got %d for %s; discarding",
+                        update_count[0],
+                        locator,
+                    )
+                    session.rollback()
+                    return None
+                session.commit()
+            except Exception:
+                session.rollback()
+                raise
+            record_id = record.id
+            record_content_id = record.content_id
+            record_job_id = record.job_id
+            record_name = record.name
+    except Exception:
+        logging.exception("Failed to register cached output: %s", locator)
+        return None
 
     from types import SimpleNamespace
 
@@ -869,22 +966,16 @@ def register_cached_output(abs_path: str, job_id: str | None = None):
     )
 
 
-def _output_hashing_enabled() -> bool:
-    """Whether to hash workflow output files.
+def register_executed_output(abs_path: str, job_id: str | None = None):
+    """Register a freshly-executed workflow output as a new delivery record.
 
-    Product decision (2026-08-23): large outputs such as video should not be
-    force-hashed on every save. This gate is deliberately separate from the
-    upload hashing path (uploads always hash) and from the scanner hashing
-    flag (which controls background enrichment).
-
-    To reverse this decision and always hash outputs: return True.
+    D14a: the content hash is left ``None`` at registration; the background
+    enrich pass fills it later - outputs are never force-hashed inline. S29/D8:
+    ``system_metadata`` is extracted synchronously and stored at creation.
+    S10.4: any failure is logged and swallowed (returns ``None``) so a save
+    error never propagates into the execution pipeline, and no partial rows are
+    left behind.
     """
-    from app.assets import mode
-
-    return mode.hashing_enabled()
-
-
-def register_output_file_b(abs_path: str, job_id: str | None = None):
     from sqlalchemy import select
 
     from app.assets.database.models import AssetContent
@@ -893,42 +984,53 @@ def register_output_file_b(abs_path: str, job_id: str | None = None):
         create_record,
         mark_content_missing,
     )
-    from app.assets.services.snapshot_hash import snapshot_hash
 
     locator = os.path.abspath(abs_path)
-    size_bytes, mtime_ns = get_size_and_mtime_ns(locator)
-    mime_type = mimetypes.guess_type(locator, strict=False)[0]
-    name, path_tags = get_name_and_tags_from_asset_path(locator)
-    with create_session() as session:
-        existing = session.scalars(
-            select(AssetContent).where(
-                AssetContent.path == locator, AssetContent.is_missing.is_(False)
-            )
-        ).first()
-        if existing is not None:
-            mark_content_missing(session, existing.id)
-        content_hash = None
-        if _output_hashing_enabled():
-            content_hash = snapshot_hash(locator)
-            if content_hash is None:
-                _verification_queue.append(locator)
-        content = create_content(
-            session, locator, content_hash, size_bytes, mtime_ns
+    try:
+        stat_result = os.stat(locator, follow_symlinks=True)
+        size_bytes = stat_result.st_size
+        mtime_ns = get_mtime_ns(stat_result)
+        mime_type = mimetypes.guess_type(locator, strict=False)[0]
+        name, path_tags = get_name_and_tags_from_asset_path(locator)
+        system_metadata = _extract_system_metadata_sync(
+            locator, mime_type, stat_result
         )
-        record = create_record(
-            session,
-            content.id,
-            name,
-            mime_type=mime_type,
-            job_id=job_id,
-            loader_path=compute_loader_path(locator),
-            tags=path_tags,
-        )
-        session.commit()
-        record_id = record.id
-        record_content_id = record.content_id
-        record_job_id = record.job_id
-        record_name = record.name
+        with create_session() as session:
+            created_content_id: str | None = None
+            try:
+                existing = session.scalars(
+                    select(AssetContent).where(
+                        AssetContent.path == locator,
+                        AssetContent.is_missing.is_(False),
+                    )
+                ).first()
+                if existing is not None:
+                    mark_content_missing(session, existing.id)
+                content = create_content(session, locator, None, size_bytes, mtime_ns)
+                created_content_id = content.id
+                record = create_record(
+                    session,
+                    content.id,
+                    name,
+                    mime_type=mime_type,
+                    job_id=job_id,
+                    loader_path=compute_loader_path(locator),
+                    tags=path_tags,
+                    system_metadata=system_metadata,
+                )
+                session.commit()
+            except Exception:
+                session.rollback()
+                if created_content_id is not None:
+                    _discard_unreferenced_content(session, created_content_id)
+                raise
+            record_id = record.id
+            record_content_id = record.content_id
+            record_job_id = record.job_id
+            record_name = record.name
+    except Exception:
+        logging.exception("Failed to register executed output: %s", locator)
+        return None
 
     from types import SimpleNamespace
     return SimpleNamespace(

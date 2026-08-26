@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy import event, select
 
 from app.assets.database.models import Asset, AssetContent
-from app.assets.services.ingest import register_output_file_b, register_output_files
+from app.assets.services.ingest import register_executed_output, register_output_files
 from app.assets.services.output_registration import (
     OutputExecution,
     OutputFileRegistration,
@@ -24,7 +24,7 @@ def _write_output_file(name: str, data: bytes) -> Path:
 def test_executed_registration_replaces_existing_live_content(mock_create_session):
     path = _write_output_file("executed-registration-replacement.png", b"original")
     try:
-        original_record = register_output_file_b(str(path), job_id="original-job")
+        original_record = register_executed_output(str(path), job_id="original-job")
         path.write_bytes(b"replacement")
         registration = OutputFileRegistration(
             path=str(path), execution=OutputExecution.EXECUTED
@@ -69,7 +69,7 @@ def test_cached_registration_reuses_existing_content_without_update(
             update_statements.append(statement)
 
     try:
-        original_record = register_output_file_b(str(path), job_id="original-job")
+        original_record = register_executed_output(str(path), job_id="original-job")
         event.listen(db_engine, "before_cursor_execute", capture_updates)
         registration = OutputFileRegistration(
             path=str(path), execution=OutputExecution.CACHED
@@ -104,29 +104,39 @@ def test_cached_registration_reuses_existing_content_without_update(
         path.unlink(missing_ok=True)
 
 
-def test_cached_registration_without_live_content_falls_back_to_fresh(
+def test_cached_registration_without_live_content_is_nonevent(
     mock_create_session,
 ):
+    """S10.4: a CACHED disposition with no live content creates nothing.
+
+    Previously this fell back to a fresh executed registration; the cached
+    primitive now treats missing live content as a logged non-event, so no
+    content row and no delivery record are created. (The dispatch still counts
+    it as handled; that wart is removed with the dispatch in a later todo.)
+    """
     path = _write_output_file("cached-registration-missing.png", b"new content")
     try:
         registration = OutputFileRegistration(
             path=str(path), execution=OutputExecution.CACHED
         )
 
-        registered = register_output_files((registration,), job_id="fallback-job")
+        register_output_files((registration,), job_id="fallback-job")
 
         with mock_create_session() as session:
-            content = session.scalars(
-                select(AssetContent).where(
-                    AssetContent.path == os.path.abspath(path)
+            contents = list(
+                session.scalars(
+                    select(AssetContent).where(
+                        AssetContent.path == os.path.abspath(path)
+                    )
                 )
-            ).one()
-            record = session.scalars(
-                select(Asset).where(Asset.job_id == "fallback-job")
-            ).one()
-            assert registered == 1
-            assert content.is_missing is False
-            assert record.content_id == content.id
+            )
+            records = list(
+                session.scalars(
+                    select(Asset).where(Asset.job_id == "fallback-job")
+                )
+            )
+            assert contents == []
+            assert records == []
     finally:
         path.unlink(missing_ok=True)
 

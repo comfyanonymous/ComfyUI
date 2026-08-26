@@ -4,7 +4,7 @@ from pathlib import Path
 from sqlalchemy import event, select
 
 from app.assets.database.models import Asset, AssetContent
-from app.assets.services.ingest import register_output_file_b, register_output_files
+from app.assets.services.ingest import register_executed_output, register_output_files
 from app.assets.services.output_registration import (
     OutputExecution,
     OutputFileRegistration,
@@ -23,7 +23,7 @@ def _write_output_file(name: str) -> Path:
 def test_cached_execution_binds_new_record_to_existing_content(mock_create_session):
     path = _write_output_file("cached-execution-bind.png")
     try:
-        original_record = register_output_file_b(str(path), job_id="original-job")
+        original_record = register_executed_output(str(path), job_id="original-job")
         registration = OutputFileRegistration(
             path=str(path), execution=OutputExecution.CACHED
         )
@@ -68,7 +68,7 @@ def test_cached_execution_does_not_mutate_existing_content(
             update_statements.append(statement)
 
     try:
-        original_record = register_output_file_b(str(path), job_id="original-job")
+        original_record = register_executed_output(str(path), job_id="original-job")
         with mock_create_session() as session:
             original_content = session.get(AssetContent, original_record.content_id)
             original_state = (

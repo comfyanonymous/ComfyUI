@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 import folder_paths
 from app.assets.database.models import Asset, AssetContent
-from app.assets.services.ingest import register_output_file_b
+from app.assets.services.ingest import register_executed_output
 
 
 def test_output_registration_creates_separate_record_and_content_rows(mock_create_session) -> None:
@@ -12,7 +12,7 @@ def test_output_registration_creates_separate_record_and_content_rows(mock_creat
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("result")
 
-    registered = register_output_file_b(str(path), job_id="job")
+    registered = register_executed_output(str(path), job_id="job")
 
     with mock_create_session() as session:
         record = session.get(Asset, registered.id)
