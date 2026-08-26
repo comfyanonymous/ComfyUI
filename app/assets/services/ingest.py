@@ -2,14 +2,19 @@ import contextlib
 import logging
 import mimetypes
 import os
+from types import SimpleNamespace
 from typing import Any, Sequence
 
+from sqlalchemy import event, func, select
 from sqlalchemy.orm import Session
 
-from app.assets.database.models import Asset
+from app.assets import mode
+from app.assets.database.models import Asset, AssetContent, AssetTag
+from app.assets.database.queries.records import create_content, create_record, mark_content_missing
 from app.assets.helpers import normalize_tags, to_stored_hash
 from app.assets.services.file_utils import get_mtime_ns, get_size_and_mtime_ns
 from app.assets.services.image_dimensions import extract_image_dimensions
+from app.assets.services.lookup import lookup_for_from_hash, lookup_for_upload_dedup
 from app.assets.services.metadata_extract import extract_file_metadata
 from app.assets.services.path_utils import (
     compute_loader_path,
@@ -23,6 +28,7 @@ from app.assets.services.schemas import (
     UploadResult,
     UserMetadata,
 )
+from app.assets.services.snapshot_hash import snapshot_hash
 from app.database.db import create_session
 
 
@@ -69,10 +75,6 @@ def _discard_unreferenced_content(session: Session, content_id: str) -> None:
     once we have confirmed no record points at it. Best-effort: cleanup errors
     are logged and swallowed so the original failure is what surfaces.
     """
-    from sqlalchemy import func, select
-
-    from app.assets.database.models import Asset, AssetContent
-
     try:
         ref_count = session.scalar(
             select(func.count())
@@ -123,8 +125,6 @@ def _remove_temp_path(temp_path: str | None) -> None:
 
 
 def _snapshot_hash_with_retry(path: str) -> str:
-    from app.assets.services.snapshot_hash import snapshot_hash
-
     for _ in range(_UPLOAD_HASH_ATTEMPTS):
         digest = snapshot_hash(path)
         if digest is not None:
@@ -184,8 +184,6 @@ def _create_upload_record(
     user_metadata: UserMetadata,
     preview_id: str | None,
 ) -> Asset:
-    from app.assets.database.queries.records import create_record
-
     record = create_record(
         session,
         content_id,
@@ -206,10 +204,6 @@ def _create_upload_record(
 def _record_to_upload_result(
     session: Session, record: Asset, *, created_new: bool
 ) -> UploadResult:
-    from sqlalchemy import select
-
-    from app.assets.database.models import AssetContent, AssetTag
-
     content = session.get(AssetContent, record.content_id)
     tag_names = list(
         session.scalars(
@@ -251,10 +245,6 @@ def upload_from_temp_path(
     mime_type: str | None = None,
     preview_id: str | None = None,
 ) -> UploadResult:
-    from app.assets.database.models import Asset, AssetContent
-    from app.assets.database.queries.records import create_content
-    from app.assets.services.lookup import lookup_for_upload_dedup
-
     display_name = _sanitize_filename(name or client_filename, fallback="upload")
     user_metadata = user_metadata or {}
 
@@ -336,10 +326,6 @@ def register_file_in_place(
     ``compare_image_hash`` same-name dedup is legacy physical behavior and stays
     outside hash-mode policy (parallel to path-form ``/view`` semantics).
     """
-    from app.assets.database.models import Asset, AssetContent
-    from app.assets.database.queries.records import create_content
-    from app.assets.services.lookup import lookup_for_upload_dedup
-
     locator = os.path.abspath(abs_path)
     display_name = _sanitize_filename(name, fallback=os.path.basename(locator))
     try:
@@ -406,9 +392,6 @@ def create_from_hash(
     mime_type: str | None = None,
     preview_id: str | None = None,
 ) -> UploadResult | None:
-    from app.assets import mode
-    from app.assets.services.lookup import lookup_for_from_hash
-
     if not mode.hashing_enabled():
         return None
 
@@ -448,11 +431,6 @@ def register_cached_output(abs_path: str, job_id: str | None = None):
     e.g. after ``delete_asset_reference``) metadata is extracted fresh from the
     file instead - the only behaviour satisfying both S10.4 and S29.
     """
-    from sqlalchemy import event, select
-
-    from app.assets.database.models import Asset, AssetContent
-    from app.assets.database.queries.records import create_record
-
     locator = os.path.abspath(abs_path)
     try:
         with create_session() as session:
@@ -524,8 +502,6 @@ def register_cached_output(abs_path: str, job_id: str | None = None):
         logging.exception("Failed to register cached output: %s", locator)
         return None
 
-    from types import SimpleNamespace
-
     return SimpleNamespace(
         id=record_id,
         content_id=record_content_id,
@@ -544,15 +520,6 @@ def register_executed_output(abs_path: str, job_id: str | None = None):
     error never propagates into the execution pipeline, and no partial rows are
     left behind.
     """
-    from sqlalchemy import select
-
-    from app.assets.database.models import AssetContent
-    from app.assets.database.queries.records import (
-        create_content,
-        create_record,
-        mark_content_missing,
-    )
-
     locator = os.path.abspath(abs_path)
     try:
         stat_result = os.stat(locator, follow_symlinks=True)
@@ -600,7 +567,6 @@ def register_executed_output(abs_path: str, job_id: str | None = None):
         logging.exception("Failed to register executed output: %s", locator)
         return None
 
-    from types import SimpleNamespace
     return SimpleNamespace(
         id=record_id,
         content_id=record_content_id,

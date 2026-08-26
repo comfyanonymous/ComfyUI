@@ -11,8 +11,12 @@ from sqlalchemy import select
 
 from app.assets.database.models import Asset, AssetContent
 from app.assets.database.queries.records import delete_record
+from app.assets.services.hash_mode_state import drain_transition_queue
+from app.assets.services.hash_mode_state import enqueue_transition_work
+from app.assets.services.hash_mode_state import record_transition_intent
 from app.assets.services.lookup import is_temp_path
 from app.database.db import create_session, init_db
+from comfy.cli_args import args
 
 _excluded_scan_roots: set[str] = set()
 _hash_mode_transition: str | None = None
@@ -24,7 +28,6 @@ def get_excluded_scan_roots() -> frozenset[str]:
 
 def record_hash_mode_transition_intent() -> None:
     global _hash_mode_transition
-    from app.assets.services.hash_mode_state import record_transition_intent
 
     with create_session() as session:
         _hash_mode_transition = record_transition_intent(session)
@@ -32,16 +35,12 @@ def record_hash_mode_transition_intent() -> None:
 
 
 def enqueue_mode_transition_work() -> None:
-    from app.assets.services.hash_mode_state import enqueue_transition_work
-
     with create_session() as session:
         enqueue_transition_work(session, _hash_mode_transition)
         session.commit()
 
 
 def drain_mode_transition_work() -> None:
-    from app.assets.services.hash_mode_state import drain_transition_queue
-
     with create_session() as session:
         drain_transition_queue(session)
         session.commit()
@@ -94,8 +93,8 @@ def cleanup_temp_filesystem() -> bool:
 
 
 def start_asset_seeder() -> bool:
+    # Keep nested to break app.assets.lifecycle -> app.assets.seeder -> app.assets.scanner -> app.assets.lifecycle.
     from app.assets.seeder import asset_seeder
-    from comfy.cli_args import args
 
     started = asset_seeder.start(
         roots=("models", "input", "output"),

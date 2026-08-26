@@ -14,6 +14,7 @@ from pydantic import ValidationError
 
 import folder_paths
 from app import user_manager
+from app.assets import mode
 from app.assets.api import schemas_in, schemas_out
 from app.assets.services import schemas
 from app.assets.api.schemas_in import (
@@ -665,8 +666,6 @@ async def create_asset_from_hash_route(request: web.Request) -> web.Response:
     if name is None:
         name = body.hash.split(":", 1)[1] if ":" in body.hash else body.hash
 
-    from app.assets import mode
-
     if not mode.hashing_enabled():
         return _build_error_response(
             400, "FEATURE_DISABLED", "Asset hashing is disabled."
@@ -1037,8 +1036,6 @@ async def seed_assets(request: web.Request) -> web.Response:
 
     wait_param = request.query.get("wait", "").lower()
     should_wait = wait_param in ("true", "1", "yes")
-
-    from app.assets import mode
 
     started = asset_seeder.start(
         roots=valid_roots, compute_hashes=mode.hashing_enabled()

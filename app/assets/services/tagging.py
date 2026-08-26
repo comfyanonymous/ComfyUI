@@ -1,5 +1,7 @@
 from typing import Sequence
 
+from sqlalchemy import delete, select
+
 from app.assets.database.queries import (
     AddTagsResult,
     RemoveTagsResult,
@@ -18,8 +20,6 @@ def apply_tags(
     origin: str = "manual",
     tenant_id: str = "",
 ) -> AddTagsResult:
-    from sqlalchemy import select
-
     del tenant_id
     with create_session() as session:
         if session.get(Asset, reference_id) is None:
@@ -66,8 +66,6 @@ def remove_tags(
     tags: list[str],
     tenant_id: str = "",
 ) -> RemoveTagsResult:
-    from sqlalchemy import delete, select
-
     del tenant_id
     with create_session() as session:
         if session.get(Asset, reference_id) is None:

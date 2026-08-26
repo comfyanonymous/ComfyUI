@@ -7,9 +7,14 @@ import pytest
 from sqlalchemy import func, select
 
 import app.assets.mode as mode_module
+import folder_paths
 from app.assets.database.models import Asset, AssetContent
 from app.assets.database.queries.records import create_content, mark_content_missing
-from app.assets.services.ingest import UploadUnstableError, upload_from_temp_path
+from app.assets.services.ingest import (
+    UploadUnstableError,
+    register_file_in_place,
+    upload_from_temp_path,
+)
 from app.assets.services.snapshot_hash import snapshot_hash
 
 
@@ -34,8 +39,6 @@ def hashing_off():
 
 
 def _write_temp(content: bytes) -> str:
-    import folder_paths
-
     uploads_root = os.path.join(folder_paths.get_temp_directory(), "uploads", uuid.uuid4().hex)
     os.makedirs(uploads_root, exist_ok=True)
     path = os.path.join(uploads_root, ".upload.part")
@@ -47,9 +50,6 @@ def _write_temp(content: bytes) -> str:
 def test_hash_mode_same_bytes_same_name_returns_same_record(
     mock_create_session, hashing_on
 ):
-    import folder_paths
-    from app.assets.services.ingest import register_file_in_place
-
     content = b"duplicate-bytes"
     temp1 = _write_temp(content)
     temp2 = _write_temp(content)
@@ -127,9 +127,6 @@ def test_off_mode_api_assets_dedups_same_bytes_same_name(
 def test_off_mode_register_file_in_place_same_path_dedups(
     mock_create_session, hashing_off
 ):
-    import folder_paths
-    from app.assets.services.ingest import register_file_in_place
-
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
     path = os.path.join(output_dir, "image_same.png")
@@ -162,9 +159,6 @@ def test_off_mode_register_file_in_place_same_path_dedups(
 def test_off_mode_register_file_in_place_different_bytes_two_paths(
     mock_create_session, hashing_off
 ):
-    import folder_paths
-    from app.assets.services.ingest import register_file_in_place
-
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
     path1 = os.path.join(output_dir, "same.png")
@@ -235,7 +229,7 @@ def test_upload_unstable_raises_after_three_attempts_no_rows(
     temp = _write_temp(b"unstable")
     try:
         with patch(
-            "app.assets.services.snapshot_hash.snapshot_hash", return_value=None
+            "app.assets.services.ingest.snapshot_hash", return_value=None
         ) as mock_hash:
             with pytest.raises(UploadUnstableError):
                 upload_from_temp_path(
@@ -258,7 +252,7 @@ def test_off_mode_upload_calls_dedup_lookup(mock_create_session, hashing_off):
     temp = _write_temp(b"off-mode")
     try:
         with patch(
-            "app.assets.services.lookup.lookup_for_upload_dedup"
+            "app.assets.services.ingest.lookup_for_upload_dedup"
         ) as mock_dedup:
             mock_dedup.return_value = None
             upload_from_temp_path(

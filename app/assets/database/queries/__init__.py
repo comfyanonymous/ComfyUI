@@ -1,3 +1,5 @@
+from importlib import import_module
+
 from app.assets.database.queries.records import (
     create_content,
     create_record,
@@ -26,8 +28,6 @@ __all__ = [
 
 
 def __getattr__(name: str):
-    from importlib import import_module
-
     for module_name in ("tags",):
         module = import_module(f"app.assets.database.queries.{module_name}")
         candidate = getattr(module, name, None)

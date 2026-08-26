@@ -18,14 +18,19 @@ paths:
 import os
 from datetime import datetime
 
+import folder_paths
 from sqlalchemy import select
 
 from app.assets.database.models import Asset, AssetContent
+from app.assets.database.queries.records import create_content, create_record
+from app.assets.services.ingest import (
+    register_cached_output,
+    register_executed_output,
+    register_file_in_place,
+)
 
 
 def _output_path(name: str) -> str:
-    import folder_paths
-
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
     return os.path.join(output_dir, name)
@@ -33,8 +38,6 @@ def _output_path(name: str) -> str:
 
 def test_executed_creates_metadata_and_null_hash(mock_create_session):
     """Executed output stores synchronous metadata; content hash stays NULL."""
-    from app.assets.services.ingest import register_executed_output
-
     body = b"pixels"
     path = _output_path("primitives_executed_meta.png")
     with open(path, "wb") as fh:
@@ -65,8 +68,6 @@ def test_executed_creates_metadata_and_null_hash(mock_create_session):
 
 def test_executed_over_live_path_marks_old_missing(mock_create_session):
     """Re-registering a live path splits content; old record is left intact."""
-    from app.assets.services.ingest import register_executed_output
-
     path = _output_path("primitives_executed_overwrite.png")
 
     try:
@@ -97,9 +98,6 @@ def test_executed_over_live_path_marks_old_missing(mock_create_session):
 
 def test_cached_copies_sibling_metadata(mock_create_session):
     """Cached record copies system_metadata from the existing sibling record."""
-    from app.assets.database.queries.records import create_content, create_record
-    from app.assets.services.ingest import register_cached_output
-
     sibling_metadata = {"provenance": "sibling", "width": 4, "kind": "image"}
     path = _output_path("primitives_cached_copy.png")
     with open(path, "wb") as fh:
@@ -136,9 +134,6 @@ def test_cached_earliest_sibling_wins(mock_create_session):
     ids - the LOWER id must win. A third, later sibling carries the lowest id
     of all to prove ``created_at`` dominates the id tiebreak.
     """
-    from app.assets.database.queries.records import create_content
-    from app.assets.services.ingest import register_cached_output
-
     earliest = datetime(2020, 1, 1, 0, 0, 0)
     later = datetime(2020, 1, 2, 0, 0, 0)
     winner_metadata = {"winner": "earliest-low-id"}
@@ -191,9 +186,6 @@ def test_cached_earliest_sibling_wins(mock_create_session):
 
 def test_cached_orphan_content_extracts_fresh(mock_create_session):
     """Live content with zero sibling records extracts metadata fresh."""
-    from app.assets.database.queries.records import create_content
-    from app.assets.services.ingest import register_cached_output
-
     body = b"pixels"
     path = _output_path("primitives_cached_orphan.png")
     with open(path, "wb") as fh:
@@ -223,8 +215,6 @@ def test_cached_orphan_content_extracts_fresh(mock_create_session):
 
 def test_cached_missing_content_is_nonevent(mock_create_session):
     """No live content: cached registration returns None and creates nothing."""
-    from app.assets.services.ingest import register_cached_output
-
     path = _output_path("primitives_cached_missing.png")
     with open(path, "wb") as fh:
         fh.write(b"pixels")
@@ -257,13 +247,11 @@ def test_registration_failure_never_raises_and_leaves_no_rows(
     mock_create_session, monkeypatch
 ):
     """A create_record failure returns None without raising or leaving rows."""
-    from app.assets.services.ingest import register_executed_output
-
     def _boom(*args, **kwargs):
         raise RuntimeError("simulated create_record failure")
 
     monkeypatch.setattr(
-        "app.assets.database.queries.records.create_record", _boom
+        "app.assets.services.ingest.create_record", _boom
     )
 
     path = _output_path("primitives_reg_fail.png")
@@ -296,8 +284,6 @@ def test_registration_failure_never_raises_and_leaves_no_rows(
 
 def test_upload_record_has_metadata_and_hash(mock_create_session):
     """Uploads still hash inline (H-OPEN) and gain synchronous metadata."""
-    from app.assets.services.ingest import register_file_in_place
-
     body = b"pixels-content"
     path = _output_path("primitives_upload_in_place.png")
     with open(path, "wb") as fh:

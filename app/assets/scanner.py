@@ -15,6 +15,7 @@ from app.assets.database.queries import (
 )
 from app.assets.database.models import Asset, AssetContent
 from app.assets.helpers import to_stored_hash
+from app.assets.lifecycle import get_excluded_scan_roots
 from app.assets.scanner_changes import (
     clear_pending_verifications,
     detect_content_change,
@@ -96,8 +97,6 @@ def get_owned_prefixes() -> list[str]:
 
 
 def get_temp_prefixes() -> list[str]:
-    from app.assets.lifecycle import get_excluded_scan_roots
-
     temp_dir = os.path.abspath(folder_paths.get_temp_directory())
     if temp_dir in get_excluded_scan_roots():
         return []

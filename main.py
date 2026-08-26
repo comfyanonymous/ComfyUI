@@ -22,6 +22,8 @@ console_log_level = get_console_log_level(args.verbose)
 file_log_outputs = get_file_log_outputs(args.verbose)
 setup_logger(log_level=console_log_level, file_outputs=file_log_outputs, use_stdout=args.log_stdout)
 
+from app.assets import mode
+from app.assets.lifecycle import init_db_and_state, run_startup
 from app.assets.seeder import asset_seeder
 import itertools
 import utils.extra_config
@@ -477,9 +479,6 @@ def hijack_progress(server_instance):
 
 
 def setup_database():
-    from app.assets import mode
-    from app.assets.lifecycle import init_db_and_state, run_startup
-
     try:
         if dependencies_available():
             mode.init(args)

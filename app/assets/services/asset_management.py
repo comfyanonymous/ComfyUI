@@ -2,15 +2,18 @@ import mimetypes
 import os
 from typing import Sequence
 
-from app.assets.database.models import AssetContent
+from sqlalchemy import delete, select, update
+
+from app.assets.database.models import Asset, AssetContent, AssetTag, Tag
 from app.assets.database.queries import (
     delete_record,
     fetch_record_tags,
     get_record_by_id,
     update_record_access_time,
 )
-from app.assets.database.queries.records import get_preview_file_paths_by_ids
-from app.assets.helpers import normalize_tags
+from app.assets.database.queries.records import get_preview_file_paths_by_ids, rename_record
+from app.assets.helpers import normalize_tags, validate_blake3_hash
+from app.assets.services.lookup import lookup_for_view
 from app.assets.services.schemas import (
     AssetData,
     AssetDetailResult,
@@ -68,11 +71,6 @@ def update_asset_metadata(
     mime_type: str | None = None,
     preview_id: str | None = None,
 ) -> AssetDetailResult:
-    from sqlalchemy import delete, update
-
-    from app.assets.database.models import Asset, AssetTag, Tag
-    from app.assets.database.queries.records import get_record_by_id, rename_record
-
     del tenant_id
     with create_session() as session:
         record = get_record_by_id(session, reference_id)
@@ -143,9 +141,6 @@ def delete_asset_reference(
 
 
 def asset_exists(asset_hash: str) -> bool:
-    from app.assets.helpers import validate_blake3_hash
-    from app.assets.services.lookup import lookup_for_view
-
     try:
         canonical = validate_blake3_hash(asset_hash)
     except ValueError:
@@ -165,12 +160,6 @@ def resolve_hash_to_path(
     temp content returns None. Updates last_access_time on every record pointing
     at the served content.
     """
-    from sqlalchemy import select
-
-    from app.assets.database.models import Asset
-    from app.assets.helpers import validate_blake3_hash
-    from app.assets.services.lookup import lookup_for_view
-
     del tenant_id
     try:
         canonical = validate_blake3_hash(asset_hash)
