@@ -12,16 +12,17 @@ from sqlalchemy.orm import Session
 
 from app.assets.database.models import (
     Asset,
+    AssetContent,
     AssetReference,
     AssetReferenceMeta,
     AssetReferenceTag,
+    AssetTag,
     Tag,
 )
-from app.assets.database.queries.common import (
-    apply_metadata_filter,
-    apply_tag_filters,
-    build_visibility_clause,
-    iter_row_chunks,
+from app.assets.database.queries.common import iter_row_chunks
+from app.assets.database.queries.records import (
+    build_record_tag_filter_clauses,
+    live_asset_content_clause,
 )
 from app.assets.helpers import escape_sql_like_string, get_utc_now, normalize_tags
 
@@ -176,75 +177,6 @@ def add_tags_to_reference(
     )
 
 
-def remove_tags_from_reference(
-    session: Session,
-    reference_id: str,
-    tags: Sequence[str],
-) -> RemoveTagsResult:
-    ref = session.get(AssetReference, reference_id)
-    if not ref:
-        raise ValueError(f"AssetReference {reference_id} not found")
-
-    norm = normalize_tags(tags)
-    if not norm:
-        total = get_reference_tags(session, reference_id=reference_id)
-        return RemoveTagsResult(removed=[], not_present=[], total_tags=total)
-
-    existing = set(get_reference_tags(session, reference_id))
-
-    to_remove = sorted(set(t for t in norm if t in existing))
-    not_present = sorted(set(t for t in norm if t not in existing))
-
-    if to_remove:
-        session.execute(
-            delete(AssetReferenceTag).where(
-                AssetReferenceTag.asset_reference_id == reference_id,
-                AssetReferenceTag.tag_name.in_(to_remove),
-            )
-        )
-        session.flush()
-
-    total = get_reference_tags(session, reference_id=reference_id)
-    return RemoveTagsResult(removed=to_remove, not_present=not_present, total_tags=total)
-
-
-def add_missing_tag_for_asset_id(
-    session: Session,
-    asset_id: str,
-    origin: str = "automatic",
-) -> None:
-    select_rows = (
-        sa.select(
-            AssetReference.id.label("asset_reference_id"),
-            sa.literal("missing").label("tag_name"),
-            sa.literal(origin).label("origin"),
-            sa.literal(get_utc_now()).label("added_at"),
-        )
-        .where(AssetReference.asset_id == asset_id)
-        .where(
-            sa.not_(
-                sa.exists().where(
-                    (AssetReferenceTag.asset_reference_id == AssetReference.id)
-                    & (AssetReferenceTag.tag_name == "missing")
-                )
-            )
-        )
-    )
-    session.execute(
-        sqlite.insert(AssetReferenceTag)
-        .from_select(
-            ["asset_reference_id", "tag_name", "origin", "added_at"],
-            select_rows,
-        )
-        .on_conflict_do_nothing(
-            index_elements=[
-                AssetReferenceTag.asset_reference_id,
-                AssetReferenceTag.tag_name,
-            ]
-        )
-    )
-
-
 def remove_missing_tag_for_asset_id(
     session: Session,
     asset_id: str,
@@ -266,25 +198,26 @@ def list_tags_with_usage(
     offset: int = 0,
     include_zero: bool = True,
     order: str = "count_desc",
-    tenant_id: str = "",
-) -> tuple[list[tuple[str, str, int]], int]:
+) -> tuple[list[tuple[str, int]], int]:
     prefix_filter = prefix.strip() if prefix else ""
+
+    # An asset counts toward a tag when its content is live, EXCEPT the "missing"
+    # tag, which stays visible precisely because the content went missing.
+    usage_visibility = sa.or_(
+        AssetContent.is_missing.is_(False),
+        AssetTag.tag_name == "missing",
+    )
 
     counts_sq = (
         select(
-            AssetReferenceTag.tag_name.label("tag_name"),
-            func.count(AssetReferenceTag.asset_reference_id).label("cnt"),
+            AssetTag.tag_name.label("tag_name"),
+            func.count(AssetTag.asset_id).label("cnt"),
         )
-        .select_from(AssetReferenceTag)
-        .join(AssetReference, AssetReference.id == AssetReferenceTag.asset_reference_id)
-        .where(build_visibility_clause(tenant_id))
-        .where(
-            sa.or_(
-                AssetReference.is_missing == False,  # noqa: E712
-                AssetReferenceTag.tag_name == "missing",
-            )
-        )
-        .group_by(AssetReferenceTag.tag_name)
+        .select_from(AssetTag)
+        .join(Asset, Asset.id == AssetTag.asset_id)
+        .join(AssetContent, Asset.content_id == AssetContent.id)
+        .where(usage_visibility)
+        .group_by(AssetTag.tag_name)
         .subquery()
     )
 
@@ -313,16 +246,11 @@ def list_tags_with_usage(
         total_q = total_q.where(func.substr(Tag.name, 1, len(prefix_filter)) == prefix_filter)
     if not include_zero:
         visible_tags_sq = (
-            select(AssetReferenceTag.tag_name)
-            .join(AssetReference, AssetReference.id == AssetReferenceTag.asset_reference_id)
-            .where(build_visibility_clause(tenant_id))
-            .where(
-                sa.or_(
-                    AssetReference.is_missing == False,  # noqa: E712
-                    AssetReferenceTag.tag_name == "missing",
-                )
-            )
-                .group_by(AssetReferenceTag.tag_name)
+            select(AssetTag.tag_name)
+            .join(Asset, Asset.id == AssetTag.asset_id)
+            .join(AssetContent, Asset.content_id == AssetContent.id)
+            .where(usage_visibility)
+            .group_by(AssetTag.tag_name)
         )
         total_q = total_q.where(Tag.name.in_(visible_tags_sq))
 
@@ -335,45 +263,46 @@ def list_tags_with_usage(
 
 def list_tag_counts_for_filtered_assets(
     session: Session,
-    tenant_id: str = "",
     include_tags: Sequence[str] | None = None,
     exclude_tags: Sequence[str] | None = None,
     name_contains: str | None = None,
-    metadata_filter: dict | None = None,
     limit: int = 100,
     # Appended last so pre-existing positional callers keep binding correctly.
     any_tags: Sequence[str] | None = None,
 ) -> dict[str, int]:
-    """Return tag counts for assets matching the given filters.
+    """Return {tag_name: count} for the live assets matching the given filters.
 
-    Uses the same filtering logic as list_references_page but returns
-    {tag_name: count} instead of paginated references.
+    Reuses build_record_tag_filter_clauses + live_asset_content_clause from the
+    record query layer verbatim, so /api/assets and /api/assets/tags/refine agree
+    on which assets a given all/any/none + name_contains filter selects.
     """
-    # Build a subquery of matching reference IDs
-    ref_sq = (
-        select(AssetReference.id)
-        .join(Asset, Asset.id == AssetReference.asset_id)
-        .where(build_visibility_clause(tenant_id))
-        .where(AssetReference.is_missing == False)  # noqa: E712
+    filters = list(
+        build_record_tag_filter_clauses(
+            tuple(include_tags or ()),
+            tuple(any_tags or ()),
+            tuple(exclude_tags or ()),
+        )
     )
-
     if name_contains:
         escaped, esc = escape_sql_like_string(name_contains)
-        ref_sq = ref_sq.where(AssetReference.name.ilike(f"%{escaped}%", escape=esc))
+        filters.append(Asset.name.ilike(f"%{escaped}%", escape=esc))
 
-    ref_sq = apply_tag_filters(ref_sq, include_tags, exclude_tags, any_tags)
-    ref_sq = apply_metadata_filter(ref_sq, metadata_filter)
-    ref_sq = ref_sq.subquery()
+    asset_sq = (
+        select(Asset.id)
+        .join(AssetContent, live_asset_content_clause())
+        .where(*filters)
+        .subquery()
+    )
 
-    # Count tags across those references
+    # Count every tag carried by the matching assets.
     q = (
         select(
-            AssetReferenceTag.tag_name,
-            func.count(AssetReferenceTag.asset_reference_id).label("cnt"),
+            AssetTag.tag_name,
+            func.count(AssetTag.asset_id).label("cnt"),
         )
-        .where(AssetReferenceTag.asset_reference_id.in_(select(ref_sq.c.id)))
-        .group_by(AssetReferenceTag.tag_name)
-        .order_by(func.count(AssetReferenceTag.asset_reference_id).desc(), AssetReferenceTag.tag_name.asc())
+        .where(AssetTag.asset_id.in_(select(asset_sq.c.id)))
+        .group_by(AssetTag.tag_name)
+        .order_by(func.count(AssetTag.asset_id).desc(), AssetTag.tag_name.asc())
         .limit(limit)
     )
 

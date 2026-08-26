@@ -73,26 +73,10 @@ ROUTE_SPECS: tuple[RouteSpec, ...] = (
     RouteSpec("POST", "/api/assets", "upload_asset"),
     RouteSpec("PUT", "/api/assets/{id}", "update_asset"),
     RouteSpec("DELETE", "/api/assets/{id}", "delete_asset"),
-    RouteSpec(
-        "GET",
-        "/api/tags",
-        "get_tags",
-        xfail_reason=(
-            "D3/D4: queries/tags.py still references the deleted AssetReference schema, "
-            "crashes on every call — fixed in todo 12"
-        ),
-    ),
+    RouteSpec("GET", "/api/tags", "get_tags"),
     RouteSpec("POST", "/api/assets/{id}/tags", "add_asset_tags"),
     RouteSpec("DELETE", "/api/assets/{id}/tags", "delete_asset_tags"),
-    RouteSpec(
-        "GET",
-        "/api/assets/tags/refine",
-        "get_tags_refine",
-        xfail_reason=(
-            "D3/D4: queries/tags.py still references the deleted AssetReference schema, "
-            "crashes on every call — fixed in todo 12"
-        ),
-    ),
+    RouteSpec("GET", "/api/assets/tags/refine", "get_tags_refine"),
     RouteSpec("POST", "/api/assets/seed", "seed_assets"),
     RouteSpec("GET", "/api/assets/seed/status", "get_seed_status"),
     RouteSpec("POST", "/api/assets/seed/cancel", "cancel_seed"),

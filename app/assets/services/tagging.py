@@ -115,6 +115,7 @@ def list_tags(
     include_zero: bool = True,
     tenant_id: str = "",
 ) -> tuple[list[TagUsage], int]:
+    del tenant_id
     limit = max(1, min(1000, limit))
     offset = max(0, offset)
 
@@ -126,7 +127,6 @@ def list_tags(
             offset=offset,
             include_zero=include_zero,
             order=order,
-            tenant_id=tenant_id,
         )
 
     return [TagUsage(name, count) for name, count in rows], total
@@ -141,10 +141,10 @@ def list_tag_histogram(
     # Appended last so pre-existing positional callers keep binding correctly.
     any_tags: Sequence[str] | None = None,
 ) -> dict[str, int]:
+    del tenant_id
     with create_session() as session:
         return list_tag_counts_for_filtered_assets(
             session,
-            tenant_id=tenant_id,
             include_tags=include_tags,
             exclude_tags=exclude_tags,
             any_tags=any_tags,
