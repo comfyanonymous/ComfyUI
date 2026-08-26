@@ -5,16 +5,17 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import dataclass
+from typing import Final
 
 from sqlalchemy.orm import Session
 
-from app.assets.database.queries.records import create_content, create_record
 from app.assets.services.path_utils import compute_loader_path, get_name_and_tags_from_asset_path
 
 PARTIAL_DOWNLOAD_EXTENSIONS = frozenset({
     ".part", ".partial", ".crdownload", ".download", ".tmp", ".aria2", ".!qb", ".opdownload",
 })
-_WATCH_CAP = 30
+_WATCH_SCAN_RETRIES: Final = 30
+_WATCH_LIST_MAX_SIZE: Final = 256
 
 
 @dataclass
@@ -41,9 +42,17 @@ def _two_stat_admit(paths_with_stats: list[tuple[str, os.stat_result]]) -> tuple
         except FileNotFoundError:
             continue
         if (second_stat.st_mtime_ns, second_stat.st_size) == (first_stat.st_mtime_ns, first_stat.st_size):
+            _WATCH_LIST[:] = [entry for entry in _WATCH_LIST if entry.path != path]
             admitted.append(path)
         else:
-            _WATCH_LIST.append(_WatchEntry(path, second_stat))
+            for entry in _WATCH_LIST:
+                if entry.path == path:
+                    entry.last_stat = second_stat
+                    break
+            else:
+                _WATCH_LIST.append(_WatchEntry(path, second_stat))
+                if len(_WATCH_LIST) > _WATCH_LIST_MAX_SIZE:
+                    _ = _WATCH_LIST.pop(0)
             watched.append(path)
     return admitted, watched
 
@@ -75,6 +84,6 @@ def tick_watch_list(session: Session) -> None:
             continue
         entry.last_stat = current
         entry.ticks += 1
-        if entry.ticks < _WATCH_CAP:
+        if entry.ticks < _WATCH_SCAN_RETRIES:
             remaining.append(entry)
     _WATCH_LIST[:] = remaining
