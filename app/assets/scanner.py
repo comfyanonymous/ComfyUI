@@ -397,7 +397,15 @@ def get_unenriched_assets_for_roots(
             .where(AssetContent.is_missing.is_(False))
         )
         if compute_hashes:
-            query = query.where(AssetContent.hash.is_(None))
+            # A split-created record has a hash but NULL metadata; it must still
+            # enrich. Widen the hash-mode branch so a missing hash OR missing
+            # metadata makes a row a candidate.
+            query = query.where(
+                sa.or_(
+                    AssetContent.hash.is_(None),
+                    Asset.system_metadata.is_(None),
+                )
+            )
         else:
             query = query.where(Asset.system_metadata.is_(None))
         rows = sess.execute(query.order_by(Asset.id)).all()
@@ -449,9 +457,14 @@ def enrich_asset(
         if metadata:
             mime_type = metadata.content_type
 
+    content = session.get(AssetContent, content_id)
+
     digest: str | None = None
     stored_hash: str | None = None
-    if compute_hash:
+    # A split-created record already carries the hash of its current bytes; only
+    # hash when content has none, so a metadata-only enrich never re-hashes a
+    # large file that is already identified.
+    if compute_hash and content is not None and content.hash is None:
         try:
             snapshot = snapshot_hash(file_path)
             if snapshot is None:
@@ -466,7 +479,6 @@ def enrich_asset(
             logging.warning("Failed to hash %s: %s", file_path, e)
 
     # Optimistic guard: discard results if content changed during enrichment.
-    content = session.get(AssetContent, content_id)
     record = session.get(Asset, record_id)
     if content is None or record is None or content.mtime_ns != initial_mtime_ns:
         session.rollback()

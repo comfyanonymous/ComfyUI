@@ -107,6 +107,12 @@ def detect_content_change(
     if hashing_is_enabled:
         queue_pending_verification(content.id)
         return
+    if content.size_bytes == stat_result.st_size:
+        # User identity rule: a same-size mtime bump (rsync, cloud sync, backup
+        # restore) is the same file. Without a hash to prove a content change,
+        # treat it as a no-op rather than split and destroy the user's tags and
+        # metadata. Hash mode above defers to the snapshot hash instead.
+        return
     split_content(session, content, stat_result, hash_value=None)
 
 
