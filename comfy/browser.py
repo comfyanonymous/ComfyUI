@@ -17,13 +17,14 @@ def open_browser(url: str, browser_path: str = None, browser_profile: str = None
             logging.info(f"Launching custom browser: {browser_path}")
             subprocess.Popen(cmd)
             return
-        except Exception as e:
+        except OSError as e:
             logging.warning(
                 f"Failed to launch custom browser '{browser_path}': {e}. "
                 f"Falling back to default browser."
             )
 
     try:
-        webbrowser.open(url)
-    except Exception as e:
+        if not webbrowser.open(url):
+            logging.warning(f"Failed to open default web browser for URL: {url}")
+    except webbrowser.Error as e:
         logging.error(f"Failed to open web browser: {e}")
