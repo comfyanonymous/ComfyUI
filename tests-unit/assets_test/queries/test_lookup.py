@@ -113,7 +113,7 @@ def test_dedup_returns_matching_name_entity(session, tmp_path):
     """Upload dedup returns the entity with the matching name, not just any entity."""
     f = _make_file(tmp_path, "match.png")
     content = create_content(session, path=f, hash="dup")
-    record = create_record(session, content_id=content.id, name="match.png")
+    create_record(session, content_id=content.id, name="match.png")
     session.commit()
 
     result = lookup_for_upload_dedup(session, "dup", "match.png")
