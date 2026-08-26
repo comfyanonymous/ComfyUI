@@ -30,7 +30,7 @@ class ForLoopOpen:
         }
 
     RETURN_TYPES = ("INT", "BOOLEAN", "BOOLEAN")
-    RETURN_NAMES = ("iteration", "first", "last")
+    RETURN_NAMES = ("iteration", "is_first", "is_last")
     FUNCTION = "open"
     CATEGORY = "looping"
 
