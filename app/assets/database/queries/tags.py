@@ -4,7 +4,6 @@ from dataclasses import dataclass
 
 from typing import Iterable, Sequence
 
-import sqlalchemy as sa
 from sqlalchemy import func, select
 from sqlalchemy.dialects import sqlite
 from sqlalchemy.orm import Session
@@ -17,7 +16,6 @@ from app.assets.database.models import (
 )
 from app.assets.database.queries.records import (
     build_record_tag_filter_clauses,
-    live_asset_content_clause,
 )
 from app.assets.helpers import escape_sql_like_string, normalize_tags
 
@@ -70,13 +68,10 @@ def list_tags_with_usage(
 ) -> tuple[list[tuple[str, int]], int]:
     prefix_filter = prefix.strip() if prefix else ""
 
-    # An asset counts toward a tag when its content is live, EXCEPT the "missing"
-    # tag, which stays visible precisely because the content went missing.
-    usage_visibility = sa.or_(
-        AssetContent.is_missing.is_(False),
-        AssetTag.tag_name == "missing",
-    )
-
+    # Every asset counts toward each tag it carries, missing content included, so
+    # /api/tags agrees with the catalog list/refine surfaces on tag counts. A
+    # record whose content went missing keeps ALL its tags countable here, not
+    # just the automatic "missing" one.
     counts_sq = (
         select(
             AssetTag.tag_name.label("tag_name"),
@@ -85,7 +80,6 @@ def list_tags_with_usage(
         .select_from(AssetTag)
         .join(Asset, Asset.id == AssetTag.asset_id)
         .join(AssetContent, Asset.content_id == AssetContent.id)
-        .where(usage_visibility)
         .group_by(AssetTag.tag_name)
         .subquery()
     )
@@ -118,7 +112,6 @@ def list_tags_with_usage(
             select(AssetTag.tag_name)
             .join(Asset, Asset.id == AssetTag.asset_id)
             .join(AssetContent, Asset.content_id == AssetContent.id)
-            .where(usage_visibility)
             .group_by(AssetTag.tag_name)
         )
         total_q = total_q.where(Tag.name.in_(visible_tags_sq))
@@ -139,11 +132,12 @@ def list_tag_counts_for_filtered_assets(
     # Appended last so pre-existing positional callers keep binding correctly.
     any_tags: Sequence[str] | None = None,
 ) -> dict[str, int]:
-    """Return {tag_name: count} for the live assets matching the given filters.
+    """Return {tag_name: count} for the assets matching the given filters.
 
-    Reuses build_record_tag_filter_clauses + live_asset_content_clause from the
-    record query layer verbatim, so /api/assets and /api/assets/tags/refine agree
-    on which assets a given all/any/none + name_contains filter selects.
+    Reuses build_record_tag_filter_clauses and the same Asset->AssetContent inner
+    join as list_records_page, so /api/assets and /api/assets/tags/refine agree on
+    which assets a given all/any/none + name_contains filter selects — including
+    missing-content records, which stay catalog-visible.
     """
     filters = list(
         build_record_tag_filter_clauses(
@@ -158,7 +152,7 @@ def list_tag_counts_for_filtered_assets(
 
     asset_sq = (
         select(Asset.id)
-        .join(AssetContent, live_asset_content_clause())
+        .join(AssetContent, Asset.content_id == AssetContent.id)
         .where(*filters)
         .subquery()
     )

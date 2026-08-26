@@ -10,6 +10,7 @@ class AssetData:
     hash: str | None
     size_bytes: int | None
     mime_type: str | None
+    is_missing: bool = False
 
 
 @dataclass(frozen=True)

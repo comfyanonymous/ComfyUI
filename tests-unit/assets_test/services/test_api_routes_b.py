@@ -21,7 +21,7 @@ def _session_factory(engine) -> Callable[[], Session]:
 
 
 @pytest.mark.asyncio
-async def test_unfiltered_listing_excludes_missing_entity(
+async def test_unfiltered_listing_includes_missing_entity(
     db_engine, session, temp_dir, monkeypatch
 ):
     content = create_content(session, path=str(temp_dir / "missing.png"))
@@ -46,8 +46,11 @@ async def test_unfiltered_listing_excludes_missing_entity(
     response_body = response.body
     assert isinstance(response_body, bytes | bytearray)
     body = json.loads(response_body)
-    assert record.id not in {item["id"] for item in body["assets"]}
-    assert body["total"] == 0
+    # Catalogued unfiltered; hidden only via exclude_tags=missing (test_exclude_tags_missing_hides_it).
+    assert record.id in {item["id"] for item in body["assets"]}
+    assert body["total"] == 1
+    listed = next(item for item in body["assets"] if item["id"] == record.id)
+    assert "missing" in listed["tags"]
 
 
 @pytest.mark.asyncio

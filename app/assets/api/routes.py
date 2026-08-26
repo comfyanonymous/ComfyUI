@@ -301,6 +301,10 @@ def _build_asset_response(
     if result.ref.preview_id:
         # A nominated preview is one whatever it holds, so no media check here.
         preview_url = _build_view_url(preview_paths.get(result.ref.preview_id))
+    elif result.asset is not None and result.asset.is_missing:
+        # Self-content preview is withheld when the underlying bytes are gone;
+        # a nominated (live) preview, handled above, is unaffected.
+        preview_url = None
     elif _has_previewable_content(result.asset, result.ref.file_path):
         preview_url = _build_view_url(result.ref.file_path)
     else:
@@ -348,6 +352,10 @@ def _build_record_response(
     display_name = paths[1] if paths else None
     if record.preview_id:
         preview_url = _build_view_url(preview_paths.get(record.preview_id))
+    elif content.is_missing:
+        # Self-content preview is withheld when the underlying bytes are gone;
+        # a nominated (live) preview, handled above, is unaffected.
+        preview_url = None
     else:
         mime_type = record.mime_type or mimetypes.guess_type(content.path)[0] or ""
         if mime_type.split(";", 1)[0].strip().lower().startswith(

@@ -287,7 +287,7 @@ async def test_page_query_budget_is_four_statements(
 
 
 @pytest.mark.asyncio
-async def test_missing_content_is_excluded_from_page_and_total(
+async def test_missing_content_is_listed_with_missing_tag(
     route_database: RouteDatabase,
 ) -> None:
     _, session = route_database
@@ -302,9 +302,35 @@ async def test_missing_content_is_excluded_from_page_and_total(
     mark_content_missing(session, missing_content.id)
     session.commit()
 
-    response = await _request_assets("tags_all=live-case")
+    response = await _request_assets("tags_all=live-case&sort=name&order=asc")
 
     body = _asset_list_body(response)
-    assert [asset["id"] for asset in body["assets"]] == [live.id]
-    assert missing.id not in {asset["id"] for asset in body["assets"]}
+    # Both the live and the missing record are catalogued under the shared tag.
+    assert {asset["id"] for asset in body["assets"]} == {live.id, missing.id}
+    assert body["total"] == 2
+    # The missing record advertises its automatic "missing" tag.
+    missing_asset = next(a for a in body["assets"] if a["id"] == missing.id)
+    assert "missing" in missing_asset["tags"]
+
+
+@pytest.mark.asyncio
+async def test_missing_content_is_reachable_via_tags_all_missing(
+    route_database: RouteDatabase,
+) -> None:
+    _, session = route_database
+    _seed_record(session, RecordSeed("live.png", ("live-case",)))
+    missing_content = create_content(session, "/output/missing.png")
+    missing = create_record(
+        session,
+        content_id=missing_content.id,
+        name="missing.png",
+        tags=("live-case",),
+    )
+    mark_content_missing(session, missing_content.id)
+    session.commit()
+
+    response = await _request_assets("tags_all=missing")
+
+    body = _asset_list_body(response)
+    assert {asset["id"] for asset in body["assets"]} == {missing.id}
     assert body["total"] == 1

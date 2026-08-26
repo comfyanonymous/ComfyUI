@@ -112,7 +112,7 @@ def test_order_is_count_desc_then_name_asc_or_name_asc(session: Session) -> None
     assert [name for name, _ in by_name] == ["alpha", "beta", "gamma"]
 
 
-def test_missing_content_hides_ordinary_tags_but_keeps_the_missing_tag(
+def test_missing_content_counts_all_its_tags_including_missing(
     session: Session,
 ) -> None:
     # Given a live asset and one whose content went missing (auto-tagged "missing")
@@ -125,8 +125,9 @@ def test_missing_content_hides_ordinary_tags_but_keeps_the_missing_tag(
     # When listing usage
     counts = dict(list_tags_with_usage(session)[0])
 
-    # Then the missing asset's ordinary "foo" is suppressed, but its "missing" shows
-    assert counts["foo"] == 1
+    # Then the missing asset contributes ALL its tags — its ordinary "foo" is no
+    # longer suppressed (2 assets carry it) and its "missing" tag stays countable.
+    assert counts["foo"] == 2
     assert counts["missing"] == 1
 
 
@@ -149,7 +150,7 @@ def test_histogram_counts_every_tag_on_the_filtered_assets(session: Session) -> 
     assert histogram == {"models": 2, "checkpoint": 1, "lora": 1}
 
 
-def test_histogram_excludes_missing_content_assets(session: Session) -> None:
+def test_histogram_includes_missing_content_assets(session: Session) -> None:
     # Given a live and a missing-content asset that share a tag
     _seed_asset(session, "/hm/live", "live", ["models"])
     gone = create_content(session, path="/hm/gone")
@@ -160,20 +161,22 @@ def test_histogram_excludes_missing_content_assets(session: Session) -> None:
     # When refining on "models"
     histogram = list_tag_counts_for_filtered_assets(session, include_tags=["models"])
 
-    # Then only the live asset contributes (missing content is dropped by live clause)
-    assert histogram == {"models": 1}
+    # Then both assets contribute — the missing record is catalog-visible, so refine
+    # tallies its tags (including the auto "missing") exactly as list does.
+    assert histogram == {"models": 2, "missing": 1}
 
 
 def test_refine_and_list_share_the_same_filtered_asset_set(session: Session) -> None:
-    # Given assets stressing all/none/name_contains plus a missing-content decoy
+    # Given assets stressing all/none/name_contains plus a missing-content record
+    # that satisfies the same filter (it is catalog-visible now, not a decoy).
     kept = _seed_asset(session, "/s/a", "checkpoint-a", ["models", "checkpoint"])
     _seed_asset(session, "/s/b", "checkpoint-b", ["models", "archived"])
     _seed_asset(session, "/s/c", "lora-c", ["models"])
-    decoy = create_content(session, path="/s/d")
-    create_record(
-        session, content_id=decoy.id, name="check-d", tags=["models", "checkpoint"]
+    gone = create_content(session, path="/s/d")
+    missing_match = create_record(
+        session, content_id=gone.id, name="check-d", tags=["models", "checkpoint"]
     )
-    mark_content_missing(session, decoy.id)
+    mark_content_missing(session, gone.id)
     session.commit()
 
     # When the identical filter is applied through /api/assets and refine
@@ -196,10 +199,11 @@ def test_refine_and_list_share_the_same_filtered_asset_set(session: Session) -> 
     )
 
     # Then refine's histogram is exactly the tag tally over the /api/assets result set
-    # (proves both reuse build_record_tag_filter_clauses + live_asset_content_clause)
-    assert {record.id for record in records} == {kept.id}
+    # (proves both reuse build_record_tag_filter_clauses + the same content join),
+    # and the missing record is present on BOTH surfaces with all its tags.
+    assert {record.id for record in records} == {kept.id, missing_match.id}
     assert histogram == dict(expected)
-    assert histogram == {"models": 1, "checkpoint": 1}
+    assert histogram == {"models": 2, "checkpoint": 2, "missing": 1}
 
 
 def test_histogram_any_tags_matches_the_list_union(session: Session) -> None:
@@ -218,3 +222,34 @@ def test_histogram_any_tags_matches_the_list_union(session: Session) -> None:
     # Then both select the union of the two tags
     assert {record.id for record in records} == {red.id, blue.id}
     assert histogram == {"red": 1, "blue": 1}
+
+
+def test_list_refine_and_tags_agree_on_counts_including_missing(
+    session: Session,
+) -> None:
+    # Given a live asset and a missing-content asset that share "models", each
+    # carrying one additional distinct tag. These are the only seeded assets, so a
+    # global /api/tags tally equals the models-filtered set exercised by list/refine.
+    _seed_asset(session, "/agree/live", "live", ["models", "checkpoint"])
+    gone = create_content(session, path="/agree/gone")
+    create_record(session, content_id=gone.id, name="gone", tags=["models", "lora"])
+    mark_content_missing(session, gone.id)  # adds the automatic "missing" tag
+    session.commit()
+
+    # When the identical filter is applied across list, refine, and (global) tags
+    records, tag_map, total = list_records_page(
+        session, RecordPageSpec(all_tags=("models",), limit=100)
+    )
+    list_tally = dict(
+        Counter(tag for record in records for tag in tag_map.get(record.id, []))
+    )
+    refine = list_tag_counts_for_filtered_assets(session, include_tags=["models"])
+    global_usage = dict(list_tags_with_usage(session)[0])
+
+    # Then all three surfaces report identical counts, and the missing record's
+    # non-"missing" tags (lora) are tallied everywhere rather than suppressed.
+    expected = {"models": 2, "checkpoint": 1, "lora": 1, "missing": 1}
+    assert total == 2
+    assert list_tally == expected
+    assert refine == expected
+    assert global_usage == expected

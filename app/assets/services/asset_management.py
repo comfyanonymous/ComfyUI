@@ -45,6 +45,7 @@ def _record_to_detail_result(session, record) -> AssetDetailResult:
         hash=api_hash,
         size_bytes=content.size_bytes if content else None,
         mime_type=record.mime_type,
+        is_missing=bool(content and content.is_missing),
     )
     return AssetDetailResult(ref=ref, asset=asset, tags=tags)
 

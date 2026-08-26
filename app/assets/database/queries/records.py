@@ -121,14 +121,6 @@ def update_record_access_time(
     session.execute(stmt.values(last_access_time=ts))
 
 
-def live_asset_content_clause() -> ColumnElement[bool]:
-    """Join an Asset to its non-missing AssetContent row."""
-    return sa.and_(
-        Asset.content_id == AssetContent.id,
-        AssetContent.is_missing.is_(False),
-    )
-
-
 def build_record_tag_filter_clauses(
     all_tags: Sequence[str],
     any_tags: Sequence[str],
@@ -191,7 +183,7 @@ def list_records_page(
 
     statement = (
         sa.select(Asset)
-        .join(AssetContent, live_asset_content_clause())
+        .join(AssetContent, Asset.content_id == AssetContent.id)
         .where(*filters)
         .options(joinedload(Asset.content), noload(Asset.tags))
     )
@@ -224,7 +216,7 @@ def list_records_page(
     total = session.scalar(
         sa.select(sa.func.count())
         .select_from(Asset)
-        .join(AssetContent, live_asset_content_clause())
+        .join(AssetContent, Asset.content_id == AssetContent.id)
         .where(*filters)
     )
 
@@ -234,7 +226,7 @@ def list_records_page(
         rows = session.execute(
             sa.select(AssetTag.asset_id, AssetTag.tag_name)
             .join(Asset, AssetTag.asset_id == Asset.id)
-            .join(AssetContent, live_asset_content_clause())
+            .join(AssetContent, Asset.content_id == AssetContent.id)
             .where(AssetTag.asset_id.in_(record_ids))
             .order_by(AssetTag.tag_name.asc())
         )

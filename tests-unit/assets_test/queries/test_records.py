@@ -24,30 +24,36 @@ def session():
         yield sess
 
 
-def test_listing_excludes_missing_by_default(session):
+def test_listing_includes_missing_by_default_with_missing_tag(session):
+    # A missing-content record stays in the catalog and carries its "missing" tag,
+    # so it is not silently dropped from list/refine/tags surfaces.
     content = create_content(session, path="/tmp/f1")
     record = create_record(session, content_id=content.id, name="test")
     mark_content_missing(session, content.id)
     session.commit()
 
-    results, _, total = list_records_page(session, RecordPageSpec())
+    results, tag_map, total = list_records_page(session, RecordPageSpec())
 
-    assert not any(r.id == record.id for r in results)
-    assert total == 0
+    assert any(r.id == record.id for r in results)
+    assert total == 1
+    assert "missing" in tag_map.get(record.id, [])
 
 
 def test_listing_excludes_missing_with_filter(session):
+    # Clients that want the old behaviour opt out explicitly via tags_none=missing;
+    # the record is now hidden by the tag filter, not by a hard-wired liveness clause.
     content = create_content(session, path="/tmp/f2")
     record = create_record(session, content_id=content.id, name="test2")
     mark_content_missing(session, content.id)
     session.commit()
 
-    results, _, _ = list_records_page(
+    results, _, total = list_records_page(
         session,
         RecordPageSpec(none_tags=("missing",)),
     )
 
     assert not any(r.id == record.id for r in results), "Missing record should be excluded"
+    assert total == 0
 
 
 def test_preview_cleanup_on_delete(session):

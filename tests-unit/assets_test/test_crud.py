@@ -4,7 +4,7 @@ import pytest
 
 
 @pytest.mark.hashing_on
-def test_missing_content_disappears_from_list_after_rm(
+def test_missing_content_remains_in_list_after_rm_with_missing_tag(
     http, api_base, asset_factory, comfy_tmp_base_dir, make_asset_bytes
 ):
     record = asset_factory(
@@ -23,7 +23,9 @@ def test_missing_content_disappears_from_list_after_rm(
     assert response is not None
     assert response.status_code == 200
     assets = http.get(f"{api_base}/api/assets", timeout=120).json()["assets"]
-    assert record["id"] not in {asset["id"] for asset in assets}
+    listed = {asset["id"]: asset for asset in assets}
+    assert record["id"] in listed
+    assert "missing" in listed[record["id"]]["tags"]
 
 
 def test_record_crud_hard_deletes_the_record(http, api_base, asset_factory, make_asset_bytes):

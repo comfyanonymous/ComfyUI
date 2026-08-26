@@ -12,9 +12,11 @@ from app.assets.api import routes
 from app.assets.api.routes import _build_asset_response
 from app.assets.database.models import Asset
 from app.assets.database.queries.records import (
+    RecordPageSpec,
     create_content,
     create_record,
     get_record_by_id,
+    list_records_page,
     mark_content_missing,
 )
 from app.assets.helpers import to_stored_hash
@@ -44,6 +46,35 @@ def test_missing_content_record_metadata_200_with_tag_content_404(
     assert detail is not None
     assert "missing" in detail.tags
 
+    with pytest.raises(FileNotFoundError):
+        resolve_asset_for_download(record_id)
+
+
+def test_missing_record_is_listed_but_never_served(
+    mock_create_session, session, temp_dir
+):
+    """A missing-content record stays catalogued, yet its bytes are never served.
+
+    The file exists on disk, so the refusal is due to is_missing alone — proving
+    the catalog-visibility change (list) did not leak into the serving path.
+    """
+    path = temp_dir / "listed_gone.bin"
+    path.write_bytes(b"x")
+    digest = to_stored_hash("a" * 64)
+    content = create_content(session, path=str(path), hash=digest)
+    record = create_record(session, content_id=content.id, name="listed_gone.bin")
+    mark_content_missing(session, content.id)
+    session.commit()
+    record_id = record.id
+
+    # Listed in the catalog, carrying its automatic "missing" tag...
+    results, tag_map, total = list_records_page(session, RecordPageSpec())
+    assert any(r.id == record_id for r in results)
+    assert total == 1
+    assert "missing" in tag_map.get(record_id, [])
+
+    # ...but the content is refused by both the hash view path and download.
+    assert lookup_for_view(session, digest) is None
     with pytest.raises(FileNotFoundError):
         resolve_asset_for_download(record_id)
 
