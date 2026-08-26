@@ -139,3 +139,63 @@ def test_0007_orm_parity(db_at_0006, tmp_path):
 
     assert alembic_tables == orm_tables, f"Mismatch: alembic={alembic_tables}, orm={orm_tables}"
     assert alembic_indexes == orm_indexes, f"Mismatch: alembic={alembic_indexes}, orm={orm_indexes}"
+
+
+def test_0007_downgrade_chain_past_0003_succeeds(db_at_0006):
+    """A multi-step downgrade from head must not crash mid-chain.
+
+    0007's downgrade recreates asset_references (and asset_reference_meta /
+    asset_reference_tags). If it omits the indexes those tables had at 0006,
+    the older downgrades raise "No such index": 0003 on
+    ix_asset_references_preview_id, then 0002 on the remaining asset_references
+    and asset_reference_meta/tags indexes. Downgrading to 0001_assets exercises
+    the entire chain through 0002's downgrade. (base is not targeted: 0001's own
+    downgrade uses a SQLite-incompatible DROP CONSTRAINT that predates and is
+    unrelated to this fix.)
+
+    The single-step 0007->0006 test does not catch this because 0003/0002's
+    downgrades never run.
+    """
+    cfg, db_path = db_at_0006
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "0001_assets")
+    with sqlite3.connect(db_path) as conn:
+        tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    # 0002's downgrade recreated the 0001-era schema and removed the split tables.
+    assert "assets_info" in tables
+    assert "asset_references" not in tables
+    assert "asset_contents" not in tables
+
+
+def test_0007_downgrade_restores_0006_asset_references_indexes(db_at_0006, tmp_path):
+    """0007's downgrade must recreate asset_references with the EXACT index set
+    present at 0006 — no more, no less.
+
+    Compared against a fresh DB left at 0006 so the expected set is not
+    hardcoded: any omitted (or invented) index is a mismatch, and omissions are
+    exactly what break the older downgrades mid-chain.
+    """
+    from sqlalchemy import create_engine, inspect
+
+    cfg, db_path = db_at_0006
+
+    reference_db = str(tmp_path / "reference_0006.db")
+    reference_cfg = _make_config(reference_db)
+    command.upgrade(reference_cfg, _BASELINE_0006)
+
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, _BASELINE_0006)
+
+    def _asset_reference_indexes(path: str) -> set[tuple[str, tuple[str, ...]]]:
+        engine = create_engine(f"sqlite:///{path}")
+        try:
+            return {
+                (index["name"], tuple(index["column_names"]))
+                for index in inspect(engine).get_indexes("asset_references")
+            }
+        finally:
+            engine.dispose()
+
+    restored = _asset_reference_indexes(db_path)
+    expected = _asset_reference_indexes(reference_db)
+    assert restored == expected, f"index drift: restored={restored}, expected={expected}"

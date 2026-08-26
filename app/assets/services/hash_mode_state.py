@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -98,8 +100,19 @@ def drain_transition_queue(session: Session) -> None:
             content.size_bytes = stat.st_size
             content.mtime_ns = stat.st_mtime_ns
         elif content.hash != stored_hash:
+            # Classify before mutating: the enqueue query has no root-prefix
+            # filter, so a path whose root was removed from the config still
+            # lands here. get_name_and_tags_from_asset_path raises ValueError
+            # for an out-of-root path; skip it (leaving the old content intact)
+            # rather than letting the error escape to setup_database's sys.exit.
+            try:
+                name, tags = get_name_and_tags_from_asset_path(path)
+            except ValueError:
+                logging.warning(
+                    "Skipping hash-mode split for out-of-root path: %s", path
+                )
+                continue
             mark_content_missing(session, content.id)
-            name, tags = get_name_and_tags_from_asset_path(path)
             replacement = create_content(
                 session,
                 path=path,
