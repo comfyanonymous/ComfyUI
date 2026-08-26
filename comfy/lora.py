@@ -494,7 +494,7 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32, ori
                 else:
                     weight += function(strength * comfy.model_management.cast_to_device(diff, weight.device, weight.dtype))
         elif patch_type == "set":
-            if v[0].shape != weight.shape:
+            if old_weight is None and v[0].shape != weight.shape:
                 weight = comfy.model_management.cast_to_device(v[0], weight.device, weight.dtype, copy=True)
             else:
                 weight.copy_(v[0])
