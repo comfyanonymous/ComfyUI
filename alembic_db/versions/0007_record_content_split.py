@@ -59,6 +59,10 @@ def upgrade() -> None:
         sa.Column("val_bool", sa.Boolean()), sa.Column("val_json", sa.JSON()),
         sa.CheckConstraint("val_str IS NOT NULL OR val_num IS NOT NULL OR val_bool IS NOT NULL OR val_json IS NOT NULL", name="ck_asset_meta_has_value"),
     )
+    op.create_index("ix_asset_meta_key", "asset_meta", ["key"])
+    op.create_index("ix_asset_meta_key_val_str", "asset_meta", ["key", "val_str"])
+    op.create_index("ix_asset_meta_key_val_num", "asset_meta", ["key", "val_num"])
+    op.create_index("ix_asset_meta_key_val_bool", "asset_meta", ["key", "val_bool"])
     op.create_table("asset_tags", sa.Column("asset_id", sa.String(36), sa.ForeignKey("assets.id", ondelete="CASCADE"), primary_key=True), sa.Column("tag_name", sa.String(512), sa.ForeignKey("tags.name", ondelete="RESTRICT"), primary_key=True), sa.Column("origin", sa.String(32), nullable=False), sa.Column("added_at", sa.DateTime(), nullable=False))
     op.create_index("ix_asset_tags_tag_name", "asset_tags", ["tag_name"])
     op.create_index("ix_asset_tags_asset_id", "asset_tags", ["asset_id"])

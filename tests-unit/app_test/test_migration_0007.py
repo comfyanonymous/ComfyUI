@@ -105,7 +105,7 @@ def test_0007_orm_parity(db_at_0006, tmp_path):
     """Base.metadata.create_all produces same table names as alembic upgrade."""
     from sqlalchemy import create_engine, inspect
 
-    import app.assets.database.models
+    import app.assets.database.models as asset_models
     from app.database.models import Base
 
     cfg, db_path = db_at_0006
@@ -119,10 +119,23 @@ def test_0007_orm_parity(db_at_0006, tmp_path):
             )
         }
 
+    alembic_engine = create_engine(f"sqlite:///{db_path}")
     orm_db = str(tmp_path / "orm.db")
     engine = create_engine(f"sqlite:///{orm_db}")
+    alembic_inspector = inspect(alembic_engine)
     Base.metadata.create_all(engine)
-    inspector = inspect(engine)
-    orm_tables = set(inspector.get_table_names())
+    orm_inspector = inspect(engine)
+    orm_tables = set(orm_inspector.get_table_names())
+    assert asset_models.AssetMeta.__tablename__ == "asset_meta"
+
+    alembic_indexes = {
+        (index["name"], tuple(index["column_names"]))
+        for index in alembic_inspector.get_indexes("asset_meta")
+    }
+    orm_indexes = {
+        (index.name, tuple(index.columns.keys()))
+        for index in Base.metadata.tables["asset_meta"].indexes
+    }
 
     assert alembic_tables == orm_tables, f"Mismatch: alembic={alembic_tables}, orm={orm_tables}"
+    assert alembic_indexes == orm_indexes, f"Mismatch: alembic={alembic_indexes}, orm={orm_indexes}"
