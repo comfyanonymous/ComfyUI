@@ -1,29 +1,12 @@
 import mimetypes
 import os
-from datetime import timezone
 from typing import Sequence
-
-from app.assets.services.cursor import (
-    CursorPayload,
-    InvalidCursorError,
-    decode_cursor,
-    decode_cursor_int,
-    decode_cursor_time,
-    encode_cursor,
-    encode_cursor_from_time,
-)
-
 
 from app.assets.database.models import AssetContent
 from app.assets.database.queries import (
     delete_record,
     fetch_record_tags,
     get_record_by_id,
-    fetch_reference_asset_and_tags,
-    get_asset_by_hash as queries_get_asset_by_hash,
-    get_reference_with_owner_check,
-    list_references_page,
-    set_reference_preview,
     update_record_access_time,
 )
 from app.assets.database.queries.records import get_preview_file_paths_by_ids
@@ -31,13 +14,9 @@ from app.assets.helpers import normalize_tags
 from app.assets.services.schemas import (
     AssetData,
     AssetDetailResult,
-    AssetSummaryData,
     DownloadResolutionResult,
-    ListAssetsResult,
     ReferenceData,
     UserMetadata,
-    extract_asset_data,
-    extract_reference_data,
 )
 from app.database.db import create_session
 
@@ -163,37 +142,6 @@ def delete_asset_reference(
         return True
 
 
-def set_asset_preview(
-    reference_id: str,
-    preview_reference_id: str | None = None,
-    tenant_id: str = "",
-) -> AssetDetailResult:
-    with create_session() as session:
-        get_reference_with_owner_check(session, reference_id, tenant_id)
-
-        set_reference_preview(
-            session,
-            reference_id=reference_id,
-            preview_reference_id=preview_reference_id,
-        )
-
-        result = fetch_reference_asset_and_tags(
-            session, reference_id=reference_id, tenant_id=tenant_id
-        )
-        if not result:
-            raise RuntimeError("State changed during preview update")
-
-        ref, asset, tags = result
-        detail = AssetDetailResult(
-            ref=extract_reference_data(ref),
-            asset=extract_asset_data(asset),
-            tags=tags,
-        )
-        session.commit()
-
-        return detail
-
-
 def asset_exists(asset_hash: str) -> bool:
     from app.assets.helpers import validate_blake3_hash
     from app.assets.services.lookup import lookup_for_view
@@ -204,132 +152,6 @@ def asset_exists(asset_hash: str) -> bool:
         return False
     with create_session() as session:
         return lookup_for_view(session, canonical) is not None
-
-
-def get_asset_by_hash(asset_hash: str) -> AssetData | None:
-    with create_session() as session:
-        asset = queries_get_asset_by_hash(session, asset_hash=asset_hash)
-        return extract_asset_data(asset)
-
-
-# Sort fields that support cursor pagination. `last_access_time` is not
-# in this list — it falls back to offset/limit.
-_CURSOR_SORT_FIELDS = ("created_at", "updated_at", "name", "size")
-
-
-def list_assets_page(
-    tenant_id: str = "",
-    include_tags: Sequence[str] | None = None,
-    exclude_tags: Sequence[str] | None = None,
-    name_contains: str | None = None,
-    metadata_filter: dict | None = None,
-    limit: int = 20,
-    offset: int = 0,
-    sort: str = "created_at",
-    order: str = "desc",
-    after: str | None = None,
-    # Appended last so pre-existing positional callers keep binding correctly.
-    any_tags: Sequence[str] | None = None,
-) -> ListAssetsResult:
-    """List assets with optional cursor pagination.
-
-    When ``after`` is supplied it overrides ``offset``. The cursor's sort field
-    must match ``sort`` and be in the cursor-supported allowlist; mismatches
-    raise InvalidCursorError so the handler can map to 400 INVALID_CURSOR.
-    """
-    cursor_value: object | None = None
-    cursor_id: str | None = None
-    # Mint next_cursor on every page where the sort is cursor-supported, not
-    # only when the request itself arrived with a cursor. Otherwise a first
-    # request (no `after`) returns next_cursor=None and the client can never
-    # enter cursor mode.
-    mint_cursor = sort in _CURSOR_SORT_FIELDS
-
-    if after is not None:
-        if sort not in _CURSOR_SORT_FIELDS:
-            raise InvalidCursorError(
-                f"cursor pagination is not supported for sort={sort!r}"
-            )
-        payload = decode_cursor(after, _CURSOR_SORT_FIELDS, expected_order=order)
-        if payload.sort_field != sort:
-            raise InvalidCursorError(
-                f"cursor sort field {payload.sort_field!r} does not match request sort {sort!r}"
-            )
-        cursor_value, cursor_id = _resolve_cursor_value(payload), payload.id
-
-    # Over-fetch by one row so we can distinguish "exactly `limit` rows total
-    # remaining" from "more rows past this page" without a second query. Drop
-    # the sentinel before returning.
-    fetch_limit = limit + 1 if mint_cursor else limit
-
-    with create_session() as session:
-        refs, tag_map, total = list_references_page(
-            session,
-            tenant_id=tenant_id,
-            include_tags=include_tags,
-            exclude_tags=exclude_tags,
-            any_tags=any_tags,
-            name_contains=name_contains,
-            metadata_filter=metadata_filter,
-            limit=fetch_limit,
-            offset=offset,
-            sort=sort,
-            order=order,
-            after_cursor_value=cursor_value,
-            after_cursor_id=cursor_id,
-        )
-
-        next_cursor: str | None = None
-        if mint_cursor and len(refs) > limit:
-            # There's at least one more row past this page — mint a cursor from
-            # the last row of the page (i.e. index `limit - 1`, since we
-            # over-fetched), and drop the sentinel.
-            next_cursor = _encode_next_cursor(refs[limit - 1], sort, order)
-            refs = refs[:limit]
-
-        items: list[AssetSummaryData] = []
-        for ref in refs:
-            items.append(
-                AssetSummaryData(
-                    ref=extract_reference_data(ref),
-                    asset=extract_asset_data(ref.asset),
-                    tags=tag_map.get(ref.id, []),
-                )
-            )
-
-        return ListAssetsResult(items=items, total=total, next_cursor=next_cursor)
-
-
-def _resolve_cursor_value(payload: CursorPayload) -> object:
-    """Map a decoded cursor payload to a column-typed Python value."""
-    if payload.sort_field in ("created_at", "updated_at"):
-        # DB stores naive UTC; strip tzinfo so the comparison binds against a
-        # `TIMESTAMP WITHOUT TIME ZONE` column without an offset shift.
-        return decode_cursor_time(payload).replace(tzinfo=None)
-    if payload.sort_field == "size":
-        return decode_cursor_int(payload)
-    return payload.value  # name, str-typed
-
-
-def _encode_next_cursor(ref, sort: str, order: str) -> str | None:
-    """Mint a cursor pointing at *ref* for the given sort dimension.
-
-    Returns None when the boundary row carries a NULL sort value (e.g. an asset
-    record whose size_bytes hasn't been backfilled). Continuing pagination
-    across a NULL boundary is undefined under keyset ordering — better to
-    truncate cleanly here than to mint a cursor that mis-positions.
-    """
-    if sort == "name":
-        return encode_cursor("name", ref.name, ref.id, order=order)
-    if sort == "size":
-        if ref.asset is None or ref.asset.size_bytes is None:
-            return None
-        return encode_cursor("size", str(ref.asset.size_bytes), ref.id, order=order)
-    # created_at / updated_at — DB datetimes are naive UTC; attach tz before encoding.
-    value = ref.created_at if sort == "created_at" else ref.updated_at
-    if value is None:
-        return None
-    return encode_cursor_from_time(sort, value.replace(tzinfo=timezone.utc), ref.id, order=order)
 
 
 def resolve_hash_to_path(

@@ -76,7 +76,6 @@ def tick_watch_list(session: Session) -> None:
                 "tags": tags,
                 "fname": compute_loader_path(entry.path),
                 "metadata": None,
-                "hash": None,
                 "mime_type": mimetypes.guess_type(entry.path, strict=False)[0],
                 "job_id": None,
             }

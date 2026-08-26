@@ -7,11 +7,11 @@ from sqlalchemy import select
 from app.assets.database.models import Asset, AssetContent, AssetTag, Tag
 from app.assets.helpers import to_stored_hash
 from app.assets.scanner import (
+    SeedAssetSpec,
     clear_pending_verifications,
     pending_recovery_count,
     seed_asset_specs,
 )
-from app.assets.services.bulk_ingest import SeedAssetSpec
 from app.assets.services.snapshot_hash import snapshot_hash
 
 
@@ -46,7 +46,6 @@ def _spec(path: Path) -> SeedAssetSpec:
         "tags": ["input"],
         "fname": path.name,
         "metadata": None,
-        "hash": None,
         "mime_type": None,
         "job_id": None,
     }

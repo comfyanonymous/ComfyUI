@@ -177,8 +177,3 @@ class AssetSystemState(Base):
 
     key: Mapped[str] = mapped_column(String(256), primary_key=True)
     value: Mapped[str] = mapped_column(Text, nullable=False)
-
-
-AssetReference = None
-AssetReferenceMeta = None
-AssetReferenceTag = None

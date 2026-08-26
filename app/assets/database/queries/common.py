@@ -15,19 +15,3 @@ def iter_chunks(seq, n: int):
 
 def iter_row_chunks(rows, cols_per_row: int):
     yield from iter_chunks(rows, calculate_rows_per_statement(cols_per_row))
-
-
-def build_visibility_clause(*_args, **_kwargs):
-    raise NotImplementedError("Asset-reference queries were removed in the B schema")
-
-
-def build_prefix_like_conditions(*_args, **_kwargs):
-    raise NotImplementedError("Asset-reference queries were removed in the B schema")
-
-
-def apply_tag_filters(*_args, **_kwargs):
-    raise NotImplementedError("Asset-reference queries were removed in the B schema")
-
-
-def apply_metadata_filter(*_args, **_kwargs):
-    raise NotImplementedError("Asset-reference queries were removed in the B schema")

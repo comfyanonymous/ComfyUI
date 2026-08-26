@@ -9,8 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.assets.database.models import Asset
 from app.assets.database.queries import create_record as create_record_query
-from app.assets.scanner import seed_asset_specs
-from app.assets.services.bulk_ingest import SeedAssetSpec
+from app.assets.scanner import SeedAssetSpec, seed_asset_specs
 from app.assets.services.snapshot_hash import snapshot_hash
 
 
@@ -24,7 +23,6 @@ def _spec(path: Path) -> SeedAssetSpec:
         "tags": ["input"],
         "fname": path.name,
         "metadata": None,
-        "hash": None,
         "mime_type": None,
         "job_id": None,
     }

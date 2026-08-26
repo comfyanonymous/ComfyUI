@@ -2,7 +2,7 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Literal
+from typing import Callable, Literal, TypedDict
 
 import folder_paths
 import sqlalchemy as sa
@@ -32,11 +32,9 @@ from app.assets.scanner_admission import (
     _two_stat_admit,
     tick_watch_list as tick_watch_list,
 )
-from app.assets.services.bulk_ingest import SeedAssetSpec
 from app.assets.services.file_utils import get_mtime_ns, is_visible, list_files_recursively
-from app.assets.services.hashing import compute_blake3_hash
 from app.assets.services.image_dimensions import extract_image_dimensions
-from app.assets.services.metadata_extract import extract_file_metadata
+from app.assets.services.metadata_extract import ExtractedMetadata, extract_file_metadata
 from app.assets.services.path_utils import (
     compute_loader_path,
     get_comfy_models_folders,
@@ -54,6 +52,20 @@ __all__ = [
 
 # Temp is deliberately absent: it is wiped before every scan, so walking it finds nothing.
 RootType = Literal["models", "input", "output"]
+
+
+class SeedAssetSpec(TypedDict):
+    """Spec for seeding an asset from filesystem."""
+
+    abs_path: str
+    size_bytes: int
+    mtime_ns: int
+    info_name: str
+    tags: list[str]
+    fname: str | None
+    metadata: ExtractedMetadata | None
+    mime_type: str | None
+    job_id: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -244,7 +256,6 @@ def build_asset_specs(
     paths: list[str],
     existing_paths: set[str],
     enable_metadata_extraction: bool = True,
-    compute_hashes: bool = False,
 ) -> tuple[list[SeedAssetSpec], set[str], int]:
     """Build asset specs from paths, returning (specs, tag_pool, skipped_count).
 
@@ -252,7 +263,6 @@ def build_asset_specs(
         paths: List of file paths to process
         existing_paths: Set of paths that already exist in the database
         enable_metadata_extraction: If True, extract tier 1 & 2 metadata
-        compute_hashes: If True, compute blake3 hashes (slow for large files)
     """
     specs: list[SeedAssetSpec] = []
     tag_pool: set[str] = set()
@@ -291,15 +301,6 @@ def build_asset_specs(
                 relative_filename=rel_fname,
             )
 
-        # Compute hash if requested
-        asset_hash: str | None = None
-        if compute_hashes:
-            try:
-                digest, _ = compute_blake3_hash(abs_p)
-                asset_hash = digest
-            except Exception as e:
-                logging.warning("Failed to hash %s: %s", abs_p, e)
-
         mime_type = metadata.content_type if metadata else None
         specs.append(
             {
@@ -310,7 +311,6 @@ def build_asset_specs(
                 "tags": tags,
                 "fname": rel_fname,
                 "metadata": metadata,
-                "hash": asset_hash,
                 "mime_type": mime_type,
                 "job_id": None,
             }
@@ -465,9 +465,7 @@ def enrich_asset(
         except Exception as e:
             logging.warning("Failed to hash %s: %s", file_path, e)
 
-    # Optimistic guard: if the content's mtime_ns changed since we
-    # started (e.g. ingest_existing_file updated it), our results are
-    # stale — discard them to avoid overwriting fresh registration data.
+    # Optimistic guard: discard results if content changed during enrichment.
     content = session.get(AssetContent, content_id)
     record = session.get(Asset, record_id)
     if content is None or record is None or content.mtime_ns != initial_mtime_ns:
