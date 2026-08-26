@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import make_mocked_request
-from sqlalchemy import update
+from sqlalchemy import select, update
 
 from app.assets.api import routes
 from app.assets.api.routes import _build_asset_response
@@ -22,6 +22,7 @@ from app.assets.database.queries.records import (
 from app.assets.helpers import to_stored_hash
 from app.assets.services.asset_management import (
     asset_exists,
+    delete_asset_reference,
     get_asset_detail,
     resolve_asset_for_download,
     resolve_hash_to_path,
@@ -175,6 +176,41 @@ def test_resolve_hash_to_path_uses_newest_record_for_name_and_content_type(
 
     assert result is not None
     assert result.download_name == "newer.png"
+    assert result.content_type == "image/png"
+
+
+def test_resolve_hash_to_path_serves_content_with_zero_records(
+    mock_create_session, session, temp_dir
+):
+    """Deleting the last record preserves its live content, which stays servable.
+
+    delete_asset_reference drops only the record row (D-3 floor), so /view can
+    reach an AssetContent with no records at all. Name and Content-Type then
+    derive from the content path, never from the deleted record's metadata.
+    """
+    digest = "d" * 64
+    f = temp_dir / "orphan.png"
+    f.write_bytes(b"data")
+    content = create_content(session, path=str(f), hash=to_stored_hash(digest))
+    record = create_record(
+        session,
+        content_id=content.id,
+        name="renamed.txt",
+        mime_type="text/plain",
+    )
+    session.commit()
+
+    assert delete_asset_reference(record.id) is True
+    session.expire_all()
+    assert lookup_for_view(session, f"blake3:{digest}") is not None
+    assert session.scalars(
+        select(Asset).where(Asset.content_id == content.id)
+    ).all() == []
+
+    result = resolve_hash_to_path(f"blake3:{digest}")
+
+    assert result is not None
+    assert result.download_name == "orphan.png"
     assert result.content_type == "image/png"
 
 

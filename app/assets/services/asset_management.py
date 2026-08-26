@@ -156,6 +156,10 @@ def resolve_hash_to_path(
     hash lookups inside qualified_content_iterator, so a hash resolving only to
     temp content returns None. Updates last_access_time on every record pointing
     at the served content.
+
+    Filename and Content-Type both come from the newest record so they never
+    describe different records. Deleting the last record preserves its content,
+    so content with zero records stays servable off the content path alone.
     """
     try:
         canonical = validate_blake3_hash(asset_hash)
@@ -173,9 +177,12 @@ def resolve_hash_to_path(
                 .order_by(Asset.created_at, Asset.id)
             )
         )
-        latest_record = records[-1]
-        display_name = latest_record.name or os.path.basename(content.path)
-        mime_type = latest_record.mime_type
+        display_name = os.path.basename(content.path)
+        mime_type = None
+        if records:
+            latest_record = records[-1]
+            display_name = latest_record.name or display_name
+            mime_type = latest_record.mime_type
         for record in records:
             update_record_access_time(session, record.id)
         abs_path = content.path
