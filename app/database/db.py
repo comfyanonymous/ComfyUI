@@ -168,8 +168,6 @@ def _init_file_db(db_url):
 
         try:
             command.upgrade(config, target_rev)
-            if backup_path:
-                os.remove(backup_path)
             logging.info(f"Database upgraded from {current_rev} to {target_rev}")
         except Exception as e:
             if backup_path:

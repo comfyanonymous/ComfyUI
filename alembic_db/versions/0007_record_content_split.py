@@ -1,3 +1,20 @@
+"""
+Record/content split.
+
+This migration intentionally discards the existing asset database. The
+asset_reference_meta, asset_reference_tags, asset_references, and assets
+tables are dropped, and DELETE FROM tags removes all existing tag rows. No
+data migration is performed.
+
+A filesystem rescan after this migration will not restore user_metadata,
+manually-applied tags, preview_id nominations, name renames, or job_id.
+build_asset_specs derives names and tags from the path alone.
+
+Revision ID: 0007_record_content_split
+Revises: 0006_add_loader_path
+Create Date: 2026-08-26
+"""
+
 from alembic import op
 import sqlalchemy as sa
 
@@ -13,6 +30,7 @@ def upgrade() -> None:
     op.drop_table("asset_reference_tags")
     op.drop_table("asset_references")
     op.drop_table("assets")
+    # Drop old tag links; a rescan recreates only path-derived tags.
     op.execute("DELETE FROM tags")
     op.create_table(
         "asset_contents",
