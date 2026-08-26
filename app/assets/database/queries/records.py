@@ -35,6 +35,33 @@ class RecordPageSpec(NamedTuple):
     after: RecordCursorBoundary | None = None
 
 
+_LIVE_PATH_UNIQUE_INDEX = "uq_asset_contents_path_live"
+
+
+def _is_live_path_conflict(error: IntegrityError) -> bool:
+    """True only for a collision on the live-path uniqueness guard.
+
+    ``create_content`` treats exactly one integrity failure as recoverable: two
+    live rows racing for the same ``path`` under the partial unique index
+    ``uq_asset_contents_path_live`` (``asset_contents(path) WHERE is_missing = 0``).
+    That case is resolved by handing back the row that won the race. Every other
+    integrity failure — notably the ``ck_asset_contents_size_nonneg`` and
+    ``ck_asset_contents_mtime_nonneg`` CHECK constraints — MUST propagate; treating
+    it as the race destroys the real diagnostic and surfaces a misleading
+    ``NoResultFound`` from the re-query (which finds no live row for the path).
+
+    SQLite names the *column* in the message (``UNIQUE constraint failed:
+    asset_contents.path``) rather than the index, while Postgres exposes the index
+    name on ``orig.diag.constraint_name``; match either form.
+    """
+    orig = error.orig
+    diag_name = getattr(getattr(orig, "diag", None), "constraint_name", None)
+    if diag_name == _LIVE_PATH_UNIQUE_INDEX:
+        return True
+    message = str(orig)
+    return "UNIQUE constraint failed" in message and "asset_contents.path" in message
+
+
 def create_content(session: Session, path: str, hash: str | None = None, size_bytes: int = 0, mtime_ns: int | None = None) -> AssetContent:
     content = AssetContent(path=path, hash=hash, size_bytes=size_bytes, mtime_ns=mtime_ns)
     try:
@@ -42,7 +69,9 @@ def create_content(session: Session, path: str, hash: str | None = None, size_by
             session.add(content)
             session.flush()
             return content
-    except IntegrityError:
+    except IntegrityError as error:
+        if not _is_live_path_conflict(error):
+            raise
         winner = session.execute(sa.select(AssetContent).where(AssetContent.path == path, AssetContent.is_missing.is_(False))).scalar_one()
         return winner
 

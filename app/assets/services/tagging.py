@@ -81,6 +81,19 @@ def remove_tags(
                 )
             )
         )
+        # Requested tags that ARE present but carry origin="automatic": they
+        # cannot be removed via this API, so they belong in their own bucket
+        # rather than being lumped into not_present (which would falsely claim
+        # the tag was never on the record).
+        protected_tags = set(
+            session.scalars(
+                select(AssetTag.tag_name).where(
+                    AssetTag.asset_id == reference_id,
+                    AssetTag.origin == "automatic",
+                    AssetTag.tag_name.in_(requested_tags),
+                )
+            )
+        )
         if removable_tags:
             session.execute(
                 delete(AssetTag).where(
@@ -100,8 +113,9 @@ def remove_tags(
 
     return RemoveTagsResult(
         removed=sorted(removable_tags),
-        not_present=sorted(requested_tags - removable_tags),
+        not_present=sorted(requested_tags - removable_tags - protected_tags),
         total_tags=total_tags,
+        protected=sorted(protected_tags),
     )
 
 

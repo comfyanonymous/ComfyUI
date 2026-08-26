@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from typing import Iterable, Sequence
 
@@ -32,6 +32,10 @@ class RemoveTagsResult:
     removed: list[str]
     not_present: list[str]
     total_tags: list[str]
+    # Tags that ARE present on the record but carry origin="automatic", so they
+    # cannot be removed via this API. Kept distinct from ``not_present`` so a
+    # caller can tell "the tag wasn't there" apart from "the tag is protected".
+    protected: list[str] = field(default_factory=list)
 
 
 def validate_tags_exist(session: Session, tags: list[str]) -> None:

@@ -1,6 +1,7 @@
 """Tests for the B-schema record/content query layer."""
 import pytest
 from sqlalchemy import create_engine, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.assets.database.models import Asset, AssetContent
@@ -114,3 +115,29 @@ def test_concurrent_create_content_same_path(tmp_path):
             ).scalars()
         )
     assert len(live_rows) == 1, f"Expected exactly one live row, got {len(live_rows)}"
+
+
+def test_create_content_check_violation_surfaces_the_constraint_error(session):
+    """Given a create with a negative size_bytes (violates the
+    ck_asset_contents_size_nonneg CHECK), When create_content runs, Then the real
+    IntegrityError surfaces — it must NOT be misread as the live-path uniqueness
+    race and swallowed into a NoResultFound by the ``scalar_one()`` re-query."""
+    with pytest.raises(IntegrityError):
+        create_content(session, path="/tmp/negative-size", size_bytes=-1)
+
+
+def test_create_content_check_violation_on_mtime_surfaces(session):
+    """Same guarantee for the mtime_ns CHECK: a negative mtime raises the
+    constraint error, never NoResultFound."""
+    with pytest.raises(IntegrityError):
+        create_content(session, path="/tmp/negative-mtime", size_bytes=0, mtime_ns=-1)
+
+
+def test_create_content_uniqueness_race_returns_existing_live_row(session):
+    """Regression guard: a genuine live-path uniqueness collision still resolves
+    by returning the pre-existing live row, not by raising — the retire/dedup
+    callers in ingest depend on this behaviour."""
+    first = create_content(session, path="/tmp/race")
+    second = create_content(session, path="/tmp/race")
+
+    assert second.id == first.id
