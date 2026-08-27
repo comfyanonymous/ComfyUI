@@ -61,6 +61,15 @@ def adapt_canvas(width, height):
             max(CANVAS_MULTIPLE, round(nom_h / CANVAS_MULTIPLE) * CANVAS_MULTIPLE))
 
 
+def downscale_to_area(width, height, max_pixels):
+    """Aspect-preserving, down-only sizing on H3's 32px spatial grid."""
+    scale = min(1.0, math.sqrt(max_pixels / (width * height)))
+    return (
+        max(CANVAS_MULTIPLE, round(width * scale / CANVAS_MULTIPLE) * CANVAS_MULTIPLE),
+        max(CANVAS_MULTIPLE, round(height * scale / CANVAS_MULTIPLE) * CANVAS_MULTIPLE),
+    )
+
+
 def _resize(image, width, height, crop):
     # image [B, H, W, C] -> [B, height, width, 3]
     samples = image[..., :3].movedim(-1, 1)
@@ -262,6 +271,8 @@ class MiniMaxH3ReferenceToVideo(io.ComfyNode):
                 io.Int.Input("length", default=124, min=5, max=3600, step=17, tooltip="Frame count at 24 fps, (124 = ~5s, trained range is ~124-362)"),
                 io.Combo.Input("ref_image_size", options=["match", "max"], default="match",
                     tooltip="Reference image sizing. 'match' scales each ref (down only, keeping aspect) to the generation's pixel area; 'max' uses the reference pipeline's 2048px short edge for best identity fidelity. Reference tokens ride through every sampling step, so 'max' can be several times slower."),
+                io.Combo.Input("ref_video_size", options=["official", "match"], default="official", optional=True,
+                    tooltip="Reference video sizing. 'official' keeps MiniMax's 768px short-edge recipe (up to 1344x768); 'match' scales down to the generation's pixel area. The smaller latent reduces reference encoding work and reference tokens processed at every sampling step."),
                 io.Autogrow.Input("ref_images", optional=True,
                     template=io.Autogrow.TemplatePrefix(
                         input=io.Image.Input("ref_image", tooltip="Reference image (downscaled to 2048 short edge if larger, never upscaled)"),
@@ -284,7 +295,8 @@ class MiniMaxH3ReferenceToVideo(io.ComfyNode):
 
     @classmethod
     def execute(cls, clip, vae, audio_vae, prompt, width, height, length, ref_image_size="match",
-                ref_images=None, ref_videos=None, ref_video_audios=None, ref_audios=None) -> io.NodeOutput:
+                ref_video_size="official", ref_images=None, ref_videos=None,
+                ref_video_audios=None, ref_audios=None) -> io.NodeOutput:
         latent, frame_count = _empty_av_latent(width, height, length)
 
         ref_items = []   # for the tokenizer presentation, in request order
@@ -296,11 +308,11 @@ class MiniMaxH3ReferenceToVideo(io.ComfyNode):
             h, w = img.shape[1], img.shape[2]
             if ref_image_size == "match":
                 # aspect-preserving scale (down only) to the generation's pixel area
-                scale = min(1.0, math.sqrt((width * height) / (w * h)))
+                tw, th = downscale_to_area(w, h, width * height)
             else:
                 scale = min(1.0, REF_IMAGE_SHORT_EDGE / min(w, h))
-            tw = max(CANVAS_MULTIPLE, round(w * scale / CANVAS_MULTIPLE) * CANVAS_MULTIPLE)
-            th = max(CANVAS_MULTIPLE, round(h * scale / CANVAS_MULTIPLE) * CANVAS_MULTIPLE)
+                tw = max(CANVAS_MULTIPLE, round(w * scale / CANVAS_MULTIPLE) * CANVAS_MULTIPLE)
+                th = max(CANVAS_MULTIPLE, round(h * scale / CANVAS_MULTIPLE) * CANVAS_MULTIPLE)
             resized = _resize(img[:1], tw, th, "disabled")
             z = vae.encode(resized)
             ref_items.append({"type": "image", "data": resized})
@@ -313,10 +325,13 @@ class MiniMaxH3ReferenceToVideo(io.ComfyNode):
             # index-paired soundtrack: ref_video_audio_N belongs to ref_video_N
             soundtrack = ref_video_audios.get("ref_video_audio_" + name.rsplit("_", 1)[-1])
             vh, vw = video_frames.shape[1], video_frames.shape[2]
-            cw, ch = adapt_canvas(vw, vh)
-            if vw * vh < cw * ch:
-                cw = max(CANVAS_MULTIPLE, round(vw / CANVAS_MULTIPLE) * CANVAS_MULTIPLE)
-                ch = max(CANVAS_MULTIPLE, round(vh / CANVAS_MULTIPLE) * CANVAS_MULTIPLE)
+            if ref_video_size == "match":
+                cw, ch = downscale_to_area(vw, vh, min(width * height, MAX_PIXELS))
+            else:
+                cw, ch = adapt_canvas(vw, vh)
+                if vw * vh < cw * ch:
+                    cw = max(CANVAS_MULTIPLE, round(vw / CANVAS_MULTIPLE) * CANVAS_MULTIPLE)
+                    ch = max(CANVAS_MULTIPLE, round(vh / CANVAS_MULTIPLE) * CANVAS_MULTIPLE)
             frames = _resize(video_frames, cw, ch, "disabled")
             if frames.shape[0] > frame_count:
                 frames = frames[:frame_count]
