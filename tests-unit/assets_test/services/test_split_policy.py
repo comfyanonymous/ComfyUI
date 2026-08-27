@@ -11,10 +11,14 @@ Three properties are locked here:
    and ``size_bytes`` change. A bare mtime bump at the same size (rsync, cloud
    sync, backup restore) is the same file and must not split — user tags and
    metadata survive on the live record. ``mtime`` unchanged stays the existing
-   Ruling #10 early return. Accepting that bump also refreshes the stored stat
-   snapshot: ``lookup._stat_consistent`` demands exact ``mtime_ns`` equality, so
-   a stale stored mtime would keep the row unservable by hash forever and make
-   every later scan re-detect the same change.
+   Ruling #10 early return. Accepting that bump refreshes the stored stat
+   snapshot *and* clears the stored hash. ``lookup._stat_consistent`` demands
+   exact ``mtime_ns`` equality, so a stale mtime would keep the row unservable
+   forever and re-detected on every scan — but refreshing the stat *alone*
+   re-qualifies the row for hash lookup while OFF mode cannot prove the bytes
+   are still that digest, serving changed bytes under an old content address.
+   Dropping the digest destroys no user data and returns the row to the enrich
+   predicate, so a later hash-mode pass re-derives the true one in place.
 
 3. Replacement shape. Both split sites (``scanner_changes.split_content`` and
    ``hash_mode_state.drain_transition_queue``) create the replacement record
@@ -39,7 +43,11 @@ import pytest
 
 from app.assets.database.models import Asset, AssetContent
 from app.assets.database.queries import create_content, create_record
-from app.assets.database.queries.records import fetch_record_tags
+from app.assets.database.queries.records import (
+    RecordPageSpec,
+    fetch_record_tags,
+    list_records_page,
+)
 from app.assets.helpers import to_stored_hash
 from app.assets.scanner import get_unenriched_assets_for_roots
 from app.assets.scanner_changes import (
@@ -141,6 +149,20 @@ def _bump_mtime(path: Path) -> os.stat_result:
     return after
 
 
+def _rewrite_same_size(path: Path, data: bytes) -> os.stat_result:
+    """Replace every byte with different bytes of exactly the same length."""
+    before = path.stat()
+    assert len(data) == before.st_size
+    assert data != path.read_bytes()
+    path.write_bytes(data)
+    bumped = before.st_mtime_ns + 5_000_000_000
+    os.utime(path, ns=(bumped, bumped))
+    after = path.stat()
+    assert after.st_size == before.st_size
+    assert after.st_mtime_ns != before.st_mtime_ns
+    return after
+
+
 # --- (i) + (ii): hash-mode enrich candidacy ---------------------------------
 
 
@@ -218,15 +240,17 @@ def test_same_size_mtime_bump_does_not_split(session: Session, temp_dir: Path) -
     assert live.size_bytes == 100
 
 
-def test_accepted_mtime_bump_keeps_content_servable_by_hash(
+def test_accepted_mtime_bump_drops_the_unverifiable_hash(
     session: Session, temp_dir: Path
 ) -> None:
     # Given a live hashed record whose stored stat matches the file on disk
     path = temp_dir / "synced.safetensors"
     content = _seed_hashed_content(session, path, b"rsynced bytes")
-    create_record(session, content.id, path.name, tags=["keepme"])
+    record = create_record(
+        session, content.id, path.name, tags=["keepme"], system_metadata={"k": "v"}
+    )
     session.commit()
-    content_id, stored_hash = content.id, content.hash
+    content_id, record_id, stored_hash = content.id, record.id, content.hash
     assert lookup_for_view(session, stored_hash) is not None
 
     # When a same-size mtime bump on the real file is accepted (OFF mode)
@@ -235,19 +259,52 @@ def test_accepted_mtime_bump_keeps_content_servable_by_hash(
     session.commit()
     session.expire_all()
 
-    # Then the row is still resolvable by hash: /view, from-hash and upload dedup
-    # all gate on lookup._stat_consistent, which demands exact mtime equality
-    served = lookup_for_view(session, stored_hash)
-    assert served is not None and served.id == content_id
-
-    # ... because the stored snapshot tracks the file, hash and identity untouched
+    # Then the digest is dropped rather than re-asserted. OFF mode cannot prove
+    # the bytes still hash to it, and the refreshed stat alone would re-satisfy
+    # lookup._stat_consistent for /view, from-hash and upload dedup — serving
+    # whatever the bytes became under an address that no longer describes them.
     live = session.get(AssetContent, content_id)
+    assert live.hash is None
+    assert lookup_for_view(session, stored_hash) is None
+
+    # ... while the stored snapshot tracks the file and the row stays live
+    assert live.is_missing is False
     assert live.mtime_ns == observed.st_mtime_ns
     assert live.size_bytes == observed.st_size
-    assert live.hash == stored_hash
-    assert "keepme" in fetch_record_tags(
-        session, session.scalar(select(Asset).where(Asset.content_id == content_id)).id
-    )
+
+    # ... and the record, its tags and its metadata survive and still list
+    surviving = session.get(Asset, record_id)
+    assert surviving is not None and surviving.content_id == content_id
+    assert surviving.system_metadata == {"k": "v"}
+    assert "keepme" in fetch_record_tags(session, record_id)
+    listed, _, _ = list_records_page(session, RecordPageSpec(limit=100))
+    assert record_id in {row.id for row in listed}
+
+
+def test_same_size_content_change_is_never_served_under_the_old_hash(
+    session: Session, temp_dir: Path
+) -> None:
+    # Given a live hashed record whose stored stat matches the file on disk
+    path = temp_dir / "overwritten.safetensors"
+    content = _seed_hashed_content(session, path, b"AAAA")
+    create_record(session, content.id, path.name, tags=["keepme"])
+    session.commit()
+    old_hash = content.hash
+    assert lookup_for_view(session, old_hash) is not None
+
+    # When the bytes genuinely change at exactly the same size, in OFF mode
+    # where nothing can prove it, and that same-size bump is accepted
+    observed = _rewrite_same_size(path, b"BBBB")
+    detect_content_change(session, content, observed, hashing_is_enabled=False)
+    session.commit()
+    session.expire_all()
+
+    # Then the old content address resolves to nothing. Accepting the bump
+    # refreshes the stored stat, which alone would re-satisfy _stat_consistent
+    # and let /view?filename=<old hash> hand back the NEW bytes — a
+    # content-address claim that is a lie. The digest must be dropped with it.
+    assert path.read_bytes() == b"BBBB"
+    assert lookup_for_view(session, old_hash) is None
 
 
 def test_accepted_mtime_bump_is_not_re_detected_by_the_next_scan(
@@ -266,7 +323,9 @@ def test_accepted_mtime_bump_is_not_re_detected_by_the_next_scan(
     detect_content_change(session, content, path.stat(), hashing_is_enabled=True)
 
     # Then it does not re-enter the change branch: no verification work is queued
-    # (a stale stored mtime would re-queue a rehash of this file on every pass)
+    # (a stale stored mtime would re-queue a rehash of this file on every pass).
+    # Scan churn only — this is NOT a claim that the accepted bump left a usable
+    # digest behind; it did not, and the enrich path is what re-derives one.
     assert drain_pending_verifications(session) == 0
 
     # ... and an OFF-mode pass is equally inert: still one live row, no split
@@ -279,6 +338,50 @@ def test_accepted_mtime_bump_is_not_re_detected_by_the_next_scan(
     assert len(rows_at_path) == 1
     assert rows_at_path[0].id == content_id
     assert rows_at_path[0].is_missing is False
+
+
+def test_dropped_hash_is_refilled_in_place_by_a_later_hash_mode_pass(
+    session: Session, temp_dir: Path
+) -> None:
+    # Given a fully enriched live record — hash AND metadata set, so the only
+    # thing that can ever make it an enrich candidate is losing its hash
+    path = temp_dir / "refilled.safetensors"
+    content = _seed_hashed_content(session, path, b"cloud synced bytes")
+    record = create_record(
+        session, content.id, path.name, tags=["keepme"], system_metadata={"k": "v"}
+    )
+    session.commit()
+    content_id, record_id = content.id, record.id
+    assert record_id not in _candidates_under(session, temp_dir, compute_hashes=True)
+
+    # ... whose same-size mtime bump was accepted in OFF mode, dropping the hash
+    detect_content_change(session, content, _bump_mtime(path), hashing_is_enabled=False)
+    session.commit()
+    session.expire_all()
+    assert session.get(AssetContent, content_id).hash is None
+    assert record_id in _candidates_under(session, temp_dir, compute_hashes=True)
+
+    # When hashing is turned back on and the transition queue drains
+    enqueue_transition_work(session, "off_to_on")
+    drain_transition_queue(session)
+    session.commit()
+    session.expire_all()
+
+    # Then the true digest of the current bytes is refilled onto the same row:
+    # no split, no new record, tags and metadata carried through untouched
+    snapshot = snapshot_hash(str(path))
+    assert snapshot is not None
+    live = session.get(AssetContent, content_id)
+    assert live.is_missing is False
+    assert live.hash == to_stored_hash(snapshot[0])
+    assert lookup_for_view(session, live.hash).id == content_id
+    rows_at_path = list(
+        session.scalars(select(AssetContent).where(AssetContent.path == str(path)))
+    )
+    assert len(rows_at_path) == 1
+    assert "keepme" in fetch_record_tags(session, record_id)
+    assert session.get(Asset, record_id).system_metadata == {"k": "v"}
+    assert record_id not in _candidates_under(session, temp_dir, compute_hashes=True)
 
 
 def test_mtime_and_size_change_splits_with_null_metadata(

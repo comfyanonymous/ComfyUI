@@ -112,12 +112,20 @@ def detect_content_change(
         # restore) is the same file. Without a hash to prove a content change,
         # keep the record rather than split and destroy the user's tags and
         # metadata. Hash mode above defers to the snapshot hash instead.
-        # Identity is kept, but the stat snapshot must adopt the observed values:
-        # lookup._stat_consistent demands exact mtime equality, so a stale stored
-        # mtime would make the file unservable by hash and re-trigger this branch
-        # on every later scan.
+        #
+        # The stat snapshot must adopt the observed values (lookup.
+        # _stat_consistent demands exact mtime equality, so a stale stored mtime
+        # leaves the file unservable and re-triggers this branch every scan) —
+        # but refreshing the stat ALONE re-qualifies the row for hash lookup
+        # while the bytes may have changed underneath it at the same size, so
+        # /view?filename=<old hash> would serve bytes that are not that digest.
+        # OFF mode cannot prove the bytes, so the unverifiable digest is dropped
+        # too. That destroys no user data and re-enters the row into the enrich
+        # predicate (hash IS NULL OR system_metadata IS NULL), so an OFF->ON
+        # transition or a later enrich pass refills the true digest in place.
         content.size_bytes = stat_result.st_size
         content.mtime_ns = stat_result.st_mtime_ns
+        content.hash = None
         return
     split_content(session, content, stat_result, hash_value=None)
 
