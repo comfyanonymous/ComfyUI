@@ -45,7 +45,7 @@ from comfyui_version import __version__
 from app.frontend_management import FrontendManager, parse_version
 from comfy_api.internal import _ComfyNodeInternal
 from app.assets.seeder import asset_seeder
-from app.assets.api.routes import register_assets_routes
+from app.assets.api.routes import register_assets_routes, assets_enabled
 from app.assets.services.ingest import register_file_in_place
 from app.assets.services.path_utils import get_known_subfolder_tags
 from app.assets.services.asset_management import resolve_hash_to_path
@@ -254,7 +254,12 @@ class PromptServer():
             else args.front_end_root
         )
         logging.info(f"[Prompt Server] web root: {self.web_root}")
-        register_assets_routes(self.app, self.user_manager)
+        if args.disable_assets:
+            # Register the routes without enabling them so /api/assets/* returns
+            # a structured 503 rather than a 404.
+            register_assets_routes(self.app)
+        else:
+            register_assets_routes(self.app, self.user_manager)
         routes = web.RouteTableDef()
         self.routes = routes
         self.last_node_id = None
@@ -436,21 +441,22 @@ class PromptServer():
 
                 resp = {"name" : filename, "subfolder": subfolder, "type": image_upload_type}
 
-                try:
-                    tag = image_upload_type if image_upload_type in ("input", "output") else "input"
-                    tags = [tag]
-                    tags.extend(get_known_subfolder_tags(subfolder))
-                    result = register_file_in_place(abs_path=filepath, name=filename, tags=tags)
-                    resp["asset"] = {
-                        "id": result.ref.id,
-                        "name": result.ref.name,
-                        "asset_hash": result.asset.hash,
-                        "size": result.asset.size_bytes,
-                        "mime_type": result.asset.mime_type,
-                        "tags": result.tags,
-                    }
-                except Exception:
-                    logging.warning("Failed to register uploaded image as asset", exc_info=True)
+                if not args.disable_assets:
+                    try:
+                        tag = image_upload_type if image_upload_type in ("input", "output") else "input"
+                        tags = [tag]
+                        tags.extend(get_known_subfolder_tags(subfolder))
+                        result = register_file_in_place(abs_path=filepath, name=filename, tags=tags)
+                        resp["asset"] = {
+                            "id": result.ref.id,
+                            "name": result.ref.name,
+                            "asset_hash": result.asset.hash,
+                            "size": result.asset.size_bytes,
+                            "mime_type": result.asset.mime_type,
+                            "tags": result.tags,
+                        }
+                    except Exception:
+                        logging.warning("Failed to register uploaded image as asset", exc_info=True)
 
                 return web.json_response(resp)
             else:
@@ -518,6 +524,12 @@ class PromptServer():
                 # node preview, it constructs /view?filename=<asset_hash>, so this
                 # endpoint must resolve blake3 hashes to their on-disk file paths.
                 if filename.startswith("blake3:"):
+                    # Hash resolution requires the asset database. When assets
+                    # are disabled (--disable-assets) or unavailable (DB init
+                    # failure) the database was never initialized, so treat the
+                    # hash as unresolvable rather than erroring on a session.
+                    if not assets_enabled():
+                        return web.Response(status=404)
                     owner_id = self.user_manager.get_request_user_id(request)
                     result = resolve_hash_to_path(filename, owner_id=owner_id)
                     if result is None:

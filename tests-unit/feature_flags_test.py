@@ -1,5 +1,7 @@
 """Tests for feature flags functionality."""
 
+from unittest.mock import patch
+
 import pytest
 
 from comfy_api.feature_flags import (
@@ -31,13 +33,28 @@ class TestFeatureFlags:
 
     def test_get_server_features_contains_expected_flags(self):
         """Test that server features contain expected flags."""
-        features = get_server_features()
+        with patch("app.assets.api.routes.assets_enabled", return_value=True):
+            features = get_server_features()
         assert "supports_preview_metadata" in features
         assert features["supports_preview_metadata"] is True
         assert "supports_model_type_tags" in features
         assert features["supports_model_type_tags"] is True
         assert "max_upload_size" in features
         assert isinstance(features["max_upload_size"], (int, float))
+
+    def test_assets_flag_reflects_live_availability(self):
+        """The assets capability mirrors assets_enabled() rather than a static default."""
+        with patch("app.assets.api.routes.assets_enabled", return_value=True):
+            assert get_server_features()["assets"] is True
+        with patch("app.assets.api.routes.assets_enabled", return_value=False):
+            assert get_server_features()["assets"] is False
+
+    def test_model_type_tags_follow_assets_availability(self):
+        """supports_model_type_tags is an assets capability: off when assets are off."""
+        with patch("app.assets.api.routes.assets_enabled", return_value=False):
+            features = get_server_features()
+        assert features["assets"] is False
+        assert features["supports_model_type_tags"] is False
 
     def test_get_connection_feature_with_missing_sid(self):
         """Test getting feature for non-existent session ID."""

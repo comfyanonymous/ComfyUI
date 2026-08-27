@@ -493,6 +493,13 @@ def cleanup_temp():
 
 
 def setup_database():
+    if args.disable_assets:
+        logging.info("Assets system disabled via --disable-assets; skipping database initialization and asset scanning.")
+        if args.enable_assets:
+            logging.info("--enable-assets is a deprecated no-op and does not override --disable-assets.")
+        disable_assets_routes()
+        asset_seeder.disable()
+        return
     try:
         if dependencies_available():
             init_db()
