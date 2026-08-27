@@ -18,7 +18,7 @@ class Loop(io.ComfyNode):
                     ]),
                     io.DynamicCombo.Option("For", [
                         io.Int.Input("start_iteration", default=0),
-                        io.Int.Input("max_iteration", default=4),
+                        io.Int.Input("max_iteration", default=4, max=0xffffffffffffffff),
                         io.Int.Input("step", default=1),
                     ]),
                 ]),
