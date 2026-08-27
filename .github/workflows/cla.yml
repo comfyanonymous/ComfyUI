@@ -35,9 +35,12 @@ jobs:
         # For each commit emit the GitHub login when the author/committer email resolves to a GitHub account
         # otherwise fall back to the raw git name.
         run: |
-          others=$(gh api "repos/${{ github.repository }}/pulls/${PR_NUMBER}/commits" --paginate \
-            --jq '.[] | (.author.login // .commit.author.name // empty), (.committer.login // .commit.committer.name // empty)' \
-            | sort -u | grep -vix "${PR_AUTHOR}" | paste -sd, -)
+          if ! commit_authors=$(gh api "repos/${{ github.repository }}/pulls/${PR_NUMBER}/commits" --paginate \
+            --jq '.[] | (.author.login // .commit.author.name // empty), (.committer.login // .commit.committer.name // empty)'); then
+            echo "Failed to fetch pull request commits" >&2
+            exit 1
+          fi
+          others=$(printf '%s\n' "$commit_authors" | sort -u | grep -vix "${PR_AUTHOR}" | paste -sd, -)
           if [ -n "$others" ]; then
             echo "allowlist=${BASE_ALLOWLIST},${others}" >> "$GITHUB_OUTPUT"
           else
