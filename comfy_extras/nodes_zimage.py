@@ -10,13 +10,13 @@ class TextEncodeZImageOmni(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="TextEncodeZImageOmni",
-            category="advanced/conditioning",
+            category="model/conditioning/z-image",
             is_experimental=True,
             inputs=[
                 io.Clip.Input("clip"),
                 io.ClipVision.Input("image_encoder", optional=True),
                 io.String.Input("prompt", multiline=True, dynamic_prompts=True),
-                io.Boolean.Input("auto_resize_images", default=True),
+                io.Boolean.Input("auto_resize_images", default=True, advanced=True),
                 io.Vae.Input("vae", optional=True),
                 io.Image.Input("image1", optional=True),
                 io.Image.Input("image2", optional=True),

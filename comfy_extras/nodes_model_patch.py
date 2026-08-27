@@ -7,7 +7,13 @@ import comfy.model_management
 import comfy.ldm.common_dit
 import comfy.latent_formats
 import comfy.ldm.lumina.controlnet
+import comfy.ldm.supir.supir_modules
+import comfy.ldm.anima.lllite
+import comfy.ldm.wan.uni3c
+import comfy.ldm.lightricks.duration_head
 from comfy.ldm.wan.model_multitalk import WanMultiTalkAttentionBlock, MultiTalkAudioProjModel
+from comfy_api.latest import io
+from comfy.ldm.supir.supir_patch import SUPIRPatch
 
 
 class BlockWiseControlBlock(torch.nn.Module):
@@ -229,14 +235,16 @@ class ModelPatchLoader:
     FUNCTION = "load_model_patch"
     EXPERIMENTAL = True
 
-    CATEGORY = "advanced/loaders"
+    CATEGORY = "model/loaders"
 
     def load_model_patch(self, name):
         model_patch_path = folder_paths.get_full_path_or_raise("model_patches", name)
-        sd = comfy.utils.load_torch_file(model_patch_path, safe_load=True)
+        sd, metadata = comfy.utils.load_torch_file(model_patch_path, safe_load=True, return_metadata=True)
         dtype = comfy.utils.weight_dtype(sd)
 
-        if 'controlnet_blocks.0.y_rms.weight' in sd:
+        if 'lllite_conditioning1.conv1.weight' in sd:
+            model = comfy.ldm.anima.lllite.AnimaLLLite(sd, metadata, device=comfy.model_management.unet_offload_device(), dtype=dtype, operations=comfy.ops.manual_cast)
+        elif 'controlnet_blocks.0.y_rms.weight' in sd:
             additional_in_dim = sd["img_in.weight"].shape[1] - 64
             model = QwenImageBlockWiseControlNet(additional_in_dim=additional_in_dim, device=comfy.model_management.unet_offload_device(), dtype=dtype, operations=comfy.ops.manual_cast)
         elif 'feature_embedder.mid_layer_norm.bias' in sd:
@@ -258,6 +266,41 @@ class ModelPatchLoader:
                     if torch.count_nonzero(ref_weight) == 0:
                         config['broken'] = True
             model = comfy.ldm.lumina.controlnet.ZImage_Control(device=comfy.model_management.unet_offload_device(), dtype=dtype, operations=comfy.ops.manual_cast, **config)
+        elif 'controlnet_patch_embedding.weight' in sd:  # Uni3C controlnet for Wan
+            attn_key_replace = {".self_attn.to_q.": ".self_attn.q.",
+                                ".self_attn.to_k.": ".self_attn.k.",
+                                ".self_attn.to_v.": ".self_attn.v.",
+                                ".self_attn.to_out.0.": ".self_attn.o."}
+            converted_sd = {}
+            for k, w in sd.items():
+                for r, rr in attn_key_replace.items():
+                    k = k.replace(r, rr)
+                converted_sd[k] = w
+            sd = converted_sd
+
+            num_layers = sum(1 for k in sd if k.startswith("proj_out.") and k.endswith(".weight"))
+            conv_out_dim = sd["controlnet_patch_embedding.weight"].shape[0]
+            if "proj_in.weight" in sd:
+                dim = sd["proj_in.weight"].shape[0]
+            else:
+                dim = conv_out_dim
+            model = comfy.ldm.wan.uni3c.WanUni3CControlnet(
+                    in_channels=sd["controlnet_patch_embedding.weight"].shape[1],
+                    conv_out_dim=conv_out_dim,
+                    dim=dim,
+                    ffn_dim=sd["controlnet_blocks.0.ffn.0.bias"].shape[0],
+                    num_layers=num_layers,
+                    time_embed_dim=sd["controlnet_blocks.0.norm1.linear.weight"].shape[1],
+                    out_proj_dim=sd["proj_out.0.weight"].shape[0],
+                    add_channels=sd["controlnet_mask_embedding.mask_proj.0.weight"].shape[1],
+                    mid_channels=sd["controlnet_mask_embedding.mask_proj.0.weight"].shape[0],
+                    device=comfy.model_management.unet_offload_device(),
+                    dtype=dtype,
+                    operations=comfy.ops.manual_cast)
+        elif any(k.endswith("duration_head.attention_pooler.query_tokens") for k in sd) or "attention_pooler.query_tokens" in sd:
+            sd = comfy.ldm.lightricks.duration_head.normalize_state_dict(sd)
+            sd = {k: v.float() for k, v in sd.items()}  # tiny head, keep fp32
+            model = comfy.ldm.lightricks.duration_head.DurationHead()
         elif "audio_proj.proj1.weight" in sd:
             model = MultiTalkModelPatch(
                     audio_window=5, context_tokens=32, vae_scale=4,
@@ -266,10 +309,75 @@ class ModelPatchLoader:
                     out_dim=sd["audio_proj.norm.weight"].shape[0],
                     device=comfy.model_management.unet_offload_device(),
                     operations=comfy.ops.manual_cast)
+        elif 'model.control_model.input_hint_block.0.weight' in sd or 'control_model.input_hint_block.0.weight' in sd:
+            prefix_replace = {}
+            if 'model.control_model.input_hint_block.0.weight' in sd:
+                prefix_replace["model.control_model."] = "control_model."
+                prefix_replace["model.diffusion_model.project_modules."] = "project_modules."
+            else:
+                prefix_replace["control_model."] = "control_model."
+                prefix_replace["project_modules."] = "project_modules."
+
+            # Extract denoise_encoder weights before filter_keys discards them
+            de_prefix = "first_stage_model.denoise_encoder."
+            denoise_encoder_sd = {}
+            for k in list(sd.keys()):
+                if k.startswith(de_prefix):
+                    denoise_encoder_sd[k[len(de_prefix):]] = sd.pop(k)
+
+            sd = comfy.utils.state_dict_prefix_replace(sd, prefix_replace, filter_keys=True)
+            sd.pop("control_model.mask_LQ", None)
+            model = comfy.ldm.supir.supir_modules.SUPIR(device=comfy.model_management.unet_offload_device(), dtype=dtype, operations=comfy.ops.manual_cast)
+            if denoise_encoder_sd:
+                model.denoise_encoder_sd = denoise_encoder_sd
 
         model_patcher = comfy.model_patcher.CoreModelPatcher(model, load_device=comfy.model_management.get_torch_device(), offload_device=comfy.model_management.unet_offload_device())
         model.load_state_dict(sd, assign=model_patcher.is_dynamic())
         return (model_patcher,)
+
+
+class AnimaLLLiteApply:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"model": ("MODEL",),
+                             "model_patch": ("MODEL_PATCH",),
+                             "image": ("IMAGE",),
+                             "strength": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
+                             "start_percent": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
+                             "end_percent": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001}),
+                             },
+                "optional": {"mask": ("MASK",),
+                             }}
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "apply_patch"
+    EXPERIMENTAL = True
+
+    CATEGORY = "model_patches/anima"
+
+    def apply_patch(self, model, model_patch, image, strength, start_percent, end_percent, mask=None):
+        image = image[..., :3]
+
+        if model_patch.model.cond_in_channels == 4 and mask is None:
+            mask = torch.zeros_like(image[..., 0])
+        elif model_patch.model.cond_in_channels != 4:
+            mask = None
+
+        model_sampling = model.get_model_object("model_sampling")
+        sigma_start = float(model_sampling.percent_to_sigma(start_percent))
+        sigma_end = float(model_sampling.percent_to_sigma(end_percent))
+        patch = comfy.ldm.anima.lllite.AnimaLLLitePatch(model_patch, image, mask, strength, sigma_start, sigma_end)
+        model_patched = model.clone()
+        model_patched.set_model_post_input_patch(patch)
+        model_patched.set_model_attn1_patch(comfy.ldm.anima.lllite.AnimaLLLiteAttentionPatch(
+            patch,
+            {"q": "self_attn_q_proj", "k": "self_attn_k_proj", "v": "self_attn_v_proj"},
+        ))
+        model_patched.set_model_attn2_patch(comfy.ldm.anima.lllite.AnimaLLLiteAttentionPatch(
+            patch,
+            {"q": "cross_attn_q_proj"},
+        ))
+        model_patched.set_model_patch(comfy.ldm.anima.lllite.AnimaLLLiteMLPPatch(patch), "mlp_patch")
+        return (model_patched,)
 
 
 class DiffSynthCnetPatch:
@@ -455,7 +563,7 @@ class QwenImageDiffsynthControlnet:
     FUNCTION = "diffsynth_controlnet"
     EXPERIMENTAL = True
 
-    CATEGORY = "advanced/loaders/qwen"
+    CATEGORY = "model/patch/qwen"
 
     def diffsynth_controlnet(self, model, model_patch, vae, image=None, strength=1.0, inpaint_image=None, mask=None):
         model_patched = model.clone()
@@ -488,7 +596,151 @@ class ZImageFunControlnet(QwenImageDiffsynthControlnet):
                               },
                 "optional": {"image": ("IMAGE",), "inpaint_image": ("IMAGE",), "mask": ("MASK",)}}
 
-    CATEGORY = "advanced/loaders/zimage"
+    CATEGORY = "model/patch/z-image"
+
+class WanUni3CCnetPatch:
+    def __init__(self, model_patch, render_video, vae, latent_format, strength, sigma_start, sigma_end):
+        self.model_patch = model_patch
+        self.render_video = render_video
+        self.vae = vae
+        self.latent_format = latent_format
+        self.strength = strength
+        self.sigma_start = sigma_start
+        self.sigma_end = sigma_end
+        self.prepared_render = None
+        self.temp_data = None
+
+    def encode_render_video(self, target_latent_shape):
+        t_len, h_len, w_len = target_latent_shape
+        temporal_compression = self.vae.temporal_compression_decode() or 1
+        spatial_compression = self.vae.spacial_compression_encode()
+        target_frames = (t_len - 1) * temporal_compression + 1
+        target_height = h_len * spatial_compression
+        target_width = w_len * spatial_compression
+
+        frames = self.render_video
+        if frames.shape[0] > target_frames:
+            frames = frames[:target_frames]
+        elif frames.shape[0] < target_frames:
+            last_frame = frames[-1:].expand(target_frames - frames.shape[0], -1, -1, -1)
+            frames = torch.cat([frames, last_frame], dim=0)
+
+        if frames.shape[1] != target_height or frames.shape[2] != target_width:
+            frames = comfy.utils.common_upscale(frames.movedim(-1, 1), target_width, target_height, "bilinear", "center").movedim(1, -1)
+
+        loaded_models = comfy.model_management.loaded_models(only_currently_used=True)
+        render_latent = self.vae.encode(frames)
+        comfy.model_management.load_models_gpu(loaded_models)
+        return self.latent_format.process_in(render_latent)
+
+    def build_controlnet_input(self, x, dtype, samples_per_cond):
+        # first 20 channels of the model input: noise latent + I2V mask (zero padded for T2V)
+        hidden = x[:samples_per_cond, :20].to(dtype)
+        if hidden.shape[1] < 20:
+            pad_shape = list(hidden.shape)
+            pad_shape[1] = 20 - hidden.shape[1]
+            hidden = torch.cat([hidden, torch.zeros(pad_shape, dtype=hidden.dtype, device=hidden.device)], dim=1)
+
+        render = self.prepared_render
+        if render is None or render.shape[2:] != hidden.shape[2:]:
+            render = self.encode_render_video(hidden.shape[2:])
+        render = render.to(device=hidden.device, dtype=dtype)
+        self.prepared_render = render
+        if render.shape[0] != hidden.shape[0]:
+            render = render.expand(hidden.shape[0], -1, -1, -1, -1)
+        return torch.cat([hidden, render], dim=1)
+
+    def __call__(self, kwargs):
+        img = kwargs.get("img")
+        block_index = kwargs.get("block_index")
+        transformer_options = kwargs.get("transformer_options", {})
+
+        if block_index == 0:
+            self.temp_data = None
+            active = True
+            sigmas = transformer_options.get("sigmas", None)
+            if sigmas is not None:
+                sigma = sigmas[0].item()
+                if sigma > self.sigma_start or sigma < self.sigma_end:
+                    active = False
+            if active:
+                x = kwargs.get("x")
+                # cond and uncond chunks share latents, so we can reuse residuals
+                num_conds = len(transformer_options.get("cond_or_uncond", [0]))
+                samples_per_cond = x.shape[0]
+                if num_conds > 0 and x.shape[0] % num_conds == 0:
+                    samples_per_cond = x.shape[0] // num_conds
+                temb = kwargs.get("vec")[:samples_per_cond]
+                if temb.ndim == 3:
+                    temb = temb[:, 0]
+                model = self.model_patch.model
+                controlnet_input = self.build_controlnet_input(x, img.dtype, samples_per_cond)
+                hidden, freqs = model.process_input(controlnet_input)
+                self.temp_data = (hidden, temb.to(img.dtype), freqs)
+
+        num_layers = self.model_patch.model.num_layers
+        if self.temp_data is not None and block_index < num_layers:
+            hidden, temb, freqs = self.temp_data
+            hidden, residual = self.model_patch.model.forward_block(block_index, hidden, temb, freqs)
+            residual = residual.to(img.dtype) * self.strength
+            if residual.shape[0] != img.shape[0]:
+                residual = residual.repeat(img.shape[0] // residual.shape[0], 1, 1)
+            img_offset = kwargs.get("img_offset", 0)
+            img[:, img_offset:img_offset + residual.shape[1]] += residual
+            if block_index >= num_layers - 1:
+                self.temp_data = None
+            else:
+                self.temp_data = (hidden, temb, freqs)
+
+        return kwargs
+
+    def to(self, device_or_dtype):
+        if isinstance(device_or_dtype, torch.device):
+            if self.prepared_render is not None:
+                self.prepared_render = self.prepared_render.to(device_or_dtype)
+            self.temp_data = None
+        return self
+
+    def models(self):
+        return [self.model_patch]
+
+
+class WanUni3CControlnetApply:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "model_patch": ("MODEL_PATCH",),
+                              "vae": ("VAE",),
+                              "render_video": ("IMAGE", {"tooltip": "The guidance video rendered from the camera trajectory, most commonly warped point cloud renders of the input image."}),
+                              "strength": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
+                              "start_percent": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
+                              "end_percent": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001}),
+                              }}
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "apply_patch"
+    EXPERIMENTAL = True
+
+    CATEGORY = "model/patch/wan"
+
+    def apply_patch(self, model, model_patch, vae, render_video, strength, start_percent, end_percent):
+        if not isinstance(model_patch.model, comfy.ldm.wan.uni3c.WanUni3CControlnet):
+            raise ValueError("The connected model patch is not a Uni3C ControlNet.")
+        cnet_dim = model_patch.model.controlnet_blocks[0].norm1.linear.in_features
+        model_dim = getattr(model.get_model_object("diffusion_model"), "dim", None)
+        if model_dim is None:
+            raise ValueError("The Uni3C ControlNet only works with Wan models.")
+        if model_dim != cnet_dim:
+            raise ValueError("This Uni3C ControlNet expects a Wan model with dim {}, the loaded model has dim {}.".format(cnet_dim, model_dim))
+
+        model_patched = model.clone()
+        model_sampling = model.get_model_object("model_sampling")
+        sigma_start = model_sampling.percent_to_sigma(start_percent)
+        sigma_end = model_sampling.percent_to_sigma(end_percent)
+        latent_format = model.get_model_object("latent_format")
+        patch = WanUni3CCnetPatch(model_patch, render_video[:, :, :, :3], vae, latent_format, strength, sigma_start, sigma_end)
+        model_patched.set_model_double_block_patch(patch)
+        return (model_patched,)
+
 
 class UsoStyleProjectorPatch:
     def __init__(self, model_patch, encoded_image):
@@ -524,7 +776,7 @@ class USOStyleReference:
     FUNCTION = "apply_patch"
     EXPERIMENTAL = True
 
-    CATEGORY = "advanced/model_patches/flux"
+    CATEGORY = "model/patch/flux"
 
     def apply_patch(self, model, model_patch, clip_vision_output):
         encoded_image = torch.stack((clip_vision_output.all_hidden_states[:, -20], clip_vision_output.all_hidden_states[:, -11], clip_vision_output.penultimate_hidden_states))
@@ -565,9 +817,101 @@ class MultiTalkModelPatch(torch.nn.Module):
         )
 
 
+class SUPIRApply(io.ComfyNode):
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="SUPIRApply",
+            category="model/patch/supir",
+            is_experimental=True,
+            inputs=[
+                io.Model.Input("model"),
+                io.ModelPatch.Input("model_patch"),
+                io.Vae.Input("vae"),
+                io.Image.Input("image"),
+                io.Float.Input("strength_start", default=1.0, min=0.0, max=10.0, step=0.01,
+                               tooltip="Control strength at the start of sampling (high sigma)."),
+                io.Float.Input("strength_end", default=1.0, min=0.0, max=10.0, step=0.01,
+                               tooltip="Control strength at the end of sampling (low sigma). Linearly interpolated from start."),
+                io.Float.Input("restore_cfg", default=4.0, min=0.0, max=20.0, step=0.1, advanced=True,
+                               tooltip="Pulls denoised output toward the input latent. Higher = stronger fidelity to input. 0 to disable."),
+                io.Float.Input("restore_cfg_s_tmin", default=0.05, min=0.0, max=1.0, step=0.01, advanced=True,
+                               tooltip="Sigma threshold below which restore_cfg is disabled."),
+            ],
+            outputs=[io.Model.Output()],
+        )
+
+    @classmethod
+    def _encode_with_denoise_encoder(cls, vae, model_patch, image):
+        """Encode using denoise_encoder weights from SUPIR checkpoint if available."""
+        denoise_sd = getattr(model_patch.model, 'denoise_encoder_sd', None)
+        if not denoise_sd:
+            return vae.encode(image)
+
+        # Clone VAE patcher, apply denoise_encoder weights to clone, encode
+        orig_patcher = vae.patcher
+        vae.patcher = orig_patcher.clone()
+        patches = {f"encoder.{k}": (v,) for k, v in denoise_sd.items()}
+        vae.patcher.add_patches(patches, strength_patch=1.0, strength_model=0.0)
+        try:
+            return vae.encode(image)
+        finally:
+            vae.patcher = orig_patcher
+
+    @classmethod
+    def execute(cls, *, model: io.Model.Type, model_patch: io.ModelPatch.Type, vae: io.Vae.Type, image: io.Image.Type,
+                strength_start: float, strength_end: float, restore_cfg: float, restore_cfg_s_tmin: float) -> io.NodeOutput:
+        model_patched = model.clone()
+        hint_latent = model.get_model_object("latent_format").process_in(
+            cls._encode_with_denoise_encoder(vae, model_patch, image[:, :, :, :3]))
+        patch = SUPIRPatch(model_patch, model_patch.model.project_modules, hint_latent, strength_start, strength_end)
+        patch.register(model_patched)
+
+        if restore_cfg > 0.0:
+            # Round-trip to match original pipeline: decode hint, re-encode with regular VAE
+            latent_format = model.get_model_object("latent_format")
+            decoded = vae.decode(latent_format.process_out(hint_latent))
+            x_center = latent_format.process_in(vae.encode(decoded[:, :, :, :3]))
+            sigma_max = 14.6146
+
+            def restore_cfg_function(args):
+                denoised = args["denoised"]
+                sigma = args["sigma"]
+                if sigma.dim() > 0:
+                    s = sigma[0].item()
+                else:
+                    s = sigma.item()
+                if s > restore_cfg_s_tmin:
+                    ref = x_center.to(device=denoised.device, dtype=denoised.dtype)
+                    b = denoised.shape[0]
+                    if ref.shape[0] != b:
+                        ref = ref.expand(b, -1, -1, -1) if ref.shape[0] == 1 else ref.repeat((b + ref.shape[0] - 1) // ref.shape[0], 1, 1, 1)[:b]
+                    sigma_val = sigma.view(-1, 1, 1, 1) if sigma.dim() > 0 else sigma
+                    d_center = denoised - ref
+                    denoised = denoised - d_center * ((sigma_val / sigma_max) ** restore_cfg)
+                return denoised
+
+            model_patched.set_model_sampler_post_cfg_function(restore_cfg_function)
+
+        return io.NodeOutput(model_patched)
+
+
 NODE_CLASS_MAPPINGS = {
     "ModelPatchLoader": ModelPatchLoader,
     "QwenImageDiffsynthControlnet": QwenImageDiffsynthControlnet,
     "ZImageFunControlnet": ZImageFunControlnet,
+    "WanUni3CControlnetApply": WanUni3CControlnetApply,
     "USOStyleReference": USOStyleReference,
+    "SUPIRApply": SUPIRApply,
+    "AnimaLLLiteApply": AnimaLLLiteApply,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "ModelPatchLoader": "Load Model Patch",
+    "QwenImageDiffsynthControlnet": "Apply Qwen Image DiffSynth ControlNet",
+    "ZImageFunControlnet": "Apply Z-Image Fun ControlNet",
+    "WanUni3CControlnetApply": "Apply Wan Uni3C ControlNet",
+    "USOStyleReference": "Apply USO Style Reference",
+    "SUPIRApply": "Apply SUPIR Patch",
+    "AnimaLLLiteApply": "Apply Anima LLLite",
 }

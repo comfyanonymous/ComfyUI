@@ -22,7 +22,7 @@ def torch_cat_if_needed(xl, dim):
     else:
         return None
 
-def get_timestep_embedding(timesteps, embedding_dim):
+def get_timestep_embedding(timesteps, embedding_dim, flip_sin_to_cos=False, downscale_freq_shift=1):
     """
     This matches the implementation in Denoising Diffusion Probabilistic Models:
     From Fairseq.
@@ -33,11 +33,13 @@ def get_timestep_embedding(timesteps, embedding_dim):
     assert len(timesteps.shape) == 1
 
     half_dim = embedding_dim // 2
-    emb = math.log(10000) / (half_dim - 1)
+    emb = math.log(10000) / (half_dim - downscale_freq_shift)
     emb = torch.exp(torch.arange(half_dim, dtype=torch.float32) * -emb)
     emb = emb.to(device=timesteps.device)
     emb = timesteps.float()[:, None] * emb[None, :]
     emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=1)
+    if flip_sin_to_cos:
+        emb = torch.cat([emb[:, half_dim:], emb[:, :half_dim]], dim=-1)
     if embedding_dim % 2 == 1:  # zero pad
         emb = torch.nn.functional.pad(emb, (0,1,0,0))
     return emb
@@ -258,7 +260,8 @@ def slice_attention(q, k, v):
                 r1[:, :, i:end] = torch.bmm(v, s2)
                 del s2
             break
-        except model_management.OOM_EXCEPTION as e:
+        except Exception as e:
+            model_management.raise_non_oom(e)
             model_management.soft_empty_cache(True)
             steps *= 2
             if steps > 128:
@@ -314,7 +317,8 @@ def pytorch_attention(q, k, v):
     try:
         out = comfy.ops.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False)
         out = out.transpose(2, 3).reshape(orig_shape)
-    except model_management.OOM_EXCEPTION:
+    except Exception as e:
+        model_management.raise_non_oom(e)
         logging.warning("scaled_dot_product_attention OOMed: switched to slice attention")
         oom_fallback = True
     if oom_fallback:

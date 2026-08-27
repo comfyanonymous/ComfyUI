@@ -21,11 +21,11 @@ class SkipLayerGuidanceDiT(io.ComfyNode):
             is_experimental=True,
             inputs=[
                 io.Model.Input("model"),
-                io.String.Input("double_layers", default="7, 8, 9"),
-                io.String.Input("single_layers", default="7, 8, 9"),
+                io.String.Input("double_layers", default="7, 8, 9", advanced=True),
+                io.String.Input("single_layers", default="7, 8, 9", advanced=True),
                 io.Float.Input("scale", default=3.0, min=0.0, max=10.0, step=0.1),
-                io.Float.Input("start_percent", default=0.01, min=0.0, max=1.0, step=0.001),
-                io.Float.Input("end_percent", default=0.15, min=0.0, max=1.0, step=0.001),
+                io.Float.Input("start_percent", default=0.01, min=0.0, max=1.0, step=0.001, advanced=True),
+                io.Float.Input("end_percent", default=0.15, min=0.0, max=1.0, step=0.001, advanced=True),
                 io.Float.Input("rescaling_scale", default=0.0, min=0.0, max=10.0, step=0.01),
             ],
             outputs=[
@@ -101,10 +101,10 @@ class SkipLayerGuidanceDiTSimple(io.ComfyNode):
             is_experimental=True,
             inputs=[
                 io.Model.Input("model"),
-                io.String.Input("double_layers", default="7, 8, 9"),
-                io.String.Input("single_layers", default="7, 8, 9"),
-                io.Float.Input("start_percent", default=0.0, min=0.0, max=1.0, step=0.001),
-                io.Float.Input("end_percent", default=1.0, min=0.0, max=1.0, step=0.001),
+                io.String.Input("double_layers", default="7, 8, 9", advanced=True),
+                io.String.Input("single_layers", default="7, 8, 9", advanced=True),
+                io.Float.Input("start_percent", default=0.0, min=0.0, max=1.0, step=0.001, advanced=True),
+                io.Float.Input("end_percent", default=1.0, min=0.0, max=1.0, step=0.001, advanced=True),
             ],
             outputs=[
                 io.Model.Output(),

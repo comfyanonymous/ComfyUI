@@ -3,9 +3,21 @@ Job utilities for the /api/jobs endpoint.
 Provides normalization and helper functions for job status tracking.
 """
 
-from typing import Optional
+import uuid
+from typing import Callable, Optional
 
 from comfy_api.internal import prune_dict
+
+
+# Result of classifying a job for cancellation.
+# 'running'  -> job is currently executing (interrupt it)
+# 'pending'  -> job is queued but not started (dequeue it)
+# 'terminal' -> job already finished (present in history); cancel is a no-op
+# 'unknown'  -> job id is not present anywhere
+CANCEL_RUNNING = 'running'
+CANCEL_PENDING = 'pending'
+CANCEL_TERMINAL = 'terminal'
+CANCEL_UNKNOWN = 'unknown'
 
 
 class JobStatus:
@@ -19,11 +31,33 @@ class JobStatus:
     ALL = [PENDING, IN_PROGRESS, COMPLETED, FAILED, CANCELLED]
 
 
+def validate_job_id(value) -> str:
+    """Validate a client-supplied job (prompt) id.
+
+    Job ids must be UUIDs in the canonical lowercase hyphenated form. The id
+    is stored and compared verbatim everywhere downstream — history keys,
+    websocket events, and /interrupt matching — so accepting another spelling
+    would silently rewrite the client's id and then miss every exact-match
+    lookup. Rejecting loudly beats that.
+
+    Returns the id unchanged. Raises ValueError when the value is not a
+    string in canonical UUID form.
+    """
+    if not isinstance(value, str):
+        raise ValueError(f"job id must be a string, got {type(value).__name__}")
+    if str(uuid.UUID(value)) != value:
+        raise ValueError("job id must be a UUID in canonical lowercase hyphenated form")
+    return value
+
+
 # Media types that can be previewed in the frontend
-PREVIEWABLE_MEDIA_TYPES = frozenset({'images', 'video', 'audio', '3d'})
+PREVIEWABLE_MEDIA_TYPES = frozenset({'images', 'video', 'audio', '3d', 'text'})
 
 # 3D file extensions for preview fallback (no dedicated media_type exists)
 THREE_D_EXTENSIONS = frozenset({'.obj', '.fbx', '.gltf', '.glb', '.usdz'})
+
+# Text file extensions for preview fallback (the formats SaveText can produce)
+TEXT_EXTENSIONS = frozenset({'.txt', '.md', '.json'})
 
 
 def has_3d_extension(filename: str) -> bool:
@@ -75,6 +109,23 @@ def normalize_outputs(outputs: dict) -> dict:
         normalized[node_id] = normalized_node
     return normalized
 
+# Text preview truncation limit (1024 characters) to prevent preview_output bloat
+TEXT_PREVIEW_MAX_LENGTH = 1024
+
+
+def _create_text_preview(value: str) -> dict:
+    """Create a text preview dict with optional truncation.
+
+    Returns:
+        dict with 'content' and optionally 'truncated' flag
+    """
+    if len(value) <= TEXT_PREVIEW_MAX_LENGTH:
+        return {'content': value}
+    return {
+        'content': value[:TEXT_PREVIEW_MAX_LENGTH],
+        'truncated': True
+    }
+
 
 def _extract_job_metadata(extra_data: dict) -> tuple[Optional[int], Optional[str]]:
     """Extract create_time and workflow_id from extra_data.
@@ -95,9 +146,10 @@ def is_previewable(media_type: str, item: dict) -> bool:
     Maintains backwards compatibility with existing logic.
 
     Priority:
-    1. media_type is 'images', 'video', 'audio', or '3d'
+    1. media_type is 'images', 'video', 'audio', '3d', or 'text'
     2. format field starts with 'video/' or 'audio/'
     3. filename has a 3D extension (.obj, .fbx, .gltf, .glb, .usdz)
+    4. filename has a text extension (.txt, .md, .json, ...)
     """
     if media_type in PREVIEWABLE_MEDIA_TYPES:
         return True
@@ -108,12 +160,27 @@ def is_previewable(media_type: str, item: dict) -> bool:
     if fmt and (fmt.startswith('video/') or fmt.startswith('audio/')):
         return True
 
-    # Check for 3D files by extension
+    # Check for 3D and text files by extension
     filename = item.get('filename', '').lower()
     if any(filename.endswith(ext) for ext in THREE_D_EXTENSIONS):
         return True
+    if any(filename.endswith(ext) for ext in TEXT_EXTENSIONS):
+        return True
 
     return False
+
+
+def is_text_preview(media_type: str, item: dict) -> bool:
+    """
+    Check if a previewable output item is textual rather than visual media.
+
+    Saved text files (SaveText's .txt/.md/.json) are real outputs but must not
+    outrank visual media when picking the job preview.
+    """
+    if media_type == 'text':
+        return True
+    filename = item.get('filename', '').lower()
+    return any(filename.endswith(ext) for ext in TEXT_EXTENSIONS)
 
 
 def normalize_queue_item(item: tuple, status: str) -> dict:
@@ -130,6 +197,7 @@ def normalize_queue_item(item: tuple, status: str) -> dict:
         'priority': priority,
         'create_time': create_time,
         'outputs_count': 0,
+        'previewable_outputs_count': 0,
         'workflow_id': workflow_id,
     })
 
@@ -148,6 +216,7 @@ def normalize_history_item(prompt_id: str, history_item: dict, include_outputs: 
 
     outputs = history_item.get('outputs', {})
     outputs_count, preview_output = get_outputs_summary(outputs)
+    previewable_outputs_count = count_previewable_outputs(outputs)
 
     execution_error = None
     execution_start_time = None
@@ -184,6 +253,7 @@ def normalize_history_item(prompt_id: str, history_item: dict, include_outputs: 
         'execution_end_time': execution_end_time,
         'execution_error': execution_error,
         'outputs_count': outputs_count,
+        'previewable_outputs_count': previewable_outputs_count,
         'preview_output': preview_output,
         'workflow_id': workflow_id,
     })
@@ -205,12 +275,23 @@ def get_outputs_summary(outputs: dict) -> tuple[int, Optional[dict]]:
     Returns (outputs_count, preview_output).
 
     Preview priority (matching frontend):
-    1. type="output" with previewable media
-    2. Any previewable media
+    1. type="output" visual media (saved images/video/audio/3d)
+    2. any other previewable visual media (e.g. temp/preview images)
+    3. saved text file (e.g. SaveText's .txt/.md/.json)
+    4. raw text (only when the job produced nothing else previewable)
+
+    Text is kept in its own slots so node/execution order can't let a text
+    output mask a visual one (e.g. a text node that runs before an image).
+
+    Text content entries (strings under 'text') are preview-only metadata,
+    matching the frontend's METADATA_KEYS: they can serve as the fallback
+    preview but are not counted as outputs.
     """
     count = 0
     preview_output = None
     fallback_preview = None
+    text_file_fallback = None
+    text_fallback = None
 
     for node_id, node_outputs in outputs.items():
         if not isinstance(node_outputs, dict):
@@ -221,28 +302,77 @@ def get_outputs_summary(outputs: dict) -> tuple[int, Optional[dict]]:
                 continue
 
             for item in items:
-                normalized = normalize_output_item(item)
-                if normalized is None:
-                    continue
+                if not isinstance(item, dict):
+                    # Handle text outputs (non-dict items like strings or tuples)
+                    normalized = normalize_output_item(item)
+                    if normalized is None:
+                        # Not a 3D file string — check for text preview
+                        if media_type == 'text':
+                            if preview_output is None:
+                                if isinstance(item, tuple):
+                                    text_value = item[0] if item else ''
+                                else:
+                                    text_value = str(item)
+                                text_preview = _create_text_preview(text_value)
+                                enriched = {
+                                    **text_preview,
+                                    'nodeId': node_id,
+                                    'mediaType': media_type
+                                }
+                                if text_fallback is None:
+                                    text_fallback = enriched
+                        continue
+                    # normalize_output_item returned a dict (e.g. 3D file)
+                    item = normalized
 
                 count += 1
 
                 if preview_output is not None:
                     continue
 
-                if isinstance(normalized, dict) and is_previewable(media_type, normalized):
+                if is_previewable(media_type, item):
                     enriched = {
-                        **normalized,
+                        **item,
                         'nodeId': node_id,
                     }
-                    if 'mediaType' not in normalized:
+                    if 'mediaType' not in item:
                         enriched['mediaType'] = media_type
-                    if normalized.get('type') == 'output':
+                    if is_text_preview(media_type, item):
+                        if text_file_fallback is None:
+                            text_file_fallback = enriched
+                    elif item.get('type') == 'output':
                         preview_output = enriched
                     elif fallback_preview is None:
                         fallback_preview = enriched
 
-    return count, preview_output or fallback_preview
+    return count, preview_output or fallback_preview or text_file_fallback or text_fallback
+
+
+def count_previewable_outputs(outputs: dict) -> int:
+    """
+    Count only outputs that would actually render in the expanded asset view,
+    i.e. items is_previewable() accepts (image/video/audio/3D/text). Kept
+    separate from get_outputs_summary()'s outputs_count, which counts every
+    output item regardless of media type, so a job with a non-previewable
+    saved file alongside real media (e.g. SaveLatent's .latent output next to
+    a SaveImage output) doesn't inflate the Media Assets badge beyond what
+    the expanded view shows.
+    """
+    count = 0
+    for node_outputs in outputs.values():
+        if not isinstance(node_outputs, dict):
+            continue
+        for media_type, items in node_outputs.items():
+            if media_type == 'animated' or not isinstance(items, list):
+                continue
+            for item in items:
+                if not isinstance(item, dict):
+                    item = normalize_output_item(item)
+                    if item is None:
+                        continue
+                if is_previewable(media_type, item):
+                    count += 1
+    return count
 
 
 def apply_sorting(jobs: list[dict], sort_by: str, sort_order: str) -> list[dict]:
@@ -350,3 +480,71 @@ def get_all_jobs(
         jobs = jobs[:limit]
 
     return (jobs, total_count)
+
+
+def classify_job_for_cancel(prompt_id: str, running: list, queued: list, history: dict) -> str:
+    """Classify a job id for cancellation.
+
+    Returns one of CANCEL_RUNNING, CANCEL_PENDING, CANCEL_TERMINAL, CANCEL_UNKNOWN.
+
+    Queue items are tuples whose second element (index 1) is the prompt_id.
+    History is a dict keyed by prompt_id, so a job present there has already
+    finished and cancelling it is a no-op.
+    """
+    for item in running:
+        if item[1] == prompt_id:
+            return CANCEL_RUNNING
+    for item in queued:
+        if item[1] == prompt_id:
+            return CANCEL_PENDING
+    if prompt_id in history:
+        return CANCEL_TERMINAL
+    return CANCEL_UNKNOWN
+
+
+def cancel_job(
+    prompt_id: str,
+    running: list,
+    queued: list,
+    history: dict,
+    interrupt: Callable[[str], bool],
+    dequeue: Callable[[str], bool],
+) -> str:
+    """Cancel a single job by id, regardless of state.
+
+    Maps the cancel onto the runtime's existing mechanics:
+      - a running job is interrupted via ``interrupt``
+      - a pending job is removed from the queue via ``dequeue``
+      - a job that already finished (terminal) is a no-op
+      - an unknown id is a no-op (callers that need fail-fast behaviour should
+        validate ids up front with ``classify_job_for_cancel``)
+
+    Both ``interrupt`` and ``dequeue`` take the prompt id and return whether
+    they acted on a job that was *actually* in that state, so the value returned
+    here reflects what truly happened rather than the (possibly stale)
+    classification. This matters around the narrow TOCTOU windows where a job
+    changes state between the caller's snapshot and the action:
+
+      - a job classified RUNNING may have finished before ``interrupt`` fires:
+        ``interrupt`` returns False and this returns CANCEL_UNKNOWN (no-op).
+      - a job classified PENDING may have started executing before ``dequeue``
+        fires: ``dequeue`` returns False, ``interrupt`` then catches the now-
+        running job and this returns CANCEL_RUNNING. If it had simply finished
+        instead, both return False and this returns CANCEL_UNKNOWN.
+
+    ``interrupt`` must be atomic — interrupt the job only if it is still the one
+    running — so a cancel can never land on an unrelated prompt that started in
+    the meantime (see ``execution.PromptQueue.interrupt_if_running``).
+    """
+    classification = classify_job_for_cancel(prompt_id, running, queued, history)
+    if classification == CANCEL_RUNNING:
+        return CANCEL_RUNNING if interrupt(prompt_id) else CANCEL_UNKNOWN
+    if classification == CANCEL_PENDING:
+        if dequeue(prompt_id):
+            return CANCEL_PENDING
+        # Left the pending queue between classification and dequeue: if it
+        # started executing, interrupt the now-running job; otherwise it has
+        # already finished and the cancel is a genuine no-op.
+        return CANCEL_RUNNING if interrupt(prompt_id) else CANCEL_UNKNOWN
+    # CANCEL_TERMINAL and CANCEL_UNKNOWN are intentional no-ops.
+    return classification

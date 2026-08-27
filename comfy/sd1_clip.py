@@ -46,7 +46,7 @@ class ClipTokenWeightEncoder:
         out, pooled = o[:2]
 
         if pooled is not None:
-            first_pooled = pooled[0:1].to(model_management.intermediate_device())
+            first_pooled = pooled[0:1].to(device=model_management.intermediate_device())
         else:
             first_pooled = pooled
 
@@ -63,16 +63,16 @@ class ClipTokenWeightEncoder:
             output.append(z)
 
         if (len(output) == 0):
-            r = (out[-1:].to(model_management.intermediate_device()), first_pooled)
+            r = (out[-1:].to(device=model_management.intermediate_device()), first_pooled)
         else:
-            r = (torch.cat(output, dim=-2).to(model_management.intermediate_device()), first_pooled)
+            r = (torch.cat(output, dim=-2).to(device=model_management.intermediate_device()), first_pooled)
 
         if len(o) > 2:
             extra = {}
             for k in o[2]:
                 v = o[2][k]
                 if k == "attention_mask":
-                    v = v[:sections].flatten().unsqueeze(dim=0).to(model_management.intermediate_device())
+                    v = v[:sections].flatten().unsqueeze(dim=0).to(device=model_management.intermediate_device())
                 extra[k] = v
 
             r = r + (extra,)
@@ -308,14 +308,14 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
     def load_sd(self, sd):
         return self.transformer.load_state_dict(sd, strict=False, assign=getattr(self, "can_assign_sd", False))
 
-    def generate(self, tokens, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, stop_tokens=[]):
+    def generate(self, tokens, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, presence_penalty=0.0):
         if isinstance(tokens, dict):
             tokens_only = next(iter(tokens.values())) # todo: get this better?
         else:
             tokens_only = tokens
         tokens_only = [[t[0] for t in b] for b in tokens_only]
         embeds = self.process_tokens(tokens_only, device=self.execution_device)[0]
-        return self.transformer.generate(embeds, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, stop_tokens)
+        return self.transformer.generate(embeds, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, presence_penalty=presence_penalty)
 
 def parse_parentheses(string):
     result = []
@@ -543,18 +543,24 @@ class SDTokenizer:
     def _try_get_embedding(self, embedding_name:str):
         '''
         Takes a potential embedding name and tries to retrieve it.
-        Returns a Tuple consisting of the embedding and any leftover string, embedding can be None.
+        Returns a Tuple consisting of the embedding, the cleaned embedding name, and any leftover string, embedding can be None.
         '''
         split_embed = embedding_name.split()
         embedding_name = split_embed[0]
         leftover = ' '.join(split_embed[1:])
+
+        match = re.search(r'[<\[]', embedding_name)
+        if match is not None:
+            leftover = embedding_name[match.start():] + (" " + leftover if leftover else "")
+            embedding_name = embedding_name[:match.start()]
+
         embed = load_embed(embedding_name, self.embedding_directory, self.embedding_size, self.embedding_key)
         if embed is None:
             stripped = embedding_name.strip(',')
             if len(stripped) < len(embedding_name):
                 embed = load_embed(stripped, self.embedding_directory, self.embedding_size, self.embedding_key)
-                return (embed, "{} {}".format(embedding_name[len(stripped):], leftover))
-        return (embed, leftover)
+                return (embed, embedding_name, "{} {}".format(embedding_name[len(stripped):], leftover))
+        return (embed, embedding_name, leftover)
 
     def pad_tokens(self, tokens, amount):
         if self.pad_left:
@@ -573,6 +579,8 @@ class SDTokenizer:
         min_length = tokenizer_options.get("{}_min_length".format(self.embedding_key), self.min_length)
         min_padding = tokenizer_options.get("{}_min_padding".format(self.embedding_key), self.min_padding)
 
+        min_length = kwargs.get("min_length", min_length)
+
         text = escape_important(text)
         if kwargs.get("disable_weights", self.disable_weights):
             parsed_weights = [(text, 1.0)]
@@ -583,7 +591,7 @@ class SDTokenizer:
         tokens = []
         for weighted_segment, weight in parsed_weights:
             to_tokenize = unescape_important(weighted_segment)
-            split = re.split(' {0}|\n{0}'.format(self.embedding_identifier), to_tokenize)
+            split = re.split(r'(?<=\s){}'.format(re.escape(self.embedding_identifier)), to_tokenize)
             to_tokenize = [split[0]]
             for i in range(1, len(split)):
                 to_tokenize.append("{}{}".format(self.embedding_identifier, split[i]))
@@ -593,7 +601,7 @@ class SDTokenizer:
                 # if we find an embedding, deal with the embedding
                 if word.startswith(self.embedding_identifier) and self.embedding_directory is not None:
                     embedding_name = word[len(self.embedding_identifier):].strip('\n')
-                    embed, leftover = self._try_get_embedding(embedding_name)
+                    embed, embedding_name, leftover = self._try_get_embedding(embedding_name)
                     if embed is None:
                         logging.warning(f"warning, embedding:{embedding_name} does not exist, ignoring")
                     else:
@@ -738,5 +746,5 @@ class SD1ClipModel(torch.nn.Module):
     def load_sd(self, sd):
         return getattr(self, self.clip).load_sd(sd)
 
-    def generate(self, tokens, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.95, min_p=0.0, repetition_penalty=1.0, seed=None):
-        return getattr(self, self.clip).generate(tokens, do_sample=do_sample, max_length=max_length, temperature=temperature, top_k=top_k, top_p=top_p, min_p=min_p, repetition_penalty=repetition_penalty, seed=seed)
+    def generate(self, tokens, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.95, min_p=0.0, repetition_penalty=1.0, seed=None, presence_penalty=0.0):
+        return getattr(self, self.clip).generate(tokens, do_sample=do_sample, max_length=max_length, temperature=temperature, top_k=top_k, top_p=top_p, min_p=min_p, repetition_penalty=repetition_penalty, seed=seed, presence_penalty=presence_penalty)

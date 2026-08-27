@@ -1,13 +1,13 @@
-from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from fractions import Fraction
 from typing import Optional
-from .._input import ImageInput, AudioInput
+from .._input import ImageInput, AudioInput, MaskInput
 
 class VideoCodec(str, Enum):
     AUTO = "auto"
     H264 = "h264"
+    AV1 = "av1"
 
     @classmethod
     def as_input(cls) -> list[str]:
@@ -19,6 +19,8 @@ class VideoCodec(str, Enum):
 class VideoContainer(str, Enum):
     AUTO = "auto"
     MP4 = "mp4"
+    MKV = "mkv"
+    WEBM = "webm"
 
     @classmethod
     def as_input(cls) -> list[str]:
@@ -36,6 +38,10 @@ class VideoContainer(str, Enum):
             value = cls(value)
         if value == VideoContainer.MP4 or value == VideoContainer.AUTO:
             return "mp4"
+        if value == VideoContainer.MKV:
+            return "mkv"
+        if value == VideoContainer.WEBM:
+            return "webm"
         return ""
 
 @dataclass
@@ -48,5 +54,4 @@ class VideoComponents:
     frame_rate: Fraction
     audio: Optional[AudioInput] = None
     metadata: Optional[dict] = None
-
-
+    alpha: Optional[MaskInput] = None

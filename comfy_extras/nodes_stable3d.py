@@ -27,7 +27,7 @@ class StableZero123_Conditioning(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="StableZero123_Conditioning",
-            category="conditioning/3d_models",
+            category="model/conditioning/stable zero123",
             inputs=[
                 io.ClipVision.Input("clip_vision"),
                 io.Image.Input("init_image"),
@@ -65,7 +65,7 @@ class StableZero123_Conditioning_Batched(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="StableZero123_Conditioning_Batched",
-            category="conditioning/3d_models",
+            category="model/conditioning/stable zero123",
             inputs=[
                 io.ClipVision.Input("clip_vision"),
                 io.Image.Input("init_image"),
@@ -75,8 +75,8 @@ class StableZero123_Conditioning_Batched(io.ComfyNode):
                 io.Int.Input("batch_size", default=1, min=1, max=4096),
                 io.Float.Input("elevation", default=0.0, min=-180.0, max=180.0, step=0.1, round=False),
                 io.Float.Input("azimuth", default=0.0, min=-180.0, max=180.0, step=0.1, round=False),
-                io.Float.Input("elevation_batch_increment", default=0.0, min=-180.0, max=180.0, step=0.1, round=False),
-                io.Float.Input("azimuth_batch_increment", default=0.0, min=-180.0, max=180.0, step=0.1, round=False)
+                io.Float.Input("elevation_batch_increment", default=0.0, min=-180.0, max=180.0, step=0.1, round=False, advanced=True),
+                io.Float.Input("azimuth_batch_increment", default=0.0, min=-180.0, max=180.0, step=0.1, round=False, advanced=True)
             ],
             outputs=[
                 io.Conditioning.Output(display_name="positive"),
@@ -112,7 +112,7 @@ class SV3D_Conditioning(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SV3D_Conditioning",
-            category="conditioning/3d_models",
+            category="model/conditioning/stable video 3d",
             inputs=[
                 io.ClipVision.Input("clip_vision"),
                 io.Image.Input("init_image"),

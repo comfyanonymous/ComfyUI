@@ -2,8 +2,10 @@ import asyncio
 import contextlib
 import json
 import logging
+import math
 import time
 import uuid
+import weakref
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from enum import Enum
@@ -21,8 +23,9 @@ from server import PromptServer
 
 from . import request_logger
 from ._helpers import (
+    _retry_after_wait,
     default_base_url,
-    get_auth_header,
+    get_comfy_api_headers,
     get_node_id,
     is_processing_interrupted,
     sleep_with_interrupt,
@@ -67,6 +70,7 @@ class _RequestConfig:
     progress_origin_ts: float | None = None
     price_extractor: Callable[[dict[str, Any]], float | None] | None = None
     is_rate_limited: Callable[[int, Any], bool] | None = None
+    response_header_validator: Callable[[dict[str, str]], None] | None = None
 
 
 @dataclass
@@ -81,9 +85,36 @@ class _PollUIState:
 
 
 _RETRY_STATUS = {408, 500, 502, 503, 504}  # status 429 is handled separately
+_MAX_RETRY_AFTER_WAIT = 150.0  # Cap a server Retry-After at this many seconds so a large hint can't block execution
+
+PRICE_CREDITS_HEADER = "X-Comfy-Credits-Used"
+"""Proxy response header with the actual cost in Comfy credits. When present on any successful proxied response,
+it takes precedence over ``price_extractor``."""
+
+_credits_used_by_execution: "weakref.WeakKeyDictionary[type, float]" = weakref.WeakKeyDictionary()
+"""Last PRICE_CREDITS_HEADER value per node execution, keyed by the node's per-execution class clone."""
 COMPLETED_STATUSES = ["succeeded", "succeed", "success", "completed", "finished", "done", "complete"]
 FAILED_STATUSES = ["cancelled", "canceled", "canceling", "fail", "failed", "error"]
-QUEUED_STATUSES = ["created", "queued", "queueing", "submitted", "initializing"]
+QUEUED_STATUSES = ["created", "queued", "queueing", "submitted", "initializing", "wait", "in_queue"]
+
+
+def _maybe_remember_credits_used(node_cls: type[IO.ComfyNode], header_value: str | None) -> None:
+    """Remember a PRICE_CREDITS_HEADER value from a successful proxied response."""
+    if not header_value:
+        return
+    try:
+        credits_used = float(header_value)
+    except (TypeError, ValueError):
+        logging.debug("Ignoring malformed %s header: %r", PRICE_CREDITS_HEADER, header_value)
+        return
+    if not math.isfinite(credits_used) or credits_used < 0:
+        logging.debug("Ignoring out-of-range %s header: %r", PRICE_CREDITS_HEADER, header_value)
+        return
+    _credits_used_by_execution[node_cls] = credits_used + 0.0  # normalize -0.0
+
+
+def _get_remembered_credits_used(node_cls: type[IO.ComfyNode]) -> float | None:
+    return _credits_used_by_execution.get(node_cls)
 
 
 async def sync_op(
@@ -147,7 +178,7 @@ async def poll_op(
     queued_statuses: list[str | int] | None = None,
     data: BaseModel | None = None,
     poll_interval: float = 5.0,
-    max_poll_attempts: int = 160,
+    max_poll_attempts: int = 480,
     timeout_per_poll: float = 120.0,
     max_retries_per_poll: int = 10,
     retry_delay_per_poll: float = 1.0,
@@ -155,6 +186,7 @@ async def poll_op(
     estimated_duration: int | None = None,
     cancel_endpoint: ApiEndpoint | None = None,
     cancel_timeout: float = 10.0,
+    extra_text: str | None = None,
 ) -> M:
     raw = await poll_op_raw(
         cls,
@@ -175,6 +207,7 @@ async def poll_op(
         estimated_duration=estimated_duration,
         cancel_endpoint=cancel_endpoint,
         cancel_timeout=cancel_timeout,
+        extra_text=extra_text,
     )
     if not isinstance(raw, dict):
         raise Exception("Expected JSON response to validate into a Pydantic model, got non-JSON (binary or text).")
@@ -202,11 +235,13 @@ async def sync_op_raw(
     monitor_progress: bool = True,
     max_retries_on_rate_limit: int = 16,
     is_rate_limited: Callable[[int, Any], bool] | None = None,
+    response_header_validator: Callable[[dict[str, str]], None] | None = None,
 ) -> dict[str, Any] | bytes:
     """
     Make a single network request.
       - If as_binary=False (default): returns JSON dict (or {'_raw': '<text>'} if non-JSON).
       - If as_binary=True: returns bytes.
+      - response_header_validator: optional callback receiving response headers dict
     """
     if isinstance(data, BaseModel):
         data = data.model_dump(exclude_none=True)
@@ -232,6 +267,7 @@ async def sync_op_raw(
         price_extractor=price_extractor,
         max_retries_on_rate_limit=max_retries_on_rate_limit,
         is_rate_limited=is_rate_limited,
+        response_header_validator=response_header_validator,
     )
     return await _request_base(cfg, expect_binary=as_binary)
 
@@ -248,7 +284,7 @@ async def poll_op_raw(
     queued_statuses: list[str | int] | None = None,
     data: dict[str, Any] | BaseModel | None = None,
     poll_interval: float = 5.0,
-    max_poll_attempts: int = 160,
+    max_poll_attempts: int = 480,
     timeout_per_poll: float = 120.0,
     max_retries_per_poll: int = 10,
     retry_delay_per_poll: float = 1.0,
@@ -256,6 +292,7 @@ async def poll_op_raw(
     estimated_duration: int | None = None,
     cancel_endpoint: ApiEndpoint | None = None,
     cancel_timeout: float = 10.0,
+    extra_text: str | None = None,
 ) -> dict[str, Any]:
     """
     Polls an endpoint until the task reaches a terminal state. Displays time while queued/processing,
@@ -295,6 +332,7 @@ async def poll_op_raw(
                     price=state.price,
                     is_queued=state.is_queued,
                     processing_elapsed_seconds=int(proc_elapsed),
+                    extra_text=extra_text,
                 )
                 await asyncio.sleep(1.0)
         except Exception as exc:
@@ -385,6 +423,7 @@ async def poll_op_raw(
                     price=state.price,
                     is_queued=False,
                     processing_elapsed_seconds=int(state.base_processing_elapsed),
+                    extra_text=extra_text,
                 )
                 return resp_json
 
@@ -439,10 +478,15 @@ def _display_text(
     display_lines: list[str] = []
     if status:
         display_lines.append(f"Status: {status.capitalize() if isinstance(status, str) else status}")
-    if price is not None:
+    server_credits = _get_remembered_credits_used(node_cls)
+    if server_credits is not None:
+        p = f"{server_credits:,.2f}".rstrip("0").rstrip(".")
+    elif price is not None:
         p = f"{float(price) * 211:,.1f}".rstrip("0").rstrip(".")
-        if p != "0":
-            display_lines.append(f"Price: {p} credits")
+    else:
+        p = None
+    if p is not None and p != "0":
+        display_lines.append(f"Price: {p} credits")
     if text is not None:
         display_lines.append(text)
     if display_lines:
@@ -458,6 +502,7 @@ def _display_time_progress(
     price: float | None = None,
     is_queued: bool | None = None,
     processing_elapsed_seconds: int | None = None,
+    extra_text: str | None = None,
 ) -> None:
     if estimated_total is not None and estimated_total > 0 and is_queued is False:
         pe = processing_elapsed_seconds if processing_elapsed_seconds is not None else elapsed_seconds
@@ -465,7 +510,8 @@ def _display_time_progress(
         time_line = f"Time elapsed: {int(elapsed_seconds)}s (~{remaining}s remaining)"
     else:
         time_line = f"Time elapsed: {int(elapsed_seconds)}s"
-    _display_text(node_cls, time_line, status=status, price=price)
+    text = f"{time_line}\n\n{extra_text}" if extra_text else time_line
+    _display_text(node_cls, text, status=status, price=price)
 
 
 async def _diagnose_connectivity() -> dict[str, bool]:
@@ -475,10 +521,30 @@ async def _diagnose_connectivity() -> dict[str, bool]:
         "api_accessible": False,
     }
     timeout = aiohttp.ClientTimeout(total=5.0)
+
+    # Probe Google and Baidu in parallel: Google is blocked by the GFW in mainland China, so a Baidu probe is required
+    # to correctly detect that Chinese users with working internet do have working internet.
+    internet_probe_urls = ("https://www.google.com", "https://www.baidu.com")
+
     async with aiohttp.ClientSession(timeout=timeout) as session:
-        with contextlib.suppress(ClientError, OSError):
-            async with session.get("https://www.google.com") as resp:
-                results["internet_accessible"] = resp.status < 500
+        async def _probe(url: str) -> bool:
+            try:
+                async with session.get(url) as resp:
+                    return resp.status < 500
+            except (ClientError, OSError, asyncio.TimeoutError):
+                return False
+
+        probe_tasks = [asyncio.create_task(_probe(u)) for u in internet_probe_urls]
+        try:
+            for fut in asyncio.as_completed(probe_tasks):
+                if await fut:
+                    results["internet_accessible"] = True
+                    break
+        finally:
+            for t in probe_tasks:
+                if not t.done():
+                    t.cancel()
+            await asyncio.gather(*probe_tasks, return_exceptions=True)
         if not results["internet_accessible"]:
             return results
 
@@ -573,7 +639,8 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
     """Core request with retries, per-second interruption monitoring, true cancellation, and friendly errors."""
     url = cfg.endpoint.path
     parsed_url = urlparse(url)
-    if not parsed_url.scheme and not parsed_url.netloc:  # is URL relative?
+    is_comfy_api_request = not parsed_url.scheme and not parsed_url.netloc  # is URL relative?
+    if is_comfy_api_request:
         url = urljoin(default_base_url().rstrip("/") + "/", url.lstrip("/"))
 
     method = cfg.endpoint.method
@@ -611,8 +678,8 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
         logging.debug("[DEBUG] HTTP %s %s (attempt %d)", method, url, attempt)
 
         payload_headers = {"Accept": "*/*"} if expect_binary else {"Accept": "application/json"}
-        if not parsed_url.scheme and not parsed_url.netloc:  # is URL relative?
-            payload_headers.update(get_auth_header(cfg.node_cls))
+        if is_comfy_api_request:
+            payload_headers.update(get_comfy_api_headers(cfg.node_cls))
         if cfg.endpoint.headers:
             payload_headers.update(cfg.endpoint.headers)
 
@@ -716,6 +783,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                         should_retry = True
 
                     if should_retry:
+                        wait_time = _retry_after_wait(resp.headers.get("Retry-After"), wait_time, _MAX_RETRY_AFTER_WAIT)
                         logging.warning(
                             "HTTP %s %s -> %s. Waiting %.2fs (%s).",
                             method,
@@ -769,6 +837,14 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                                     cfg.node_cls, cfg.wait_label, int(now - start_time), cfg.estimated_total
                                 )
                     bytes_payload = bytes(buff)
+                    resp_headers = {k.lower(): v for k, v in resp.headers.items()}
+                    if is_comfy_api_request:
+                        _maybe_remember_credits_used(cfg.node_cls, resp.headers.get(PRICE_CREDITS_HEADER))
+                    if cfg.price_extractor:
+                        with contextlib.suppress(Exception):
+                            extracted_price = cfg.price_extractor(resp_headers)
+                    if cfg.response_header_validator:
+                        cfg.response_header_validator(resp_headers)
                     operation_succeeded = True
                     final_elapsed_seconds = int(time.monotonic() - start_time)
                     request_logger.log_request_response(
@@ -776,7 +852,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                         request_method=method,
                         request_url=url,
                         response_status_code=resp.status,
-                        response_headers=dict(resp.headers),
+                        response_headers=resp_headers,
                         response_content=bytes_payload,
                     )
                     return bytes_payload
@@ -791,6 +867,8 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                         except json.JSONDecodeError:
                             payload = {"_raw": text}
                         response_content_to_log = payload if isinstance(payload, dict) else text
+                    if is_comfy_api_request:
+                        _maybe_remember_credits_used(cfg.node_cls, resp.headers.get(PRICE_CREDITS_HEADER))
                     with contextlib.suppress(Exception):
                         extracted_price = cfg.price_extractor(payload) if cfg.price_extractor else None
                     operation_succeeded = True

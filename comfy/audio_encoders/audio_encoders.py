@@ -27,6 +27,7 @@ class AudioEncoderModel():
         self.model.eval()
         self.patcher = comfy.model_patcher.CoreModelPatcher(self.model, load_device=self.load_device, offload_device=offload_device)
         self.model_sample_rate = 16000
+        comfy.model_management.archive_model_dtypes(self.model)
 
     def load_sd(self, sd):
         return self.model.load_state_dict(sd, strict=False, assign=self.patcher.is_dynamic())

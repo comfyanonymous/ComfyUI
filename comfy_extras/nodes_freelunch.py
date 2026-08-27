@@ -29,13 +29,13 @@ class FreeU(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="FreeU",
-            category="model_patches/unet",
+            category="model/patch/unet",
             inputs=[
                 IO.Model.Input("model"),
-                IO.Float.Input("b1", default=1.1, min=0.0, max=10.0, step=0.01),
-                IO.Float.Input("b2", default=1.2, min=0.0, max=10.0, step=0.01),
-                IO.Float.Input("s1", default=0.9, min=0.0, max=10.0, step=0.01),
-                IO.Float.Input("s2", default=0.2, min=0.0, max=10.0, step=0.01),
+                IO.Float.Input("b1", default=1.1, min=0.0, max=10.0, step=0.01, advanced=True),
+                IO.Float.Input("b2", default=1.2, min=0.0, max=10.0, step=0.01, advanced=True),
+                IO.Float.Input("s1", default=0.9, min=0.0, max=10.0, step=0.01, advanced=True),
+                IO.Float.Input("s2", default=0.2, min=0.0, max=10.0, step=0.01, advanced=True),
             ],
             outputs=[
                 IO.Model.Output(),
@@ -76,13 +76,13 @@ class FreeU_V2(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="FreeU_V2",
-            category="model_patches/unet",
+            category="model/patch/unet",
             inputs=[
                 IO.Model.Input("model"),
-                IO.Float.Input("b1", default=1.3, min=0.0, max=10.0, step=0.01),
-                IO.Float.Input("b2", default=1.4, min=0.0, max=10.0, step=0.01),
-                IO.Float.Input("s1", default=0.9, min=0.0, max=10.0, step=0.01),
-                IO.Float.Input("s2", default=0.2, min=0.0, max=10.0, step=0.01),
+                IO.Float.Input("b1", default=1.3, min=0.0, max=10.0, step=0.01, advanced=True),
+                IO.Float.Input("b2", default=1.4, min=0.0, max=10.0, step=0.01, advanced=True),
+                IO.Float.Input("s1", default=0.9, min=0.0, max=10.0, step=0.01, advanced=True),
+                IO.Float.Input("s2", default=0.2, min=0.0, max=10.0, step=0.01, advanced=True),
             ],
             outputs=[
                 IO.Model.Output(),

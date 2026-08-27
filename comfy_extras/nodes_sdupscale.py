@@ -9,13 +9,13 @@ class SD_4XUpscale_Conditioning(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SD_4XUpscale_Conditioning",
-            category="conditioning/upscale_diffusion",
+            category="model/conditioning/stable diffusion upscaler",
             inputs=[
                 io.Image.Input("images"),
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),
                 io.Float.Input("scale_ratio", default=4.0, min=0.0, max=10.0, step=0.01),
-                io.Float.Input("noise_augmentation", default=0.0, min=0.0, max=1.0, step=0.001),
+                io.Float.Input("noise_augmentation", default=0.0, min=0.0, max=1.0, step=0.001, advanced=True),
             ],
             outputs=[
                 io.Conditioning.Output(display_name="positive"),

@@ -3,10 +3,10 @@ import os
 from transformers import T5TokenizerFast
 from .spiece_tokenizer import SPieceTokenizer
 import comfy.text_encoders.genmo
-from comfy.ldm.lightricks.embeddings_connector import Embeddings1DConnector
 import torch
 import comfy.utils
 import math
+import itertools
 
 class T5XXLTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
@@ -73,12 +73,23 @@ class Gemma3_12BTokenizer(Gemma3_Tokenizer, sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
         tokenizer = tokenizer_data.get("spiece_model", None)
         special_tokens = {"<image_soft_token>": 262144, "<end_of_turn>": 106}
-        super().__init__(tokenizer, pad_with_end=False, embedding_size=3840, embedding_key='gemma3_12b', tokenizer_class=SPieceTokenizer, has_end_token=False, pad_to_max_length=False, max_length=99999999, min_length=512, pad_left=True, disable_weights=True, tokenizer_args={"add_bos": True, "add_eos": False, "special_tokens": special_tokens}, tokenizer_data=tokenizer_data)
+        super().__init__(tokenizer, pad_with_end=False, embedding_size=3840, embedding_key='gemma3_12b', tokenizer_class=SPieceTokenizer, has_end_token=False, pad_to_max_length=False, max_length=99999999, min_length=1024, pad_left=True, disable_weights=True, tokenizer_args={"add_bos": True, "add_eos": False, "special_tokens": special_tokens}, tokenizer_data=tokenizer_data)
 
 
 class LTXAVGemmaTokenizer(sd1_clip.SD1Tokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
         super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, name="gemma3_12b", tokenizer=Gemma3_12BTokenizer)
+
+
+def ltxav_gemma4_tokenizer(tokenizer):
+    class LTXAVGemma4Tokenizer(tokenizer):
+        def __init__(self, embedding_directory=None, tokenizer_data={}):
+            super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
+            gemma_tokenizer = getattr(self, self.clip)
+            if gemma_tokenizer.min_length == 1:
+                gemma_tokenizer.min_length = 1024
+
+    return LTXAVGemma4Tokenizer
 
 
 class Gemma3_12BModel(sd1_clip.SDClipModel):
@@ -91,24 +102,56 @@ class Gemma3_12BModel(sd1_clip.SDClipModel):
         self.dtypes.add(dtype)
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"start": 2, "pad": 0}, layer_norm_hidden_state=False, model_class=comfy.text_encoders.llama.Gemma3_12B, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
 
-    def generate(self, tokens, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed):
+    def generate(self, tokens, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, presence_penalty):
         tokens_only = [[t[0] for t in b] for b in tokens]
-        embeds, _, _, embeds_info = self.process_tokens(tokens_only, self.execution_device)
-        comfy.utils.normalize_image_embeddings(embeds, embeds_info, self.transformer.model.config.hidden_size ** 0.5)
-        return self.transformer.generate(embeds, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, stop_tokens=[106])  # 106 is <end_of_turn>
+        embeds, _, _, _ = self.process_tokens(tokens_only, self.execution_device)
+        return self.transformer.generate(embeds, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, stop_tokens=[106], presence_penalty=presence_penalty)  # 106 is <end_of_turn>
+
+class DualLinearProjection(torch.nn.Module):
+    def __init__(self, in_dim, out_dim_video, out_dim_audio, video_bias=True, audio_bias=True, dtype=None, device=None, operations=None):
+        super().__init__()
+        self.audio_aggregate_embed = operations.Linear(in_dim, out_dim_audio, bias=audio_bias, dtype=dtype, device=device)
+        self.video_aggregate_embed = operations.Linear(in_dim, out_dim_video, bias=video_bias, dtype=dtype, device=device)
+
+    def forward(self, x):
+        source_dim = x.shape[-1]
+        x = x.movedim(1, -1)
+        x = (x * torch.rsqrt(torch.mean(x**2, dim=2, keepdim=True) + 1e-6)).flatten(start_dim=2)
+
+        video = self.video_aggregate_embed(x * math.sqrt(self.video_aggregate_embed.out_features / source_dim))
+        audio = self.audio_aggregate_embed(x * math.sqrt(self.audio_aggregate_embed.out_features / source_dim))
+        return torch.cat((video, audio), dim=-1)
 
 class LTXAVTEModel(torch.nn.Module):
-    def __init__(self, dtype_llama=None, device="cpu", dtype=None, model_options={}):
+    def __init__(self, dtype_llama=None, device="cpu", dtype=None, text_projection_type="single_linear", text_encoder_model=Gemma3_12BModel, text_encoder_key="gemma3_12b", video_projection_dim=3840, audio_projection_dim=2048, video_projection_bias=None, audio_projection_bias=True, model_options={}):
         super().__init__()
         self.dtypes = set()
         self.dtypes.add(dtype)
+        self.compat_mode = False
+        self.text_projection_type = text_projection_type
+        self.text_encoder_key = text_encoder_key
+        self.execution_device = None
 
-        self.gemma3_12b = Gemma3_12BModel(device=device, dtype=dtype_llama, model_options=model_options, layer="all", layer_idx=None)
+        self.gemma3_12b = text_encoder_model(device=device, dtype=dtype_llama, model_options=model_options, layer="all", layer_idx=None)
         self.dtypes.add(dtype_llama)
 
         operations = self.gemma3_12b.operations # TODO
-        self.text_embedding_projection = operations.Linear(3840 * 49, 3840, bias=False, dtype=dtype, device=device)
+        text_encoder_config = self.gemma3_12b.transformer.model.config
+        projection_in_dim = text_encoder_config.hidden_size * (text_encoder_config.num_hidden_layers + 1)
+        if video_projection_bias is None:
+            video_projection_bias = self.text_projection_type == "dual_linear"
 
+        if self.text_projection_type == "single_linear":
+            self.text_embedding_projection = operations.Linear(projection_in_dim, video_projection_dim, bias=video_projection_bias, dtype=dtype, device=device)
+        elif self.text_projection_type == "dual_linear":
+            self.text_embedding_projection = DualLinearProjection(projection_in_dim, video_projection_dim, audio_projection_dim, video_bias=video_projection_bias, audio_bias=audio_projection_bias, dtype=dtype, device=device, operations=operations)
+
+
+    def enable_compat_mode(self):  # TODO: remove
+        from comfy.ldm.lightricks.embeddings_connector import Embeddings1DConnector
+        operations = self.gemma3_12b.operations
+        dtype = self.text_embedding_projection.weight.dtype
+        device = self.text_embedding_projection.weight.device
         self.audio_embeddings_connector = Embeddings1DConnector(
             split_rope=True,
             double_precision_rope=True,
@@ -124,6 +167,7 @@ class LTXAVTEModel(torch.nn.Module):
             device=device,
             operations=operations,
         )
+        self.compat_mode = True
 
     def set_clip_options(self, options):
         self.execution_device = options.get("execution_device", self.execution_device)
@@ -134,58 +178,82 @@ class LTXAVTEModel(torch.nn.Module):
         self.execution_device = None
 
     def encode_token_weights(self, token_weight_pairs):
-        token_weight_pairs = token_weight_pairs["gemma3_12b"]
+        token_weight_pairs = token_weight_pairs[self.text_encoder_key]
 
         out, pooled, extra = self.gemma3_12b.encode_token_weights(token_weight_pairs)
         out = out[:, :, -torch.sum(extra["attention_mask"]).item():]
         out_device = out.device
         if comfy.model_management.should_use_bf16(self.execution_device):
             out = out.to(device=self.execution_device, dtype=torch.bfloat16)
-        out = out.movedim(1, -1).to(self.execution_device)
-        out = 8.0 * (out - out.mean(dim=(1, 2), keepdim=True)) / (out.amax(dim=(1, 2), keepdim=True) - out.amin(dim=(1, 2), keepdim=True) + 1e-6)
-        out = out.reshape((out.shape[0], out.shape[1], -1))
-        out = self.text_embedding_projection(out)
-        out = out.float()
-        out_vid = self.video_embeddings_connector(out)[0]
-        out_audio = self.audio_embeddings_connector(out)[0]
-        out = torch.concat((out_vid, out_audio), dim=-1)
 
-        return out.to(out_device), pooled
+        if self.text_projection_type == "single_linear":
+            out = out.movedim(1, -1).to(self.execution_device)
+            out = 8.0 * (out - out.mean(dim=(1, 2), keepdim=True)) / (out.amax(dim=(1, 2), keepdim=True) - out.amin(dim=(1, 2), keepdim=True) + 1e-6)
+            out = out.reshape((out.shape[0], out.shape[1], -1))
+            out = self.text_embedding_projection(out)
 
-    def generate(self, tokens, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed):
-        return self.gemma3_12b.generate(tokens["gemma3_12b"], do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed)
+            if self.compat_mode:
+                out_vid = self.video_embeddings_connector(out)[0]
+                out_audio = self.audio_embeddings_connector(out)[0]
+                out = torch.concat((out_vid, out_audio), dim=-1)
+                extra = {}
+            else:
+                extra = {"unprocessed_ltxav_embeds": True}
+        elif self.text_projection_type == "dual_linear":
+            out = self.text_embedding_projection(out)
+            extra = {"unprocessed_ltxav_embeds": True}
+
+        return out.to(device=out_device, dtype=torch.float), pooled, extra
+
+    def generate(self, tokens, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, presence_penalty):
+        return self.gemma3_12b.generate(tokens[self.text_encoder_key], do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, presence_penalty)
 
     def load_sd(self, sd):
-        if "model.layers.47.self_attn.q_norm.weight" in sd:
-            return self.gemma3_12b.load_sd(sd)
-        else:
-            sdo = comfy.utils.state_dict_prefix_replace(sd, {"text_embedding_projection.aggregate_embed.weight": "text_embedding_projection.weight", "model.diffusion_model.video_embeddings_connector.": "video_embeddings_connector.", "model.diffusion_model.audio_embeddings_connector.": "audio_embeddings_connector."}, filter_keys=True)
-            if len(sdo) == 0:
-                sdo = sd
+        missing_all = []
+        unexpected_all = []
 
-            missing_all = []
-            unexpected_all = []
+        if "model.layers.0.self_attn.q_norm.weight" in sd:
+            gemma_sd = {k: v for k, v in sd.items() if not k.startswith("text_embedding_projection.")}
+            missing, unexpected = self.gemma3_12b.load_sd(gemma_sd)
+            missing_all.extend(missing)
+            unexpected_all.extend(unexpected)
 
-            for prefix, component in [("text_embedding_projection.", self.text_embedding_projection), ("video_embeddings_connector.", self.video_embeddings_connector), ("audio_embeddings_connector.", self.audio_embeddings_connector)]:
-                component_sd = {k.replace(prefix, ""): v for k, v in sdo.items() if k.startswith(prefix)}
-                if component_sd:
-                    missing, unexpected = component.load_state_dict(component_sd, strict=False, assign=getattr(self, "can_assign_sd", False))
-                    missing_all.extend([f"{prefix}{k}" for k in missing])
-                    unexpected_all.extend([f"{prefix}{k}" for k in unexpected])
+        sdo = comfy.utils.state_dict_prefix_replace(sd, {"text_embedding_projection.aggregate_embed.": "text_embedding_projection.", "text_embedding_projection.": "text_embedding_projection."}, filter_keys=True)
+        if len(sdo) == 0:
+            sdo = sd
 
-            return (missing_all, unexpected_all)
+        for prefix, component in [("text_embedding_projection.", self.text_embedding_projection)]:
+            component_sd = {k.replace(prefix, ""): v for k, v in sdo.items() if k.startswith(prefix)}
+            if component_sd:
+                missing, unexpected = component.load_state_dict(component_sd, strict=False, assign=getattr(self, "can_assign_sd", False))
+                missing_all.extend([f"{prefix}{k}" for k in missing])
+                unexpected_all.extend([f"{prefix}{k}" for k in unexpected])
+
+        if "model.diffusion_model.audio_embeddings_connector.transformer_1d_blocks.2.attn1.to_q.bias" not in sd:  # TODO: remove
+            ww = sd.get("model.diffusion_model.audio_embeddings_connector.transformer_1d_blocks.0.attn1.to_q.bias", None)
+            if ww is not None:
+                if ww.shape[0] == 3840:
+                    self.enable_compat_mode()
+                    sdv = comfy.utils.state_dict_prefix_replace(sd, {"model.diffusion_model.video_embeddings_connector.": ""}, filter_keys=True)
+                    self.video_embeddings_connector.load_state_dict(sdv, strict=False, assign=getattr(self, "can_assign_sd", False))
+                    sda = comfy.utils.state_dict_prefix_replace(sd, {"model.diffusion_model.audio_embeddings_connector.": ""}, filter_keys=True)
+                    self.audio_embeddings_connector.load_state_dict(sda, strict=False, assign=getattr(self, "can_assign_sd", False))
+
+        return (missing_all, unexpected_all)
 
     def memory_estimation_function(self, token_weight_pairs, device=None):
         constant = 6.0
         if comfy.model_management.should_use_bf16(device):
             constant /= 2.0
 
-        token_weight_pairs = token_weight_pairs.get("gemma3_12b", [])
-        num_tokens = sum(map(lambda a: len(a), token_weight_pairs))
-        num_tokens = max(num_tokens, 64)
+        token_weight_pairs = token_weight_pairs.get(self.text_encoder_key, [])
+        m = min([sum(1 for _ in itertools.takewhile(lambda x: x[0] == 0, sub)) for sub in token_weight_pairs])
+
+        num_tokens = sum(map(lambda a: len(a), token_weight_pairs)) - m
+        num_tokens = max(num_tokens, 642)
         return num_tokens * constant * 1024 * 1024
 
-def ltxav_te(dtype_llama=None, llama_quantization_metadata=None):
+def ltxav_te(dtype_llama=None, llama_quantization_metadata=None, text_projection_type="single_linear", text_encoder_model=Gemma3_12BModel, text_encoder_key="gemma3_12b", video_projection_dim=3840, audio_projection_dim=2048, video_projection_bias=None, audio_projection_bias=True):
     class LTXAVTEModel_(LTXAVTEModel):
         def __init__(self, device="cpu", dtype=None, model_options={}):
             if llama_quantization_metadata is not None:
@@ -193,8 +261,31 @@ def ltxav_te(dtype_llama=None, llama_quantization_metadata=None):
                 model_options["llama_quantization_metadata"] = llama_quantization_metadata
             if dtype_llama is not None:
                 dtype = dtype_llama
-            super().__init__(dtype_llama=dtype_llama, device=device, dtype=dtype, model_options=model_options)
+            super().__init__(dtype_llama=dtype_llama, device=device, dtype=dtype, text_projection_type=text_projection_type, text_encoder_model=text_encoder_model, text_encoder_key=text_encoder_key, video_projection_dim=video_projection_dim, audio_projection_dim=audio_projection_dim, video_projection_bias=video_projection_bias, audio_projection_bias=audio_projection_bias, model_options=model_options)
     return LTXAVTEModel_
+
+
+def sd_detect(state_dict_list, prefix=""):
+    for sd in state_dict_list:
+        video_key = "{}text_embedding_projection.video_aggregate_embed.weight".format(prefix)
+        audio_key = "{}text_embedding_projection.audio_aggregate_embed.weight".format(prefix)
+        if video_key in sd and audio_key in sd:
+            return {
+                "text_projection_type": "dual_linear",
+                "video_projection_dim": sd[video_key].shape[0],
+                "audio_projection_dim": sd[audio_key].shape[0],
+                "video_projection_bias": "{}text_embedding_projection.video_aggregate_embed.bias".format(prefix) in sd,
+                "audio_projection_bias": "{}text_embedding_projection.audio_aggregate_embed.bias".format(prefix) in sd,
+            }
+        for key in ("{}text_embedding_projection.weight".format(prefix), "{}text_embedding_projection.aggregate_embed.weight".format(prefix)):
+            if key in sd:
+                return {
+                    "text_projection_type": "single_linear",
+                    "video_projection_dim": sd[key].shape[0],
+                    "video_projection_bias": key.removesuffix("weight") + "bias" in sd,
+                }
+    return {}
+
 
 def gemma3_te(dtype_llama=None, llama_quantization_metadata=None):
     class Gemma3_12BModel_(Gemma3_12BModel):

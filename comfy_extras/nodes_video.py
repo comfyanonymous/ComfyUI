@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import os
 import av
 import torch
@@ -17,10 +15,11 @@ class SaveWEBM(io.ComfyNode):
         return io.Schema(
             node_id="SaveWEBM",
             search_aliases=["export webm"],
-            category="image/video",
+            display_name="Save WEBM",
+            category="video",
             is_experimental=True,
             inputs=[
-                io.Image.Input("images"),
+                io.Image.Input("images", tooltip="RGBA images are saved with their alpha channel as transparency (vp9 codec only)."),
                 io.String.Input("filename_prefix", default="ComfyUI"),
                 io.Combo.Input("codec", options=["vp9", "av1"]),
                 io.Float.Input("fps", default=24.0, min=0.01, max=1000.0, step=0.01),
@@ -28,6 +27,7 @@ class SaveWEBM(io.ComfyNode):
             ],
             hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
             is_output_node=True,
+            outputs=[io.Image.Output(display_name="images")]
         )
 
     @classmethod
@@ -46,24 +46,90 @@ class SaveWEBM(io.ComfyNode):
             for x in cls.hidden.extra_pnginfo:
                 container.metadata[x] = json.dumps(cls.hidden.extra_pnginfo[x])
 
+        # Save transparency when the images carry an alpha channel (RGBA) and the codec supports it.
+        # vp9 -> yuva420p; other codecs have no usable alpha path, so the alpha is ignored.
+        save_alpha = images.shape[-1] == 4 and codec == "vp9"
+
         codec_map = {"vp9": "libvpx-vp9", "av1": "libsvtav1"}
         stream = container.add_stream(codec_map[codec], rate=Fraction(round(fps * 1000), 1000))
         stream.width = images.shape[-2]
         stream.height = images.shape[-3]
-        stream.pix_fmt = "yuv420p10le" if codec == "av1" else "yuv420p"
+        stream.pix_fmt = "yuva420p" if save_alpha else ("yuv420p10le" if codec == "av1" else "yuv420p")
         stream.bit_rate = 0
         stream.options = {'crf': str(crf)}
         if codec == "av1":
             stream.options["preset"] = "6"
 
         for frame in images:
-            frame = av.VideoFrame.from_ndarray(torch.clamp(frame[..., :3] * 255, min=0, max=255).to(device=torch.device("cpu"), dtype=torch.uint8).numpy(), format="rgb24")
+            if save_alpha:
+                frame = av.VideoFrame.from_ndarray(torch.clamp(frame[..., :4] * 255, min=0, max=255).to(device=torch.device("cpu"), dtype=torch.uint8).numpy(), format="rgba")
+            else:
+                frame = av.VideoFrame.from_ndarray(torch.clamp(frame[..., :3] * 255, min=0, max=255).to(device=torch.device("cpu"), dtype=torch.uint8).numpy(), format="rgb24")
             for packet in stream.encode(frame):
                 container.mux(packet)
         container.mux(stream.encode())
         container.close()
 
-        return io.NodeOutput(ui=ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)]))
+        return io.NodeOutput(images, ui=ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)]))
+
+def _save_video_codec_input(supported_codecs: list[str], *, optional=False, hidden=False):
+    codec_options = []
+    if "auto" in supported_codecs:
+        codec_options.append(io.DynamicCombo.Option("auto", []))
+    if "h264" in supported_codecs:
+        codec_options.append(
+            io.DynamicCombo.Option(
+                "h264",
+                [
+                    io.DynamicCombo.Input(
+                        "encoding",
+                        display_name="encoding mode",
+                        options=[
+                            io.DynamicCombo.Option("auto", []),
+                            io.DynamicCombo.Option(
+                                "re-encode",
+                                [
+                                    io.Float.Input("crf", default=23.0, min=0.0, max=51.0, step=1.0, tooltip="Lower values produce higher quality and larger files."),
+                                ],
+                            ),
+                        ],
+                        optional=True,
+                        tooltip="Automatic preserves compatible H.264 streams. Re-encode applies custom encoding options.",
+                    ),
+                ],
+            )
+        )
+    if "av1" in supported_codecs:
+        codec_options.append(
+            io.DynamicCombo.Option(
+                "av1",
+                [
+                    io.DynamicCombo.Input(
+                        "encoding",
+                        display_name="encoding mode",
+                        options=[
+                            io.DynamicCombo.Option("auto", []),
+                            io.DynamicCombo.Option(
+                                "re-encode",
+                                [
+                                    io.Float.Input("crf", default=30.0, min=0.0, max=63.0, step=1.0, tooltip="Lower values produce higher quality and larger files."),
+                                ],
+                            ),
+                        ],
+                        optional=True,
+                        tooltip="Automatic preserves compatible AV1 streams. Re-encode applies custom encoding options.",
+                    ),
+                ],
+            )
+        )
+    return io.DynamicCombo.Input(
+        "codec",
+        options=codec_options,
+        optional=optional,
+        tooltip="The output video codec. Auto preserves a compatible source stream. H.264 and AV1 re-encoding support SDR, HDR (HLG), and HDR PQ.",
+        extra_dict={"hidden": True} if hidden else None,
+    )
+
 
 class SaveVideo(io.ComfyNode):
     @classmethod
@@ -72,20 +138,42 @@ class SaveVideo(io.ComfyNode):
             node_id="SaveVideo",
             search_aliases=["export video"],
             display_name="Save Video",
-            category="image/video",
-            description="Saves the input images to your ComfyUI output directory.",
+            category="video",
+            essentials_category="Basics",
+            description="Saves the input videos to your ComfyUI output directory.",
             inputs=[
                 io.Video.Input("video", tooltip="The video to save."),
                 io.String.Input("filename_prefix", default="video/ComfyUI", tooltip="The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."),
-                io.Combo.Input("format", options=Types.VideoContainer.as_input(), default="auto", tooltip="The format to save the video as."),
-                io.Combo.Input("codec", options=Types.VideoCodec.as_input(), default="auto", tooltip="The codec to use for the video."),
+                io.DynamicCombo.Input(
+                    "format",
+                    options=[
+                        io.DynamicCombo.Option("auto", [_save_video_codec_input(["auto", "h264", "av1"])]),
+                        io.DynamicCombo.Option("mp4", [_save_video_codec_input(["auto", "h264", "av1"])]),
+                        io.DynamicCombo.Option("mkv", [_save_video_codec_input(["auto", "h264", "av1"])]),
+                        io.DynamicCombo.Option("webm", [_save_video_codec_input(["auto", "av1"])]),
+                    ],
+                    tooltip="The output container. Auto uses MP4 for Auto/H.264 and WebM for AV1. MP4, MKV, and WebM select a specific container.",
+                ),
+                _save_video_codec_input(["auto", "h264", "av1"], optional=True, hidden=True),
             ],
             hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
             is_output_node=True,
+            outputs=[io.Video.Output("video", tooltip="The input video, unchanged.")],
         )
 
     @classmethod
-    def execute(cls, video: Input.Video, filename_prefix, format: str, codec) -> io.NodeOutput:
+    def execute(cls, video: Input.Video, filename_prefix, format: io.DynamicCombo.Type | str, codec: io.DynamicCombo.Type | None = None) -> io.NodeOutput:
+        if isinstance(format, dict):
+            format_name = format["format"]
+            codec = format.get("codec") or codec
+        else:
+            format_name = format
+        if codec is None:
+            codec = {"codec": "auto"}
+        codec_name = codec["codec"]
+        if format_name == "auto":
+            format_name = "webm" if codec_name == "av1" else "mp4"
+        encoding = codec.get("encoding") or {}
         width, height = video.get_dimensions()
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
             filename_prefix,
@@ -102,15 +190,16 @@ class SaveVideo(io.ComfyNode):
                 metadata["prompt"] = cls.hidden.prompt
             if len(metadata) > 0:
                 saved_metadata = metadata
-        file = f"{filename}_{counter:05}_.{Types.VideoContainer.get_extension(format)}"
+        file = f"{filename}_{counter:05}_.{Types.VideoContainer.get_extension(format_name)}"
         video.save_to(
             os.path.join(full_output_folder, file),
-            format=Types.VideoContainer(format),
-            codec=codec,
-            metadata=saved_metadata
+            format=Types.VideoContainer(format_name),
+            codec=Types.VideoCodec(codec_name),
+            metadata=saved_metadata,
+            crf=encoding.get("crf"),
         )
 
-        return io.NodeOutput(ui=ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)]))
+        return io.NodeOutput(video, ui=ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)]))
 
 
 class CreateVideo(io.ComfyNode):
@@ -120,12 +209,27 @@ class CreateVideo(io.ComfyNode):
             node_id="CreateVideo",
             search_aliases=["images to video"],
             display_name="Create Video",
-            category="image/video",
+            category="video",
+            essentials_category="Video Tools",
             description="Create a video from images.",
             inputs=[
                 io.Image.Input("images", tooltip="The images to create a video from."),
                 io.Float.Input("fps", default=30.0, min=1.0, max=120.0, step=1.0),
                 io.Audio.Input("audio", optional=True, tooltip="The audio to add to the video."),
+                io.Combo.Input(
+                    "bit_depth",
+                    options=["auto", 8, 10],
+                    default="auto",
+                    tooltip="Auto uses 8-bit for sRGB and 10-bit for HDR. Explicit 8-bit and 10-bit choices are independent of colorspace.",
+                    optional=True,
+                ),
+                io.Combo.Input(
+                    "color_space",
+                    options=["sRGB", "HDR", "HDR PQ"],
+                    default="sRGB",
+                    optional=True,
+                    tooltip="Colorspace of the input images. HDR selects BT.2020/HLG and HDR PQ selects BT.2020/PQ.",
+                ),
             ],
             outputs=[
                 io.Video.Output(),
@@ -133,9 +237,17 @@ class CreateVideo(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, images: Input.Image, fps: float, audio: Optional[Input.Audio] = None) -> io.NodeOutput:
+    def execute(
+        cls, images: Input.Image, fps: float, audio: Optional[Input.Audio] = None, bit_depth: int | str = "auto", color_space: str = "sRGB",
+    ) -> io.NodeOutput:
+        if bit_depth == "auto":
+            bit_depth = 10 if color_space in ("HDR", "HDR PQ") else 8
         return io.NodeOutput(
-            InputImpl.VideoFromComponents(Types.VideoComponents(images=images, audio=audio, frame_rate=Fraction(fps)))
+            InputImpl.VideoFromComponents(
+                Types.VideoComponents(images=images, audio=audio, frame_rate=Fraction(fps)),
+                bit_depth=bit_depth,
+                color_space=color_space,
+            )
         )
 
 class GetVideoComponents(io.ComfyNode):
@@ -145,8 +257,8 @@ class GetVideoComponents(io.ComfyNode):
             node_id="GetVideoComponents",
             search_aliases=["extract frames", "split video", "video to images", "demux"],
             display_name="Get Video Components",
-            category="image/video",
-            description="Extracts all components from a video: frames, audio, and framerate.",
+            category="video",
+            description="Extracts video frames, audio, frame rate, bit depth, and color space.",
             inputs=[
                 io.Video.Input("video", tooltip="The video to extract components from."),
             ],
@@ -154,13 +266,21 @@ class GetVideoComponents(io.ComfyNode):
                 io.Image.Output(display_name="images"),
                 io.Audio.Output(display_name="audio"),
                 io.Float.Output(display_name="fps"),
+                io.Combo.Output(display_name="bit_depth"),
+                io.Combo.Output(display_name="color_space"),
             ],
         )
 
     @classmethod
     def execute(cls, video: Input.Video) -> io.NodeOutput:
         components = video.get_components()
-        return io.NodeOutput(components.images, components.audio, float(components.frame_rate))
+        return io.NodeOutput(
+            components.images,
+            components.audio,
+            float(components.frame_rate),
+            video.get_bit_depth(),
+            video.get_color_space(),
+        )
 
 
 class LoadVideo(io.ComfyNode):
@@ -173,7 +293,8 @@ class LoadVideo(io.ComfyNode):
             node_id="LoadVideo",
             search_aliases=["import video", "open video", "video file"],
             display_name="Load Video",
-            category="image/video",
+            category="video",
+            essentials_category="Basics",
             inputs=[
                 io.Combo.Input("file", options=sorted(files), upload=io.UploadType.video),
             ],
@@ -207,14 +328,10 @@ class VideoSlice(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="Video Slice",
-            display_name="Video Slice",
-            search_aliases=[
-                "trim video duration",
-                "skip first frames",
-                "frame load cap",
-                "start time",
-            ],
-            category="image/video",
+            display_name="Trim Video",
+            search_aliases=["trim video duration", "skip first frames", "frame load cap", "start time"],
+            category="video",
+            essentials_category="Video Tools",
             inputs=[
                 io.Video.Input("video"),
                 io.Float.Input(

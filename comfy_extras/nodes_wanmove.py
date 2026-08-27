@@ -247,14 +247,14 @@ class WanMoveVisualizeTracks(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="WanMoveVisualizeTracks",
-            category="conditioning/video_models",
+            category="model/conditioning/wan/move",
             inputs=[
                 io.Image.Input("images"),
                 io.Tracks.Input("tracks", optional=True),
                 io.Int.Input("line_resolution", default=24, min=1, max=1024),
-                io.Int.Input("circle_size", default=12, min=1, max=128),
+                io.Int.Input("circle_size", default=12, min=1, max=128, advanced=True),
                 io.Float.Input("opacity", default=0.75, min=0.0, max=1.0, step=0.01),
-                io.Int.Input("line_width", default=16, min=1, max=128),
+                io.Int.Input("line_width", default=16, min=1, max=128, advanced=True),
             ],
             outputs=[
                 io.Image.Output(),
@@ -283,7 +283,7 @@ class WanMoveTracksFromCoords(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="WanMoveTracksFromCoords",
-            category="conditioning/video_models",
+            category="model/conditioning/wan/move",
             inputs=[
                 io.String.Input("track_coords", force_input=True, default="[]", optional=True),
                 io.Mask.Input("track_mask", optional=True),
@@ -325,7 +325,8 @@ class GenerateTracks(io.ComfyNode):
         return io.Schema(
             node_id="GenerateTracks",
             search_aliases=["motion paths", "camera movement", "trajectory"],
-            category="conditioning/video_models",
+            display_name="Generate Video Tracks",
+            category="model/conditioning/wan/move",
             inputs=[
                 io.Int.Input("width", default=832, min=16, max=4096, step=16),
                 io.Int.Input("height", default=480, min=16, max=4096, step=16),
@@ -434,7 +435,7 @@ class WanMoveConcatTrack(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="WanMoveConcatTrack",
-            category="conditioning/video_models",
+            category="model/conditioning/wan/move",
             inputs=[
                 io.Tracks.Input("tracks_1"),
                 io.Tracks.Input("tracks_2", optional=True),
@@ -463,7 +464,7 @@ class WanMoveTrackToVideo(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="WanMoveTrackToVideo",
-            category="conditioning/video_models",
+            category="model/conditioning/wan/move",
             inputs=[
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),

@@ -16,7 +16,7 @@ body:
 
         ## Very Important
 
-        Please make sure that you post ALL your ComfyUI logs in the bug report. A bug report without logs will likely be ignored.
+        Please make sure that you post ALL your ComfyUI logs in the bug report **even if there is no crash**. Just paste everything. The startup log (everything before "To see the GUI go to: ...") contains critical information to developers trying to help. For a performance issue or crash, paste everything from "got prompt" to the end, including the crash. More is better - always. A bug report without logs will likely be ignored.
   - type: checkboxes
     id: custom-nodes-test
     attributes:

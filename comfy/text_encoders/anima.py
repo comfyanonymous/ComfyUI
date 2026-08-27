@@ -33,6 +33,8 @@ class AnimaTokenizer:
     def state_dict(self):
         return {}
 
+    def decode(self, token_ids, **kwargs):
+        return self.qwen3_06b.decode(token_ids, **kwargs)
 
 class Qwen3_06BModel(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, attention_mask=True, model_options={}):
