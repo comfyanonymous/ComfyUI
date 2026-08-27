@@ -250,11 +250,15 @@ def test_wipe_temp_db_rows_preserves_non_temp_rows(session, comfy_dirs):
     assert session.get(AssetContent, keep_content.id) is not None
 
 
-def _seed_paths(session: Session, paths: list[str]) -> None:
+def _seed_paths(session: Session, paths: list[str]) -> list[str]:
+    """Seed one record+content per path; returns the paths as actually STORED."""
+    stored: list[str] = []
     for index, path in enumerate(paths):
         content = create_content(session, path=path)
         create_record(session, content_id=content.id, name=f"case-{index}.png")
+        stored.append(content.path)
     session.commit()
+    return stored
 
 
 def _surviving_paths(session: Session) -> set[str]:
@@ -269,26 +273,31 @@ def test_wipe_deletes_exactly_what_is_path_under_prefixes_accepts(session, comfy
     and the wipe hard-deleted a real user directory's records and content at
     every startup and shutdown.
     """
-    # Given one record+content per way a stored path can relate to the temp root
+    # Given one record+content per way a path handed to the write boundary can
+    # relate to the temp root
     temp_root = str(comfy_dirs)
-    paths = prefix_case_paths(temp_root)
-    _seed_paths(session, paths)
+    stored = _seed_paths(session, prefix_case_paths(temp_root))
 
     # When the temp wipe runs
     records_deleted, contents_deleted = wipe_temp_db_rows(session)
     session.commit()
 
-    # Then exactly the paths the Python predicate accepts were wiped ...
-    wiped = {p for p in paths if is_path_under_prefixes(p, [temp_root])}
-    assert _surviving_paths(session) == set(paths) - wiped
+    # Then exactly the stored paths the Python predicate accepts were wiped ...
+    wiped = {p for p in stored if is_path_under_prefixes(p, [temp_root])}
+    assert _surviving_paths(session) == set(stored) - wiped
     assert (records_deleted, contents_deleted) == (len(wiped), len(wiped))
     # ... and the table really did exercise both outcomes
-    assert wiped and wiped != set(paths)
+    assert wiped and wiped != set(stored)
     # ... including the case-different persistent directory, which must survive
     case_different = os.path.join(
         os.path.dirname(temp_root), os.path.basename(temp_root).upper(), "case.png"
     )
     assert case_different in _surviving_paths(session)
+    # ... and the row whose raw path only *looked* like a child: `<temp>/../x`
+    # shares the `<temp>/` character prefix but resolves outside the temp root,
+    # so a hard delete on it is data loss. Normalizing at the write boundary is
+    # what keeps the wipe off it.
+    assert os.path.join(os.path.dirname(temp_root), "escaped.png") in _surviving_paths(session)
 
 
 def test_wipe_with_metacharacter_temp_root_matches_only_literal_children(session):

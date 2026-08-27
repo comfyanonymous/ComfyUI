@@ -10,7 +10,7 @@ import sqlite3
 import pytest
 from alembic import command
 from alembic.config import Config
-from filelock import FileLock
+from filelock import FileLock, Timeout
 
 from app.database import db as db_module
 
@@ -52,6 +52,38 @@ def test_init_file_db_migrates_when_lock_is_free(stale_db):
 
     assert _current_revision(stale_db) != _PRE_HEAD
     assert os.path.exists(stale_db + ".bkp")
+
+
+def test_successful_init_keeps_holding_the_lock(stale_db):
+    """The lock is process-lifetime: a successful init must NOT hand it back."""
+    db_module._init_file_db(db_module.args.database_url)
+
+    contender = FileLock(stale_db + ".lock")
+    with pytest.raises(Timeout):
+        contender.acquire(timeout=0)
+
+
+def test_failed_init_releases_the_lock(stale_db, monkeypatch):
+    """A failed init must not strand the lock.
+
+    ``setup_database`` logs and CONTINUES when assets are disabled, so a process
+    that failed to init would otherwise hold the lock for its whole lifetime and
+    block every other instance from a database it never opened.
+    """
+    # Given: init fails after the lock has already been acquired
+    def _explode():
+        raise RuntimeError("alembic config exploded")
+
+    monkeypatch.setattr(db_module, "get_alembic_config", _explode)
+
+    # When: init runs and the failure propagates
+    with pytest.raises(RuntimeError, match="alembic config exploded"):
+        db_module._init_file_db(db_module.args.database_url)
+
+    # Then: the lock is free for the next contender
+    contender = FileLock(stale_db + ".lock")
+    contender.acquire(timeout=0)
+    contender.release()
 
 
 def test_held_lock_blocks_before_any_migration_work(stale_db):

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Sequence
 from datetime import datetime
 from typing import Any, Literal, NamedTuple, TypeAlias
@@ -63,6 +64,19 @@ def _is_live_path_conflict(error: IntegrityError) -> bool:
 
 
 def create_content(session: Session, path: str, hash: str | None = None, size_bytes: int = 0, mtime_ns: int | None = None) -> AssetContent:
+    """Insert a content row, normalizing ``path`` — the sole write boundary.
+
+    ``asset_contents.path`` holds ONLY normalized absolute paths. This is the
+    one site that writes the column, so normalizing here is what establishes the
+    invariant: ``helpers.sql_path_under_prefix`` normalizes its prefix but
+    compares the column raw, and a stored ``<root>/../sibling.png`` shares the
+    ``<root>/`` character prefix while resolving outside the root — enough for
+    ``lifecycle.wipe_temp_db_rows`` to HARD-DELETE an out-of-root row. A stored
+    relative path fails the same predicate from the other side. ``abspath`` also
+    collapses repeated and trailing separators, so the live-path unique index
+    sees one spelling per file.
+    """
+    path = os.path.abspath(path)
     content = AssetContent(path=path, hash=hash, size_bytes=size_bytes, mtime_ns=mtime_ns)
     try:
         with session.begin_nested():

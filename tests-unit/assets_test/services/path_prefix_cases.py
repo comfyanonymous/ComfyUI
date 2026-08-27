@@ -5,6 +5,10 @@ Both SQL prefix sites (``lifecycle.wipe_temp_db_rows`` and
 ``scanner_changes.is_path_under_prefixes`` exactly. Rather than hand-pick
 assertions per site, each test seeds this table and asserts the SQL result set
 is identical to the Python predicate evaluated over the same paths.
+
+The predicate normalizes only its *prefix*; the column is compared raw. That is
+sound only because ``records.create_content`` normalizes every path it stores,
+so tests compare against ``stored_path(case)`` — never the raw input.
 """
 
 from __future__ import annotations
@@ -12,11 +16,21 @@ from __future__ import annotations
 import os
 
 
+def stored_path(path: str) -> str:
+    """The path ``records.create_content`` actually stores for ``path``."""
+    return os.path.abspath(path)
+
+
 def prefix_case_paths(root: str) -> list[str]:
-    """Every way a stored path can relate to ``root``, matching and not.
+    """Every way a path handed to the write boundary can relate to ``root``.
 
     ``root``'s basename must have a distinct uppercase form — callers own the
     last component precisely so the case-difference case cannot degenerate.
+
+    The last five entries are non-normalized inputs. Raw, they disagree with
+    ``is_path_under_prefixes``: ``<root>/../escaped.png`` shares the ``<root>/``
+    character prefix while resolving outside the root, so the SQL predicate
+    admitted it and ``wipe_temp_db_rows`` hard-deleted an out-of-root row.
     """
     parent = os.path.dirname(root)
     name = os.path.basename(root)
@@ -33,4 +47,9 @@ def prefix_case_paths(root: str) -> list[str]:
         root + "-other" + os.sep + "lexical.png",        # lexical sibling
         root + "extra",                                  # lexical sibling, no separator
         os.path.join(parent, "unrelated.png"),           # outside entirely
+        os.path.join(root, os.pardir, "escaped.png"),    # `..` resolving outside
+        os.path.join(root, "sub", os.pardir, "in.png"),  # `..` resolving inside
+        os.path.join(name, "relative.png"),              # relative to the cwd
+        root + os.sep + os.sep + "doubled.png",          # repeated separators
+        os.path.join(root, "trailing.png") + os.sep,     # trailing separator
     ]

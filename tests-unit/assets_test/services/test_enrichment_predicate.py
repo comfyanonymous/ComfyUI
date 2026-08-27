@@ -188,11 +188,12 @@ def test_prefix_filter_matches_is_path_under_prefixes(
 
 
 def _seed_paths(session: Session, paths: list[str]) -> dict[str, str]:
+    """Seed one record per path; maps record id to the path as actually STORED."""
     by_record: dict[str, str] = {}
     for index, path in enumerate(paths):
         content = create_content(session, path, hash=None)
         record = create_record(session, content.id, f"case-{index}.safetensors")
-        by_record[record.id] = path
+        by_record[record.id] = content.path
     session.commit()
     return by_record
 
@@ -216,22 +217,23 @@ def test_prefix_filter_result_set_equals_python_predicate(
 
     Covers the case-different sibling (``<root>`` vs ``<ROOT>``) that SQLite's
     case-insensitive ``LIKE`` wrongly admitted, the exact-root path that a bare
-    ``<root>/%`` prefix wrongly dropped, and a child holding LIKE/GLOB
-    metacharacters.
+    ``<root>/%`` prefix wrongly dropped, a child holding LIKE/GLOB
+    metacharacters, and non-normalized inputs (``..``, relative, repeated and
+    trailing separators) whose raw form the predicate would misjudge.
     """
     # Given one unenriched record for every relation a path can have to the root
     root = str(temp_dir / "root")
-    paths = prefix_case_paths(root)
-    by_record = _seed_paths(session, paths)
+    by_record = _seed_paths(session, prefix_case_paths(root))
+    stored = set(by_record.values())
 
     # When enrichment candidates are queried for that root
     returned = _candidate_paths(session, root)
 
     # Then the SQL result set is exactly what the Python predicate accepts
-    expected = {p for p in by_record.values() if is_path_under_prefixes(p, [root])}
+    expected = {p for p in stored if is_path_under_prefixes(p, [root])}
     assert returned == expected
     # ... and the table really did exercise both outcomes
-    assert expected and expected != set(paths)
+    assert expected and expected != stored
 
 
 def test_prefix_holding_metacharacters_matches_only_literal_children(

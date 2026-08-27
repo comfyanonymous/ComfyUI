@@ -22,6 +22,11 @@ def sql_path_under_prefix(
     ``substr(column, 1, n) = <prefix>`` compares under the column's BINARY
     collation and has no metacharacters at all, so a path containing ``%``,
     ``_``, ``*``, ``?`` or ``[`` needs no escaping and cannot inject.
+
+    Only the PREFIX is normalized here. That is sound because the column holds
+    normalized absolute paths — ``records.create_content`` is the sole writer
+    and normalizes there. Normalizing the column in SQL is not an option anyway:
+    it would need a per-row Python call and would defeat the index.
     """
     base = os.path.abspath(prefix)
     stem = base if base.endswith(os.sep) else base + os.sep
