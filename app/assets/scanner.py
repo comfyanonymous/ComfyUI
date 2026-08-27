@@ -455,6 +455,7 @@ def enrich_asset(
 
     digest: str | None = None
     stored_hash: str | None = None
+    verified_stat: os.stat_result | None = None
     if compute_hash and content is not None and content.hash is None:
         try:
             snapshot = snapshot_hash(file_path)
@@ -464,7 +465,7 @@ def enrich_asset(
                     file_path,
                 )
                 return False
-            digest, _ = snapshot
+            digest, verified_stat = snapshot
             stored_hash = to_stored_hash(digest)
         except Exception as e:
             logging.warning("Failed to hash %s: %s", file_path, e)
@@ -474,6 +475,20 @@ def enrich_asset(
         session.rollback()
         logging.info(
             "Content %s mtime changed during enrichment, discarding stale result",
+            content_id,
+        )
+        return False
+
+    # Discards the metadata too, not just the hash: a row with non-NULL system_metadata is
+    # never an enrichment candidate again, so a stale half-result would be permanent.
+    if verified_stat is not None and (
+        get_mtime_ns(verified_stat) != initial_mtime_ns
+        or verified_stat.st_size != stat_p.st_size
+    ):
+        session.rollback()
+        logging.info(
+            "Content %s changed between its metadata read and its hash read, "
+            "discarding stale result",
             content_id,
         )
         return False
