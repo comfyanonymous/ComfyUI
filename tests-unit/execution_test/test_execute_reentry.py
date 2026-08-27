@@ -4,7 +4,7 @@ import tempfile
 
 import pytest
 
-from inmemory_assets import InMemoryAssets
+from test_inmemory_assets import InMemoryAssets
 
 _BASE = os.path.join(tempfile.gettempdir(), "execute-reentry-test-base")
 
