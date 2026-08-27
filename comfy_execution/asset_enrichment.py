@@ -1,6 +1,21 @@
 import copy
 import logging
 import os
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from app.assets.manager import AssetManager
+
+
+class _CachedOutput(Protocol):
+    @property
+    def ui(self) -> dict: ...
+
+
+class _OutputServer(Protocol):
+    client_id: str | None
+
+    def send_sync(self, event: str, data: dict, sid: str | None) -> None: ...
 
 
 def _resolve_output_path(entry: dict) -> str | None:
@@ -54,19 +69,16 @@ def _strip_ids(output_ui: dict) -> None:
                 entry.pop("id", None)
 
 
-def register_executed_outputs(output_ui: dict, job_id) -> dict:
-    from comfy.cli_args import args
-
+def register_executed_outputs(output_ui: dict, job_id: str, asset_manager: "AssetManager") -> dict:
     enriched = copy.deepcopy(output_ui)
-    if not args.enable_assets:
+    if not asset_manager.enabled:
         return enriched
-    from app.assets.services.ingest import register_executed_output
 
-    _enrich_in_place(enriched, job_id, register_executed_output)
+    _enrich_in_place(enriched, job_id, asset_manager.register_executed_output)
     return enriched
 
 
-def register_cached_outputs(ui_wrapper, job_id):
+def register_cached_outputs(ui_wrapper: dict | None, job_id: str, asset_manager: "AssetManager") -> dict | None:
     if ui_wrapper is None:
         return None
 
@@ -76,20 +88,17 @@ def register_cached_outputs(ui_wrapper, job_id):
         return enriched
     _strip_ids(output_ui)
 
-    from comfy.cli_args import args
-
-    if not args.enable_assets:
+    if not asset_manager.enabled:
         return enriched
-    from app.assets.services.ingest import register_cached_output
 
-    _enrich_in_place(output_ui, job_id, register_cached_output)
+    _enrich_in_place(output_ui, job_id, asset_manager.register_cached_output)
     return enriched
 
 
-def emit_cached_output(server, node_id, display_node_id, cached, prompt_id, ui_outputs) -> None:
+def emit_cached_output(server: _OutputServer, node_id: str, display_node_id: str, cached: _CachedOutput, prompt_id: str, ui_outputs: dict, asset_manager: "AssetManager") -> None:
     if node_id in ui_outputs:
         return
-    enriched = register_cached_outputs(cached.ui, prompt_id)
+    enriched = register_cached_outputs(cached.ui, prompt_id, asset_manager)
     if enriched is not None:
         ui_outputs[node_id] = enriched
     if server.client_id is None:
