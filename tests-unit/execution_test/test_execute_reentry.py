@@ -100,8 +100,6 @@ def execution_env(monkeypatch):
     except Exception as exc:  # pragma: no cover - environment dependent
         pytest.skip(f"execution module could not be imported in CPU mode: {exc!r}")
 
-    monkeypatch.setattr(args, "enable_assets", True, raising=False)
-
     os.makedirs(_BASE, exist_ok=True)
     monkeypatch.setattr(folder_paths, "get_directory_by_type", lambda t: _BASE)
     monkeypatch.setattr(execution, "get_progress_state", lambda: _NoProgress())
