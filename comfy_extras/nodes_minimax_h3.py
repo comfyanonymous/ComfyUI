@@ -80,6 +80,17 @@ def downscale_to_area(width, height, max_pixels):
         target_width = max(CANVAS_MULTIPLE, math.floor(scaled_width / CANVAS_MULTIPLE) * CANVAS_MULTIPLE)
         target_height = max(CANVAS_MULTIPLE, math.floor(scaled_height / CANVAS_MULTIPLE) * CANVAS_MULTIPLE)
 
+    # If one scaled axis falls below the minimum grid size, clamping it to 32px
+    # can still leave the canvas over budget. Reduce the longer grid axis until
+    # the final area fits.
+    while target_width * target_height > max_pixels:
+        if target_width >= target_height and target_width > CANVAS_MULTIPLE:
+            target_width -= CANVAS_MULTIPLE
+        elif target_height > CANVAS_MULTIPLE:
+            target_height -= CANVAS_MULTIPLE
+        else:
+            break
+
     return target_width, target_height
 
 

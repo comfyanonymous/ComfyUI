@@ -11,6 +11,7 @@ from comfy_extras.nodes_minimax_h3 import downscale_to_area
         (640, 352, 960 * 544, (640, 352)),
         (1000, 700, 1000 * 700, (992, 672)),
         (100, 100, 48 * 48, (32, 32)),
+        (1024, 256, 32 * 32, (32, 32)),
     ],
 )
 def test_downscale_to_area(width, height, max_pixels, expected):
