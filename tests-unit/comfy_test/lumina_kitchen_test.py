@@ -7,12 +7,15 @@ import torch
 
 from comfy.cli_args import args
 
+original_cpu = args.cpu
 if not torch.cuda.is_available():
     args.cpu = True
 
 import comfy.ldm.lumina.model as lumina_model  # noqa: E402
 import comfy.ldm.modules.attention as attention  # noqa: E402
 import comfy.model_base as model_base  # noqa: E402
+
+args.cpu = original_cpu
 
 
 @pytest.mark.parametrize("length", [160, 4096, 4256])
