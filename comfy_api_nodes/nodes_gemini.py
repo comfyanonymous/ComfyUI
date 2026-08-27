@@ -43,6 +43,7 @@ from comfy_api_nodes.util import (
     download_url_to_image_tensor,
     download_url_to_video_output,
     get_number_of_images,
+    pad_images_to_common_channels,
     sync_op,
     tensor_to_base64_string,
     upload_audio_to_comfyapi,
@@ -76,8 +77,8 @@ GEMINI_IMAGE_2_PRICE_BADGE = IO.PriceBadge(
       $m := widgets.model;
       $r := widgets.resolution;
       $isFlash := $contains($m, "nano banana 2");
-      $flashPrices := {"1k": 0.0696, "2k": 0.1014, "4k": 0.154};
-      $proPrices := {"1k": 0.134, "2k": 0.134, "4k": 0.24};
+      $flashPrices := {"1k": 0.0835, "2k": 0.1217, "4k": 0.1848};
+      $proPrices := {"1k": 0.1608, "2k": 0.1608, "4k": 0.288};
       $prices := $isFlash ? $flashPrices : $proPrices;
       {"type":"usd","usd": $lookup($prices, $r), "format":{"suffix":"/Image","approximate":true}}
     )
@@ -233,8 +234,8 @@ async def get_image_from_response(response: GeminiGenerateContentResponse, thoug
                 "Try rephrasing your prompt or changing the response modality to 'IMAGE+TEXT' "
                 "to see the model's reasoning."
             )
-        return torch.zeros((1, 1024, 1024, 4))
-    return torch.cat(image_tensors, dim=0)
+        return torch.zeros((1, 1024, 1024, 3))
+    return torch.cat(pad_images_to_common_channels(image_tensors), dim=0)
 
 
 def get_text_from_interaction(interaction: GeminiInteraction) -> str:
@@ -591,6 +592,7 @@ class GeminiNode(IO.ComfyNode):
 
 
 GEMINI_V2_MODELS: dict[str, str] = {
+    "Gemini 3.7 Flash": "gemini-3.7-flash",
     "Gemini 3.1 Pro": "gemini-3.1-pro-preview",
     "Gemini 3.5 Flash": "gemini-3.5-flash",
     "Gemini 3.1 Flash-Lite": "gemini-3.1-flash-lite-preview",
@@ -694,6 +696,10 @@ class GeminiNodeV2(IO.ComfyNode):
                     "model",
                     options=[
                         IO.DynamicCombo.Option(
+                            "Gemini 3.7 Flash",
+                            _gemini_text_model_inputs("MEDIUM", ["LOW", "MEDIUM", "HIGH"]),
+                        ),
+                        IO.DynamicCombo.Option(
                             "Gemini 3.5 Flash",
                             _gemini_text_model_inputs("MEDIUM", ["MINIMAL", "LOW", "MEDIUM", "HIGH"]),
                         ),
@@ -736,6 +742,11 @@ class GeminiNodeV2(IO.ComfyNode):
                   $contains($m, "lite") ? {
                     "type": "list_usd",
                     "usd": [0.00025, 0.0015],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "3.7 flash") ? {
+                    "type": "list_usd",
+                    "usd": [0.00215, 0.01073],
                     "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
                   }
                   : $contains($m, "3.5 flash") ? {
@@ -1464,10 +1475,10 @@ class GeminiNanoBanana2V2(IO.ComfyNode):
                 expr="""
                 (
                   $contains(widgets.model, "lite")
-                    ? {"type":"usd","usd": 0.034, "format":{"suffix":"/Image","approximate":true}}
+                    ? {"type":"usd","usd": 0.0408, "format":{"suffix":"/Image","approximate":true}}
                     : (
                         $r := $lookup(widgets, "model.resolution");
-                        $prices := {"1k": 0.0696, "2k": 0.1014, "4k": 0.154};
+                        $prices := {"1k": 0.0835, "2k": 0.1217, "4k": 0.1848};
                         {"type":"usd","usd": $lookup($prices, $r), "format":{"suffix":"/Image","approximate":true}}
                       )
                 )

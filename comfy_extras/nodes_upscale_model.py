@@ -72,7 +72,7 @@ class ImageUpscaleWithModel(io.ComfyNode):
 
         memory_required = (512 * 512 * 3) * image.element_size() * max(upscale_model.scale, 1.0) * 384.0 #The 384.0 is an estimate of how much some of these models take, TODO: make it more accurate
         memory_required += image.nelement() * image.element_size()
-        model_management.load_models_gpu([upscale_model.patcher], memory_required=memory_required)
+        model_management.load_models_gpu([upscale_model.patcher], memory_required=memory_required, force_full_load=True)
 
         in_img = image.movedim(-1,-3).to(device)
 

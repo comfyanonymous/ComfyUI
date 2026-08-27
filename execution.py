@@ -19,7 +19,7 @@ import comfy.model_management
 import comfy.model_patcher
 import comfy.model_prefetch
 import comfy_aimdo.model_vbar
-from comfy.logging import detail
+from comfy.internal_logging import detail
 
 from latent_preview import set_preview_method
 import nodes

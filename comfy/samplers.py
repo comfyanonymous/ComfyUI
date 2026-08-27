@@ -20,7 +20,7 @@ import comfy.hooks
 import comfy.context_windows
 import comfy.multigpu
 import comfy.utils
-from comfy.logging import detail
+from comfy.internal_logging import detail
 import scipy.stats
 import numpy
 
@@ -636,7 +636,7 @@ class KSamplerX0Inpaint:
             if "denoise_mask_function" in model_options:
                 denoise_mask = model_options["denoise_mask_function"](sigma, denoise_mask, extra_options={"model": self.inner_model, "sigmas": self.sigmas})
             latent_mask = 1. - denoise_mask
-            x = x * denoise_mask + self.inner_model.inner_model.scale_latent_inpaint(x=x, sigma=sigma, noise=self.noise, latent_image=self.latent_image) * latent_mask
+            x = x * denoise_mask + self.inner_model.inner_model.scale_latent_inpaint(x=x, sigma=sigma, noise=self.noise, latent_image=self.latent_image, denoise_mask=denoise_mask) * latent_mask
         out = self.inner_model(x, sigma, model_options=model_options, seed=seed)
         if denoise_mask is not None:
             out = out * denoise_mask + self.latent_image * latent_mask
@@ -997,7 +997,7 @@ class KSAMPLER(Sampler):
         def k_callback(x):
             nonlocal first_step
             if first_step:
-                detail("First sampler step: model=%s sampler=%s step=%s total_steps=%s cfg=%s seed=%s sigma=%s sigma_hat=%s latent_shape=%s denoised_shape=%s", model_wrap.model_patcher.model.__class__.__name__, self.sampler_function.__name__, x["i"], total_steps, model_wrap.cfg, extra_args.get("seed"), x.get("sigma"), x.get("sigma_hat"), tuple(x["x"].shape), tuple(x["denoised"].shape))
+                detail("First sampler step: model=%s sampler=%s step=%s total_steps=%s cfg=%s seed=%s sigma=%s sigma_hat=%s latent_shape=%s denoised_shape=%s", model_wrap.model_patcher.model.__class__.__name__, getattr(self.sampler_function, "__name__", "unknown"), x["i"], total_steps, model_wrap.cfg, extra_args.get("seed"), x.get("sigma"), x.get("sigma_hat"), tuple(x["x"].shape), tuple(x["denoised"].shape))
                 first_step = False
             if callback is not None:
                 callback(x["i"], x["denoised"], x["x"], total_steps)
@@ -1218,6 +1218,8 @@ class CFGGuider:
         return sampling_function(self.inner_model, x, timestep, self.conds.get("negative", None), self.conds.get("positive", None), self.cfg, model_options=model_options, seed=seed)
 
     def inner_sample(self, noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed, latent_shapes=None):
+        self.inner_model.latent_shapes = latent_shapes
+
         if latent_image is not None and torch.count_nonzero(latent_image) > 0: #Don't shift the empty latent image.
             latent_image = self.inner_model.process_latent_in(latent_image)
 
@@ -1283,6 +1285,14 @@ class CFGGuider:
             latent_shapes = [latent_image.shape]
             sampler_shapes = [tuple(latent_image.shape)]
         detail("Sampler: model=%s latent_shapes=%s", self.model_patcher.model.__class__.__name__, sampler_shapes)
+
+        if len(latent_shapes) > 1 and callback is not None:
+            # samplers run on the flat pack, hand callbacks (previews, x0 output) the nested view
+            packed_callback = callback
+            def callback(step, x0, x, total_steps):
+                x0 = comfy.nested_tensor.NestedTensor(comfy.utils.unpack_latents(x0, latent_shapes))
+                x = comfy.nested_tensor.NestedTensor(comfy.utils.unpack_latents(x, latent_shapes))
+                return packed_callback(step, x0, x, total_steps)
 
         if denoise_mask is not None:
             if denoise_mask.is_nested:

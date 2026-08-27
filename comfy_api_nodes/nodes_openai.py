@@ -494,9 +494,9 @@ class OpenAIGPTImage1(IO.ComfyNode):
                       "high":   [0.133, 0.22]
                     },
                     "gpt-image-2": {
-                      "low":    [0.0048, 0.019],
-                      "medium": [0.041, 0.168],
-                      "high":   [0.165, 0.67]
+                      "low":    [0.0058, 0.0228],
+                      "medium": [0.0492, 0.2016],
+                      "high":   [0.198, 0.804]
                     }
                   };
                   $range := $lookup($lookup($ranges, widgets.model), widgets.quality);
@@ -792,9 +792,9 @@ class OpenAIGPTImageNodeV2(IO.ComfyNode):
                       "high":   [0.133, 0.22]
                     },
                     "gpt-image-2": {
-                      "low":    [0.0048, 0.019],
-                      "medium": [0.041, 0.168],
-                      "high":   [0.165, 0.67]
+                      "low":    [0.0058, 0.0228],
+                      "medium": [0.0492, 0.2016],
+                      "high":   [0.198, 0.804]
                     }
                   };
                   $range := $lookup($lookup($ranges, widgets.model), $lookup(widgets, "model.quality"));
