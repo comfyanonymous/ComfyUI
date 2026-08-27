@@ -221,9 +221,11 @@ class LoopVariable:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "initial_value": ("*", {"lazy": True}),
                 "next_value": ("*", {"lazy": True, "nonNavigable": True}),
                 "iteration": ("INT", {"lazy": True, "forceInput": True}),
+            },
+            "optional": {
+                "initial_value": ("*", {"lazy": True}),
             },
             "hidden": {
                 "execution_list": "EXECUTION_LIST",
@@ -236,13 +238,16 @@ class LoopVariable:
     FUNCTION = "current"
     CATEGORY = "looping"
 
-    def check_lazy_status(self, initial_value, next_value, iteration, execution_list=None, unique_id=None):
+    def check_lazy_status(self, next_value, iteration, initial_value=None, execution_list=None, unique_id=None):
         state = execution_list.get_projection_state(unique_id)
         if state is None or "value" not in state:
-            return ["initial_value", "iteration"]
+            required = ["iteration"]
+            if "initial_value" in execution_list.dynprompt.get_node(unique_id)["inputs"]:
+                required.append("initial_value")
+            return required
         return ["iteration"]
 
-    def current(self, initial_value, next_value, iteration, execution_list=None, unique_id=None):
+    def current(self, next_value, iteration, initial_value=None, execution_list=None, unique_id=None):
         state = execution_list.get_projection_state(unique_id)
         if state is None:
             raise ValueError(f"Loop Variable {unique_id} does not belong to a Loop")
@@ -255,7 +260,7 @@ class LoopVariable:
         return True
 
     @classmethod
-    def IS_CHANGED(cls, initial_value, next_value, iteration, execution_list=None, unique_id=None):
+    def IS_CHANGED(cls, **kwargs):
         return float("NaN")
 
 
