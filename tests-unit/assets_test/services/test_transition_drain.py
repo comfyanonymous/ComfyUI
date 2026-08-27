@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import folder_paths
 import pytest
 from blake3 import blake3
 from sqlalchemy import select
@@ -16,6 +17,7 @@ from app.assets.services.hash_mode_state import (
     record_transition_intent,
     write_stored_mode,
 )
+from app.assets.services.lookup import lookup_for_view
 from app.assets.services.path_utils import get_name_and_tags_from_asset_path
 from app.assets.services.snapshot_hash import snapshot_hash
 
@@ -79,6 +81,43 @@ def test_transition_drain_splits_changed_content(session, temp_dir, monkeypatch)
     assert live_content.hash == _stored_hash(path)
     assert len(records) == 2
     assert any(record.content_id == live_content.id for record in records)
+
+
+def test_transition_drain_serves_unchanged_content_whose_stored_stat_went_stale(
+    session, temp_dir, monkeypatch
+):
+    path = temp_dir / "unchanged.bin"
+    path.write_bytes(b"bytes that outlive the mode flip")
+    stat = path.stat()
+    stored_hash = _stored_hash(path)
+    size_before_the_restore = stat.st_size - 1
+    mtime_before_the_restore = stat.st_mtime_ns - 1_000_000_000
+    content = create_content(
+        session, str(path), stored_hash, size_before_the_restore, mtime_before_the_restore
+    )
+    content_id = content.id
+    create_record(session, content_id, "unchanged.bin")
+    monkeypatch.setattr(folder_paths, "get_temp_directory", lambda: str(temp_dir / "never"))
+    write_stored_mode(session, "off")
+    monkeypatch.setattr(hash_mode_state._mode, "hashing_enabled", lambda: True)
+    assert lookup_for_view(session, stored_hash) is None, (
+        "precondition: the stale stat makes the row unservable by hash"
+    )
+
+    transition = record_transition_intent(session)
+    enqueue_transition_work(session, transition)
+    drain_transition_queue(session)
+    session.commit()
+
+    refreshed = session.get(AssetContent, content_id)
+    assert (refreshed.size_bytes, refreshed.mtime_ns) == (stat.st_size, stat.st_mtime_ns)
+    served = lookup_for_view(session, stored_hash)
+    assert served is not None and served.id == content_id, (
+        "the drain verified these bytes but left the row unservable until the next full scan"
+    )
+    assert [row.id for row in session.scalars(select(AssetContent))] == [content_id]
+    assert [row.content_id for row in session.scalars(select(Asset))] == [content_id]
+    assert read_stored_mode(session) == "on"
 
 
 def test_transition_drain_requeues_permission_errors_and_processes_other_paths(

@@ -120,6 +120,9 @@ def drain_transition_queue(session: Session) -> None:
                 loader_path=compute_loader_path(path),
                 tags=tags,
             )
+        else:
+            content.size_bytes = stat.st_size
+            content.mtime_ns = stat.st_mtime_ns
     if _off_to_on_transition_in_flight and not _PENDING_QUEUE:
         write_stored_mode(session, "on")
         _off_to_on_transition_in_flight = False
