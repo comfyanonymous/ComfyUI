@@ -125,7 +125,6 @@ def test_startup_runs_against_memory_db_without_starting_a_scanner_thread(
     (temp_dir / "stale.tmp").write_bytes(b"stale")
     seeder_start = MagicMock(return_value=False)
     monkeypatch.setattr(lifecycle, "create_session", mock_create_session)
-    # The lifecycle seeder wrapper is mocked so startup cannot launch a scanner thread.
     monkeypatch.setattr(lifecycle, "start_asset_seeder", seeder_start)
 
     thread_count = threading.active_count()

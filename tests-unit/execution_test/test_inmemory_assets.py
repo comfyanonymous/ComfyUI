@@ -31,10 +31,6 @@ class Delivery:
 
 
 class InMemoryAssets:
-    """Deterministic AssetManager implementation for executor-path tests.
-
-    Counter-based identifiers make registrations straightforward to assert.
-    """
 
     def __init__(self) -> None:
         self.calls: list[AssetCall] = []
@@ -140,7 +136,6 @@ class InMemoryAssets:
 
 
 def test_conforms() -> None:
-    # AssetManager is not runtime-checkable, so this is a structural smoke test.
     manager: AssetManager = InMemoryAssets()
     assert manager.enabled
     manager.startup()
