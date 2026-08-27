@@ -137,7 +137,13 @@ def test_transition_drain_skips_out_of_root_path(session, temp_dir, monkeypatch,
     enqueue_transition_work(session, "off_to_on")
 
     with caplog.at_level(logging.WARNING):
-        drain_transition_queue(session)
+        try:
+            drain_transition_queue(session)
+        except ValueError as error:
+            pytest.fail(
+                f"an out-of-root path escaped the drain as {error!r}; setup_database turns that "
+                f"into sys.exit(1) when --enable-assets is set"
+            )
     session.commit()
 
     assert session.get(AssetContent, old_content_id).is_missing is False
