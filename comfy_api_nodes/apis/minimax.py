@@ -118,3 +118,100 @@ class MinimaxVideoGenerationResponse(BaseModel):
     task_id: str = Field(
         ..., description='The task ID for the asynchronous video generation task.'
     )
+
+
+class Hailuo03TextContent(BaseModel):
+    type: str = Field("text")
+    text: str = Field(...)
+
+
+class Hailuo03ImageContentUrl(BaseModel):
+    url: str = Field(...)
+
+
+class Hailuo03ImageContent(BaseModel):
+    type: str = Field("image_url")
+    image_url: Hailuo03ImageContentUrl = Field(...)
+    role: str = Field(...)
+
+
+class Hailuo03VideoContentUrl(BaseModel):
+    url: str = Field(...)
+
+
+class Hailuo03VideoContent(BaseModel):
+    type: str = Field("video_url")
+    video_url: Hailuo03VideoContentUrl = Field(...)
+    role: str = Field("reference_video")
+
+
+class Hailuo03AudioContentUrl(BaseModel):
+    url: str = Field(...)
+
+
+class Hailuo03AudioContent(BaseModel):
+    type: str = Field("audio_url")
+    audio_url: Hailuo03AudioContentUrl = Field(...)
+    role: str = Field("reference_audio")
+
+
+class Hailuo03TaskCreationRequest(BaseModel):
+    model: str = Field(...)
+    content: list[Hailuo03TextContent | Hailuo03ImageContent | Hailuo03VideoContent | Hailuo03AudioContent] = Field(
+        ..., min_length=1
+    )
+    resolution: str = Field(...)
+    duration: int = Field(..., ge=4, le=15)
+    ratio: str | None = Field(None)
+    seed: int | None = Field(None, ge=0, le=4294967295)
+    aigc_watermark: bool | None = Field(None)
+
+
+class Hailuo03ContextIRRequest(BaseModel):
+    model: str = Field(...)
+    content: list[Hailuo03TextContent | Hailuo03ImageContent | Hailuo03VideoContent | Hailuo03AudioContent] = Field(
+        ..., min_length=1
+    )
+    duration: int = Field(..., ge=4, le=15)
+    ratio: str | None = Field(None)
+
+
+class Hailuo03RegenerationRequest(BaseModel):
+    model: str = Field(...)
+    content: list[Hailuo03TextContent | Hailuo03ImageContent | Hailuo03VideoContent | Hailuo03AudioContent] = Field(
+        ..., min_length=1
+    )
+    resolution: str = Field(...)
+    aigc_watermark: bool | None = Field(None)
+
+
+class Hailuo03TaskCreationResponse(BaseModel):
+    task_id: str = Field(...)
+
+
+class Hailuo03TaskError(BaseModel):
+    code: int | str | None = Field(None)
+    message: str | None = Field(None)
+
+
+class Hailuo03TaskContent(BaseModel):
+    url: str | None = Field(None)
+    prompt: str | None = Field(None)
+
+
+class Hailuo03TaskUsage(BaseModel):
+    total_seconds: float = Field(0)
+    input_seconds: float = Field(0)
+    output_seconds: float = Field(0)
+
+
+class Hailuo03Task(BaseModel):
+    id: str = Field(...)
+    status: str = Field(...)
+    error: Hailuo03TaskError | None = Field(None)
+    content: Hailuo03TaskContent | None = Field(None)
+    usage: Hailuo03TaskUsage | None = Field(None)
+
+
+class Hailuo03TaskQueryResponse(BaseModel):
+    task: Hailuo03Task = Field(...)
