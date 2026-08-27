@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Callable, Protocol
+from typing import Any, Callable, Protocol, cast
 
 from aiohttp import web
 
@@ -62,7 +62,7 @@ class AssetManager(Protocol):
         self, abs_path: str, job_id: str | None
     ) -> RegisteredAsset | None: ...
 
-    def set_event_sink(self, sink: Callable[[str, dict[str, Any]], None]) -> None: ...
+    def set_event_sink(self, sink: Callable[[str, dict[str, Any]], None] | None) -> None: ...
 
 
 class _ArgsLike(Protocol):
@@ -130,7 +130,7 @@ class NoAssets:
     ) -> RegisteredAsset | None:
         return None
 
-    def set_event_sink(self, sink: Callable[[str, dict[str, Any]], None]) -> None:
+    def set_event_sink(self, sink: Callable[[str, dict[str, Any]], None] | None) -> None:
         return None
 
 
@@ -218,9 +218,9 @@ class AssetsEnabled:
     ) -> RegisteredAsset | None:
         return ingest_register_cached_output(abs_path, job_id)
 
-    def set_event_sink(self, sink: Callable[[str, dict[str, Any]], None]) -> None:
+    def set_event_sink(self, sink: Callable[[str, dict[str, Any]], None] | None) -> None:
         asset_seeder.set_event_sink(sink)
 
 
 def default_asset_manager() -> AssetManager:
-    return AssetsEnabled(args) if args.enable_assets else NoAssets(args)
+    return AssetsEnabled(cast("_ArgsLike", cast(object, args))) if args.enable_assets else NoAssets(cast("_ArgsLike", cast(object, args)))
