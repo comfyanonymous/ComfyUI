@@ -328,7 +328,7 @@ class ACE15TEModel(torch.nn.Module):
         self.qwen3_06b.set_clip_options({"layer": [0]})
         lyrics_embeds, _, extra_l = self.qwen3_06b.encode_token_weights(token_weight_pairs_lyrics)
 
-        out = {"conditioning_lyrics": lyrics_embeds}
+        out = {"conditioning_lyrics": lyrics_embeds[:, 0]}
 
         lm_metadata = token_weight_pairs["lm_metadata"]
         if lm_metadata["generate_audio_codes"]:
