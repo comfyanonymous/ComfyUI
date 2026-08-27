@@ -1,6 +1,6 @@
 from datetime import date
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -242,3 +242,60 @@ class GeminiGenerateContentResponse(BaseModel):
     promptFeedback: GeminiPromptFeedback | None = Field(None)
     usageMetadata: GeminiUsageMetadata | None = Field(None)
     modelVersion: str | None = Field(None)
+
+
+class GeminiInteractionTextPart(BaseModel):
+    type: Literal["text"] = "text"
+    text: str = Field(...)
+
+
+class GeminiInteractionMediaPart(BaseModel):
+    type: str = Field(..., description="One of: image, video, audio, document.")
+    data: str | None = Field(None, description="Base64-encoded media bytes.")
+    uri: str | None = Field(None, description="URI of the media, as an alternative to inline data.")
+    mime_type: str | None = Field(None)
+
+
+class GeminiInteractionGenerationConfig(BaseModel):
+    temperature: float | None = Field(None, ge=0.0, le=2.0)
+    top_p: float | None = Field(None, ge=0.0, le=1.0)
+
+
+class GeminiInteractionRequest(BaseModel):
+    model: str = Field(...)
+    input: list[GeminiInteractionTextPart | GeminiInteractionMediaPart] = Field(...)
+    generation_config: GeminiInteractionGenerationConfig | None = Field(None)
+
+
+class GeminiInteractionModalityTokens(BaseModel):
+    modality: str | None = Field(None, description="One of: text, image, audio, video, document.")
+    tokens: int | None = Field(None)
+
+
+class GeminiInteractionUsage(BaseModel):
+    input_tokens_by_modality: list[GeminiInteractionModalityTokens] | None = Field(None)
+    output_tokens_by_modality: list[GeminiInteractionModalityTokens] | None = Field(None)
+    total_thought_tokens: int | None = Field(None)
+
+
+class GeminiInteractionContent(BaseModel):
+    type: str | None = Field(None)
+    text: str | None = Field(None)
+    data: str | None = Field(None)
+    uri: str | None = Field(None)
+    mime_type: str | None = Field(None)
+
+
+class GeminiInteractionStep(BaseModel):
+    type: str | None = Field(None)
+    content: list[GeminiInteractionContent] | None = Field(None)
+
+
+class GeminiInteraction(BaseModel):
+    id: str | None = Field(None)
+    status: str | None = Field(
+        None,
+        description="One of: in_progress, requires_action, completed, failed, cancelled, incomplete.",
+    )
+    steps: list[GeminiInteractionStep] | None = Field(None)
+    usage: GeminiInteractionUsage | None = Field(None)
