@@ -137,7 +137,9 @@ class InMemoryAssets:
 
 def test_conforms() -> None:
     manager: AssetManager = InMemoryAssets()
-    assert manager.enabled
+    assert manager.enabled, (
+        "structural smoke test: AssetManager is a non-runtime-checkable Protocol, so isinstance is unavailable"
+    )
     manager.startup()
     manager.shutdown()
     manager.preflight_cleanup()
