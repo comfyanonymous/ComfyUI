@@ -68,6 +68,10 @@ class Loop(io.ComfyNode):
                 node_id: tuple(dynprompt.get_node(node_id)["inputs"]["value"])
                 for node_id in close_nodes
             }
+            internal_close_source_nodes = {
+                source_id for source_id, _ in close_sources.values()
+                if source_id != unique_id and source_id in projected_nodes
+            }
             variable_sources = {
                 node_id: tuple(dynprompt.get_node(node_id)["inputs"]["next_value"])
                 for node_id in variable_nodes
@@ -87,7 +91,7 @@ class Loop(io.ComfyNode):
                 "index": -1,
                 "projected_nodes": projected_nodes,
                 "scheduled_nodes": projected_nodes.intersection(execution_list.pendingNodes).union(
-                    variable_nodes, internal_variable_source_nodes
+                    variable_nodes, internal_variable_source_nodes, internal_close_source_nodes
                 ),
                 "nested_openers": nested_openers.intersection(execution_list.pendingNodes),
                 "nested_links": nested_links,
