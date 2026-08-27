@@ -5,17 +5,12 @@ from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from app.assets.manager import AssetManager
+    from comfy_execution.server_protocol import ExecutionServer
 
 
 class _CachedOutput(Protocol):
     @property
     def ui(self) -> dict: ...
-
-
-class _OutputServer(Protocol):
-    client_id: str | None
-
-    def send_sync(self, event: str, data: dict, sid: str | None) -> None: ...
 
 
 def _resolve_output_path(entry: dict) -> str | None:
@@ -95,7 +90,7 @@ def register_cached_outputs(ui_wrapper: dict | None, job_id: str, asset_manager:
     return enriched
 
 
-def emit_cached_output(server: _OutputServer, node_id: str, display_node_id: str, cached: _CachedOutput, prompt_id: str, ui_outputs: dict, asset_manager: "AssetManager") -> None:
+def emit_cached_output(server: "ExecutionServer", node_id: str, display_node_id: str, cached: _CachedOutput, prompt_id: str, ui_outputs: dict, asset_manager: "AssetManager") -> None:
     if node_id in ui_outputs:
         return
     enriched = register_cached_outputs(cached.ui, prompt_id, asset_manager)

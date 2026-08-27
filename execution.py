@@ -8,7 +8,7 @@ import threading
 import time
 import traceback
 from enum import Enum
-from typing import List, Literal, NamedTuple, Optional, Union
+from typing import TYPE_CHECKING, List, Literal, NamedTuple, Optional, Union
 import asyncio
 
 import torch
@@ -48,6 +48,9 @@ from comfy_api.internal import _ComfyNodeInternal, _NodeOutputInternal, first_re
 from comfy_api.latest import io, _io
 from comfy_execution.cache_provider import _has_cache_providers, _get_cache_providers, _logger as _cache_logger
 from app.assets.manager import AssetManager, default_asset_manager
+
+if TYPE_CHECKING:
+    from comfy_execution.server_protocol import ExecutionServer
 
 
 class ExecutionResult(Enum):
@@ -428,7 +431,7 @@ def _is_intermediate_output(dynprompt, node_id):
     return getattr(class_def, 'HAS_INTERMEDIATE_OUTPUT', False)
 
 
-async def execute(server, dynprompt, caches, current_item, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_outputs, asset_manager: AssetManager):
+async def execute(server: "ExecutionServer", dynprompt, caches, current_item, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_outputs, asset_manager: AssetManager):
     unique_id = current_item
     real_node_id = dynprompt.get_real_node_id(unique_id)
     display_node_id = dynprompt.get_display_node_id(unique_id)
@@ -652,7 +655,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
     return (ExecutionResult.SUCCESS, None, None)
 
 class PromptExecutor:
-    def __init__(self, server, cache_type=False, cache_args=None, asset_manager: AssetManager | None = None):
+    def __init__(self, server: "ExecutionServer", cache_type=False, cache_args=None, asset_manager: AssetManager | None = None):
         self.cache_args = cache_args
         self.cache_type = cache_type
         self.server = server
@@ -1240,7 +1243,7 @@ async def validate_prompt(prompt_id, prompt, partial_execution_list: Union[list[
 MAXIMUM_HISTORY_SIZE = 10000
 
 class PromptQueue:
-    def __init__(self, server):
+    def __init__(self, server: "ExecutionServer"):
         self.server = server
         self.mutex = threading.RLock()
         self.not_empty = threading.Condition(self.mutex)
