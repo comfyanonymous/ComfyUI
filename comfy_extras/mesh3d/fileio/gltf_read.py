@@ -235,7 +235,9 @@ def _iter_mesh_nodes(gltf: dict, buffers: list[bytes], warn):
 
 def _to_triangles(indices: np.ndarray, mode: int) -> np.ndarray:
     if mode == 4:
-        return indices[:len(indices) // 3 * 3].reshape(-1, 3)
+        if len(indices) % 3:
+            raise ValueError("TRIANGLES primitive index count must be divisible by 3")
+        return indices.reshape(-1, 3)
     if len(indices) < 3:
         return np.zeros((0, 3), np.int64)
     if mode == 6:
@@ -290,6 +292,8 @@ def load_scene_geometry(gltf: dict, buffers: list[bytes], warn) -> list[dict]:
             faces = _to_triangles(indices, mode)
             if faces.shape[0] == 0:
                 continue
+            if faces.min() < 0 or faces.max() >= n_verts:
+                raise ValueError("primitive contains a face index outside its POSITION accessor")
             if flip_winding:
                 faces = np.ascontiguousarray(faces[:, ::-1])
             if prim.get("targets"):
