@@ -14,6 +14,7 @@ from comfy.ldm.sensenova.sampling import (
     upstream_sigmas,
 )
 from comfy.text_encoders.sensenova import SenseNovaTokenizer
+from comfy_extras.nodes_sensenova import SenseNovaReferenceImages
 
 
 def _minimal_state_dict():
@@ -40,6 +41,15 @@ def test_sensenova_top_level_checkpoint_detection():
     )
 
 
+def test_sensenova_detection_rejects_incompatible_dimensions():
+    state_dict = _minimal_state_dict()
+    state_dict["language_model.model.layers.0.self_attn.q_proj_mot_gen.weight"] = (
+        torch.empty(2048, 2048, device="meta")
+    )
+
+    assert model_detection.detect_unet_config(state_dict, "") is None
+
+
 def test_sensenova_model_config_builds_pixel_space_outputs():
     model_config = model_detection.model_config_from_unet(_minimal_state_dict(), "")
     state_dict = {
@@ -47,9 +57,9 @@ def test_sensenova_model_config_builds_pixel_space_outputs():
         "kept": torch.empty(1),
     }
 
-    assert model_config.process_unet_state_dict(state_dict) == {
-        "kept": state_dict["kept"]
-    }
+    processed = model_config.process_unet_state_dict(state_dict)
+    assert set(processed) == {"kept"}
+    assert torch.equal(processed["kept"], state_dict["kept"])
     assert "pixel_space_vae" in model_config.process_vae_state_dict({})
     assert "_sensenova_te_sentinel" in model_config.process_clip_state_dict({})
 
@@ -65,6 +75,38 @@ def test_sensenova_sampling_matches_upstream_schedule_and_resolution_scale():
     assert sampling.percent_to_sigma(1.0) == 0.0
     assert resolution_noise_scale(2048, 2048) == 8.0
     assert resolution_noise_scale(4096, 4096) == 16.0
+
+    scaled_sampling = SenseNovaModelSampling(
+        SimpleNamespace(sampling_settings={"shift": 3.0, "noise_scale": 0.5})
+    )
+    noise = torch.ones(1, 3, 256, 256)
+    latent = torch.zeros_like(noise)
+    scaled = scaled_sampling.noise_scaling(torch.ones(1), noise, latent)
+    assert torch.allclose(scaled, torch.full_like(noise, 0.5))
+
+
+def test_sensenova_reference_images_preserve_modes_when_chained():
+    conditioning = [[torch.empty(1), {}]]
+    first_image = torch.empty(1, 8, 8, 3)
+    second_image = torch.empty(1, 8, 8, 3)
+
+    first = SenseNovaReferenceImages.execute(
+        positive=conditioning,
+        negative=conditioning,
+        images={"image_1": first_image},
+    )
+    second = SenseNovaReferenceImages.execute(
+        positive=first[0],
+        negative=first[1],
+        images={"image_1": second_image},
+    )
+
+    assert second[0][0][1]["sensenova_reference_mode"] == "condition"
+    assert second[1][0][1]["sensenova_reference_mode"] == "image_only"
+    references = second[0][0][1]["sensenova_reference_images"]
+    assert len(references) == 2
+    assert references[0] is first_image
+    assert references[1] is second_image
 
 
 def test_sensenova_reference_tokens_and_indexes():

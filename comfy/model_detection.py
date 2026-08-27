@@ -815,9 +815,13 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
     if '{}t_embedder1.mlp.0.weight'.format(key_prefix) in state_dict_keys and '{}x_embedder.proj1.weight'.format(key_prefix) in state_dict_keys:  # HiDream-O1
         return {"image_model": "hidream_o1"}
 
+    vision_key = f"{key_prefix}fm_modules.vision_model_mot_gen.embeddings.patch_embedding.weight"
+    query_key = f"{key_prefix}language_model.model.layers.0.self_attn.q_proj_mot_gen.weight"
     if (
-        '{}fm_modules.vision_model_mot_gen.embeddings.patch_embedding.weight'.format(key_prefix) in state_dict_keys
-        and '{}language_model.model.layers.0.self_attn.q_proj_mot_gen.weight'.format(key_prefix) in state_dict_keys
+        vision_key in state_dict
+        and query_key in state_dict
+        and state_dict[vision_key].shape[0] == 1024
+        and state_dict[query_key].shape[0] == 4096
     ):  # SenseNova U1.5
         return {"image_model": "sensenova_u15"}
 

@@ -61,5 +61,9 @@ class SenseNovaModelSampling(
 
     def noise_scaling(self, sigma, noise, latent_image, max_denoise=False):
         sigma = comfy.model_sampling.reshape_sigma(sigma, noise.ndim)
-        scale = resolution_noise_scale(latent_image.shape[-2], latent_image.shape[-1])
+        scale = resolution_noise_scale(
+            latent_image.shape[-2],
+            latent_image.shape[-1],
+            noise_scale=self.noise_scale,
+        )
         return sigma * (scale * noise) + (1.0 - sigma) * latent_image

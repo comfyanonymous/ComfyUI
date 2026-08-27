@@ -31,6 +31,7 @@ class EmptySenseNovaLatentImage(io.ComfyNode):
         samples = torch.zeros(
             (batch_size, 3, height, width),
             device=comfy.model_management.intermediate_device(),
+            dtype=comfy.model_management.intermediate_dtype(),
         )
         return io.NodeOutput({"samples": samples})
 
@@ -122,18 +123,20 @@ class SenseNovaReferenceImages(io.ComfyNode):
                 )
         positive = node_helpers.conditioning_set_values(
             positive,
-            {
-                "sensenova_reference_images": references,
-                "sensenova_reference_mode": "condition",
-            },
+            {"sensenova_reference_mode": "condition"},
+        )
+        positive = node_helpers.conditioning_set_values(
+            positive,
+            {"sensenova_reference_images": references},
             append=True,
         )
         negative = node_helpers.conditioning_set_values(
             negative,
-            {
-                "sensenova_reference_images": references,
-                "sensenova_reference_mode": "image_only",
-            },
+            {"sensenova_reference_mode": "image_only"},
+        )
+        negative = node_helpers.conditioning_set_values(
+            negative,
+            {"sensenova_reference_images": references},
             append=True,
         )
         return io.NodeOutput(positive, negative)
