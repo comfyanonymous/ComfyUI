@@ -52,12 +52,18 @@ class _FakeAssetDB:
 
 
 class _Server:
+    last_node_id: str | None = None
+    sockets_metadata: dict[str, dict[str, object]] = {}
+
     def __init__(self, client_id: str | None = None) -> None:
         self.client_id = client_id
         self.sent: list[tuple] = []
 
-    def send_sync(self, event, payload, client_id):
-        self.sent.append((event, payload, client_id))
+    def send_sync(self, event, data, sid=None):
+        self.sent.append((event, data, sid))
+
+    def queue_updated(self) -> None:
+        pass
 
 
 @contextmanager
