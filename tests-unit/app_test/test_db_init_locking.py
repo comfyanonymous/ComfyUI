@@ -64,7 +64,14 @@ def test_failed_init_releases_the_lock(stale_db, monkeypatch):
         db_module._init_file_db(db_module.args.database_url)
 
     contender = FileLock(stale_db + ".lock")
-    contender.acquire(timeout=0)
+    try:
+        contender.acquire(timeout=0)
+    except Timeout:
+        pytest.fail(
+            "a failed init stranded the lock; setup_database logs and CONTINUES when assets are "
+            "disabled, so this process would block every other instance for its whole lifetime "
+            "over a database it never opened"
+        )
     contender.release()
 
 
