@@ -7,10 +7,12 @@ from server import PromptServer
 class Loop(io.ComfyNode):
     @classmethod
     def define_schema(cls):
+        list_item_type = io.MatchType.Template("list_item")
         return io.Schema(
             node_id="Loop",
             display_name="Loop",
             category="looping",
+            is_input_list=True,
             inputs=[
                 io.DynamicCombo.Input("mode", options=[
                     io.DynamicCombo.Option("simple", [
@@ -21,6 +23,9 @@ class Loop(io.ComfyNode):
                         io.Int.Input("max_iteration", default=4, max=0xffffffffffffffff),
                         io.Int.Input("step", default=1),
                     ]),
+                    io.DynamicCombo.Option("List", [
+                        io.MatchType.Input("list", list_item_type),
+                    ]),
                 ]),
                 io.Int.Input("iteration_outer", optional=True, force_input=True),
             ],
@@ -28,20 +33,26 @@ class Loop(io.ComfyNode):
                 io.Int.Output("iteration"),
                 io.Boolean.Output("is_first"),
                 io.Boolean.Output("is_last"),
+                io.MatchType.Output(list_item_type, id="list_item"),
             ],
             hidden=[io.Hidden.dynprompt, io.Hidden.execution_list, io.Hidden.unique_id],
         )
 
     @classmethod
     def execute(cls, mode, iteration_outer=None):
-        selected_mode = mode.get("mode", "simple")
+        selected_mode = mode.get("mode", ["simple"])[0]
         if selected_mode == "simple":
-            values = range(mode.get("num_iterations", 4))
-        else:
-            step = mode.get("step", 1)
+            values = range(mode.get("num_iterations", [4])[0])
+            list_items = None
+        elif selected_mode == "For":
+            step = mode.get("step", [1])[0]
             if step == 0:
                 raise ValueError("Loop step must not be 0")
-            values = range(mode.get("start_iteration", 0), mode.get("max_iteration", 4), step)
+            values = range(mode.get("start_iteration", [0])[0], mode.get("max_iteration", [4])[0], step)
+            list_items = None
+        else:
+            list_items = mode["list"]
+            values = range(len(list_items))
 
         dynprompt = cls.hidden.dynprompt
         execution_list = cls.hidden.execution_list
@@ -88,6 +99,7 @@ class Loop(io.ComfyNode):
             }
             state = {
                 "values": values,
+                "list_items": list_items,
                 "index": -1,
                 "projected_nodes": projected_nodes,
                 "scheduled_nodes": projected_nodes.intersection(execution_list.pendingNodes).union(
@@ -148,7 +160,7 @@ class Loop(io.ComfyNode):
             for node_id in state["variable_sources"]:
                 execution_list.clear_projection_state(node_id)
             execution_list.clear_projection_state(unique_id)
-            return io.NodeOutput(None, False, True)
+            return io.NodeOutput(None, False, True, None)
 
         execution_list.requeue_nodes(
             state["scheduled_nodes"].union(state["nested_openers"]),
@@ -164,7 +176,8 @@ class Loop(io.ComfyNode):
                 execution_list.cache_link(source_id, unique_id, source_socket)
         execution_list.defer_staged_node()
         value = state["values"][state["index"]]
-        outputs = (value, state["index"] == 0, state["index"] == len(state["values"]) - 1)
+        list_item = state["list_items"][state["index"]] if state["list_items"] is not None else None
+        outputs = (value, state["index"] == 0, state["index"] == len(state["values"]) - 1, list_item)
         state["opener_outputs"] = outputs
         PromptServer.instance.send_progress_text(
             f"Iteration {state['index'] + 1} / {len(state['values'])}",
