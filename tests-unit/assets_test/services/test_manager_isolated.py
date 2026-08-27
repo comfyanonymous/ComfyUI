@@ -129,7 +129,9 @@ def test_startup_runs_against_memory_db_without_starting_a_scanner_thread(
 
     thread_count = threading.active_count()
     enabled_manager.startup()
-    assert threading.active_count() == thread_count
+    assert threading.active_count() == thread_count, (
+        "start_asset_seeder is mocked, so a new thread means a component other than the seeder spawned one"
+    )
 
     assert not temp_dir.exists()
     seeder_start.assert_called_once_with()
