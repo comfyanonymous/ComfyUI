@@ -270,6 +270,14 @@ class MoGeModel:
     def __init__(self, state_dict: dict):
         self.load_device = comfy.model_management.text_encoder_device()
         offload_device = comfy.model_management.text_encoder_offload_device()
+        if comfy.model_management.is_device_cpu(self.load_device) and comfy.model_management.is_device_mps(comfy.model_management.get_torch_device()):
+            # The text-encoder policy parks models on the CPU on MPS (vram_state
+            # is SHARED) while text_encoder_dtype still selects fp16, and the CPU
+            # has no fp16 antialiased-bilinear kernel, so DINOv2Encoder.forward()
+            # raises NotImplementedError("compute_index_ranges_weights" not
+            # implemented for 'Half'). MoGe is a vision backbone, not a text
+            # encoder: load it on the GPU like the DA3 nodes do.
+            self.load_device = comfy.model_management.get_torch_device()
         self.dtype = comfy.model_management.text_encoder_dtype(self.load_device)
 
         self.model = build_from_state_dict(state_dict, dtype=self.dtype, device=offload_device, operations=comfy.ops.manual_cast).eval()
