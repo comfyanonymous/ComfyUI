@@ -316,8 +316,8 @@ class FinalLayer(nn.Module):
         if n == 1:
             return self.video_out(mod(video_seg)), self.audio_out(mod(audio_seg))
 
-        # PDD head bank: one head per interval of the base time grid. The step to the sampler's
-        # next sigma consumes the dt-weighted mean of the heads it spans, the block's mean velocity.
+        # PDD head bank: row block 0 is a full head, later blocks are offsets from it;
+        # a step consumes the dt-weighted mean of the heads it spans.
         if sample_sigmas is None:
             raise ValueError("MiniMax H3 PDD heads need the sampler's sigma schedule")
         i = int((sample_sigmas - sigma).abs().argmin())
@@ -334,8 +334,11 @@ def _pdd_head(head, h, n, start, stop, flow_shift):
     dt = (1.0 - flow_shift * grid / (1.0 + (flow_shift - 1.0) * grid)).diff()[start:stop]
     w = (dt / dt.sum()).to(h)
     weight, bias, offload_stream = comfy.ops.cast_bias_weight(head, h, offloadable=True)
-    out = nn.functional.linear(h, torch.einsum("n,noi->oi", w, weight.reshape(n, -1, weight.shape[1])[start:stop]),
-                               torch.einsum("n,no->o", w, bias.reshape(n, -1)[start:stop]))
+    rows = weight.reshape(n, -1, weight.shape[1])
+    brows = bias.reshape(n, -1)
+    first = max(start, 1)
+    out = nn.functional.linear(h, rows[0] + torch.einsum("n,noi->oi", w[first - start:], rows[first:stop]),
+                               brows[0] + torch.einsum("n,no->o", w[first - start:], brows[first:stop]))
     comfy.ops.uncast_bias_weight(head, weight, bias, offload_stream)
     return out
 
