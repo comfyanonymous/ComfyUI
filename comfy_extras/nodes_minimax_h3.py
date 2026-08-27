@@ -64,10 +64,23 @@ def adapt_canvas(width, height):
 def downscale_to_area(width, height, max_pixels):
     """Aspect-preserving, down-only sizing on H3's 32px spatial grid."""
     scale = min(1.0, math.sqrt(max_pixels / (width * height)))
-    return (
-        max(CANVAS_MULTIPLE, round(width * scale / CANVAS_MULTIPLE) * CANVAS_MULTIPLE),
-        max(CANVAS_MULTIPLE, round(height * scale / CANVAS_MULTIPLE) * CANVAS_MULTIPLE),
-    )
+    scaled_width = width * scale
+    scaled_height = height * scale
+    target_width = max(CANVAS_MULTIPLE, round(scaled_width / CANVAS_MULTIPLE) * CANVAS_MULTIPLE)
+    target_height = max(CANVAS_MULTIPLE, round(scaled_height / CANVAS_MULTIPLE) * CANVAS_MULTIPLE)
+
+    # Grid alignment must not turn a down-only resize into a slight upscale.
+    target_width = min(target_width, max(CANVAS_MULTIPLE, math.floor(width / CANVAS_MULTIPLE) * CANVAS_MULTIPLE))
+    target_height = min(target_height, max(CANVAS_MULTIPLE, math.floor(height / CANVAS_MULTIPLE) * CANVAS_MULTIPLE))
+
+    # Independent nearest-grid rounding can cross the requested area cap. When
+    # that happens, round both scaled axes down while preserving their ratio as
+    # closely as the 32px grid permits.
+    if target_width * target_height > max_pixels:
+        target_width = max(CANVAS_MULTIPLE, math.floor(scaled_width / CANVAS_MULTIPLE) * CANVAS_MULTIPLE)
+        target_height = max(CANVAS_MULTIPLE, math.floor(scaled_height / CANVAS_MULTIPLE) * CANVAS_MULTIPLE)
+
+    return target_width, target_height
 
 
 def _resize(image, width, height, crop):
@@ -295,8 +308,8 @@ class MiniMaxH3ReferenceToVideo(io.ComfyNode):
 
     @classmethod
     def execute(cls, clip, vae, audio_vae, prompt, width, height, length, ref_image_size="match",
-                ref_video_size="official", ref_images=None, ref_videos=None,
-                ref_video_audios=None, ref_audios=None) -> io.NodeOutput:
+                ref_images=None, ref_videos=None, ref_video_audios=None, ref_audios=None,
+                ref_video_size="official") -> io.NodeOutput:
         latent, frame_count = _empty_av_latent(width, height, length)
 
         ref_items = []   # for the tokenizer presentation, in request order
