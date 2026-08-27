@@ -173,40 +173,45 @@ class Loop(io.ComfyNode):
         return float("NaN")
 
 
-class CloseLoop:
+class CloseLoop(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "value": ("*", {"lazy": True}),
-            },
-            "hidden": {
-                "execution_list": "EXECUTION_LIST",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
+    def define_schema(cls):
+        matchtype = io.MatchType.Template("value")
+        return io.Schema(
+            node_id="CloseLoop",
+            display_name="Close Loop",
+            category="looping",
+            inputs=[
+                io.MatchType.Input("value", matchtype, lazy=True),
+            ],
+            outputs=[
+                io.MatchType.Output(matchtype, id="all_outputs", is_output_list=True),
+                io.MatchType.Output(matchtype, id="last_output"),
+            ],
+            hidden=[io.Hidden.execution_list, io.Hidden.unique_id],
+        )
 
-    RETURN_TYPES = ("*", "*")
-    RETURN_NAMES = ("all_outputs", "last_output")
-    OUTPUT_IS_LIST = (True, False)
-    FUNCTION = "close"
-    CATEGORY = "looping"
-
-    def check_lazy_status(self, value, execution_list=None, unique_id=None):
+    @classmethod
+    def check_lazy_status(cls, value):
+        execution_list = cls.hidden.execution_list
+        unique_id = cls.hidden.unique_id
         if execution_list.get_projection_state(unique_id) is None:
             return ["value"]
         return []
 
-    def close(self, value, execution_list=None, unique_id=None):
+    @classmethod
+    def execute(cls, value):
+        execution_list = cls.hidden.execution_list
+        unique_id = cls.hidden.unique_id
         state = execution_list.get_projection_state(unique_id)
         if state is None or "values" not in state:
             raise ValueError(f"Close Loop {unique_id} does not belong to a Loop")
         execution_list.clear_projection_state(unique_id)
         values = state["values"]
-        return (values, values[-1] if values else None)
+        return io.NodeOutput(values, values[-1] if values else None)
 
     @classmethod
-    def IS_CHANGED(cls, value, execution_list=None, unique_id=None):
+    def fingerprint_inputs(cls, **kwargs):
         return float("NaN")
 
 
