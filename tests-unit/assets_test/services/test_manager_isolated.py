@@ -1,9 +1,13 @@
 import dataclasses
+import threading
+from collections.abc import Callable
+from contextlib import AbstractContextManager
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, call
 
 import folder_paths
 import pytest
+from sqlalchemy.orm import Session
 
 from app.assets import lifecycle
 from app.assets import manager as manager_module
@@ -41,7 +45,9 @@ def asset_roots(
 
 
 def test_executed_and_cached_outputs_share_unhashed_content(
-    enabled_manager: AssetsEnabled, asset_roots: tuple[Path, Path, Path], mock_create_session
+    enabled_manager: AssetsEnabled,
+    asset_roots: tuple[Path, Path, Path],
+    mock_create_session: Callable[[], AbstractContextManager[Session]],
 ) -> None:
     output_dir, _, _ = asset_roots
     output_path = output_dir / "executed.png"
@@ -88,7 +94,7 @@ def test_executed_and_cached_outputs_share_unhashed_content(
 def test_register_upload_hashes_and_tags_fresh_input_file(
     enabled_manager: AssetsEnabled,
     asset_roots: tuple[Path, Path, Path],
-    mock_create_session,
+    mock_create_session: Callable[[], AbstractContextManager[Session]],
 ) -> None:
     _, input_dir, _ = asset_roots
     upload_path = input_dir / "pasted" / "upload.png"
@@ -112,7 +118,7 @@ def test_register_upload_hashes_and_tags_fresh_input_file(
 def test_startup_runs_against_memory_db_without_starting_a_scanner_thread(
     enabled_manager: AssetsEnabled,
     asset_roots: tuple[Path, Path, Path],
-    mock_create_session,
+    mock_create_session: Callable[[], AbstractContextManager[Session]],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _, _, temp_dir = asset_roots
@@ -122,7 +128,9 @@ def test_startup_runs_against_memory_db_without_starting_a_scanner_thread(
     # The lifecycle seeder wrapper is mocked so startup cannot launch a scanner thread.
     monkeypatch.setattr(lifecycle, "start_asset_seeder", seeder_start)
 
+    thread_count = threading.active_count()
     enabled_manager.startup()
+    assert threading.active_count() == thread_count
 
     assert not temp_dir.exists()
     seeder_start.assert_called_once_with()
@@ -169,7 +177,7 @@ def test_preflight_cleanup_only_sweeps_when_dependencies_are_unavailable(
 def test_shutdown_runs_lifecycle_cleanup_when_seeder_shutdown_times_out(
     enabled_manager: AssetsEnabled,
     asset_roots: tuple[Path, Path, Path],
-    mock_create_session,
+    mock_create_session: Callable[[], AbstractContextManager[Session]],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _, _, temp_dir = asset_roots
