@@ -62,12 +62,15 @@ def _write_temp(content: bytes) -> str:
     return path
 
 
-def test_hash_mode_same_bytes_same_name_returns_same_record(
+def test_hash_mode_multipart_dedups_but_in_place_keeps_its_own_path(
     mock_create_session, hashing_on
 ):
     content = b"duplicate-bytes"
     temp1 = _write_temp(content)
     temp2 = _write_temp(content)
+    output_dir = folder_paths.get_output_directory()
+    os.makedirs(output_dir, exist_ok=True)
+    image_path = os.path.join(output_dir, "dup.bin")
     try:
         r1 = upload_from_temp_path(
             temp_path=temp1,
@@ -84,22 +87,33 @@ def test_hash_mode_same_bytes_same_name_returns_same_record(
         assert r1.ref.id == r2.ref.id
         assert r2.created_new is False
 
-        output_dir = folder_paths.get_output_directory()
-        os.makedirs(output_dir, exist_ok=True)
-        image_path = os.path.join(output_dir, "dup.bin")
         with open(image_path, "wb") as file:
             file.write(content)
         r3 = register_file_in_place(
             abs_path=image_path, name="dup.bin", tags=["output"]
         )
-        assert r3.ref.id == r1.ref.id
-        assert r3.created_new is False
+        assert r3.ref.id != r1.ref.id
+        assert r3.created_new is True
+        assert r3.ref.file_path == os.path.abspath(image_path)
 
         with mock_create_session() as session:
-            assert session.scalar(select(func.count()).select_from(Asset)) == 1
-            assert session.scalar(select(func.count()).select_from(AssetContent)) == 1
+            assert session.scalar(select(func.count()).select_from(Asset)) == 2
+            live = {
+                row.id: row.path
+                for row in session.scalars(
+                    select(AssetContent).where(AssetContent.is_missing.is_(False))
+                )
+            }
+            assert len(live) == 2
+            in_place = session.get(Asset, r3.ref.id)
+            multipart = session.get(Asset, r1.ref.id)
+            assert in_place is not None
+            assert multipart is not None
+            assert in_place.content_id != multipart.content_id
+            assert live[in_place.content_id] == os.path.abspath(image_path)
+            assert live[multipart.content_id] != os.path.abspath(image_path)
     finally:
-        for path in (temp1, temp2):
+        for path in (temp1, temp2, image_path):
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -139,7 +153,7 @@ def test_off_mode_api_assets_dedups_same_bytes_same_name(
                 os.unlink(path)
 
 
-def test_off_mode_register_file_in_place_same_path_dedups(
+def test_off_mode_register_file_in_place_same_path_reuses_content_row(
     mock_create_session, hashing_off
 ):
     output_dir = folder_paths.get_output_directory()
@@ -155,8 +169,8 @@ def test_off_mode_register_file_in_place_same_path_dedups(
         r2 = register_file_in_place(
             abs_path=path, name="image_same.png", tags=["output"]
         )
-        assert r1.ref.id == r2.ref.id
-        assert r2.created_new is False
+        assert r2.ref.id != r1.ref.id
+        assert r2.created_new is True
         with mock_create_session() as session:
             contents = list(
                 session.scalars(
@@ -166,6 +180,9 @@ def test_off_mode_register_file_in_place_same_path_dedups(
             assert len(contents) == 1
             assert contents[0].path == os.path.abspath(path)
             assert open(contents[0].path, "rb").read() == b"img-bytes"
+            records = list(session.scalars(select(Asset)))
+            assert len(records) == 2
+            assert {record.content_id for record in records} == {contents[0].id}
     finally:
         if os.path.exists(path):
             os.unlink(path)
@@ -200,6 +217,54 @@ def test_off_mode_register_file_in_place_different_bytes_two_paths(
             }
     finally:
         for path in (path1, path2):
+            if os.path.exists(path):
+                os.unlink(path)
+
+
+def test_register_file_in_place_equal_bytes_new_path_is_tracked_separately(
+    mock_create_session, hashing_on
+):
+    output_dir = folder_paths.get_output_directory()
+    os.makedirs(output_dir, exist_ok=True)
+    path_a = os.path.join(output_dir, "crosspath_a.png")
+    path_b = os.path.join(output_dir, "crosspath_b.png")
+    payload = b"cross-path-equal-bytes"
+    try:
+        with open(path_a, "wb") as file:
+            file.write(payload)
+        first = register_file_in_place(
+            abs_path=path_a, name="crosspath_a.png", tags=["output"]
+        )
+
+        with open(path_b, "wb") as file:
+            file.write(payload)
+        second = register_file_in_place(
+            abs_path=path_b, name="crosspath_b.png", tags=["output"]
+        )
+
+        abs_a = os.path.abspath(path_a)
+        abs_b = os.path.abspath(path_b)
+        assert second.ref.id != first.ref.id
+        assert second.created_new is True
+        assert second.ref.file_path == abs_b
+        with mock_create_session() as session:
+            live = {
+                row.path: row
+                for row in session.scalars(
+                    select(AssetContent).where(AssetContent.is_missing.is_(False))
+                )
+            }
+            assert set(live) == {abs_a, abs_b}
+            assert live[abs_a].hash == live[abs_b].hash
+            assert live[abs_a].id != live[abs_b].id
+            record_b = session.get(Asset, second.ref.id)
+            assert record_b is not None
+            assert record_b.content_id == live[abs_b].id
+            record_a = session.get(Asset, first.ref.id)
+            assert record_a is not None
+            assert record_a.content_id == live[abs_a].id
+    finally:
+        for path in (path_a, path_b):
             if os.path.exists(path):
                 os.unlink(path)
 
@@ -370,14 +435,27 @@ def test_register_file_in_place_unhashed_unchanged_file_adopts_hash(
             content_written=False,
         )
 
-        assert result.ref.id == record_id
-        assert result.created_new is False
+        assert result.ref.id != record_id
+        assert result.created_new is True
         assert result.asset.hash == expected_hash
         assert result.asset.size_bytes == len(payload)
         with mock_create_session() as session:
             content = session.get(AssetContent, content_id)
             assert content is not None
             assert content.hash == expected_hash
+            assert content.is_missing is False
+            record = session.get(Asset, result.ref.id)
+            assert record is not None
+            assert record.content_id == content_id
+            live = list(
+                session.scalars(
+                    select(AssetContent).where(
+                        AssetContent.path == os.path.abspath(path),
+                        AssetContent.is_missing.is_(False),
+                    )
+                )
+            )
+            assert [row.id for row in live] == [content_id]
     finally:
         if os.path.exists(path):
             os.unlink(path)
@@ -457,8 +535,8 @@ def test_register_file_in_place_matching_hash_refreshes_stale_stat(
             abs_path=path, name="stale_mtime.png", tags=["output"]
         )
 
-        assert result.ref.id == record_id
-        assert result.created_new is False
+        assert result.ref.id != record_id
+        assert result.created_new is True
         with mock_create_session() as session:
             content = session.get(AssetContent, content_id)
             assert content is not None
@@ -468,7 +546,16 @@ def test_register_file_in_place_matching_hash_refreshes_stale_stat(
             served = lookup_for_view(session, stored_hash)
             assert served is not None
             assert served.id == content_id
-            assert session.scalar(select(func.count()).select_from(Asset)) == 1
+            record = session.get(Asset, result.ref.id)
+            assert record is not None
+            assert record.content_id == content_id
+            assert session.scalar(select(func.count()).select_from(Asset)) == 2
+            live = list(
+                session.scalars(
+                    select(AssetContent).where(AssetContent.is_missing.is_(False))
+                )
+            )
+            assert [row.id for row in live] == [content_id]
     finally:
         if os.path.exists(path):
             os.unlink(path)

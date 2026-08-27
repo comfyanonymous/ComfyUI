@@ -473,6 +473,18 @@ def register_file_in_place(
     ``compare_image_hash`` same-name dedup is legacy physical behavior and stays
     outside hash-mode policy (parallel to path-form ``/view`` semantics).
 
+    Dedup is scoped to ``abs_path``, deliberately weaker than the multipart
+    endpoint's global content dedup. ``_reconcile_live_content_at_path`` already
+    settles the same-path row before this returns, so a global hash match adds
+    nothing there - the only thing it can still reach is a DIFFERENT file, and
+    honouring that would leave the just-written ``abs_path`` untracked and hand
+    back an asset describing someone else's path. Equal hashes across paths stay
+    discoverable by hash, they are simply not merged.
+    ``_reconcile_live_content_at_path`` is the whole dedup story here - it leaves
+    at most one live row at ``abs_path``, so re-registering unchanged bytes reuses
+    that content row while still writing a new record, which is what a repeat save
+    through ``/upload/image`` is.
+
     ``content_written`` reports whether the caller just wrote bytes at
     ``abs_path``. The handler always knows - ``/upload/image`` skips the write
     exactly when ``compare_image_hash`` proves the bytes are already there - and
@@ -503,29 +515,6 @@ def register_file_in_place(
             content_written=content_written,
         )
         session.commit()
-        dedup = lookup_for_upload_dedup(session, stored_hash, display_name)
-
-    if isinstance(dedup, Asset):
-        with create_session() as session:
-            record = session.get(Asset, dedup.id)
-            if record is None:
-                raise RuntimeError("inconsistent DB state after dedup")
-            return _record_to_upload_result(session, record, created_new=False)
-
-    if isinstance(dedup, AssetContent):
-        with create_session() as session:
-            record = _create_upload_record(
-                session,
-                dedup.id,
-                display_name,
-                dedup.path,
-                merged_tags,
-                content_type,
-                None,
-                None,
-            )
-            session.commit()
-            return _record_to_upload_result(session, record, created_new=True)
 
     with create_session() as session:
         content = create_content(
