@@ -252,15 +252,16 @@ def test_scenario_5_rename_always(session):
 
 
 def test_scenario_6_upload_dedup(session, tmp_path):
-    """Ruling 6: only hash mode permits upload deduplication.
+    """Ruling 6: upload dedup runs unconditionally in both hashing modes; only
+    scanner/output hashing is gated by ``--enable-asset-hashing``.
 
-    STALE RULING — flagged, not rewritten. Uploads hash unconditionally
-    (``upload_from_temp_path`` calls ``_snapshot_hash_with_retry`` before it
-    consults anything, and ``lookup_for_upload_dedup`` never asks
-    ``mode.hashing_enabled``), a deliberate product decision made in 4bced38a.
-    So dedup is available in BOTH modes and the ruling above no longer
-    describes the code. The test pins what actually ships; the ruling text needs
-    an owner's decision, so it is left untouched.
+    Ratified 2026-08-26, superseding the earlier "only hash mode permits upload
+    deduplication" wording, which never described the code. Uploads hash
+    unconditionally — ``upload_from_temp_path`` calls
+    ``_snapshot_hash_with_retry`` before it consults anything, and
+    ``lookup_for_upload_dedup`` never asks ``mode.hashing_enabled`` (unlike
+    ``lookup_for_from_hash``, which does). That is the deliberate product
+    decision made in 4bced38a, so dedup is available in BOTH modes by design.
     """
     (tmp_path / "output").mkdir(parents=True)
     payload = b"the-uploaded-bytes"
