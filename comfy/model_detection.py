@@ -815,6 +815,12 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
     if '{}t_embedder1.mlp.0.weight'.format(key_prefix) in state_dict_keys and '{}x_embedder.proj1.weight'.format(key_prefix) in state_dict_keys:  # HiDream-O1
         return {"image_model": "hidream_o1"}
 
+    if (
+        '{}fm_modules.vision_model_mot_gen.embeddings.patch_embedding.weight'.format(key_prefix) in state_dict_keys
+        and '{}language_model.model.layers.0.self_attn.q_proj_mot_gen.weight'.format(key_prefix) in state_dict_keys
+    ):  # SenseNova U1.5
+        return {"image_model": "sensenova_u15"}
+
     if '{}caption_projection.0.linear.weight'.format(key_prefix) in state_dict_keys:  # HiDream
         dit_config = {}
         dit_config["image_model"] = "hidream"
@@ -1299,6 +1305,13 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
 def unet_prefix_from_state_dict(state_dict):
     # SAM3: detector.* and tracker.* at top level, no common prefix
     if any(k.startswith("detector.") for k in state_dict) and any(k.startswith("tracker.") for k in state_dict):
+        return ""
+
+    # SenseNova checkpoints store the diffusion and language backbones at top level.
+    if (
+        "fm_modules.vision_model_mot_gen.embeddings.patch_embedding.weight" in state_dict
+        and "language_model.model.layers.0.self_attn.q_proj_mot_gen.weight" in state_dict
+    ):
         return ""
 
     candidates = ["model.diffusion_model.", #ldm/sgm models

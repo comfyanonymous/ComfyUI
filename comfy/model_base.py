@@ -76,6 +76,9 @@ import comfy.ldm.ernie.model
 import comfy.ldm.sam3.detector
 import comfy.ldm.hidream_o1.model
 from comfy.ldm.hidream_o1.conditioning import build_extra_conds
+import comfy.ldm.sensenova.model
+from comfy.ldm.sensenova.conditioning import block_causal_mask, condition_input_ids, conditioned_input_length, preprocess_references, smart_resize, thw_indexes
+from comfy.ldm.sensenova.sampling import SenseNovaModelSampling, time_snr_shift
 import comfy.ldm.depth_anything_3.model
 
 import comfy.model_management
@@ -2341,6 +2344,71 @@ class HiDreamO1(BaseModel):
             cls = comfy.conds.CONDConstant if k == "ar_len" else comfy.conds.CONDRegular
             out[k] = cls(v)
         return out
+
+class SenseNovaSharedRegular(comfy.conds.CONDRegular):
+    """Keep the shared text/reference prefix at one copy per guidance branch."""
+
+    def process_cond(self, batch_size, **kwargs):
+        return self._copy_with(self.cond)
+
+class SenseNovaSharedList(comfy.conds.CONDList):
+    def process_cond(self, batch_size, **kwargs):
+        return self._copy_with(self.cond)
+
+class SenseNovaU15(BaseModel):
+    PATCH_SIZE = 32
+
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.sensenova.model.SenseNovaU15)
+        self.model_sampling = SenseNovaModelSampling(model_config)
+        self.memory_usage_factor_conds = ("reference_images",)
+
+    def process_timestep(self, timestep, **kwargs):
+        base_timestep = timestep / self.model_sampling.multiplier
+        return 1.0 - time_snr_shift(self.model_sampling.shift, 1.0 - base_timestep)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        text_input_ids = kwargs.get("text_input_ids")
+        if text_input_ids is not None:
+            reference_images = kwargs.get("sensenova_reference_images")
+            if reference_images is not None:
+                reference_images = preprocess_references(reference_images)
+                reference_grids = [(image.shape[-2] // self.PATCH_SIZE, image.shape[-1] // self.PATCH_SIZE) for image in reference_images]
+                text_input_ids = condition_input_ids(
+                    text_input_ids,
+                    reference_grids,
+                    image_only=kwargs.get("sensenova_reference_mode") == "image_only",
+                )
+                indexes = thw_indexes(text_input_ids, reference_grids)
+                out["prefix_indexes"] = SenseNovaSharedRegular(indexes)
+                out["prefix_mask"] = SenseNovaSharedRegular(block_causal_mask(indexes))
+                out["reference_images"] = SenseNovaSharedList(reference_images)
+            out["text_input_ids"] = SenseNovaSharedRegular(text_input_ids)
+        return out
+
+    def extra_conds_shapes(self, **kwargs):
+        images = kwargs.get("sensenova_reference_images")
+        if images is None:
+            return {}
+        max_pixels = min(2048 * 2048, (4096 * 4096) // len(images))
+        resized = [smart_resize(*image.shape[1:3], max_pixels=max_pixels) for image in images]
+        reference_grids = [(height // self.PATCH_SIZE, width // self.PATCH_SIZE) for height, width in resized]
+        out = {"reference_images": [1, 3, sum(height * width for height, width in resized)]}
+        text_input_ids = kwargs.get("text_input_ids")
+        if text_input_ids is not None:
+            length = conditioned_input_length(
+                text_input_ids.shape[1],
+                reference_grids,
+                image_only=kwargs.get("sensenova_reference_mode") == "image_only",
+            )
+            out["prefix_mask"] = [1, 1, length, length]
+        return out
+
+    def memory_required(self, input_shape, cond_shapes={}):
+        memory = super().memory_required(input_shape, cond_shapes)
+        mask_shapes = cond_shapes.get("prefix_mask", ())
+        return memory + sum(math.prod(shape) * 4 for shape in mask_shapes)
 
 class Chroma(Flux):
     def __init__(self, model_config, model_type=ModelType.FLUX, device=None, unet_model=comfy.ldm.chroma.model.Chroma):
