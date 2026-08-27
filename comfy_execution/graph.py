@@ -239,11 +239,13 @@ class ExecutionList(TopologicalSort):
         projector_id = self.staged_node_id
         node_ids = set(node_ids)
         scheduled_node_ids = set(scheduled_node_ids)
+        for node_id in scheduled_node_ids:
+            if node_id not in self.pendingNodes:
+                self.add_node(node_id)
+        scheduled_node_ids.update(node_ids.intersection(self.pendingNodes))
         self.projection_nodes[projector_id] = node_ids
         self.projection_scheduled_nodes[projector_id] = scheduled_node_ids
         for node_id in node_ids:
-            if node_id in scheduled_node_ids and node_id not in self.pendingNodes:
-                self.add_node(node_id)
             self.projected_node_counts[node_id] = self.projected_node_counts.get(node_id, 0) + 1
             self.projected_node_owners.setdefault(node_id, set()).add(projector_id)
             self.increment_pending_nodes.add(node_id)
