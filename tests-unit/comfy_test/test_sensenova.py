@@ -151,4 +151,6 @@ def test_sensenova_tokenizer_control_token_ids():
     assert backend.convert_tokens_to_ids(
         ["<IMG_CONTEXT>", "<img>", "</img>", "<FAKE_PAD_253>"]
     ) == [151669, 151670, 151671, 151935]
+    assert "<|im_start|>" in backend.all_special_tokens
+    assert "<|vision_pad|>" in backend.all_special_tokens
     assert tokenizer.tokenize_with_weights("")["sensenova_u15"][0][-1][0] == 151670

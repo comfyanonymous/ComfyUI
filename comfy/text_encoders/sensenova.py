@@ -50,6 +50,11 @@ class SenseNovaQwen2Tokenizer:
     @classmethod
     def from_pretrained(cls, *args, **kwargs):
         tokenizer = Qwen2Tokenizer.from_pretrained(*args, **kwargs)
+        existing_special_tokens = [
+            token
+            for _, token in sorted(tokenizer.added_tokens_decoder.items())
+            if token.special
+        ]
         extra_tokens = [
             "<IMG_CONTEXT>",
             "<img>",
@@ -67,8 +72,7 @@ class SenseNovaQwen2Tokenizer:
         ]
         extra_tokens.extend(f"<FAKE_PAD_{index}>" for index in range(254))
         tokenizer.add_special_tokens(
-            {"additional_special_tokens": extra_tokens},
-            replace_additional_special_tokens=False,
+            {"additional_special_tokens": existing_special_tokens + extra_tokens}
         )
         return tokenizer
 
