@@ -1,4 +1,6 @@
 import json
+import os
+import uuid
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from unittest.mock import patch
@@ -26,6 +28,11 @@ from app.assets.database.queries.records import (
 )
 from app.assets.helpers import to_stored_hash
 from app.assets.lifecycle import wipe_temp_db_rows
+from app.assets.scanner import (
+    build_asset_specs,
+    seed_asset_specs,
+    sync_prefixes_with_filesystem,
+)
 from app.assets.scanner_admission import _should_skip_extension
 from app.assets.scanner_changes import (
     clear_pending_verifications,
@@ -38,6 +45,8 @@ from app.assets.services.asset_management import (
     delete_asset_reference,
     resolve_hash_to_path,
 )
+from app.assets.services.file_utils import list_files_recursively
+from app.assets.services.ingest import register_cached_output, upload_from_temp_path
 from app.assets.services.lookup import (
     lookup_for_from_hash,
     lookup_for_upload_dedup,
@@ -91,6 +100,35 @@ def _differently_sized(payload: bytes, avoid_size: int) -> bytes:
     return payload if len(payload) != avoid_size else payload + b"!"
 
 
+def _seed_content_row(session, path: Path, hash_value: str | None = None):
+    """Seed one content row carrying the file's real stat, as the scanner would."""
+    seed_stat = path.stat()
+    return create_content(
+        session,
+        str(path),
+        hash=hash_value,
+        size_bytes=seed_stat.st_size,
+        mtime_ns=seed_stat.st_mtime_ns,
+    )
+
+
+def _scan_pass(session, root: Path) -> int:
+    """Run the scanner's own pass over one root and report records created.
+
+    Retire content whose file is gone, then admit and seed every path the sync
+    did not account for — the two halves ``scanner`` drives in sequence, so a
+    filesystem event is observed the way production observes it rather than
+    described by hand. Callers supply the sandbox and the hash-mode decision.
+    """
+    survivors = sync_prefixes_with_filesystem(
+        session, [str(root)], collect_existing_paths=True
+    )
+    specs, _tag_pool, _skipped = build_asset_specs(
+        list_files_recursively(str(root)), survivors or set()
+    )
+    return seed_asset_specs(session, specs)
+
+
 @contextmanager
 def _writer_lands_mid_hash(path: Path, replacement: bytes):
     """Stand in for a concurrent writer that lands once per hashing pass.
@@ -137,17 +175,44 @@ def test_scenario_1_rm_missing_and_strict_recovery(session, tmp_path):
 
 
 def test_scenario_2_edit_split(session, tmp_path):
-    """Ruling 2: edits split content and the old content read is unavailable."""
-    path = tmp_path / "edit.bin"
-    path.write_bytes(b"old")
-    old = _record(session, path, "old")
-    mark_content_missing(session, old.content_id)
-    path.write_bytes(b"new")
-    new = _record(session, path, "new")
-    assert old.content_id != new.content_id
-    assert old.content.is_missing is True
-    assert new.content.is_missing is False
-    assert get_record_by_path_or_none(session, str(path)).id == new.id
+    """Ruling 2: edits split content and the old content read is unavailable.
+
+    The split is the production verdict, not the fixture's: an in-place edit is
+    handed to ``detect_content_change`` with hashing off and both halves of a
+    genuine change (size AND mtime moved), which is the one OFF-mode shape that
+    is allowed to retire content.
+    """
+    input_root = tmp_path / "input"
+    input_root.mkdir()
+    path = input_root / "edit.bin"
+    path.write_bytes(b"the-original-bytes")
+    seed_stat = path.stat()
+    old_content = _seed_content_row(session, path)
+    old_record = create_record(session, old_content.id, "edit.bin")
+
+    path.write_bytes(b"a replacement of a decidedly different length")
+    moved_mtime = path.stat().st_mtime_ns + 1_000_000_000
+    os.utime(path, ns=(moved_mtime, moved_mtime))
+    edited_stat = path.stat()
+    assert edited_stat.st_size != seed_stat.st_size
+    assert edited_stat.st_mtime_ns != seed_stat.st_mtime_ns
+
+    with _sandbox_asset_roots(tmp_path):
+        detect_content_change(session, old_content, edited_stat, hashing_is_enabled=False)
+
+    new_record = get_record_by_path_or_none(session, str(path))
+    assert new_record is not None
+    assert new_record.id != old_record.id
+    assert new_record.content_id != old_content.id
+    assert new_record.content.is_missing is False
+    assert new_record.content.size_bytes == edited_stat.st_size
+    assert new_record.content.mtime_ns == edited_stat.st_mtime_ns
+    # The old read is unavailable: the original record survives but resolves
+    # only to retired content, and the live path now answers as the new one.
+    assert session.get(Asset, old_record.id).content_id == old_content.id
+    assert old_content.is_missing is True
+    assert fetch_record_tags(session, old_record.id) == ["missing"]
+    assert create_content(session, str(path)).id == new_record.content_id
 
 
 def test_scenario_3_path_reuse_convergence(session, tmp_path):
@@ -187,15 +252,73 @@ def test_scenario_5_rename_always(session):
 
 
 def test_scenario_6_upload_dedup(session, tmp_path):
-    """Ruling 6: only hash mode permits upload deduplication."""
-    path = tmp_path / "upload.bin"
-    path.write_bytes(b"bytes")
-    record = _record(session, path, "upload", "digest")
-    assert lookup_for_upload_dedup(session, "digest", "upload").id == record.id
-    shared = lookup_for_upload_dedup(session, "digest", "renamed")
-    assert isinstance(shared, AssetContent)
-    assert shared.id == record.content_id
-    assert lookup_for_upload_dedup(session, "absent", "upload") is None
+    """Ruling 6: only hash mode permits upload deduplication.
+
+    STALE RULING — flagged, not rewritten. Uploads hash unconditionally
+    (``upload_from_temp_path`` calls ``_snapshot_hash_with_retry`` before it
+    consults anything, and ``lookup_for_upload_dedup`` never asks
+    ``mode.hashing_enabled``), a deliberate product decision made in 4bced38a.
+    So dedup is available in BOTH modes and the ruling above no longer
+    describes the code. The test pins what actually ships; the ruling text needs
+    an owner's decision, so it is left untouched.
+    """
+    (tmp_path / "output").mkdir(parents=True)
+    payload = b"the-uploaded-bytes"
+    expected_hash = to_stored_hash(blake3(payload).hexdigest())
+
+    def upload(uploaded: bytes, name: str, *, hashing: bool):
+        staging = tmp_path / "temp" / "uploads" / uuid.uuid4().hex
+        staging.mkdir(parents=True)
+        staged = staging / ".upload.part"
+        staged.write_bytes(uploaded)
+        with (
+            _sandbox_asset_roots(tmp_path),
+            patch(
+                "folder_paths.get_temp_directory", return_value=str(tmp_path / "temp")
+            ),
+            patch(
+                "app.assets.services.ingest.create_session",
+                lambda: nullcontext(session),
+            ),
+            patch.object(mode, "hashing_enabled", return_value=hashing),
+        ):
+            return upload_from_temp_path(
+                temp_path=str(staged), name=name, tags=["output"], client_filename=name
+            )
+
+    first = upload(payload, "upload.bin", hashing=False)
+    again = upload(payload, "upload.bin", hashing=False)
+    renamed = upload(payload, "renamed.bin", hashing=False)
+    in_hash_mode = upload(payload, "upload.bin", hashing=True)
+    other = upload(b"a wholly different payload", "upload.bin", hashing=False)
+
+    # Hashing-off still produced the real digest, which is what dedup matched on.
+    assert first.created_new is True
+    assert first.asset.hash == expected_hash
+
+    assert again.created_new is False
+    assert again.ref.id == first.ref.id
+
+    assert in_hash_mode.created_new is False
+    assert in_hash_mode.ref.id == first.ref.id
+
+    # A new name is a new record over the SAME content, not a second copy.
+    assert renamed.created_new is True
+    assert renamed.ref.id != first.ref.id
+    assert renamed.ref.file_path == first.ref.file_path
+    assert (
+        session.get(Asset, renamed.ref.id).content_id
+        == session.get(Asset, first.ref.id).content_id
+    )
+
+    assert other.created_new is True
+    assert other.asset.hash != expected_hash
+    assert other.ref.file_path != first.ref.file_path
+
+    live = list(
+        session.scalars(select(AssetContent).where(AssetContent.is_missing.is_(False)))
+    )
+    assert {content.hash for content in live} == {expected_hash, other.asset.hash}
 
 
 def test_scenario_7_same_bytes_new_name(session, tmp_path):
@@ -231,11 +354,68 @@ def test_scenario_9_equal_hashes_no_merge(session, tmp_path):
 
 def test_scenario_10_cached_delivery_record(session, tmp_path):
     """Ruling 10: cached delivery creates another record for existing content."""
-    content = create_content(session, str(tmp_path / "cached"))
-    one = create_record(session, content.id, "one")
-    two = create_record(session, content.id, "two")
-    assert one.id != two.id
-    assert one.content_id == two.content_id == content.id
+    output_root = tmp_path / "output"
+    output_root.mkdir()
+    path = output_root / "cached.png"
+    path.write_bytes(b"pixels")
+    content = _seed_content_row(session, path, hash_value="digest")
+    original = create_record(
+        session,
+        content.id,
+        "cached.png",
+        job_id="executed-job",
+        system_metadata={"inherited": "from-the-earliest-sibling"},
+    )
+    content_before = (
+        content.hash,
+        content.size_bytes,
+        content.mtime_ns,
+        content.is_missing,
+    )
+
+    with (
+        _sandbox_asset_roots(tmp_path),
+        patch(
+            "app.assets.services.ingest.create_session",
+            lambda: nullcontext(session),
+        ),
+    ):
+        delivered = register_cached_output(str(path), job_id="delivery-job")
+
+    assert delivered is not None
+    assert delivered.id != original.id
+    assert delivered.content_id == content.id
+    assert delivered.job_id == "delivery-job"
+    assert session.get(Asset, delivered.id).system_metadata == original.system_metadata
+
+    assert (
+        content.hash,
+        content.size_bytes,
+        content.mtime_ns,
+        content.is_missing,
+    ) == content_before
+    assert (original.job_id, original.name) == ("executed-job", "cached.png")
+    assert [row.id for row in session.scalars(select(AssetContent))] == [content.id]
+    assert {row.id for row in session.scalars(select(Asset))} == {
+        original.id,
+        delivered.id,
+    }
+
+    # The delivery is bound to LIVE content: retire it and the replay creates
+    # nothing rather than re-registering the path as a fresh output.
+    mark_content_missing(session, content.id)
+    with (
+        _sandbox_asset_roots(tmp_path),
+        patch(
+            "app.assets.services.ingest.create_session",
+            lambda: nullcontext(session),
+        ),
+    ):
+        assert register_cached_output(str(path), job_id="second-delivery") is None
+    assert {row.id for row in session.scalars(select(Asset))} == {
+        original.id,
+        delivered.id,
+    }
 
 
 def test_scenario_11_restart_survival(tmp_path):
@@ -283,14 +463,39 @@ def test_scenario_15_two_locations_hash_relation(session, tmp_path):
 
 
 def test_scenario_17_move_is_missing_plus_new(session, tmp_path):
-    """Ruling 17: a move is missing old content plus a new record."""
-    old = _record(session, tmp_path / "old", "old")
-    mark_content_missing(session, old.content_id)
-    new = _record(session, tmp_path / "new", "new")
-    assert old.content_id != new.content_id
-    assert old.content.is_missing is True
-    assert new.content.is_missing is False
-    assert "missing" in fetch_record_tags(session, old.id)
+    """Ruling 17: a move is missing old content plus a new record.
+
+    Driven as a real ``os.replace`` observed by a real scanner pass: nothing
+    tells the scanner a move happened, it only sees one path gone and another
+    arrived, and the missing-plus-new outcome is entirely its own.
+    """
+    input_root = tmp_path / "input"
+    input_root.mkdir()
+    old_path = input_root / "old.bin"
+    old_path.write_bytes(b"the-bytes-that-move")
+    old_content = _seed_content_row(session, old_path)
+    old_record = create_record(session, old_content.id, "old.bin")
+
+    new_path = input_root / "new.bin"
+    os.replace(old_path, new_path)
+
+    with (
+        _sandbox_asset_roots(tmp_path),
+        patch.object(mode, "hashing_enabled", return_value=False),
+    ):
+        created = _scan_pass(session, input_root)
+
+    assert created == 1
+    new_record = get_record_by_path_or_none(session, str(new_path))
+    assert new_record is not None
+    assert new_record.id != old_record.id
+    assert new_record.content_id != old_content.id
+    assert new_record.content.path == str(new_path)
+    assert new_record.content.is_missing is False
+    assert old_content.is_missing is True
+    assert "missing" in fetch_record_tags(session, old_record.id)
+    assert session.get(Asset, old_record.id).content_id == old_content.id
+    assert get_record_by_path_or_none(session, str(old_path)) is None
 
 
 def test_scenario_18_edit_during_hash_discard(session, tmp_path):
@@ -357,13 +562,38 @@ def test_scenario_20_partial_download(tmp_path):
 
 
 def test_scenario_21_symlink_two_rows(session, tmp_path):
-    """Ruling 21: lexical locations always retain separate content rows."""
-    a = _record(session, tmp_path / "link-a", "a")
-    b = _record(session, tmp_path / "link-b", "b")
-    assert a.content_id != b.content_id
-    assert a.content.path != b.content.path
-    assert a.content.is_missing is False
-    assert b.content.is_missing is False
+    """Ruling 21: lexical locations always retain separate content rows.
+
+    One inode, two names, one real scanner pass. Lexical means the scanner must
+    not resolve the link: if it took the realpath, the second admission would
+    collide on the live-path index and yield a single row.
+    """
+    input_root = tmp_path / "input"
+    input_root.mkdir()
+    real_path = input_root / "real.bin"
+    real_path.write_bytes(b"one-set-of-bytes-answering-to-two-names")
+    link_path = input_root / "link.bin"
+    os.symlink(real_path, link_path)
+    assert link_path.is_symlink()
+    assert os.path.samefile(real_path, link_path)
+
+    with (
+        _sandbox_asset_roots(tmp_path),
+        patch.object(mode, "hashing_enabled", return_value=False),
+    ):
+        created = _scan_pass(session, input_root)
+
+    assert created == 2
+    real_record = get_record_by_path_or_none(session, str(real_path))
+    link_record = get_record_by_path_or_none(session, str(link_path))
+    assert real_record is not None
+    assert link_record is not None
+    assert real_record.content_id != link_record.content_id
+    assert real_record.content.path == str(real_path)
+    assert link_record.content.path == str(link_path)
+    assert real_record.content.is_missing is False
+    assert link_record.content.is_missing is False
+    assert real_record.content.size_bytes == link_record.content.size_bytes
 
 
 def test_scenario_25_registry_birth_fact(session, tmp_path):
