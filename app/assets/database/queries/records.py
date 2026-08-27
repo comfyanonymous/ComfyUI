@@ -41,11 +41,10 @@ _LIVE_PATH_UNIQUE_INDEX = "uq_asset_contents_path_live"
 
 def _is_live_path_conflict(error: IntegrityError) -> bool:
     orig = error.orig
-    diag_name = getattr(getattr(orig, "diag", None), "constraint_name", None)
-    if diag_name == _LIVE_PATH_UNIQUE_INDEX:
-        return True
     message = str(orig)
-    return "UNIQUE constraint failed" in message and "asset_contents.path" in message
+    postgres_names_the_index = getattr(getattr(orig, "diag", None), "constraint_name", None) == _LIVE_PATH_UNIQUE_INDEX
+    sqlite_names_the_column = "UNIQUE constraint failed" in message and "asset_contents.path" in message
+    return postgres_names_the_index or sqlite_names_the_column
 
 
 def create_content(session: Session, path: str, hash: str | None = None, size_bytes: int = 0, mtime_ns: int | None = None) -> AssetContent:
