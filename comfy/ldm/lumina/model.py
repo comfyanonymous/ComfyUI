@@ -20,6 +20,10 @@ import comfy.utils
 from comfy.ldm.chroma_radiance.layers import NerfEmbedder
 from comfy.quant_ops import QuantizedTensor, TensorWiseINT8Layout
 
+_FUSED_RMS_MODULATED = getattr(TensorWiseINT8Layout, "fused_rms_modulated", None)
+_FUSED_SWIGLU_FFN = getattr(TensorWiseINT8Layout, "fused_swiglu_ffn", None)
+
+
 def _int8_convrot_weight(weight) -> bool:
     """Return whether a weight uses the supported INT8 ConvRot layout."""
     return (
@@ -34,6 +38,7 @@ def _fused_rms_modulated_linear(x, linear, norm, modulation_scale):
     weight = getattr(linear, "weight", None)
     if (
         comfy.model_management.in_training
+        or not callable(_FUSED_RMS_MODULATED)
         or not _int8_convrot_weight(weight)
     ):
         return None
@@ -42,7 +47,7 @@ def _fused_rms_modulated_linear(x, linear, norm, modulation_scale):
         comfy.ops.CastBiasWeightContext(linear, x, offloadable=True) as (weight, bias),
     ):
         scale = modulation_scale.to(device=x.device, dtype=x.dtype)
-        fused = TensorWiseINT8Layout.fused_rms_modulated(
+        fused = _FUSED_RMS_MODULATED(
             x, weight, bias, norm_weight, norm.eps, scale,
         )
         return None if fused is NotImplemented else fused
@@ -50,7 +55,10 @@ def _fused_rms_modulated_linear(x, linear, norm, modulation_scale):
 
 def _fused_swiglu_ffn_postnorm(x, feed_forward, norm):
     """Run the post-normalized fused INT8 SwiGLU FFN when supported."""
-    if comfy.model_management.in_training:
+    if (
+        comfy.model_management.in_training
+        or not callable(_FUSED_SWIGLU_FFN)
+    ):
         return None
     w1 = getattr(feed_forward.w1, "weight", None)
     w2 = getattr(feed_forward.w2, "weight", None)
@@ -68,7 +76,7 @@ def _fused_swiglu_ffn_postnorm(x, feed_forward, norm):
         comfy.ops.CastBiasWeightContext(feed_forward.w3, normed, offloadable=True) as (w3, b3),
         comfy.ops.CastBiasWeightContext(feed_forward.w2, normed, offloadable=True) as (w2, b2),
     ):
-        fused = TensorWiseINT8Layout.fused_swiglu_ffn(
+        fused = _FUSED_SWIGLU_FFN(
             normed, w1, w3, w2, b1, b3, b2,
         )
     return None if fused is NotImplemented else fused
@@ -81,6 +89,7 @@ def _fused_swiglu_ffn(x, feed_forward, norm, modulation_scale):
     w3 = getattr(feed_forward.w3, "weight", None)
     if (
         comfy.model_management.in_training
+        or not callable(_FUSED_SWIGLU_FFN)
         or feed_forward.w1.bias is not None
         or feed_forward.w2.bias is not None
         or feed_forward.w3.bias is not None
@@ -94,7 +103,7 @@ def _fused_swiglu_ffn(x, feed_forward, norm, modulation_scale):
         comfy.ops.CastBiasWeightContext(norm, x, offloadable=True) as (norm_weight, _),
     ):
         scale = modulation_scale.to(device=x.device, dtype=x.dtype)
-        fused = TensorWiseINT8Layout.fused_swiglu_ffn(
+        fused = _FUSED_SWIGLU_FFN(
             x, w1, w3, w2, b1, b3, b2,
             norm_weight=norm_weight, norm_eps=norm.eps, modulation_scale=scale,
         )
