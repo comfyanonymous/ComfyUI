@@ -246,29 +246,43 @@ class _ContentFacts(NamedTuple):
 
 
 def _reconcile_live_content_at_path(
-    session: Session, locator: str, facts: _ContentFacts
+    session: Session,
+    locator: str,
+    facts: _ContentFacts,
+    *,
+    content_written: bool,
 ) -> None:
     """Make the live content row at ``locator`` honest about the bytes there.
 
     ``create_content`` resolves a live-path uniqueness conflict
     (``uq_asset_contents_path_live``) by handing back the row already at that
     path, so a caller that registers a path without reconciling first gets the
-    OLD row's hash and size. Three cases, in order:
+    OLD row's hash and size.
 
-    * the hash already matches - the row is honest; leave it completely
-      untouched so same-bytes dedup reuses it as before.
-    * the hash is ``None`` - "not yet hashed", which is NOT evidence of
-      different bytes. Scanner-seeded rows and executed outputs (D14a) both
-      defer hashing to the enrich pass, so retiring here would mark every
-      record on the row missing for a file that never changed. Adopt the hash
-      we just computed the way ``scanner.enrich_asset`` would, unless the row's
-      recorded ``size_bytes`` positively contradicts the file. A differing
-      ``mtime_ns`` is deliberately not treated as contradiction: renaming a
+    ``content_written`` is the caller's own knowledge of whether it just wrote
+    bytes at ``locator``, and it is what makes an unhashed row readable at all:
+    equal ``size_bytes`` is NOT proof of equal bytes, so a caller that replaced
+    the file cannot adopt a fresh hash onto records that were created for the
+    bytes it destroyed. Cases, in order:
+
+    * the hash already matches - proof the bytes are identical, so the OBSERVED
+      stat is the trustworthy one. Refresh it: a touch, a copy, or a same-bytes
+      rewrite moves ``mtime_ns`` without changing a byte, and a row left stale
+      fails ``lookup._stat_consistent``, which makes the content unservable by
+      hash and silently routes the caller into creating a duplicate record.
+    * the hash is ``None`` and the caller wrote nothing - "not yet hashed" is
+      NOT evidence of different bytes. Scanner-seeded rows and executed outputs
+      (D14a) both defer hashing to the enrich pass, so retiring here would mark
+      every record on the row missing for a file that never changed. Adopt the
+      hash we just computed the way ``scanner.enrich_asset`` would, unless the
+      row's recorded ``size_bytes`` positively contradicts the file. A
+      differing ``mtime_ns`` is deliberately not a contradiction: renaming a
       file into place, copying it, or touching it all move the mtime while the
       bytes stay identical.
-    * anything else - a known, different hash means the row describes bytes
-      that are no longer at ``locator``; retire it so the fresh
-      ``create_content`` inserts a new live row.
+    * anything else - a known but different hash, or unhashed bytes the caller
+      has just overwritten. Either way the row can no longer speak for what is
+      at ``locator``: retire it so the fresh ``create_content`` inserts a new
+      live row and the old records keep describing the old bytes.
     """
     existing = session.scalars(
         select(AssetContent).where(
@@ -276,14 +290,91 @@ def _reconcile_live_content_at_path(
             AssetContent.is_missing.is_(False),
         )
     ).first()
-    if existing is None or existing.hash == facts.stored_hash:
+    if existing is None:
         return
-    if existing.hash is None and existing.size_bytes == facts.size_bytes:
+    if existing.hash == facts.stored_hash:
+        existing.size_bytes = facts.size_bytes
+        existing.mtime_ns = facts.mtime_ns
+        session.flush()
+        return
+    if (
+        existing.hash is None
+        and not content_written
+        and existing.size_bytes == facts.size_bytes
+    ):
         existing.hash = facts.stored_hash
         existing.mtime_ns = facts.mtime_ns
         session.flush()
         return
     mark_content_missing(session, existing.id)
+
+
+def _upload_destination_or_none(
+    tags: list[str] | None,
+    digest: str,
+    client_filename: str | None,
+    name: str | None,
+) -> str | None:
+    """Where this upload would land, or ``None`` when the tags do not route there.
+
+    Resolved ahead of the dedup lookup so the destination row can be settled
+    first, but a routing failure is deliberately NOT raised here: the real
+    ``_hash_mode_dest_path`` call stays at its original site below, so an upload
+    that dedups keeps succeeding whatever its tags, exactly as before. Not
+    knowing the destination simply means there is nothing to settle.
+    """
+    if not tags:
+        return None
+    try:
+        return _hash_mode_dest_path(tags, digest, client_filename, name)
+    except ValueError:
+        return None
+
+
+def _settle_destination_before_write(session: Session, dest_abs: str) -> None:
+    """Resolve the live row at an upload destination while its bytes still exist.
+
+    ``upload_from_temp_path`` is about to replace whatever sits at ``dest_abs``,
+    and that write destroys the only evidence of what the incumbent row was
+    created for. So reconcile against the INCUMBENT file's own hash first: an
+    unhashed row learns the hash of the bytes it actually describes, and a row
+    whose hash no longer matches the file is retired. Both outcomes leave the
+    post-move reconciliation with a known hash to compare, so it never has to
+    read equal sizes as equal bytes.
+
+    Running before ``lookup_for_upload_dedup`` is what keeps a merely stale row
+    from being skipped as stat-inconsistent and duplicated.
+    """
+    if not os.path.isfile(dest_abs):
+        return
+    existing = session.scalars(
+        select(AssetContent).where(
+            AssetContent.path == dest_abs,
+            AssetContent.is_missing.is_(False),
+        )
+    ).first()
+    if existing is None:
+        return
+    size_bytes, mtime_ns = get_size_and_mtime_ns(dest_abs)
+    if (
+        existing.hash is not None
+        and existing.size_bytes == size_bytes
+        and existing.mtime_ns == mtime_ns
+    ):
+        return
+    try:
+        incumbent_digest = _snapshot_hash_with_retry(dest_abs)
+    except (UploadUnstableError, OSError):
+        # The incumbent is unreadable or being written; it is unverifiable and
+        # about to be clobbered, so it cannot keep speaking for this path.
+        mark_content_missing(session, existing.id)
+        return
+    _reconcile_live_content_at_path(
+        session,
+        dest_abs,
+        _ContentFacts(to_stored_hash(incumbent_digest), size_bytes, mtime_ns),
+        content_written=False,
+    )
 
 
 def upload_from_temp_path(
@@ -309,7 +400,11 @@ def upload_from_temp_path(
         _remove_temp_path(temp_path)
         raise HashMismatchError("Uploaded file hash does not match provided hash.")
 
+    settle_target = _upload_destination_or_none(tags, digest, client_filename, name)
     with create_session() as session:
+        if settle_target is not None:
+            _settle_destination_before_write(session, settle_target)
+            session.commit()
         dedup = lookup_for_upload_dedup(session, stored_hash, display_name)
 
     if isinstance(dedup, Asset):
@@ -347,10 +442,11 @@ def upload_from_temp_path(
     _move_temp_to_dest(temp_path, dest_abs)
     size_bytes, mtime_ns = get_size_and_mtime_ns(dest_abs)
     with create_session() as session:
-        # Reconciled after the move, unlike register_file_in_place: the dedup
-        # lookup above ran while the destination still held the old bytes.
         _reconcile_live_content_at_path(
-            session, dest_abs, _ContentFacts(stored_hash, size_bytes, mtime_ns)
+            session,
+            dest_abs,
+            _ContentFacts(stored_hash, size_bytes, mtime_ns),
+            content_written=True,
         )
         content = create_content(
             session, dest_abs, stored_hash, size_bytes, mtime_ns
@@ -380,12 +476,22 @@ def register_file_in_place(
     name: str,
     tags: list[str],
     mime_type: str | None = None,
+    *,
+    content_written: bool = True,
 ) -> UploadResult:
     """Register an already-saved file in the asset database without moving it.
 
     Used by ``/upload/image`` after the handler writes (or reuses) bytes on disk.
     ``compare_image_hash`` same-name dedup is legacy physical behavior and stays
     outside hash-mode policy (parallel to path-form ``/view`` semantics).
+
+    ``content_written`` reports whether the caller just wrote bytes at
+    ``abs_path``. The handler always knows - ``/upload/image`` skips the write
+    exactly when ``compare_image_hash`` proves the bytes are already there - and
+    it is the only sound way to reconcile an unhashed row at that path, because
+    the bytes it was created for are gone by the time we are called. It defaults
+    to the conservative answer so a caller that does not know retires rather
+    than adopts.
     """
     locator = os.path.abspath(abs_path)
     display_name = _sanitize_filename(name, fallback=os.path.basename(locator))
@@ -406,7 +512,10 @@ def register_file_in_place(
         # branches return early, and only a reconciled row is visible to
         # lookup_for_upload_dedup as the record to reuse.
         _reconcile_live_content_at_path(
-            session, locator, _ContentFacts(stored_hash, size_bytes, mtime_ns)
+            session,
+            locator,
+            _ContentFacts(stored_hash, size_bytes, mtime_ns),
+            content_written=content_written,
         )
         session.commit()
         dedup = lookup_for_upload_dedup(session, stored_hash, display_name)

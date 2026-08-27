@@ -445,7 +445,12 @@ class PromptServer():
                         tag = image_upload_type if image_upload_type in ("input", "output") else "input"
                         tags = [tag]
                         tags.extend(get_known_subfolder_tags(subfolder))
-                        result = register_file_in_place(abs_path=filepath, name=filename, tags=tags)
+                        result = register_file_in_place(
+                            abs_path=filepath,
+                            name=filename,
+                            tags=tags,
+                            content_written=not image_is_duplicate,
+                        )
                         resp["asset"] = {
                             "id": result.ref.id,
                             "name": result.ref.name,

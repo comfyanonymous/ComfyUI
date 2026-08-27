@@ -21,7 +21,18 @@ from app.assets.services.ingest import (
     register_file_in_place,
     upload_from_temp_path,
 )
+from app.assets.services.lookup import lookup_for_view
 from app.assets.services.snapshot_hash import snapshot_hash
+
+
+def _bump_mtime(path: str) -> int:
+    """Move a file's mtime without touching a byte, and report the new value."""
+    _, mtime_ns = get_size_and_mtime_ns(path)
+    moved = mtime_ns + 1_000_000_000
+    os.utime(path, ns=(moved, moved))
+    observed = get_size_and_mtime_ns(path)[1]
+    assert observed != mtime_ns
+    return observed
 
 
 @pytest.fixture
@@ -317,9 +328,12 @@ def test_register_file_in_place_unhashed_unchanged_file_is_not_retired(
 ):
     """Given a live content row at a path with hash=None (scanner-seeded, or an
     executed output whose hashing is deferred to enrich), When the SAME
-    unchanged file is registered in place, Then the row stays live and its
-    records are not tagged missing - an unknown hash is not evidence of
-    different bytes.
+    unchanged file is registered in place by a caller that wrote nothing, Then
+    the row stays live and its records are not tagged missing - an unknown hash
+    is not evidence of different bytes.
+
+    ``content_written=False`` is exactly what ``/upload/image`` reports on its
+    ``compare_image_hash`` duplicate branch, where it skips the write.
     """
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
@@ -334,7 +348,10 @@ def test_register_file_in_place_unhashed_unchanged_file_is_not_retired(
             )
 
         register_file_in_place(
-            abs_path=path, name="unhashed_noop.png", tags=["output"]
+            abs_path=path,
+            name="unhashed_noop.png",
+            tags=["output"],
+            content_written=False,
         )
 
         with mock_create_session() as session:
@@ -360,9 +377,9 @@ def test_register_file_in_place_unhashed_unchanged_file_adopts_hash(
     mock_create_session, hashing_on
 ):
     """Given a live content row at a path with hash=None, When the SAME
-    unchanged file is registered in place, Then the existing row adopts the
-    freshly-computed hash and the call resolves to the record already on it -
-    a no-op re-registration stays a no-op.
+    unchanged file is registered in place by a caller that wrote nothing, Then
+    the existing row adopts the freshly-computed hash and the call resolves to
+    the record already on it - a no-op re-registration stays a no-op.
     """
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
@@ -378,7 +395,10 @@ def test_register_file_in_place_unhashed_unchanged_file_adopts_hash(
         expected_hash = to_stored_hash(_digest_of(path))
 
         result = register_file_in_place(
-            abs_path=path, name="unhashed_adopt.png", tags=["output"]
+            abs_path=path,
+            name="unhashed_adopt.png",
+            tags=["output"],
+            content_written=False,
         )
 
         assert result.ref.id == record_id
@@ -397,35 +417,50 @@ def test_register_file_in_place_unhashed_unchanged_file_adopts_hash(
 def test_register_file_in_place_unhashed_changed_file_is_retired(
     mock_create_session, hashing_on
 ):
-    """Given a live content row at a path with hash=None, When the file is
-    overwritten with bytes of a different size and re-registered, Then the row
-    is retired and its records tagged missing - a recorded size the file no
-    longer has is positive evidence the bytes changed.
+    """Given a live content row at a path with hash=None, When ``/upload/image``
+    overwrites the file with DIFFERENT bytes of the SAME size and re-registers
+    it, Then the row is retired and its records tagged missing.
+
+    Same-sized bytes are the discriminating fixture: a differing size would let
+    a size-equality heuristic reach the same verdict by accident. The bytes
+    here are indistinguishable by ``stat``, so only the caller's own
+    ``content_written`` signal can decide - and adopting the new hash onto the
+    row would leave the seeded record describing bytes that no longer exist.
     """
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
     path = os.path.join(output_dir, "unhashed_changed.png")
+    original = b"scanner-seeded-original-bytes"
+    replacement = b"Z" * len(original)
     try:
         with open(path, "wb") as file:
-            file.write(b"scanner-seeded-original-bytes")
+            file.write(original)
         with mock_create_session() as session:
             content_id, record_id = _seed_live_content(
                 session, os.path.abspath(path), None
             )
         with open(path, "wb") as file:
-            file.write(b"v2")
+            file.write(replacement)
         expected_hash = to_stored_hash(_digest_of(path))
 
         result = register_file_in_place(
-            abs_path=path, name="unhashed_changed.png", tags=["output"]
+            abs_path=path,
+            name="unhashed_changed.png",
+            tags=["output"],
+            content_written=True,
         )
 
         assert result.asset.hash == expected_hash
         with mock_create_session() as session:
             stale = session.get(AssetContent, content_id)
             assert stale is not None
+            assert stale.hash != expected_hash
             assert stale.is_missing is True
             assert _is_missing_tagged(session, record_id) is True
+            seeded_record = session.get(Asset, record_id)
+            assert seeded_record is not None
+            assert seeded_record.content_id == content_id
+            assert result.ref.id != record_id
             live = list(
                 session.scalars(
                     select(AssetContent).where(
@@ -436,6 +471,54 @@ def test_register_file_in_place_unhashed_changed_file_is_retired(
             )
             assert len(live) == 1
             assert live[0].hash == expected_hash
+            assert live[0].id != content_id
+    finally:
+        if os.path.exists(path):
+            os.unlink(path)
+
+
+def test_register_file_in_place_matching_hash_refreshes_stale_stat(
+    mock_create_session, hashing_on
+):
+    """Given a live row whose hash matches the file but whose stored mtime_ns
+    has gone stale, When the unchanged file is re-registered in place, Then the
+    row's stat is refreshed so ``lookup`` serves it by hash again and the
+    existing record is reused instead of a duplicate being created.
+
+    A matching hash IS proof of byte equality, so the observed stat is the
+    trustworthy one - leaving the row stale makes it fail ``_stat_consistent``,
+    which silently pushes the caller down the create-a-new-record path.
+    """
+    output_dir = folder_paths.get_output_directory()
+    os.makedirs(output_dir, exist_ok=True)
+    path = os.path.join(output_dir, "stale_mtime.png")
+    payload = b"stale-mtime-bytes"
+    try:
+        with open(path, "wb") as file:
+            file.write(payload)
+        stored_hash = to_stored_hash(_digest_of(path))
+        with mock_create_session() as session:
+            content_id, record_id = _seed_live_content(
+                session, os.path.abspath(path), stored_hash
+            )
+        observed_mtime = _bump_mtime(path)
+
+        result = register_file_in_place(
+            abs_path=path, name="stale_mtime.png", tags=["output"]
+        )
+
+        assert result.ref.id == record_id
+        assert result.created_new is False
+        with mock_create_session() as session:
+            content = session.get(AssetContent, content_id)
+            assert content is not None
+            assert content.is_missing is False
+            assert content.mtime_ns == observed_mtime
+            assert content.size_bytes == len(payload)
+            served = lookup_for_view(session, stored_hash)
+            assert served is not None
+            assert served.id == content_id
+            assert session.scalar(select(func.count()).select_from(Asset)) == 1
     finally:
         if os.path.exists(path):
             os.unlink(path)
@@ -474,6 +557,111 @@ def test_upload_unhashed_row_at_destination_is_not_retired(
             assert content is not None
             assert content.is_missing is False
             assert _is_missing_tagged(session, record_id) is False
+    finally:
+        for path in (temp, dest):
+            if os.path.exists(path):
+                os.unlink(path)
+
+
+def test_upload_unhashed_destination_holding_other_bytes_is_retired(
+    mock_create_session, hashing_on
+):
+    """Given a hash-derived destination whose live row has hash=None but whose
+    file holds DIFFERENT bytes of the SAME size, When an upload replaces those
+    bytes, Then the row is retired instead of adopting the upload's hash.
+
+    ``upload_from_temp_path`` shares the reconciliation helper with
+    ``register_file_in_place``, so it must reach the same verdict: the seeded
+    record was created for the decoy bytes and must never end up attached to
+    content claiming the uploaded digest.
+    """
+    payload = b"upload-other-bytes-payload"
+    probe = _write_temp(payload)
+    digest = _digest_of(probe)
+    os.unlink(probe)
+    output_dir = folder_paths.get_output_directory()
+    os.makedirs(output_dir, exist_ok=True)
+    dest = os.path.join(output_dir, f"{digest}.bin")
+    decoy = b"X" * len(payload)
+    temp = _write_temp(payload)
+    try:
+        with open(dest, "wb") as file:
+            file.write(decoy)
+        with mock_create_session() as session:
+            content_id, record_id = _seed_live_content(session, dest, None)
+
+        result = upload_from_temp_path(
+            temp_path=temp, name="up.bin", tags=["output"], client_filename="up.bin"
+        )
+
+        assert result.asset.hash == to_stored_hash(digest)
+        assert open(dest, "rb").read() == payload
+        with mock_create_session() as session:
+            stale = session.get(AssetContent, content_id)
+            assert stale is not None
+            assert stale.hash != to_stored_hash(digest)
+            assert stale.is_missing is True
+            assert _is_missing_tagged(session, record_id) is True
+            live = list(
+                session.scalars(
+                    select(AssetContent).where(
+                        AssetContent.path == dest,
+                        AssetContent.is_missing.is_(False),
+                    )
+                )
+            )
+            assert len(live) == 1
+            assert live[0].hash == to_stored_hash(digest)
+            assert live[0].id != content_id
+    finally:
+        for path in (temp, dest):
+            if os.path.exists(path):
+                os.unlink(path)
+
+
+def test_upload_matching_hash_stale_stat_reuses_record(
+    mock_create_session, hashing_on
+):
+    """Given a destination already holding the uploaded bytes under a live row
+    whose hash matches but whose stored mtime_ns has gone stale, When those
+    bytes are uploaded again, Then the row's stat is refreshed, it is servable
+    by hash, and the existing record is reused rather than duplicated.
+    """
+    payload = b"upload-stale-stat-bytes"
+    probe = _write_temp(payload)
+    digest = _digest_of(probe)
+    os.unlink(probe)
+    stored_hash = to_stored_hash(digest)
+    output_dir = folder_paths.get_output_directory()
+    os.makedirs(output_dir, exist_ok=True)
+    dest = os.path.join(output_dir, f"{digest}.bin")
+    temp = _write_temp(payload)
+    try:
+        with open(dest, "wb") as file:
+            file.write(payload)
+        with mock_create_session() as session:
+            content_id, record_id = _seed_live_content(session, dest, stored_hash)
+        _bump_mtime(dest)
+
+        result = upload_from_temp_path(
+            temp_path=temp,
+            name=os.path.basename(dest),
+            tags=["output"],
+            client_filename="up.bin",
+        )
+
+        assert result.ref.id == record_id
+        assert result.created_new is False
+        with mock_create_session() as session:
+            content = session.get(AssetContent, content_id)
+            assert content is not None
+            assert content.is_missing is False
+            assert content.mtime_ns == get_size_and_mtime_ns(dest)[1]
+            assert content.size_bytes == len(payload)
+            served = lookup_for_view(session, stored_hash)
+            assert served is not None
+            assert served.id == content_id
+            assert session.scalar(select(func.count()).select_from(Asset)) == 1
     finally:
         for path in (temp, dest):
             if os.path.exists(path):
