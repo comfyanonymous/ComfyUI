@@ -1578,13 +1578,16 @@ def get_disk_swap_total():
         logging.warning("Could not get amount of swap memory on system.")
     return total
 
+def calculate_max_pinned_memory(ram_override, ram):
+    if ram_override is not None:
+        return ram_override * 1024 ** 3
+    if WINDOWS:
+        return ram * 0.40  # Windows limit is apparently 50%
+    return max(ram * 0.40, min(ram * 0.90, ram - 4 * 1024 ** 3, ram + get_disk_swap_total() - 16 * 1024 ** 3))
+
 if not args.disable_pinned_memory:
     if is_nvidia() or is_amd():
-        ram = get_total_memory(torch.device("cpu"))
-        if WINDOWS:
-            MAX_PINNED_MEMORY = ram * 0.40  # Windows limit is apparently 50%
-        else:
-            MAX_PINNED_MEMORY = max(ram * 0.40, min(ram * 0.90, ram - 4 * 1024 ** 3, ram + get_disk_swap_total() - 16 * 1024 ** 3))
+        MAX_PINNED_MEMORY = calculate_max_pinned_memory(args.pinned_memory, get_total_memory(torch.device("cpu")))
         logging.info("Enabled pinned memory {}".format(MAX_PINNED_MEMORY // (1024 * 1024)))
 
 PINNING_ALLOWED_TYPES = set(["Tensor", "Parameter", "QuantizedTensor"])
