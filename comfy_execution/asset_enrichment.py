@@ -1,7 +1,7 @@
 import copy
 import logging
 import os
-from typing import TYPE_CHECKING, Callable, Protocol
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from app.assets.manager import AssetManager
@@ -11,7 +11,11 @@ if TYPE_CHECKING:
 
 class _CachedOutput(Protocol):
     @property
-    def ui(self) -> dict: ...
+    def ui(self) -> dict | None: ...
+
+
+class _Register(Protocol):
+    def __call__(self, abs_path: str, job_id: str | None) -> "RegisteredAsset | None": ...
 
 
 def _resolve_output_path(entry: dict) -> str | None:
@@ -40,7 +44,7 @@ def _resolve_output_path(entry: dict) -> str | None:
 def _enrich_in_place(
     output_ui: dict,
     job_id: str | None,
-    register: Callable[[str, str | None], "RegisteredAsset | None"],
+    register: _Register,
 ) -> None:
     """S10.6: producers that write the same output path are not coalesced (unsupported)."""
     for entries in output_ui.values():

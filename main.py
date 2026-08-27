@@ -500,6 +500,8 @@ def setup_database(asset_manager):
             )
             sys.exit(1)
         logging.error(f"Failed to initialize database. Please ensure you have installed the latest requirements. If the error persists, please report this as in future the database will be required: {e}")
+
+
 def start_comfyui(asyncio_loop=None):
     """
     Starts the ComfyUI server using the provided asyncio event loop or creates a new one.
