@@ -78,7 +78,6 @@ def _shutdown_assets() -> None:
 class NoAssets:
     def __init__(self, args: _ArgsLike) -> None:
         self._args = args
-        mode.init(self._args)
 
     @property
     def enabled(self) -> bool:
@@ -139,7 +138,6 @@ class AssetsEnabled:
     def __init__(self, args: _ArgsLike) -> None:
         self._args = args
         self._enable_asset_hashing = args.enable_asset_hashing
-        mode.init(self._args)
 
     @property
     def enabled(self) -> bool:
