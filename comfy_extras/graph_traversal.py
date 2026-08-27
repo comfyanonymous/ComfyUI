@@ -94,20 +94,3 @@ def loop_projection(dynprompt, opener_id):
         raise ValueError(f"Loop {opener_id} contains a dependency cycle")
 
     return projected, close_nodes, variable_nodes
-
-
-def ascendants(dynprompt, node_id, stop_at=None):
-    stop_at = stop_at or (lambda _node_id: False)
-
-    def parent_ids(candidate_id):
-        node = dynprompt.get_node(candidate_id)
-        parents = []
-        for value in node.get("inputs", {}).values():
-            if not is_link(value):
-                continue
-            parent_id = value[0]
-            if not stop_at(parent_id):
-                parents.append(parent_id)
-        return parents
-
-    return _walk_graph(parent_ids(node_id), parent_ids)

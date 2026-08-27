@@ -4,14 +4,6 @@ from comfy_execution.graph_utils import is_link
 from server import PromptServer
 
 
-def close_state(execution_list, node_id):
-    state = execution_list.get_projection_state(node_id)
-    if state is None:
-        state = {}
-        execution_list.set_projection_state(node_id, state)
-    return state
-
-
 class Loop(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -30,7 +22,7 @@ class Loop(io.ComfyNode):
                         io.Int.Input("step", default=1),
                     ]),
                 ]),
-                io.Int.Input("iteration_outer", optional=True, force_input=True, advanced=True),
+                io.Int.Input("iteration_outer", optional=True, force_input=True),
             ],
             outputs=[
                 io.Int.Output("iteration"),
@@ -44,12 +36,12 @@ class Loop(io.ComfyNode):
     def execute(cls, mode, iteration_outer=None):
         selected_mode = mode.get("mode", "simple")
         if selected_mode == "simple":
-            values = list(range(mode.get("num_iterations", 4)))
+            values = range(mode.get("num_iterations", 4))
         else:
             step = mode.get("step", 1)
             if step == 0:
                 raise ValueError("Loop step must not be 0")
-            values = list(range(mode.get("start_iteration", 0), mode.get("max_iteration", 4), step))
+            values = range(mode.get("start_iteration", 0), mode.get("max_iteration", 4), step)
 
         dynprompt = cls.hidden.dynprompt
         execution_list = cls.hidden.execution_list
@@ -105,10 +97,13 @@ class Loop(io.ComfyNode):
                 "internal_variable_sources": internal_variable_sources,
             }
             execution_list.set_projection_state(unique_id, state)
-            execution_list.project_nodes(state["projected_nodes"], state["scheduled_nodes"])
+            state["projected_nodes"], state["scheduled_nodes"] = execution_list.project_nodes(
+                state["projected_nodes"], state["scheduled_nodes"]
+            )
             execution_list.requeue_nodes(close_nodes)
             for node_id, (source_id, source_socket) in close_sources.items():
-                node_state = close_state(execution_list, node_id)
+                node_state = {}
+                execution_list.set_projection_state(node_id, node_state)
                 node_state["values"] = []
                 node_state["unblock"] = execution_list.add_external_block(node_id)
                 if source_id != unique_id:
@@ -119,8 +114,6 @@ class Loop(io.ComfyNode):
                     execution_list.add_strong_link(source_id, source_socket, unique_id)
                 elif source_id != unique_id:
                     execution_list.cache_link(source_id, unique_id, source_socket)
-            state["projected_nodes"] = execution_list.get_projected_nodes(unique_id)
-            state["scheduled_nodes"] = execution_list.get_projection_scheduled_nodes(unique_id)
         elif state["index"] >= 0:
             for node_id, (source_id, source_socket) in state["close_sources"].items():
                 values = execution_list.get_projection_state(node_id)["values"]
@@ -147,11 +140,11 @@ class Loop(io.ComfyNode):
                 PromptServer.instance.send_progress_text("Iteration 0 / 0", unique_id)
             for node_id in state["close_sources"]:
                 execution_list.get_projection_state(node_id)["unblock"]()
-            execution_list.release_projected_nodes(state["projected_nodes"])
+            execution_list.release_projected_nodes()
             for node_id in state["variable_sources"]:
                 execution_list.clear_projection_state(node_id)
             execution_list.clear_projection_state(unique_id)
-            return io.NodeOutput(None, False, True, ui={"text": ("<complete>",)})
+            return io.NodeOutput(None, False, True)
 
         execution_list.requeue_nodes(
             state["scheduled_nodes"].union(state["nested_openers"]),

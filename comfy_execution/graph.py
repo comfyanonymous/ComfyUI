@@ -1,4 +1,3 @@
-from enum import IntEnum
 from typing import Type, Literal
 
 import nodes
@@ -11,12 +10,6 @@ from comfy.comfy_types.node_typing import ComfyNodeABC, InputTypeDict, InputType
 ExecutionBlocker = ExecutionBlocker
 
 PROJECTED_BLOCKER = "__projected__"
-
-
-class DeferredStagedNodeState(IntEnum):
-    NOT_DEFERRED = 0
-    DEFERRED = 1
-    DEFERRED_WITH_CACHE = 2
 
 class DependencyCycleError(Exception):
     pass
@@ -223,29 +216,29 @@ class ExecutionList(TopologicalSort):
         self.increment_pending_nodes = set()
         self.spent_nodes = set()
         self.projection_states = {}
-        self.deferred_staged_node_state = DeferredStagedNodeState.NOT_DEFERRED
+        self.staged_node_deferred = False
 
     def is_cached(self, node_id):
         return self.output_cache.get_local(node_id) is not None
 
-    def effective_blockers(self, node_id):
-        return {
-            blocker_id for blocker_id in self.blockers[node_id]
-            if blocker_id not in self.increment_pending_nodes
+    def has_effective_blockers(self, node_id):
+        return any(
+            blocker_id not in self.increment_pending_nodes
             and self.execution_cache.get(node_id, {}).get(blocker_id) is None
-        }
+            for blocker_id in self.blockers[node_id]
+        )
 
     def get_ready_nodes(self):
         return [
             node_id for node_id in self.pendingNodes
             if node_id not in self.increment_pending_nodes
-            and len(self.effective_blockers(node_id)) == 0
+            and not self.has_effective_blockers(node_id)
         ]
 
-    def project_nodes(self, node_ids, scheduled_node_ids=None):
+    def project_nodes(self, node_ids, scheduled_node_ids):
         projector_id = self.staged_node_id
         node_ids = set(node_ids)
-        scheduled_node_ids = set(node_ids if scheduled_node_ids is None else scheduled_node_ids)
+        scheduled_node_ids = set(scheduled_node_ids)
         self.projection_nodes[projector_id] = node_ids
         self.projection_scheduled_nodes[projector_id] = scheduled_node_ids
         for node_id in node_ids:
@@ -257,6 +250,7 @@ class ExecutionList(TopologicalSort):
             if node_id in scheduled_node_ids:
                 self.blocking[node_id].setdefault(projector_id, {})[PROJECTED_BLOCKER] = True
                 self.blockers[projector_id].add(node_id)
+        return node_ids, scheduled_node_ids
 
     def inherit_projected_nodes(self, parent_id, node_ids):
         owners = self.projected_node_owners.get(parent_id, ())
@@ -276,8 +270,9 @@ class ExecutionList(TopologicalSort):
                 else:
                     self.increment_pending_nodes.add(node_id)
 
-    def release_projected_nodes(self, node_ids):
+    def release_projected_nodes(self):
         projector_id = self.staged_node_id
+        node_ids = self.projection_nodes[projector_id]
         for node_id in node_ids:
             if node_id in self.blocking and projector_id in self.blocking[node_id]:
                 self.blocking[node_id][projector_id].pop(PROJECTED_BLOCKER, None)
@@ -302,17 +297,8 @@ class ExecutionList(TopologicalSort):
         self.projection_nodes.pop(projector_id, None)
         self.projection_scheduled_nodes.pop(projector_id, None)
 
-    def get_projected_nodes(self, projector_id):
-        return self.projection_nodes[projector_id]
-
-    def get_projection_scheduled_nodes(self, projector_id):
-        return self.projection_scheduled_nodes[projector_id]
-
     def is_spent_node(self, node_id):
         return node_id in self.spent_nodes
-
-    def all_increment_pending(self, node_ids):
-        return all(node_id in self.increment_pending_nodes for node_id in node_ids)
 
     def get_projection_state(self, projector_id):
         return self.projection_states.get(projector_id)
@@ -323,11 +309,11 @@ class ExecutionList(TopologicalSort):
     def clear_projection_state(self, projector_id):
         self.projection_states.pop(projector_id, None)
 
-    def defer_staged_node(self, state=DeferredStagedNodeState.DEFERRED_WITH_CACHE):
-        self.deferred_staged_node_state = DeferredStagedNodeState(state)
+    def defer_staged_node(self):
+        self.staged_node_deferred = True
 
-    def get_defer_staged_state(self):
-        return self.deferred_staged_node_state
+    def is_staged_node_deferred(self):
+        return self.staged_node_deferred
 
     def requeue_nodes(self, node_ids, invalidate_node_ids=None):
         node_ids = set(node_ids)
@@ -509,12 +495,12 @@ class ExecutionList(TopologicalSort):
 
     def unstage_node_execution(self):
         assert self.staged_node_id is not None
-        self.deferred_staged_node_state = DeferredStagedNodeState.NOT_DEFERRED
+        self.staged_node_deferred = False
         self.staged_node_id = None
 
     def complete_node_execution(self):
         node_id = self.staged_node_id
-        self.deferred_staged_node_state = DeferredStagedNodeState.NOT_DEFERRED
+        self.staged_node_deferred = False
         self.deferred_output_cache.pop(node_id, None)
         if node_id in self.projected_node_counts:
             self.increment_pending_nodes.add(node_id)
