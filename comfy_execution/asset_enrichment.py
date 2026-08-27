@@ -1,10 +1,11 @@
 import copy
 import logging
 import os
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Callable, Protocol
 
 if TYPE_CHECKING:
     from app.assets.manager import AssetManager
+    from app.assets.services.schemas import RegisteredAsset
     from comfy_execution.server_protocol import ExecutionServer
 
 
@@ -36,7 +37,11 @@ def _resolve_output_path(entry: dict) -> str | None:
     return abs_path
 
 
-def _enrich_in_place(output_ui: dict, job_id, register) -> None:
+def _enrich_in_place(
+    output_ui: dict,
+    job_id: str | None,
+    register: Callable[[str, str | None], "RegisteredAsset | None"],
+) -> None:
     """S10.6: producers that write the same output path are not coalesced (unsupported)."""
     for entries in output_ui.values():
         if not isinstance(entries, list):

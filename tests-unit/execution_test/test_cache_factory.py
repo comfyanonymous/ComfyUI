@@ -1,3 +1,5 @@
+from types import ModuleType
+
 import pytest
 
 
@@ -15,7 +17,7 @@ class _Server:
 
 
 @pytest.fixture
-def execution_module(monkeypatch):
+def execution_module(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     try:
         from comfy.cli_args import args
         monkeypatch.setattr(args, "cpu", True, raising=False)
@@ -26,7 +28,7 @@ def execution_module(monkeypatch):
     return execution
 
 
-def test_cache_factory_supplies_caches_on_construction(execution_module) -> None:
+def test_cache_factory_supplies_caches_on_construction(execution_module: ModuleType) -> None:
     sentinel = execution_module.CacheSet(cache_type=execution_module.CacheType.NONE)
 
     executor = execution_module.PromptExecutor(_Server(), cache_factory=lambda: sentinel)
@@ -34,7 +36,7 @@ def test_cache_factory_supplies_caches_on_construction(execution_module) -> None
     assert executor.caches is sentinel
 
 
-def test_default_cache_factory_uses_cache_type_and_args(execution_module) -> None:
+def test_default_cache_factory_uses_cache_type_and_args(execution_module: ModuleType) -> None:
     executor = execution_module.PromptExecutor(
         _Server(), cache_type=execution_module.CacheType.LRU, cache_args={"lru": 7}
     )
@@ -43,8 +45,8 @@ def test_default_cache_factory_uses_cache_type_and_args(execution_module) -> Non
     assert executor.caches.outputs.max_size == 7
 
 
-def test_cache_factory_exceptions_propagate_from_construction(execution_module) -> None:
-    def raise_boom():
+def test_cache_factory_exceptions_propagate_from_construction(execution_module: ModuleType) -> None:
+    def raise_boom() -> None:
         raise RuntimeError("boom")
 
     with pytest.raises(RuntimeError, match="boom"):
