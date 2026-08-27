@@ -323,6 +323,7 @@ class FinalLayer(nn.Module):
         i = int((sample_sigmas - sigma).abs().argmin())
         sigma_next = sample_sigmas[min(i + 1, sample_sigmas.shape[0] - 1)]
         start, stop = (round(float(1.0 - time_shift_sigma(s, shifts[0], 1.0)) * n) for s in (sigma, sigma_next))
+        start = min(start, n - 1)
         stop = max(stop, start + 1)
         return (_pdd_head(self.video_out, mod(video_seg), n, start, stop, shifts[0]),
                 _pdd_head(self.audio_out, mod(audio_seg), n, start, stop, shifts[1]))
