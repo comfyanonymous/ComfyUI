@@ -181,6 +181,7 @@ class CloseLoop(io.ComfyNode):
             node_id="CloseLoop",
             display_name="Close Loop",
             category="looping",
+            is_input_list=True,
             inputs=[
                 io.MatchType.Input("value", matchtype, lazy=True),
             ],
