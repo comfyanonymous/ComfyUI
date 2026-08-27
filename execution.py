@@ -573,6 +573,24 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
             # are registered even when no client is connected, and the asset id
             # flows into ui_outputs and the cache alongside the raw entries.
             output_ui = enrich_output_with_assets(output_ui)
+            history_output_ui = output_ui
+            previous_ui = ui_outputs.get(unique_id)
+            if previous_ui is not None:
+                # Looped nodes reuse their ID. Accumulate saved files in history,
+                # while output_ui remains iteration-local for the live preview.
+                previous_output = previous_ui["output"]
+                history_output_ui = dict(output_ui)
+                for key, entries in output_ui.items():
+                    previous_entries = previous_output.get(key)
+                    if (
+                        isinstance(entries, list)
+                        and isinstance(previous_entries, list)
+                        and all(
+                            isinstance(entry, dict) and "filename" in entry and "type" in entry
+                            for entry in entries
+                        )
+                    ):
+                        history_output_ui[key] = previous_entries + entries
             ui_outputs[unique_id] = {
                 "meta": {
                     "node_id": unique_id,
@@ -580,7 +598,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                     "parent_node": parent_node_id,
                     "real_node_id": real_node_id,
                 },
-                "output": output_ui
+                "output": history_output_ui
             }
             if server.client_id is not None:
                 server.send_sync("executed", { "node": unique_id, "display_node": display_node_id, "output": output_ui, "prompt_id": prompt_id }, server.client_id)
