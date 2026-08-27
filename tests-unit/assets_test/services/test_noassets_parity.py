@@ -1,8 +1,12 @@
+from collections.abc import Callable
+from contextlib import AbstractContextManager
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 from aiohttp import web
+from aiohttp.pytest_plugin import AiohttpClient
+from sqlalchemy.orm import Session
 
 import folder_paths
 from app.assets import lifecycle
@@ -28,7 +32,7 @@ def _no_assets(*, hashing: bool = False) -> NoAssets:
 
 @pytest.mark.asyncio
 async def test_noassets_register_routes_returns_service_disabled_and_disables_seeder(
-    aiohttp_client, monkeypatch: pytest.MonkeyPatch
+    aiohttp_client: AiohttpClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(routes, "_ASSETS_ENABLED", False)
     monkeypatch.setattr(asset_seeder, "_disabled", False)
@@ -44,7 +48,10 @@ async def test_noassets_register_routes_returns_service_disabled_and_disables_se
 
 
 def test_noassets_startup_applies_hash_mode_persists_state_and_cleans_temp_dir(
-    mock_create_session, session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    mock_create_session: Callable[[], AbstractContextManager[Session]],
+    session: Session,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     temp_file = tmp_path / "startup-stale.bin"
     temp_file.write_bytes(b"stale")
@@ -59,7 +66,10 @@ def test_noassets_startup_applies_hash_mode_persists_state_and_cleans_temp_dir(
 
 
 def test_noassets_shutdown_wipes_temp_rows_and_files(
-    mock_create_session, session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    mock_create_session: Callable[[], AbstractContextManager[Session]],
+    session: Session,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     manager = _no_assets()
     monkeypatch.setattr(lifecycle, "create_session", mock_create_session)
@@ -85,7 +95,9 @@ def test_noassets_shutdown_wipes_temp_rows_and_files(
 
 
 def test_noassets_shutdown_runs_cleanup_after_unsuccessful_seeder_shutdown(
-    mock_create_session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    mock_create_session: Callable[[], AbstractContextManager[Session]],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     temp_file = tmp_path / "seeder-timeout.bin"
     temp_file.write_bytes(b"stale")
