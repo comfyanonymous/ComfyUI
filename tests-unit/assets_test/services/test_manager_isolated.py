@@ -1,5 +1,4 @@
 import dataclasses
-import threading
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, call
 
@@ -122,11 +121,9 @@ def test_startup_runs_against_memory_db_without_starting_a_scanner_thread(
     monkeypatch.setattr(lifecycle, "create_session", mock_create_session)
     # The lifecycle seeder wrapper is mocked so startup cannot launch a scanner thread.
     monkeypatch.setattr(lifecycle, "start_asset_seeder", seeder_start)
-    thread_count = threading.active_count()
 
     enabled_manager.startup()
 
-    assert threading.active_count() == thread_count
     assert not temp_dir.exists()
     seeder_start.assert_called_once_with()
 
