@@ -333,14 +333,12 @@ def _pdd_head(head, h, n, start, stop, flow_shift):
     grid = torch.linspace(1.0, 0.0, n + 1, dtype=torch.float64)
     dt = (1.0 - flow_shift * grid / (1.0 + (flow_shift - 1.0) * grid)).diff()[start:stop]
     w = (dt / dt.sum()).to(h)
-    weight, bias, offload_stream = comfy.ops.cast_bias_weight(head, h, offloadable=True)
-    rows = weight.reshape(n, -1, weight.shape[1])
-    brows = bias.reshape(n, -1)
-    first = max(start, 1)
-    out = nn.functional.linear(h, rows[0] + torch.einsum("n,noi->oi", w[first - start:], rows[first:stop]),
-                               brows[0] + torch.einsum("n,no->o", w[first - start:], brows[first:stop]))
-    comfy.ops.uncast_bias_weight(head, weight, bias, offload_stream)
-    return out
+    with comfy.ops.CastBiasWeightContext(head, h, offloadable=True) as (weight, bias):
+        rows = weight.reshape(n, -1, weight.shape[1])
+        brows = bias.reshape(n, -1)
+        first = max(start, 1)
+        return nn.functional.linear(h, rows[0] + torch.einsum("n,noi->oi", w[first - start:], rows[first:stop]),
+                                    brows[0] + torch.einsum("n,no->o", w[first - start:], brows[first:stop]))
 
 
 class PackedLayout:
