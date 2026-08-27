@@ -86,14 +86,6 @@ def test_all_path_fields_null_without_file_path():
 
 
 def test_display_name_and_file_path_are_serialized(tmp_path: Path):
-    """Serialisation guard: both display_name and file_path survive
-    model_dump(mode="json").
-
-    display_name previously carried exclude=True, which silently dropped it
-    from every serialised response; file_path was never wired through at all.
-    Asserting on the dumped payload (not just attribute access) is what would
-    have caught either regression, so this guards the JSON contract directly.
-    """
     models = tmp_path / "models"
     ckpt = models / "checkpoints"
     ckpt.mkdir(parents=True)

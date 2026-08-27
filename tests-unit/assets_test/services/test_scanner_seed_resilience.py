@@ -42,15 +42,12 @@ def _record_count(session: Session) -> int:
 def test_seed_persists_remaining_specs_when_path_vanishes_before_restat(
     session: Session, temp_dir: Path
 ) -> None:
-    # Given
     specs, vanished_path = _specs_with_vanished_path(temp_dir)
     vanished_path.unlink()
 
-    # When
     created = seed_asset_specs(session, specs)
     session.commit()
 
-    # Then
     assert created == 2
     assert _record_count(session) == 2
 
@@ -58,7 +55,6 @@ def test_seed_persists_remaining_specs_when_path_vanishes_before_restat(
 def test_seed_persists_remaining_specs_when_path_vanishes_during_recovery_hash(
     session: Session, temp_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Given
     specs, vanished_path = _specs_with_vanished_path(temp_dir)
 
     def _hash_or_raise(path: str) -> str | None:
@@ -69,12 +65,10 @@ def test_seed_persists_remaining_specs_when_path_vanishes_during_recovery_hash(
 
     monkeypatch.setattr("app.assets.scanner_changes.snapshot_hash", _hash_or_raise)
 
-    # When
     with patch("app.assets.scanner.mode.hashing_enabled", return_value=True):
         created = seed_asset_specs(session, specs)
     session.commit()
 
-    # Then
     assert created == 2
     assert _record_count(session) == 2
 
@@ -105,16 +99,13 @@ def test_seed_logs_once_for_each_vanished_path(
     caplog: pytest.LogCaptureFixture,
     delete_path: Callable[[pytest.MonkeyPatch, Path], None],
 ) -> None:
-    # Given
     specs, vanished_path = _specs_with_vanished_path(temp_dir)
     delete_path(monkeypatch, vanished_path)
 
-    # When
     with patch("app.assets.scanner.mode.hashing_enabled", return_value=True):
         _ = seed_asset_specs(session, specs)
     session.commit()
 
-    # Then
     messages = [
         record.getMessage()
         for record in caplog.records
@@ -126,7 +117,6 @@ def test_seed_logs_once_for_each_vanished_path(
 def test_seed_propagates_integrity_error_and_aborts_batch(
     session: Session, temp_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Given
     specs, vanished_path = _specs_with_vanished_path(temp_dir)
 
     def _create_record_or_raise(
@@ -152,10 +142,8 @@ def test_seed_propagates_integrity_error_and_aborts_batch(
 
     monkeypatch.setattr("app.assets.scanner.create_record", _create_record_or_raise)
 
-    # When
     with pytest.raises(IntegrityError):
         _ = seed_asset_specs(session, specs)
     session.rollback()
 
-    # Then
     assert _record_count(session) == 0

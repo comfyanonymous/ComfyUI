@@ -48,9 +48,6 @@ def test_remove_tags_removes_non_automatic(session, mock_create_session):
 
 
 def test_update_asset_metadata_unknown_preview_id_raises(session, mock_create_session):
-    """Given a preview_id that references no Asset, When update_asset_metadata
-    runs, Then it raises ValueError before writing — the PUT route maps this to
-    4xx (ASSET_NOT_FOUND), never a 500 from an FK IntegrityError."""
     record = _create_record(session, "/output/preview-validate.png")
 
     with pytest.raises(ValueError):

@@ -1,4 +1,3 @@
-"""Tests for the B-schema ingest service (register_executed_output)."""
 import os
 
 import pytest
@@ -21,7 +20,6 @@ def hashing_off():
 
 
 def test_new_path_save_off_mode_hash_null(mock_create_session):
-    """New file registered in off mode: content row has hash=NULL."""
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
     f = os.path.join(output_dir, "test_ingest_b_new.png")
@@ -47,7 +45,6 @@ def test_new_path_save_off_mode_hash_null(mock_create_session):
 
 
 def test_overwrite_at_live_path_marks_old_missing(mock_create_session):
-    """Overwriting a live path marks the old content row missing; old record's job_id unchanged."""
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
     f = os.path.join(output_dir, "test_ingest_b_overwrite.png")

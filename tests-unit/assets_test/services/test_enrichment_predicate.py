@@ -1,14 +1,3 @@
-"""Enrichment-candidate predicate: system_metadata None must be SQL NULL.
-
-The OFF-mode (metadata) enrich predicate is ``Asset.system_metadata.is_(None)``
-(a SQL ``IS NULL``). SQLAlchemy's default ``JSON`` type serialises Python
-``None`` to the JSON text ``'null'``, which is NOT SQL NULL, so the predicate
-would match zero rows and enrichment would be a silent no-op. These tests lock
-the contract: a metadata-less record is stored as SQL NULL and is therefore
-returned as an enrich candidate, while a record that already carries
-system_metadata is not.
-"""
-
 from __future__ import annotations
 
 import os
@@ -29,12 +18,10 @@ from .path_prefix_cases import prefix_case_paths
 
 @contextmanager
 def _reuse_session(session: Session) -> Iterator[Session]:
-    """Hand the seeded session to scanner.create_session without closing it."""
     yield session
 
 
 def _raw_system_metadata(session: Session, record_id: str) -> object:
-    """Read the stored column value with no ORM/JSON type processing."""
     return session.execute(
         sa.text("SELECT system_metadata FROM assets WHERE id = :id"),
         {"id": record_id},
@@ -44,28 +31,23 @@ def _raw_system_metadata(session: Session, record_id: str) -> object:
 def test_create_record_stores_none_system_metadata_as_sql_null(
     session: Session,
 ) -> None:
-    # Given a content row
     content = create_content(session, "/models/no-meta.safetensors", hash=None)
 
-    # When a record is created without system_metadata (defaults to None)
     record = create_record(session, content.id, "no-meta.safetensors")
     session.commit()
 
-    # Then the column holds SQL NULL, not the JSON text 'null'
     assert _raw_system_metadata(session, record.id) is None
 
 
 def test_off_mode_returns_metadata_less_seeded_asset(
     session: Session, temp_dir: Path
 ) -> None:
-    # Given a freshly-seeded metadata-less asset under a scan prefix
     path = temp_dir / "fresh.safetensors"
     content = create_content(session, str(path), hash=None)
     record = create_record(session, content.id, path.name)
     session.commit()
     record_id = record.id
 
-    # When enrichment candidates are queried in OFF (metadata) mode
     with (
         patch("app.assets.scanner.create_session", lambda: _reuse_session(session)),
         patch(
@@ -75,14 +57,12 @@ def test_off_mode_returns_metadata_less_seeded_asset(
     ):
         rows = get_unenriched_assets_for_roots(("models",), compute_hashes=False)
 
-    # Then the seeded asset is an enrich candidate
     assert record_id in {row.record_id for row in rows}
 
 
 def test_off_mode_excludes_asset_with_system_metadata(
     session: Session, temp_dir: Path
 ) -> None:
-    # Given an asset that already carries system_metadata
     path = temp_dir / "enriched.safetensors"
     content = create_content(session, str(path), hash=None)
     record = create_record(
@@ -94,7 +74,6 @@ def test_off_mode_excludes_asset_with_system_metadata(
     session.commit()
     record_id = record.id
 
-    # When enrichment candidates are queried in OFF (metadata) mode
     with (
         patch("app.assets.scanner.create_session", lambda: _reuse_session(session)),
         patch(
@@ -104,12 +83,10 @@ def test_off_mode_excludes_asset_with_system_metadata(
     ):
         rows = get_unenriched_assets_for_roots(("models",), compute_hashes=False)
 
-    # Then it is not returned as an enrich candidate
     assert record_id not in {row.record_id for row in rows}
 
 
 def test_query_pushes_limit_into_sql(session: Session, temp_dir: Path) -> None:
-    # Given more unenriched candidates under the prefix than the requested limit
     for index in range(5):
         path = temp_dir / f"cand-{index}.safetensors"
         content = create_content(session, str(path), hash=None)
@@ -137,10 +114,7 @@ def test_query_pushes_limit_into_sql(session: Session, temp_dir: Path) -> None:
     finally:
         sa.event.remove(engine, "before_cursor_execute", _capture)
 
-    # Then only `limit` rows come back ...
     assert len(rows) == 2
-    # ... and the bound came from SQL, not a Python slice: the SELECT over
-    # asset_contents carries a LIMIT clause (query is bounded at the DB).
     content_selects = [
         s for s in statements if "asset_contents" in s.lower() and s.lower().lstrip().startswith("select")
     ]
@@ -153,9 +127,6 @@ def test_query_pushes_limit_into_sql(session: Session, temp_dir: Path) -> None:
 def test_prefix_filter_matches_is_path_under_prefixes(
     session: Session, temp_dir: Path
 ) -> None:
-    # Given one asset under the prefix and one lexical sibling (…-sibling) that
-    # shares the prefix's characters but is NOT a child directory. A naive
-    # ``LIKE prefix%`` (no separator) would wrongly admit the sibling.
     prefix = str(temp_dir)
     inside_path = os.path.join(prefix, "sub", "inside.safetensors")
     sibling_path = prefix + "-sibling" + os.sep + "outside.safetensors"
@@ -180,7 +151,6 @@ def test_prefix_filter_matches_is_path_under_prefixes(
             for row in get_unenriched_assets_for_roots(("models",), compute_hashes=False)
         }
 
-    # Then SQL prefix filtering agrees with is_path_under_prefixes exactly.
     assert is_path_under_prefixes(inside_path, [prefix]) is True
     assert is_path_under_prefixes(sibling_path, [prefix]) is False
     assert inside.id in returned
@@ -188,7 +158,6 @@ def test_prefix_filter_matches_is_path_under_prefixes(
 
 
 def _seed_paths(session: Session, paths: list[str]) -> dict[str, str]:
-    """Seed one record per path; maps record id to the path as actually STORED."""
     by_record: dict[str, str] = {}
     for index, path in enumerate(paths):
         content = create_content(session, path, hash=None)
@@ -213,43 +182,26 @@ def _candidate_paths(session: Session, prefix: str) -> set[str]:
 def test_prefix_filter_result_set_equals_python_predicate(
     session: Session, temp_dir: Path
 ) -> None:
-    """The strongest form: SQL selection == is_path_under_prefixes, path for path.
-
-    Covers the case-different sibling (``<root>`` vs ``<ROOT>``) that SQLite's
-    case-insensitive ``LIKE`` wrongly admitted, the exact-root path that a bare
-    ``<root>/%`` prefix wrongly dropped, a child holding LIKE/GLOB
-    metacharacters, and non-normalized inputs (``..``, relative, repeated and
-    trailing separators) whose raw form the predicate would misjudge.
-    """
-    # Given one unenriched record for every relation a path can have to the root
     root = str(temp_dir / "root")
     by_record = _seed_paths(session, prefix_case_paths(root))
     stored = set(by_record.values())
 
-    # When enrichment candidates are queried for that root
     returned = _candidate_paths(session, root)
 
-    # Then the SQL result set is exactly what the Python predicate accepts
     expected = {p for p in stored if is_path_under_prefixes(p, [root])}
     assert returned == expected
-    # ... and the table really did exercise both outcomes
     assert expected and expected != stored
 
 
 def test_prefix_holding_metacharacters_matches_only_literal_children(
     session: Session, temp_dir: Path
 ) -> None:
-    """A root containing ``_ % * ? [`` must match literally, never as wildcards."""
-    # Given a root whose own name holds LIKE and GLOB metacharacters, plus a
-    # decoy that only matches if those characters are treated as wildcards
     root = str(temp_dir / "a_b%c*d?e[f")
     inside_path = os.path.join(root, "inside.safetensors")
     decoy_path = os.path.join(str(temp_dir), "aXbYcZdWeQf", "decoy.safetensors")
     _seed_paths(session, [inside_path, decoy_path])
 
-    # When enrichment candidates are queried for that root
     returned = _candidate_paths(session, root)
 
-    # Then only the literal child is a candidate
     assert is_path_under_prefixes(decoy_path, [root]) is False
     assert returned == {inside_path}

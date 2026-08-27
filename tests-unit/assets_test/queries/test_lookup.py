@@ -1,4 +1,3 @@
-"""Tests for the B-schema hash lookup policies."""
 from datetime import datetime
 from unittest.mock import patch
 
@@ -94,7 +93,6 @@ def test_dedup_not_gated_on_hashing_flag(session, tmp_path):
 
 
 def test_stale_older_newer_live_returns_newer(session, tmp_path):
-    """Oldest candidate with missing file is skipped; newer live candidate returned."""
     f_newer = _make_file(tmp_path, "newer.png")
     old_time = datetime(2020, 1, 1)
     new_time = datetime(2024, 1, 1)
@@ -110,7 +108,6 @@ def test_stale_older_newer_live_returns_newer(session, tmp_path):
 
 
 def test_dedup_returns_matching_name_entity(session, tmp_path):
-    """Upload dedup returns the entity with the matching name, not just any entity."""
     f = _make_file(tmp_path, "match.png")
     content = create_content(session, path=f, hash="dup")
     create_record(session, content_id=content.id, name="match.png")

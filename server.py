@@ -528,10 +528,9 @@ class PromptServer():
                 # node preview, it constructs /view?filename=<asset_hash>, so this
                 # endpoint must resolve blake3 hashes to their on-disk file paths.
                 if filename.startswith("blake3:"):
-                    # Gate hash resolution on a known user: get_request_user_id
-                    # raises KeyError for unknown/system users in multi-user mode.
-                    # The id itself is unused here (resolution is not owner-scoped),
-                    # so we call for the side effect only and discard the return.
+                    # Side-effect call: get_request_user_id raises KeyError for an unknown or
+                    # system user in multi-user mode, which is what gates hash resolution.
+                    # The returned id is deliberately unused (resolution is not owner-scoped).
                     self.user_manager.get_request_user_id(request)
                     result = resolve_hash_to_path(filename)
                     if result is None:

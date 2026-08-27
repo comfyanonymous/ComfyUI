@@ -33,7 +33,6 @@ from app.database.db import create_session
 
 
 def _normalize_hash_input(hash_str: str) -> str:
-    """Canonicalise a client-supplied hash to stored form."""
     if not hash_str:
         return hash_str
     normalized = hash_str.strip().lower()
@@ -238,7 +237,6 @@ def _record_to_upload_result(
 
 
 class _ContentFacts(NamedTuple):
-    """What we know about the bytes now sitting at a path."""
 
     stored_hash: str
     size_bytes: int
@@ -315,14 +313,6 @@ def _upload_destination_or_none(
     client_filename: str | None,
     name: str | None,
 ) -> str | None:
-    """Where this upload would land, or ``None`` when the tags do not route there.
-
-    Resolved ahead of the dedup lookup so the destination row can be settled
-    first, but a routing failure is deliberately NOT raised here: the real
-    ``_hash_mode_dest_path`` call stays at its original site below, so an upload
-    that dedups keeps succeeding whatever its tags, exactly as before. Not
-    knowing the destination simply means there is nothing to settle.
-    """
     if not tags:
         return None
     try:
@@ -365,8 +355,6 @@ def _settle_destination_before_write(session: Session, dest_abs: str) -> None:
     try:
         incumbent_digest = _snapshot_hash_with_retry(dest_abs)
     except (UploadUnstableError, OSError):
-        # The incumbent is unreadable or being written; it is unverifiable and
-        # about to be clobbered, so it cannot keep speaking for this path.
         mark_content_missing(session, existing.id)
         return
     _reconcile_live_content_at_path(
@@ -508,9 +496,6 @@ def register_file_in_place(
     digest = _snapshot_hash_with_retry(locator)
     stored_hash = to_stored_hash(digest)
     with create_session() as session:
-        # Must run above the dedup lookup, not beside create_content: both dedup
-        # branches return early, and only a reconciled row is visible to
-        # lookup_for_upload_dedup as the record to reuse.
         _reconcile_live_content_at_path(
             session,
             locator,
@@ -603,16 +588,6 @@ def create_from_hash(
 
 
 def register_cached_output(abs_path: str, job_id: str | None = None):
-    """Register a replayed output as a new delivery record without mutations.
-
-    S10.4: missing live content is a logged non-event - it creates nothing and
-    returns ``None``, and is never re-registered as a fresh executed output.
-    S29: the new record copies ``system_metadata`` from the earliest sibling
-    record of the same content (``created_at`` ascending, ``id`` ascending as
-    the tiebreak); when the content is orphaned (no sibling record survives,
-    e.g. after ``delete_asset_reference``) metadata is extracted fresh from the
-    file instead - the only behaviour satisfying both S10.4 and S29.
-    """
     locator = os.path.abspath(abs_path)
     try:
         with create_session() as session:
@@ -679,15 +654,6 @@ def register_cached_output(abs_path: str, job_id: str | None = None):
 
 
 def register_executed_output(abs_path: str, job_id: str | None = None):
-    """Register a freshly-executed workflow output as a new delivery record.
-
-    D14a: the content hash is left ``None`` at registration; the background
-    enrich pass fills it later - outputs are never force-hashed inline. S29/D8:
-    ``system_metadata`` is extracted synchronously and stored at creation.
-    S10.4: any failure is logged and swallowed (returns ``None``) so a save
-    error never propagates into the execution pipeline, and no partial rows are
-    left behind.
-    """
     locator = os.path.abspath(abs_path)
     try:
         stat_result = os.stat(locator, follow_symlinks=True)

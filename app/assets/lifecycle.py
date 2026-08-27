@@ -1,5 +1,3 @@
-"""Asset system startup/shutdown lifecycle: DB init, temp wipe, filesystem cleanup."""
-
 from __future__ import annotations
 
 import logging
@@ -52,16 +50,12 @@ def init_db_and_state() -> None:
 
 
 def wipe_temp_db_rows(session) -> tuple[int, int]:
-    """Delete temp asset records, then temp content rows (records first — FK RESTRICT)."""
     try:
         temp_root = os.path.abspath(folder_paths.get_temp_directory())
     except OSError:
-        # Matches is_temp_path's OSError guard: an unresolvable temp dir means
-        # no row is a temp row, so wipe nothing and let the sweep proceed.
         return 0, 0
-    # Filtering in SQL replaces two full-table scans at every startup/shutdown.
-    # These rows are hard-deleted, so the predicate must stay case-SENSITIVE:
-    # admitting a case-different persistent directory destroys user assets.
+    # These rows are hard-deleted, so the predicate must stay case-SENSITIVE: admitting a
+    # case-different persistent directory destroys user assets.
     under_temp = sql_path_under_prefix(AssetContent.path, temp_root)
 
     temp_record_ids = list(
@@ -87,7 +81,6 @@ def wipe_temp_db_rows(session) -> tuple[int, int]:
 
 
 def cleanup_temp_filesystem() -> bool:
-    """Remove the temp directory tree. On failure, exclude the root from scanning."""
     temp_dir = os.path.abspath(folder_paths.get_temp_directory())
     if not os.path.exists(temp_dir):
         return True
@@ -105,7 +98,6 @@ def cleanup_temp_filesystem() -> bool:
 
 
 def start_asset_seeder() -> bool:
-    # Keep nested to break app.assets.lifecycle -> app.assets.seeder -> app.assets.scanner -> app.assets.lifecycle.
     from app.assets.seeder import asset_seeder
 
     started = asset_seeder.start(
@@ -136,13 +128,6 @@ def run_asset_startup() -> None:
 
 
 def run_startup(*, enable_assets: bool) -> None:
-    """Startup temp maintenance entry point, owning the enabled/disabled policy.
-
-    Enabled: full asset startup (DB temp-row wipe -> filesystem sweep -> seeder), which
-    intentionally orders row deletion before filesystem deletion and skips the sweep when
-    the wipe fails. Disabled: filesystem sweep only (master parity -- master called
-    cleanup_temp() unconditionally); with assets off there are no asset rows to wipe.
-    """
     try:
         if enable_assets:
             run_asset_startup()

@@ -57,7 +57,6 @@ RootType = Literal["models", "input", "output"]
 
 
 class SeedAssetSpec(TypedDict):
-    """Spec for seeding an asset from filesystem."""
 
     abs_path: str
     size_bytes: int
@@ -143,7 +142,6 @@ def sync_prefixes_with_filesystem(
     prefixes: list[str],
     collect_existing_paths: bool = False,
 ) -> set[str] | None:
-    """Mark disappeared content missing and return live filesystem paths."""
     if not prefixes:
         return set() if collect_existing_paths else None
 
@@ -221,7 +219,6 @@ def mark_missing_outside_prefixes_safely(prefixes: list[str]) -> int:
 def mark_contents_missing_outside_prefixes(
     session: Session, prefixes: list[str]
 ) -> int:
-    """Retain content history while marking paths absent from the registry."""
     contents = session.scalars(
         sa.select(AssetContent).where(AssetContent.is_missing.is_(False))
     )
@@ -311,17 +308,7 @@ def build_asset_specs(
     return specs, tag_pool, skipped
 
 
-
 def seed_asset_specs(session: Session, specs: list[SeedAssetSpec]) -> int:
-    """Create one B content row and one birth-classified record per new path.
-
-    ``create_content`` inserts inside a SAVEPOINT that survives an outer rollback
-    under pysqlite, so a mid-batch ``create_record`` failure would leak the live
-    content rows created so far as unreferenced orphans (and a live orphan at a
-    path makes later scans skip it indefinitely). On any failure we roll the
-    aborted batch back and discard every content row we created, mirroring the
-    executed-output path, before letting the error propagate.
-    """
     created = 0
     created_content_ids: list[str] = []
     try:
@@ -376,7 +363,6 @@ def seed_asset_specs(session: Session, specs: list[SeedAssetSpec]) -> int:
 
 
 def insert_asset_specs(specs: list[SeedAssetSpec], _tag_pool: set[str]) -> int:
-    """Insert B-schema seed rows; tags are created together with their records."""
     if not specs:
         return 0
     with create_session() as sess:
@@ -390,7 +376,6 @@ def get_unenriched_assets_for_roots(
     compute_hashes: bool,
     limit: int = 1000,
 ) -> list[UnenrichedContent]:
-    """Get B-schema content awaiting metadata or a hash."""
     prefixes: list[str] = []
     for root in roots:
         prefixes.extend(get_scan_prefixes_for_root(root))
@@ -405,9 +390,6 @@ def get_unenriched_assets_for_roots(
             .where(AssetContent.is_missing.is_(False))
         )
         if compute_hashes:
-            # A split-created record has a hash but NULL metadata; it must still
-            # enrich. Widen the hash-mode branch so a missing hash OR missing
-            # metadata makes a row a candidate.
             query = query.where(
                 sa.or_(
                     AssetContent.hash.is_(None),
@@ -416,11 +398,6 @@ def get_unenriched_assets_for_roots(
             )
         else:
             query = query.where(Asset.system_metadata.is_(None))
-        # Push the prefix filter and the LIMIT into SQL so the seeder no longer
-        # materialises the whole table per 100-row batch. The predicate must
-        # agree with is_path_under_prefixes exactly: rows it admits get enriched
-        # and mutated, and it runs before LIMIT, so an over-match both touches
-        # rows outside the root and displaces legitimate candidates.
         query = query.where(
             sa.or_(
                 *(sql_path_under_prefix(AssetContent.path, p) for p in prefixes)
@@ -478,9 +455,6 @@ def enrich_asset(
 
     digest: str | None = None
     stored_hash: str | None = None
-    # A split-created record already carries the hash of its current bytes; only
-    # hash when content has none, so a metadata-only enrich never re-hashes a
-    # large file that is already identified.
     if compute_hash and content is not None and content.hash is None:
         try:
             snapshot = snapshot_hash(file_path)
@@ -495,7 +469,6 @@ def enrich_asset(
         except Exception as e:
             logging.warning("Failed to hash %s: %s", file_path, e)
 
-    # Optimistic guard: discard results if content changed during enrichment.
     record = session.get(Asset, record_id)
     if content is None or record is None or content.mtime_ns != initial_mtime_ns:
         session.rollback()

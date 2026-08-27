@@ -129,7 +129,6 @@ def update_asset_metadata(
 def delete_asset_reference(
     reference_id: str,
 ) -> bool:
-    """Hard-delete an asset record. Content rows and files are untouched (D-3 floor)."""
     with create_session() as session:
         if get_record_by_id(session, reference_id) is None:
             return False

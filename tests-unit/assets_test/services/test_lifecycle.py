@@ -1,4 +1,3 @@
-"""Todo 16: startup/shutdown temp wipe ordering and failure behavior."""
 import os
 import tempfile
 from contextlib import contextmanager
@@ -107,9 +106,6 @@ def test_db_wipe_failure_skips_rmtree_and_continues(mock_create_session):
 
 
 def test_run_startup_disabled_sweeps_temp_filesystem_without_db_work(comfy_dirs):
-    """D9 — Given assets disabled and a stale temp file, When run_startup runs, Then the
-    filesystem sweep removes it and no DB-row wipe or seeder work happens (master parity:
-    master called cleanup_temp() unconditionally; with assets off there are no rows to wipe)."""
     stale = comfy_dirs / "stale.png"
     stale.write_bytes(b"\x00" * 10)
     assert stale.exists()
@@ -128,9 +124,6 @@ def test_run_startup_disabled_sweeps_temp_filesystem_without_db_work(comfy_dirs)
 
 
 def test_run_startup_enabled_delegates_to_asset_startup_not_bare_sweep():
-    """D9 — Given assets enabled, When run_startup runs, Then it delegates to the ordered
-    run_asset_startup (sole owner of DB-row-before-filesystem deletion) and never calls the
-    bare filesystem sweep directly, so S12's enabled-path ordering is preserved."""
     with (
         patch("app.assets.lifecycle.run_asset_startup") as asset_startup_mock,
         patch("app.assets.lifecycle.cleanup_temp_filesystem") as cleanup_mock,
@@ -230,8 +223,6 @@ def test_wipe_temp_db_rows_deletes_records_before_content(session, comfy_dirs):
 
 
 def test_wipe_temp_db_rows_preserves_non_temp_rows(session, comfy_dirs):
-    # Given one temp asset and one non-temp asset whose path is a lexical sibling
-    # of the temp dir (…-sibling) — shares the characters but is NOT under it.
     temp_record_id, temp_content_id = _seed_temp_rows(session, comfy_dirs)
     keep_path = str(comfy_dirs) + "-sibling" + os.sep + "keep.safetensors"
     keep_content = create_content(session, path=keep_path)
@@ -241,8 +232,6 @@ def test_wipe_temp_db_rows_preserves_non_temp_rows(session, comfy_dirs):
     records_deleted, contents_deleted = wipe_temp_db_rows(session)
     session.commit()
 
-    # Then only the temp rows are wiped; the non-temp rows survive (the SQL
-    # prefix is anchored on <temp>/, so the sibling is not swept).
     assert (records_deleted, contents_deleted) == (1, 1)
     assert session.get(Asset, temp_record_id) is None
     assert session.get(AssetContent, temp_content_id) is None
@@ -251,7 +240,6 @@ def test_wipe_temp_db_rows_preserves_non_temp_rows(session, comfy_dirs):
 
 
 def _seed_paths(session: Session, paths: list[str]) -> list[str]:
-    """Seed one record+content per path; returns the paths as actually STORED."""
     stored: list[str] = []
     for index, path in enumerate(paths):
         content = create_content(session, path=path)
@@ -266,42 +254,24 @@ def _surviving_paths(session: Session) -> set[str]:
 
 
 def test_wipe_deletes_exactly_what_is_path_under_prefixes_accepts(session, comfy_dirs):
-    """The strongest form: the wiped set == is_path_under_prefixes, path for path.
-
-    The case-different row is the data-loss case. SQLite's ``LIKE`` is ASCII
-    case-insensitive, so ``'<base>/TEMP/case.png' LIKE '<base>/temp/%'`` is TRUE
-    and the wipe hard-deleted a real user directory's records and content at
-    every startup and shutdown.
-    """
-    # Given one record+content per way a path handed to the write boundary can
-    # relate to the temp root
     temp_root = str(comfy_dirs)
     stored = _seed_paths(session, prefix_case_paths(temp_root))
 
-    # When the temp wipe runs
     records_deleted, contents_deleted = wipe_temp_db_rows(session)
     session.commit()
 
-    # Then exactly the stored paths the Python predicate accepts were wiped ...
     wiped = {p for p in stored if is_path_under_prefixes(p, [temp_root])}
     assert _surviving_paths(session) == set(stored) - wiped
     assert (records_deleted, contents_deleted) == (len(wiped), len(wiped))
-    # ... and the table really did exercise both outcomes
     assert wiped and wiped != set(stored)
-    # ... including the case-different persistent directory, which must survive
     case_different = os.path.join(
         os.path.dirname(temp_root), os.path.basename(temp_root).upper(), "case.png"
     )
     assert case_different in _surviving_paths(session)
-    # ... and the row whose raw path only *looked* like a child: `<temp>/../x`
-    # shares the `<temp>/` character prefix but resolves outside the temp root,
-    # so a hard delete on it is data loss. Normalizing at the write boundary is
-    # what keeps the wipe off it.
     assert os.path.join(os.path.dirname(temp_root), "escaped.png") in _surviving_paths(session)
 
 
 def test_wipe_with_metacharacter_temp_root_matches_only_literal_children(session):
-    """A temp root containing ``_ % * ? [`` must match literally, never as wildcards."""
     with tempfile.TemporaryDirectory() as base:
         temp_root = os.path.join(base, "a_b%c*d?e[f")
         inside = os.path.join(temp_root, "preview.png")

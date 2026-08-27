@@ -1,12 +1,3 @@
-"""Same-path hash recovery for the B asset branch (ruling G-10).
-
-G-10: only an unambiguous hash match recovers a missing row — exactly one
-candidate, matched by hash alone; ties recover nothing.
-
-These tests exercise a scanned (on-disk) file in hash mode: it is hashed by
-the seed/enrich pass, marked missing when deleted, then byte-identical content
-is restored at the SAME path. The missing row should be recovered by hash.
-"""
 from __future__ import annotations
 
 import sqlite3
@@ -94,14 +85,6 @@ def _drop_scanned_file(comfy_tmp_base_dir: Path) -> tuple[Path, bytes]:
 def test_same_path_restore_recovery_characterization(
     http, api_base, comfy_tmp_base_dir, request
 ):
-    """Characterize same-path restore of a scanned hashed row.
-
-    Before fix: the seed endpoint scanned with compute_hashes=False, so scanned
-    files were never hashed; the missing row's hash stayed NULL and
-    recover_missing_content found no hash match, leaving the row missing.
-    After fix: the seed endpoint scans with the runtime hash mode, so the row is
-    hashed and same-path restore recovers it.
-    """
     db_path = _db_path(comfy_tmp_base_dir, request)
     disk_path, payload = _drop_scanned_file(comfy_tmp_base_dir)
 
@@ -118,9 +101,6 @@ def test_same_path_restore_recovery_characterization(
 
     _, is_missing = _content_by_id(db_path, content_id)
 
-    # Before fix: row stayed missing (bug — scanned files were never hashed in
-    # hash mode, so recover_missing_content had no hash to match).
-    #     assert is_missing == 1
     assert is_missing == 0
 
 
@@ -128,7 +108,6 @@ def test_same_path_restore_recovery_characterization(
 def test_same_path_restore_recovers_hashed_row(
     http, api_base, comfy_tmp_base_dir, request
 ):
-    """Byte-identical same-path restore recovers the missing hashed row (G-10)."""
     db_path = _db_path(comfy_tmp_base_dir, request)
     disk_path, payload = _drop_scanned_file(comfy_tmp_base_dir)
 

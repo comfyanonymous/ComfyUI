@@ -84,7 +84,6 @@ def test_transition_drain_splits_changed_content(session, temp_dir, monkeypatch)
 def test_transition_drain_requeues_permission_errors_and_processes_other_paths(
     session, temp_dir, monkeypatch
 ):
-    # Given
     protected_path = temp_dir / "protected.bin"
     healthy_path = temp_dir / "healthy.bin"
     protected_path.write_bytes(b"protected")
@@ -105,10 +104,8 @@ def test_transition_drain_requeues_permission_errors_and_processes_other_paths(
     transition = record_transition_intent(session)
     enqueue_transition_work(session, transition)
 
-    # When
     drain_transition_queue(session)
 
-    # Then
     healthy_content = session.scalar(
         select(AssetContent).where(AssetContent.path == str(healthy_path))
     )
@@ -119,20 +116,8 @@ def test_transition_drain_requeues_permission_errors_and_processes_other_paths(
 
 
 def test_transition_drain_skips_out_of_root_path(session, temp_dir, monkeypatch, caplog):
-    """An enqueued path outside every known root is skipped and logged, never
-    propagated.
-
-    The enqueue query has no prefix filter, so a content row whose root was
-    removed from extra_model_paths.yaml still gets drained. Its bytes changed,
-    so the drain enters the content-split branch, which classifies the path via
-    get_name_and_tags_from_asset_path. That raises ValueError for an out-of-root
-    path; unguarded it reaches setup_database's handler, which sys.exit(1)s the
-    app when --enable-assets is set.
-    """
     import logging
 
-    # Given: a hashed content whose path lies outside every known root, whose
-    # bytes then change so the drain reaches the classifying split branch.
     outside_path = temp_dir / "orphan.bin"
     outside_path.write_bytes(b"old bytes")
     old_snapshot = snapshot_hash(str(outside_path))
@@ -146,20 +131,15 @@ def test_transition_drain_skips_out_of_root_path(session, temp_dir, monkeypatch,
     create_record(session, old_content_id, "orphan.bin")
     outside_path.write_bytes(b"new bytes")
 
-    # Precondition: this path is genuinely unclassifiable.
     with pytest.raises(ValueError):
         get_name_and_tags_from_asset_path(str(outside_path))
 
     enqueue_transition_work(session, "off_to_on")
 
-    # When: the drain runs. It must not raise (an escaped ValueError is what
-    # setup_database turns into sys.exit(1)).
     with caplog.at_level(logging.WARNING):
         drain_transition_queue(session)
     session.commit()
 
-    # Then: the path was skipped without mutating the old content, the queue
-    # drained to completion, and a warning names the skipped path.
     assert session.get(AssetContent, old_content_id).is_missing is False
     assert hash_mode_state.pending_transition_count() == 0
     assert any("orphan.bin" in record.getMessage() for record in caplog.records)

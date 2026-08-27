@@ -30,7 +30,6 @@ def upgrade() -> None:
     op.drop_table("asset_reference_tags")
     op.drop_table("asset_references")
     op.drop_table("assets")
-    # Drop old tag links; a rescan recreates only path-derived tags.
     op.execute("DELETE FROM tags")
     op.create_table(
         "asset_contents",

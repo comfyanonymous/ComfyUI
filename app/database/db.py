@@ -136,27 +136,19 @@ def _init_file_db(db_url):
     db_path = get_db_path()
     db_exists = os.path.exists(db_path)
 
-    # Acquire the OS-level lock before any migration work. The lock guards a
-    # separate `<db>.lock` file, so it cannot block Alembic's own SQLite
-    # connection. Taking it first is deliberate: revision inspection, backup
-    # creation, the upgrade and the failure-path restore then run mutually
-    # exclusively between processes instead of racing each other.
-    # This diverges from upstream master, which locks after migrating and
-    # justifies that with a claim about blocking Alembic that is not true.
+    # Lock BEFORE any migration work — deliberately diverging from upstream master, whose
+    # "it would block Alembic" rationale is false (the lock guards a separate `<db>.lock`
+    # file). Only this order makes revision inspection, backup, upgrade and the failure-path
+    # restore mutually exclusive between processes.
     _acquire_file_lock(db_path)
     try:
         _migrate_and_bind(db_url, db_path, db_exists)
     except Exception:
-        # A process that failed to init must not strand the lock: with assets
-        # disabled `setup_database` logs the failure and CONTINUES, so it would
-        # otherwise block every other instance for its whole lifetime over a
-        # database it never opened. A successful init keeps the lock until exit.
         _db_lock.release()
         raise
 
 
 def _migrate_and_bind(db_url, db_path, db_exists):
-    """Upgrade the database to head and bind the session factory. Lock is held."""
     config = get_alembic_config()
 
     # Check if we need to upgrade

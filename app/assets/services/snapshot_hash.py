@@ -1,5 +1,3 @@
-"""Stable file snapshot hashing."""
-
 from __future__ import annotations
 
 import os
@@ -28,7 +26,6 @@ def _snapshot(stat_result: os.stat_result) -> _Snapshot:
 def snapshot_hash(
     path: str, chunk_size: int = 8 * 1024 * 1024
 ) -> tuple[str, os.stat_result] | None:
-    """Return a digest and its verified path stat only for a stable file snapshot."""
     try:
         pre_stat = _snapshot(os.stat(path))
         hasher = blake3()

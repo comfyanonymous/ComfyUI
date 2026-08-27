@@ -1,11 +1,3 @@
-"""Cached-replay emission adapter against a real DB (D6).
-
-``register_cached_outputs`` replays a cached node's UI wrapper: it reuses the
-existing live content and mints a *new* delivery record bound to the current
-job id, without mutating the content row (no UPDATE) and without touching the
-input wrapper (S10.5). These integration tests drive the adapter through the
-real ``register_cached_output`` primitive on an in-memory database.
-"""
 import os
 import sys
 import types
@@ -25,7 +17,6 @@ from comfy_execution.asset_enrichment import (
 
 @contextmanager
 def _assets_enabled(enabled: bool = True):
-    """Patch only the adapter's ``args.enable_assets`` gate (real fs + DB)."""
     with patch.dict(
         sys.modules,
         {"comfy.cli_args": types.SimpleNamespace(args=types.SimpleNamespace(enable_assets=enabled))},
@@ -78,7 +69,6 @@ def test_cached_replay_binds_new_record_to_existing_content(mock_create_session)
             assert original_id in {r.id for r in records}
             assert cached_id in {r.id for r in records}
             assert {r.job_id for r in records} == {"original-job", "cached-job"}
-        # the input wrapper (cache UI) is never mutated (S10.5)
         assert "id" not in wrapper["output"]["images"][0]
     finally:
         path.unlink(missing_ok=True)

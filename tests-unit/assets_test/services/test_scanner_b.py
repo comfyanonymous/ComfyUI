@@ -60,12 +60,10 @@ def _create_enrichment_target(
 
 
 def test_enrichment_retains_absent_system_metadata_keys(session: Session, temp_dir: Path):
-    # Given
     path = temp_dir / "metadata.bin"
     path.write_bytes(b"metadata")
     content, record = _create_enrichment_target(session, path)
 
-    # When
     with patch(
         "app.assets.scanner.extract_file_metadata",
         side_effect=[
@@ -76,14 +74,12 @@ def test_enrichment_retains_absent_system_metadata_keys(session: Session, temp_d
         enrich_asset(session, str(path), content.id, record.id)
         enrich_asset(session, str(path), content.id, record.id)
 
-    # Then
     assert record.system_metadata == {"a": 1, "b": 3}
 
 
 def test_enrichment_retains_dimensions_when_image_extraction_degrades(
     session: Session, temp_dir: Path
 ):
-    # Given
     path = temp_dir / "image.png"
     path.write_bytes(b"not a complete image")
     content, record = _create_enrichment_target(
@@ -92,7 +88,6 @@ def test_enrichment_retains_dimensions_when_image_extraction_degrades(
         {"kind": "image", "width": 64, "height": 64},
     )
 
-    # When
     with (
         patch(
             "app.assets.scanner.extract_file_metadata",
@@ -102,7 +97,6 @@ def test_enrichment_retains_dimensions_when_image_extraction_degrades(
     ):
         enrich_asset(session, str(path), content.id, record.id)
 
-    # Then
     assert record.system_metadata == {
         "filename": "image.png",
         "kind": "image",
@@ -114,7 +108,6 @@ def test_enrichment_retains_dimensions_when_image_extraction_degrades(
 def test_enrichment_overrides_content_length_with_zero(
     session: Session, temp_dir: Path
 ):
-    # Given
     path = temp_dir / "empty.bin"
     path.write_bytes(b"")
     content, record = _create_enrichment_target(
@@ -123,14 +116,12 @@ def test_enrichment_overrides_content_length_with_zero(
         {"content_length": 1024},
     )
 
-    # When
     with patch(
         "app.assets.scanner.extract_file_metadata",
         return_value=_ExtractedMetadata(None, {"content_length": 0}),
     ):
         enrich_asset(session, str(path), content.id, record.id)
 
-    # Then
     assert record.system_metadata == {"content_length": 0}
 
 

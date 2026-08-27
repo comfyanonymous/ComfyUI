@@ -1,4 +1,3 @@
-"""B-schema upload path tests (todo 15)."""
 import os
 import uuid
 from unittest.mock import patch
@@ -26,7 +25,6 @@ from app.assets.services.snapshot_hash import snapshot_hash
 
 
 def _bump_mtime(path: str) -> int:
-    """Move a file's mtime without touching a byte, and report the new value."""
     _, mtime_ns = get_size_and_mtime_ns(path)
     moved = mtime_ns + 1_000_000_000
     os.utime(path, ns=(moved, moved))
@@ -209,12 +207,6 @@ def test_off_mode_register_file_in_place_different_bytes_two_paths(
 def test_register_file_in_place_overwrite_returns_new_file_hash_and_size(
     mock_create_session, hashing_on
 ):
-    """Given a path already registered, When it is re-registered in place with
-    new bytes, Then the result reports the NEW file's hash and size - not the
-    stale row that create_content's uniqueness-conflict path would return.
-
-    The reported hash must equal the actual on-disk hash of the new file.
-    """
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
     path = os.path.join(output_dir, "overwrite_hash.png")
@@ -249,10 +241,6 @@ def test_register_file_in_place_overwrite_returns_new_file_hash_and_size(
 def test_register_file_in_place_overwrite_marks_old_content_missing(
     mock_create_session, hashing_on
 ):
-    """Given a path already registered, When it is re-registered in place with
-    new bytes, Then the previous content row is marked missing and exactly one
-    live row (carrying the new hash) remains at that path.
-    """
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
     path = os.path.join(output_dir, "overwrite_missing.png")
@@ -302,11 +290,6 @@ def _digest_of(path: str) -> str:
 
 
 def _seed_live_content(session, path: str, stored_hash: str | None) -> tuple[str, str]:
-    """Seed a live content row (+ one record) for a file already on disk.
-
-    Mirrors what ``scanner.create_asset_batch`` leaves behind: real stat values,
-    and ``stored_hash=None`` when hashing is deferred to the enrich pass.
-    """
     size_bytes, mtime_ns = get_size_and_mtime_ns(path)
     content = create_content(session, path, stored_hash, size_bytes, mtime_ns)
     record = create_record(
@@ -326,15 +309,6 @@ def _is_missing_tagged(session, record_id: str) -> bool:
 def test_register_file_in_place_unhashed_unchanged_file_is_not_retired(
     mock_create_session, hashing_on
 ):
-    """Given a live content row at a path with hash=None (scanner-seeded, or an
-    executed output whose hashing is deferred to enrich), When the SAME
-    unchanged file is registered in place by a caller that wrote nothing, Then
-    the row stays live and its records are not tagged missing - an unknown hash
-    is not evidence of different bytes.
-
-    ``content_written=False`` is exactly what ``/upload/image`` reports on its
-    ``compare_image_hash`` duplicate branch, where it skips the write.
-    """
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
     path = os.path.join(output_dir, "unhashed_noop.png")
@@ -376,11 +350,6 @@ def test_register_file_in_place_unhashed_unchanged_file_is_not_retired(
 def test_register_file_in_place_unhashed_unchanged_file_adopts_hash(
     mock_create_session, hashing_on
 ):
-    """Given a live content row at a path with hash=None, When the SAME
-    unchanged file is registered in place by a caller that wrote nothing, Then
-    the existing row adopts the freshly-computed hash and the call resolves to
-    the record already on it - a no-op re-registration stays a no-op.
-    """
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
     path = os.path.join(output_dir, "unhashed_adopt.png")
@@ -417,16 +386,6 @@ def test_register_file_in_place_unhashed_unchanged_file_adopts_hash(
 def test_register_file_in_place_unhashed_changed_file_is_retired(
     mock_create_session, hashing_on
 ):
-    """Given a live content row at a path with hash=None, When ``/upload/image``
-    overwrites the file with DIFFERENT bytes of the SAME size and re-registers
-    it, Then the row is retired and its records tagged missing.
-
-    Same-sized bytes are the discriminating fixture: a differing size would let
-    a size-equality heuristic reach the same verdict by accident. The bytes
-    here are indistinguishable by ``stat``, so only the caller's own
-    ``content_written`` signal can decide - and adopting the new hash onto the
-    row would leave the seeded record describing bytes that no longer exist.
-    """
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
     path = os.path.join(output_dir, "unhashed_changed.png")
@@ -480,15 +439,6 @@ def test_register_file_in_place_unhashed_changed_file_is_retired(
 def test_register_file_in_place_matching_hash_refreshes_stale_stat(
     mock_create_session, hashing_on
 ):
-    """Given a live row whose hash matches the file but whose stored mtime_ns
-    has gone stale, When the unchanged file is re-registered in place, Then the
-    row's stat is refreshed so ``lookup`` serves it by hash again and the
-    existing record is reused instead of a duplicate being created.
-
-    A matching hash IS proof of byte equality, so the observed stat is the
-    trustworthy one - leaving the row stale makes it fail ``_stat_consistent``,
-    which silently pushes the caller down the create-a-new-record path.
-    """
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
     path = os.path.join(output_dir, "stale_mtime.png")
@@ -527,11 +477,6 @@ def test_register_file_in_place_matching_hash_refreshes_stale_stat(
 def test_upload_unhashed_row_at_destination_is_not_retired(
     mock_create_session, hashing_on
 ):
-    """Given a hash-derived destination already carrying a live row with
-    hash=None for the same bytes, When those bytes are uploaded, Then the row
-    adopts the upload's hash instead of being retired, and the result reports
-    that hash rather than the row's stale None.
-    """
     payload = b"upload-adopt-destination-bytes"
     probe = _write_temp(payload)
     digest = _digest_of(probe)
@@ -566,15 +511,6 @@ def test_upload_unhashed_row_at_destination_is_not_retired(
 def test_upload_unhashed_destination_holding_other_bytes_is_retired(
     mock_create_session, hashing_on
 ):
-    """Given a hash-derived destination whose live row has hash=None but whose
-    file holds DIFFERENT bytes of the SAME size, When an upload replaces those
-    bytes, Then the row is retired instead of adopting the upload's hash.
-
-    ``upload_from_temp_path`` shares the reconciliation helper with
-    ``register_file_in_place``, so it must reach the same verdict: the seeded
-    record was created for the decoy bytes and must never end up attached to
-    content claiming the uploaded digest.
-    """
     payload = b"upload-other-bytes-payload"
     probe = _write_temp(payload)
     digest = _digest_of(probe)
@@ -622,11 +558,6 @@ def test_upload_unhashed_destination_holding_other_bytes_is_retired(
 def test_upload_matching_hash_stale_stat_reuses_record(
     mock_create_session, hashing_on
 ):
-    """Given a destination already holding the uploaded bytes under a live row
-    whose hash matches but whose stored mtime_ns has gone stale, When those
-    bytes are uploaded again, Then the row's stat is refreshed, it is servable
-    by hash, and the existing record is reused rather than duplicated.
-    """
     payload = b"upload-stale-stat-bytes"
     probe = _write_temp(payload)
     digest = _digest_of(probe)
@@ -669,11 +600,6 @@ def test_upload_matching_hash_stale_stat_reuses_record(
 
 
 def test_upload_stale_destination_row_is_retired(mock_create_session, hashing_on):
-    """Given a destination whose live row carries a hash for bytes that were
-    externally replaced, When an upload writes its own bytes there, Then the
-    stale row is retired and exactly one live row - carrying the uploaded
-    hash and size - remains at that path.
-    """
     payload = b"upload-retire-destination-bytes"
     probe = _write_temp(payload)
     digest = _digest_of(probe)
@@ -777,9 +703,6 @@ def test_upload_unstable_raises_after_three_attempts_no_rows(
 
 
 def test_upload_unknown_preview_id_raises(mock_create_session, hashing_on):
-    """Given a preview_id that references no Asset, When upload_from_temp_path
-    runs, Then it raises ValueError before writing — the upload route maps this
-    to 4xx (INVALID_BODY), never a 500 from an FK IntegrityError."""
     temp = _write_temp(b"preview-validate-upload-bytes")
     try:
         with pytest.raises(ValueError):

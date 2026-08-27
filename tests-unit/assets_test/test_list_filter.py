@@ -305,10 +305,8 @@ async def test_missing_content_is_listed_with_missing_tag(
     response = await _request_assets("tags_all=live-case&sort=name&order=asc")
 
     body = _asset_list_body(response)
-    # Both the live and the missing record are catalogued under the shared tag.
     assert {asset["id"] for asset in body["assets"]} == {live.id, missing.id}
     assert body["total"] == 2
-    # The missing record advertises its automatic "missing" tag.
     missing_asset = next(a for a in body["assets"] if a["id"] == missing.id)
     assert "missing" in missing_asset["tags"]
 

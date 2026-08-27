@@ -1,4 +1,3 @@
-"""Todo 16: hard delete via delete_record — record gone, content and file remain."""
 import os
 
 from sqlalchemy import update
@@ -50,8 +49,6 @@ def test_two_records_one_content_other_unaffected(mock_create_session, session):
 
 
 def test_delete_record_never_deletes_pointed_at_preview(mock_create_session, session):
-    """Given A.preview_id points at an ordinary asset B, When A is deleted,
-    Then B must still exist — record deletion never cascades into another asset."""
     b_content = create_content(session, path="/tmp/preview_target.png")
     b = create_record(session, content_id=b_content.id, name="B")
     a_content = create_content(session, path="/tmp/owner.png")

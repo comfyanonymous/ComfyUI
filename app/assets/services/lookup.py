@@ -22,18 +22,12 @@ def is_temp_path(path: str) -> bool:
 
 
 def _stat_consistent(content: AssetContent) -> bool:
-    """Check file exists and stored stat values are consistent.
-
-    mtime_ns=None means "not yet measured" — always consistent.
-    size_bytes=0 with mtime_ns=None means "stub row" — always consistent.
-    """
     try:
         stat = os.stat(content.path)
     except FileNotFoundError:
         return False
     if content.mtime_ns is not None and stat.st_mtime_ns != content.mtime_ns:
         return False
-    # Only check size when mtime is also stored (fully enriched row)
     if content.mtime_ns is not None and stat.st_size != content.size_bytes:
         return False
     return True

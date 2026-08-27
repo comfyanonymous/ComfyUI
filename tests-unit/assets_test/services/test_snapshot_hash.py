@@ -34,15 +34,12 @@ class _MutatingReader:
 
 
 def test_snapshot_hash_returns_digest_for_quiescent_file(tmp_path: Path) -> None:
-    # Given
     payload = b"quiescent" * 1024
     path = tmp_path / "asset.bin"
     path.write_bytes(payload)
 
-    # When
     result = snapshot_hash(str(path), chunk_size=64)
 
-    # Then
     assert result is not None
     digest, stat_result = result
     assert digest == blake3(payload).hexdigest()

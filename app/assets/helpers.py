@@ -61,7 +61,6 @@ def normalize_tags(tags: list[str] | None) -> list[str]:
 
 
 def to_stored_hash(digest: str) -> str:
-    """Convert a bare BLAKE3 digest to its stored form."""
     return f"blake3:{digest}"
 
 

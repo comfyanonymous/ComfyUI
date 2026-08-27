@@ -1,5 +1,3 @@
-"""Admission controls for scanner-discovered files."""
-
 from __future__ import annotations
 
 import mimetypes
@@ -61,7 +59,6 @@ def _two_stat_admit(paths_with_stats: list[tuple[str, os.stat_result]]) -> tuple
 
 
 def tick_watch_list(session: Session) -> None:
-    # Keep nested to break app.assets.scanner -> app.assets.scanner_admission -> app.assets.scanner.
     from app.assets.scanner import seed_asset_specs, SeedAssetSpec
 
     remaining: list[_WatchEntry] = []

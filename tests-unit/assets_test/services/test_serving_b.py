@@ -1,4 +1,3 @@
-"""Todo 17: fail-closed serving — record metadata 200+missing tag, content 404, /view lookup."""
 import os
 from datetime import datetime
 from unittest.mock import patch
@@ -36,7 +35,6 @@ _TS = datetime(2024, 1, 1, 0, 0, 0)
 def test_missing_content_record_metadata_200_with_tag_content_404(
     mock_create_session, session, temp_dir
 ):
-    """GAP-A4: existing missing-content record returns metadata with missing tag; content 404."""
     content = create_content(session, path=str(temp_dir / "gone.bin"))
     record = create_record(session, content_id=content.id, name="gone.bin")
     mark_content_missing(session, content.id)
@@ -54,11 +52,6 @@ def test_missing_content_record_metadata_200_with_tag_content_404(
 def test_missing_record_is_listed_but_never_served(
     mock_create_session, session, temp_dir
 ):
-    """A missing-content record stays catalogued, yet its bytes are never served.
-
-    The file exists on disk, so the refusal is due to is_missing alone — proving
-    the catalog-visibility change (list) did not leak into the serving path.
-    """
     path = temp_dir / "listed_gone.bin"
     path.write_bytes(b"x")
     digest = to_stored_hash("a" * 64)
@@ -68,13 +61,11 @@ def test_missing_record_is_listed_but_never_served(
     session.commit()
     record_id = record.id
 
-    # Listed in the catalog, carrying its automatic "missing" tag...
     results, tag_map, total = list_records_page(session, RecordPageSpec())
     assert any(r.id == record_id for r in results)
     assert total == 1
     assert "missing" in tag_map.get(record_id, [])
 
-    # ...but the content is refused by both the hash view path and download.
     assert lookup_for_view(session, digest) is None
     with pytest.raises(FileNotFoundError):
         resolve_asset_for_download(record_id)
@@ -107,7 +98,6 @@ def test_content_404_when_file_absent_not_marked_missing(
 
 
 def test_content_fail_closed_no_sibling_fallback(mock_create_session, session, temp_dir):
-    """Record bound to missing content does not fall back to a live sibling row."""
     digest = "d" * 64
     missing_path = temp_dir / "missing.bin"
     live_path = temp_dir / "live.bin"
@@ -128,11 +118,6 @@ def test_content_fail_closed_no_sibling_fallback(mock_create_session, session, t
 
 
 def test_resolve_hash_to_path_refuses_temp_content(mock_create_session, session, temp_dir):
-    """D10: a hash resolving only to temp-path content is refused.
-
-    Temp exclusion now lives inside ``qualified_content_iterator``, so every
-    hash consumer — including the view path — declines temp content.
-    """
     digest = "e" * 64
     f = temp_dir / "temp_only.bin"
     f.write_bytes(b"temp")
@@ -182,12 +167,6 @@ def test_resolve_hash_to_path_uses_newest_record_for_name_and_content_type(
 def test_resolve_hash_to_path_serves_content_with_zero_records(
     mock_create_session, session, temp_dir
 ):
-    """Deleting the last record preserves its live content, which stays servable.
-
-    delete_asset_reference drops only the record row (D-3 floor), so /view can
-    reach an AssetContent with no records at all. Name and Content-Type then
-    derive from the content path, never from the deleted record's metadata.
-    """
     digest = "d" * 64
     f = temp_dir / "orphan.png"
     f.write_bytes(b"data")
@@ -273,7 +252,6 @@ def test_view_hash_read_updates_last_access_time(
 
 
 def test_lookup_for_view_returns_none_for_temp_content(session, temp_dir):
-    """D10 (i): the shared iterator excludes temp, so lookup_for_view yields None."""
     digest = "b" * 64
     f = temp_dir / "view_temp.bin"
     f.write_bytes(b"temp")
@@ -285,7 +263,6 @@ def test_lookup_for_view_returns_none_for_temp_content(session, temp_dir):
 
 
 def test_asset_exists_false_for_temp_content(mock_create_session, session, temp_dir):
-    """D10 (ii): asset_exists routes through lookup_for_view, so temp reads as absent."""
     digest = "c" * 64
     f = temp_dir / "exists_temp.bin"
     f.write_bytes(b"temp")
@@ -300,7 +277,6 @@ def test_asset_exists_false_for_temp_content(mock_create_session, session, temp_
 async def test_head_hash_route_404_for_temp_content(
     mock_create_session, session, temp_dir, monkeypatch
 ):
-    """D10 (iii): HEAD /api/assets/hash/{hash} is 404 when only temp content matches."""
     digest = "d" * 64
     f = temp_dir / "head_temp.bin"
     f.write_bytes(b"temp")
@@ -324,7 +300,6 @@ async def test_head_hash_route_404_for_temp_content(
 def test_resolve_hash_to_path_temp_does_not_bump_last_access_time(
     mock_create_session, session, temp_dir
 ):
-    """D10 (iv): refusing temp content must not touch last_access_time on its records."""
     digest = "f" * 64
     f = temp_dir / "noaccess_temp.bin"
     f.write_bytes(b"temp")
@@ -359,11 +334,6 @@ def sandboxed_comfy_roots(tmp_path):
 
 
 def test_temp_asset_preview_url_still_resolves_type_temp(sandboxed_comfy_roots):
-    """D10 (v) GUARDRAIL: previews are PATH-addressed, not hash-addressed.
-
-    Excluding temp from hash lookups must NOT disturb a temp asset's preview_url
-    — if this goes red the iterator change over-reached into preview resolution.
-    """
     name = "ComfyUI_temp_abcde_00001_.png"
     result = AssetDetailResult(
         ref=ReferenceData(

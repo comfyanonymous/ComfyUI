@@ -1,27 +1,3 @@
-"""Upload-vs-scanner-vs-output hashing behaviour in the B asset branch.
-
-These tests pin the product decision (Q2, 2026-08-23): **uploads always hash**,
-regardless of the ``--enable-asset-hashing`` flag, while the **scanner** and
-**workflow-output** paths stay gated on that flag.
-
-The shared ComfyUI subprocess (see ``conftest.comfy_url_and_proc``) is
-session-scoped and its hashing mode is fixed once per pytest session: it comes
-up with ``--enable-asset-hashing`` iff any collected test carries the
-``hashing_on`` marker. This file carries no such marker, so an *isolated* run of
-this file (``pytest tests-unit/assets_test/test_upload_hashing_modes.py``) boots
-the server in **on mode** (assets enabled, hashing flag OFF) — the exact
-configuration the upload assertions target. A *full-suite* run collects
-``hashing_on`` tests from sibling files, so the shared server comes up in hash
-mode; the always-hash upload assertions still hold there (uploads hash in both
-modes), the scanner assertion skips (see ``server_hashing_enabled``), and the
-output assertion is self-contained (it drives the ingest function in-process
-with the flag forced off).
-
-The authoritative hash signal is the ``asset_contents.hash`` column: the stored
-canonical ``blake3:<hex>`` form when hashed, or ``NULL`` when not. (The HTTP
-layer omits null hashes entirely via ``exclude_none=True`` and returns that same
-stored form, so the DB column is the stable thing to assert on.)
-"""
 from __future__ import annotations
 
 import os
@@ -44,10 +20,6 @@ from app.assets.database.models import AssetContent, Base
 from app.assets.services.ingest import register_executed_output
 
 from .helpers import trigger_sync_seed_assets
-
-# --------------------------------------------------------------------------- #
-# DB access helpers (read the subprocess's sqlite file directly, read-only)
-# --------------------------------------------------------------------------- #
 
 
 def _db_path(comfy_tmp_base_dir: Path, request: pytest.FixtureRequest) -> str:
@@ -73,7 +45,6 @@ def _query(db_path: str, sql: str, params: tuple[Any, ...] = ()) -> list[tuple[A
 
 
 def _content_hash_for_asset(db_path: str, asset_id: str) -> str | None:
-    """Return the ``asset_contents.hash`` backing an asset record (stored ``blake3:<hex>`` or None)."""
     rows = _query(
         db_path,
         "SELECT c.hash FROM asset_contents c "
@@ -86,16 +57,10 @@ def _content_hash_for_asset(db_path: str, asset_id: str) -> str | None:
 
 
 def _is_stored_blake3_hash(value: str | None) -> bool:
-    """True iff ``value`` is the stored canonical ``blake3:<hex>`` form."""
     if not isinstance(value, str) or not value.startswith("blake3:"):
         return False
     digest = value[len("blake3:") :]
     return len(digest) == 64 and all(c in "0123456789abcdef" for c in digest.lower())
-
-
-# --------------------------------------------------------------------------- #
-# Upload helpers
-# --------------------------------------------------------------------------- #
 
 
 def _upload_via_api(
@@ -122,15 +87,6 @@ def _unique_bytes(seed: str, size: int = 4096) -> bytes:
 
 @pytest.fixture(scope="session")
 def server_hashing_enabled(request: pytest.FixtureRequest) -> bool:
-    """Whether the shared subprocess booted with ``--enable-asset-hashing``.
-
-    Mirrors the exact decision made in ``conftest.comfy_url_and_proc``. The
-    server fixture is session-scoped, so its mode is fixed once per pytest
-    session: ON iff the flag/markexpr is set or any collected test carries the
-    ``hashing_on`` marker. An isolated run of this file has no such markers (so
-    this returns False → on mode); a full-suite run collects ``hashing_on``
-    tests from sibling files (so this returns True → hash mode).
-    """
     markexpr = request.config.getoption("markexpr") or ""
     return bool(
         request.config.getoption("--enable-asset-hashing")
@@ -139,13 +95,7 @@ def server_hashing_enabled(request: pytest.FixtureRequest) -> bool:
     )
 
 
-# --------------------------------------------------------------------------- #
-# Uploads ALWAYS hash — even in on mode (hashing flag OFF). (Q2 decision)
-# --------------------------------------------------------------------------- #
-
-
 def test_upload_via_api_hashes_in_on_mode(http, api_base, comfy_tmp_base_dir, request):
-    """POST /api/assets (client-bytes path) hashes its content in on mode."""
     db_path = _db_path(comfy_tmp_base_dir, request)
     data = _unique_bytes("api-hashes")
     status, body = _upload_via_api(
@@ -157,7 +107,6 @@ def test_upload_via_api_hashes_in_on_mode(http, api_base, comfy_tmp_base_dir, re
 
 
 def test_upload_via_image_hashes_in_on_mode(http, api_base, comfy_tmp_base_dir, request):
-    """POST /upload/image (in-place registration path) hashes its content in on mode."""
     db_path = _db_path(comfy_tmp_base_dir, request)
     data = _unique_bytes("image-hashes")
     status, body = _upload_via_image(http, api_base, name="image_hashes.png", data=data)
@@ -169,7 +118,6 @@ def test_upload_via_image_hashes_in_on_mode(http, api_base, comfy_tmp_base_dir, 
 
 
 def test_upload_dedup_works_in_on_mode(http, api_base):
-    """Same bytes + same name uploaded twice dedup to one entity, even in on mode."""
     data = _unique_bytes("dedup-on-mode")
     status1, first = _upload_via_api(
         http, api_base, name="dedup_on.bin", tags=["output", "unit-tests"], data=data
@@ -183,20 +131,9 @@ def test_upload_dedup_works_in_on_mode(http, api_base):
     assert second.get("created_new") is False
 
 
-# --------------------------------------------------------------------------- #
-# Scanner and workflow-output paths STAY gated on the hashing flag.
-# --------------------------------------------------------------------------- #
-
-
 def test_seeded_file_not_hashed_in_on_mode(
     http, api_base, comfy_tmp_base_dir, request, server_hashing_enabled
 ):
-    """A scanned (seeded) on-disk file is NOT hashed while the flag is off.
-
-    The scanner gate is deliberately untouched by the upload un-gating. It only
-    exhibits the not-hashed outcome with the flag off, so this skips when the
-    shared server booted in hash mode (a full-suite run).
-    """
     if server_hashing_enabled:
         pytest.skip(
             "scanner hashing gate only observable with the hashing flag OFF; "
@@ -226,13 +163,6 @@ def test_seeded_file_not_hashed_in_on_mode(
 
 
 def test_output_not_hashed_in_on_mode(monkeypatch):
-    """A workflow output is NOT hashed while the flag is off (output gate held).
-
-    Drives ``register_executed_output`` in-process — the exact function main.py
-    calls for each saved output — with the runtime hashing flag forced off and
-    the DB pointed at an in-memory engine. This is deterministic regardless of
-    the shared subprocess's mode.
-    """
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
 

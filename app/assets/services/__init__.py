@@ -1,4 +1,3 @@
-"""Re-export surface for app.assets.services — keeps routes.py and tests importable during the B-schema cutover."""
 from app.assets.services.ingest import (
     DependencyMissingError,
     HashMismatchError,

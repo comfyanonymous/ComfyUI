@@ -19,10 +19,6 @@ def autoclean_unit_test_assets():
 
 @pytest.fixture(autouse=True)
 def initialised_hash_mode():
-    # mode._args is process-global and leaks across tests; hashing_enabled() now
-    # raises when it was never initialised. Give every service test a determinate
-    # hashing-off baseline. Tests needing hashing on override via their own
-    # fixture or by patching mode.hashing_enabled after this runs.
     class _HashingOff:
         enable_asset_hashing = False
 

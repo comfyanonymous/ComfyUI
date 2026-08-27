@@ -40,21 +40,6 @@ _LIVE_PATH_UNIQUE_INDEX = "uq_asset_contents_path_live"
 
 
 def _is_live_path_conflict(error: IntegrityError) -> bool:
-    """True only for a collision on the live-path uniqueness guard.
-
-    ``create_content`` treats exactly one integrity failure as recoverable: two
-    live rows racing for the same ``path`` under the partial unique index
-    ``uq_asset_contents_path_live`` (``asset_contents(path) WHERE is_missing = 0``).
-    That case is resolved by handing back the row that won the race. Every other
-    integrity failure — notably the ``ck_asset_contents_size_nonneg`` and
-    ``ck_asset_contents_mtime_nonneg`` CHECK constraints — MUST propagate; treating
-    it as the race destroys the real diagnostic and surfaces a misleading
-    ``NoResultFound`` from the re-query (which finds no live row for the path).
-
-    SQLite names the *column* in the message (``UNIQUE constraint failed:
-    asset_contents.path``) rather than the index, while Postgres exposes the index
-    name on ``orig.diag.constraint_name``; match either form.
-    """
     orig = error.orig
     diag_name = getattr(getattr(orig, "diag", None), "constraint_name", None)
     if diag_name == _LIVE_PATH_UNIQUE_INDEX:
@@ -64,18 +49,8 @@ def _is_live_path_conflict(error: IntegrityError) -> bool:
 
 
 def create_content(session: Session, path: str, hash: str | None = None, size_bytes: int = 0, mtime_ns: int | None = None) -> AssetContent:
-    """Insert a content row, normalizing ``path`` — the sole write boundary.
-
-    ``asset_contents.path`` holds ONLY normalized absolute paths. This is the
-    one site that writes the column, so normalizing here is what establishes the
-    invariant: ``helpers.sql_path_under_prefix`` normalizes its prefix but
-    compares the column raw, and a stored ``<root>/../sibling.png`` shares the
-    ``<root>/`` character prefix while resolving outside the root — enough for
-    ``lifecycle.wipe_temp_db_rows`` to HARD-DELETE an out-of-root row. A stored
-    relative path fails the same predicate from the other side. ``abspath`` also
-    collapses repeated and trailing separators, so the live-path unique index
-    sees one spelling per file.
-    """
+    # The sole writer of asset_contents.path, which is what makes the raw-column SQL prefix
+    # predicates sound — lifecycle's temp wipe HARD-DELETES every row its predicate admits.
     path = os.path.abspath(path)
     content = AssetContent(path=path, hash=hash, size_bytes=size_bytes, mtime_ns=mtime_ns)
     try:
@@ -111,7 +86,6 @@ def get_preview_file_paths_by_ids(
     session: Session,
     preview_ids: Sequence[str],
 ) -> dict[str, str]:
-    """Map live preview asset ids to their content paths in one statement."""
     if not preview_ids:
         return {}
 
@@ -169,7 +143,6 @@ def build_record_tag_filter_clauses(
     any_tags: Sequence[str],
     none_tags: Sequence[str],
 ) -> tuple[ColumnElement[bool], ...]:
-    """Build correlated all/any/none AssetTag predicates for an Asset query."""
     clauses: list[ColumnElement[bool]] = []
     for tag_name in all_tags:
         clauses.append(

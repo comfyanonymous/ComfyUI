@@ -85,9 +85,6 @@ async def test_other_tags_unaffected(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_remove_tags_response_exposes_protected_bucket(monkeypatch):
-    """The DELETE /tags route must serialise the ``protected`` bucket rather than
-    drop it: a present-but-automatic tag the service reports as protected has to
-    reach the HTTP body so the contract matches RemoveTagsResult (review2-18)."""
     monkeypatch.setattr(routes, "USER_MANAGER", _UserManager())
     monkeypatch.setattr(
         routes,

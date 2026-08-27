@@ -66,9 +66,6 @@ def test_off_mode_same_size_touch_does_not_split(session, temp_dir: Path):
         sync_prefixes_with_filesystem(session, [str(input_root)])
     session.commit()
 
-    # User identity rule: a same-size mtime bump (rsync, cloud sync, backup
-    # restore) is the same file. Without a hash to prove a content change, OFF
-    # mode must not split and destroy the record's tags/metadata.
     contents = list(session.scalars(select(AssetContent)))
     assert len(contents) == 1
     assert session.get(AssetContent, old_content.id).is_missing is False
@@ -89,8 +86,6 @@ def test_off_mode_size_change_splits(session, temp_dir: Path):
         sync_prefixes_with_filesystem(session, [str(input_root)])
     session.commit()
 
-    # A genuine change (mtime AND size both moved) still splits: the old bytes
-    # are retired and a fresh replacement takes the live path.
     contents = list(session.scalars(select(AssetContent).order_by(AssetContent.created_at)))
     assert len(contents) == 2
     assert session.get(AssetContent, old_content.id).is_missing is True
@@ -166,7 +161,6 @@ def test_old_record_id_resolves_to_missing_content_after_split(session, temp_dir
 
 
 def test_hash_mode_split_uses_stat_from_the_verified_snapshot(session, temp_dir: Path, monkeypatch):
-    # Given
     input_root = temp_dir / "input"
     input_root.mkdir()
     path = input_root / "changed.bin"
@@ -183,10 +177,8 @@ def test_hash_mode_split_uses_stat_from_the_verified_snapshot(session, temp_dir:
 
     monkeypatch.setattr("app.assets.scanner_changes.snapshot_hash", mutate_then_hash)
 
-    # When
     processed = drain_pending_verifications(session)
 
-    # Then
     live_content = session.scalar(
         select(AssetContent).where(AssetContent.is_missing.is_(False))
     )

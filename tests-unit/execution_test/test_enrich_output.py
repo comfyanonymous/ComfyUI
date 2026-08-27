@@ -1,25 +1,3 @@
-"""Emission-time output registration adapters (D6).
-
-These are unit tests of the two pure adapters and the cached-emission helper in
-``comfy_execution.asset_enrichment``:
-
-* ``register_executed_outputs(output_ui, job_id)`` - deep-copies the raw output
-  dict and enriches the copy by registering each output file as a freshly
-  executed delivery.
-* ``register_cached_outputs(ui_wrapper, job_id)`` - deep-copies the cache UI
-  *wrapper* (``{"meta": ..., "output": output_ui}``), strips any legacy ids from
-  the copy, and enriches ``copy["output"]`` as a replayed cached delivery.
-* ``emit_cached_output(server, node_id, display_node_id, cached, prompt_id,
-  ui_outputs)`` - registers a cached node's delivery at emission time (even with
-  no client connected), publishes the enriched copy to ``ui_outputs``, and only
-  then optionally sends to the client. Guards against double emission.
-
-The registration *primitives* (``register_executed_output`` /
-``register_cached_output`` from ``app.assets.services.ingest``) are replaced by
-an in-memory fake that models their observable contract, so these tests are
-DB-free and deterministic. The primitives' real DB behaviour is covered by the
-``assets_test`` integration suite.
-"""
 import copy
 import os
 import sys
@@ -29,22 +7,12 @@ from collections import namedtuple
 from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
-# Mirrors ``execution.CacheEntry`` without importing the heavy execution module.
 _CacheEntry = namedtuple("_CacheEntry", ["ui", "outputs"])
 
 _BASE = os.path.join(tempfile.gettempdir(), "asset-enrichment-test-base")
 
 
 class _FakeAssetDB:
-    """In-memory model of the executed/cached registration primitives.
-
-    * executed: registering a path always mints a brand-new delivery id; if a
-      live delivery already exists for that path, the old one is marked missing
-      (superseded content).
-    * cached: a replay reuses the existing live content and mints a *new*
-      delivery record bound to the current job id; with no live content it is a
-      logged non-event and returns ``None`` (S10.4).
-    """
 
     def __init__(self) -> None:
         self.live_id_by_path: dict[str, str] = {}
@@ -141,7 +109,6 @@ def _wrapper(filename: str, node_id: str = "1") -> dict:
 
 
 def _find_ids(value) -> list:
-    """Recursively collect every ``id`` value under nested dicts/lists."""
     found: list = []
     if isinstance(value, dict):
         for key, sub in value.items():
@@ -154,11 +121,7 @@ def _find_ids(value) -> list:
     return found
 
 
-# --------------------------------------------------------------------------
 # REQUIRED test names (invoked verbatim downstream). Do not rename.
-# --------------------------------------------------------------------------
-
-
 def test_executed_new_path_gets_fresh_id() -> None:
     fake = _FakeAssetDB()
     output_ui = _output("new.png")
@@ -167,7 +130,6 @@ def test_executed_new_path_gets_fresh_id() -> None:
         enriched = module.register_executed_outputs(output_ui, "job-1")
 
     assert enriched["images"][0]["id"] == "asset-1"
-    # the raw input (what the cache stores) is never mutated
     assert "id" not in output_ui["images"][0]
     reg_exec.assert_called_once()
     _, kwargs = reg_exec.call_args
@@ -189,7 +151,6 @@ def test_executed_over_existing_path_gets_new_id_and_marks_old_missing() -> None
     new_id = second["images"][0]["id"]
 
     assert new_id != old_id
-    # the superseded delivery for the same locator is marked missing
     assert old_id in fake.missing
     assert fake.live_id_by_path[os.path.join(_BASE, "same.png")] == new_id
 
@@ -203,7 +164,6 @@ def test_cached_replay_creates_delivery_with_current_job_id() -> None:
 
     replay_id = enriched["output"]["images"][0]["id"]
     assert (replay_id, os.path.join(_BASE, "replay.png"), "replay-job") in fake.deliveries
-    # the replay is a fresh delivery, distinct from the seeded executed one
     assert replay_id != "asset-1"
 
 
@@ -219,11 +179,9 @@ def test_cached_registration_happens_without_client() -> None:
             "job-x", ui_outputs,
         )
 
-    # registration ran despite no connected client
     assert any(job == "job-x" for (_id, _path, job) in fake.deliveries)
     assert "node-1" in ui_outputs
     assert ui_outputs["node-1"]["output"]["images"][0]["id"] is not None
-    # no client => nothing sent
     assert server.sent == []
 
 
@@ -234,12 +192,10 @@ def test_cache_entry_contains_no_asset_ids() -> None:
     with _patched(fake) as (module, _, _c):
         enriched = module.register_executed_outputs(output_ui, "job")
 
-    # execution.py stores the RAW output_ui inside the cache wrapper (S10.5).
     cache_entry = _CacheEntry(
         ui={"meta": {"node_id": "1"}, "output": output_ui}, outputs=[]
     )
     assert _find_ids(cache_entry.ui) == []
-    # ... while the enriched COPY that flows to ui/history DOES carry the id.
     assert _find_ids(enriched) == ["asset-1"]
 
 
@@ -271,11 +227,6 @@ def test_double_emission_yields_single_delivery() -> None:
 
     cached_deliveries = [d for d in fake.deliveries if d[2] == "prompt-1"]
     assert len(cached_deliveries) == 1
-
-
-# --------------------------------------------------------------------------
-# Supporting coverage (adapter purity, gating, resilience).
-# --------------------------------------------------------------------------
 
 
 def test_executed_disabled_returns_unenriched_copy() -> None:
@@ -341,9 +292,7 @@ def test_cached_strips_legacy_ids_before_replay() -> None:
         module.register_executed_outputs(_output("legacy.png"), "seed-job")
         enriched = module.register_cached_outputs(wrapper, "replay-job")
 
-    # legacy id was stripped and replaced with the fresh replay delivery id
     assert enriched["output"]["images"][0]["id"] != "stale-id"
-    # the input wrapper is never mutated
     assert wrapper["output"]["images"][0]["id"] == "stale-id"
 
 
@@ -360,7 +309,6 @@ def test_cached_none_wrapper_returns_none() -> None:
 def test_cached_missing_live_content_is_nonevent() -> None:
     fake = _FakeAssetDB()
 
-    # no prior executed registration => no live content for this path
     with _patched(fake) as (module, _, _c):
         enriched = module.register_cached_outputs(_wrapper("orphan.png"), "job")
 

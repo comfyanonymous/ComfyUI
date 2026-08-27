@@ -70,7 +70,6 @@ def _record(session, path: Path, name: str, hash_value: str | None = None):
 
 @contextmanager
 def _sandbox_asset_roots(root: Path, model_category: Path | None = None):
-    """Point path derivation at a sandbox so derived values are predictable."""
     with patch("app.assets.services.path_utils.folder_paths") as folder_paths_mock:
         folder_paths_mock.get_input_directory.return_value = str(root / "input")
         folder_paths_mock.get_output_directory.return_value = str(root / "output")
@@ -88,11 +87,6 @@ def _sandbox_asset_roots(root: Path, model_category: Path | None = None):
             yield
 
 
-# A writer simulation must converge. snapshot_hash drains the file with
-# `while chunk := file.read(chunk_size)`, so a simulated writer that appends on
-# every consumed chunk keeps that loop fed forever and the suite hangs with no
-# failure to read. Any helper that mutates a file the production code is reading
-# carries this cap so the runaway variant fails loudly instead of spinning.
 _WRITER_UPDATE_CAP = 16
 
 
@@ -101,7 +95,6 @@ def _differently_sized(payload: bytes, avoid_size: int) -> bytes:
 
 
 def _seed_content_row(session, path: Path, hash_value: str | None = None):
-    """Seed one content row carrying the file's real stat, as the scanner would."""
     seed_stat = path.stat()
     return create_content(
         session,
@@ -113,13 +106,6 @@ def _seed_content_row(session, path: Path, hash_value: str | None = None):
 
 
 def _scan_pass(session, root: Path) -> int:
-    """Run the scanner's own pass over one root and report records created.
-
-    Retire content whose file is gone, then admit and seed every path the sync
-    did not account for — the two halves ``scanner`` drives in sequence, so a
-    filesystem event is observed the way production observes it rather than
-    described by hand. Callers supply the sandbox and the hash-mode decision.
-    """
     survivors = sync_prefixes_with_filesystem(
         session, [str(root)], collect_existing_paths=True
     )
@@ -131,18 +117,6 @@ def _scan_pass(session, root: Path) -> int:
 
 @contextmanager
 def _writer_lands_mid_hash(path: Path, replacement: bytes):
-    """Stand in for a concurrent writer that lands once per hashing pass.
-
-    Each pass swaps the file exactly once, on its first consumed chunk, for a
-    payload whose length differs from the length the pass opened at — so the
-    pre/open/post stat quartet snapshot_hash compares can never agree, and the
-    read loop still runs dry. Once per pass rather than once overall, because a
-    file left stable would let a later pass return a real digest. The
-    instability verdict is still the production one — only the writer is
-    simulated.
-
-    Yields the patched hasher class so the cap itself can be tested.
-    """
     real_blake3 = blake3
 
     class _WriterHasher:
@@ -207,8 +181,6 @@ def test_scenario_2_edit_split(session, tmp_path):
     assert new_record.content.is_missing is False
     assert new_record.content.size_bytes == edited_stat.st_size
     assert new_record.content.mtime_ns == edited_stat.st_mtime_ns
-    # The old read is unavailable: the original record survives but resolves
-    # only to retired content, and the live path now answers as the new one.
     assert session.get(Asset, old_record.id).content_id == old_content.id
     assert old_content.is_missing is True
     assert fetch_record_tags(session, old_record.id) == ["missing"]
@@ -223,8 +195,6 @@ def test_scenario_3_path_reuse_convergence(session, tmp_path):
     assert old.content_id != new.content_id
     assert old.content.is_missing is True
     assert new.content.is_missing is False
-    # Convergence itself: while a live row owns the path, a second registration
-    # resolves onto it instead of minting a rival row.
     assert create_content(session, str(tmp_path / "same.bin")).id == new.content_id
 
 
@@ -293,7 +263,6 @@ def test_scenario_6_upload_dedup(session, tmp_path):
     in_hash_mode = upload(payload, "upload.bin", hashing=True)
     other = upload(b"a wholly different payload", "upload.bin", hashing=False)
 
-    # Hashing-off still produced the real digest, which is what dedup matched on.
     assert first.created_new is True
     assert first.asset.hash == expected_hash
 
@@ -303,7 +272,6 @@ def test_scenario_6_upload_dedup(session, tmp_path):
     assert in_hash_mode.created_new is False
     assert in_hash_mode.ref.id == first.ref.id
 
-    # A new name is a new record over the SAME content, not a second copy.
     assert renamed.created_new is True
     assert renamed.ref.id != first.ref.id
     assert renamed.ref.file_path == first.ref.file_path
@@ -402,8 +370,6 @@ def test_scenario_10_cached_delivery_record(session, tmp_path):
         delivered.id,
     }
 
-    # The delivery is bound to LIVE content: retire it and the replay creates
-    # nothing rather than re-registering the path as a fresh output.
     mark_content_missing(session, content.id)
     with (
         _sandbox_asset_roots(tmp_path),
@@ -537,7 +503,6 @@ def test_scenario_18_edit_during_hash_discard(session, tmp_path):
 
 
 def test_writer_simulation_terminates_and_is_capped(tmp_path):
-    """Guard: the mid-hash writer simulation can fail, but it can never hang."""
     path = tmp_path / "bounded.bin"
     path.write_bytes(b"0123456789")
 

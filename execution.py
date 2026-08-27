@@ -560,9 +560,6 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                 "parent_node": parent_node_id,
                 "real_node_id": real_node_id,
             }
-            # Register outputs at emission time. The cache must stay id-free
-            # (S10.5): it stores the RAW output_ui, while the enriched COPY from
-            # the adapter is what flows into ui_outputs / history / send_sync.
             enriched_output_ui = register_executed_outputs(output_ui, prompt_id)
             ui_outputs[unique_id] = {"meta": meta, "output": enriched_output_ui}
             cache_ui_value = {"meta": meta, "output": output_ui}

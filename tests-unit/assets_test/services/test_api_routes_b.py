@@ -46,7 +46,6 @@ async def test_unfiltered_listing_includes_missing_entity(
     response_body = response.body
     assert isinstance(response_body, bytes | bytearray)
     body = json.loads(response_body)
-    # Catalogued unfiltered; hidden only via exclude_tags=missing (test_exclude_tags_missing_hides_it).
     assert record.id in {item["id"] for item in body["assets"]}
     assert body["total"] == 1
     listed = next(item for item in body["assets"] if item["id"] == record.id)

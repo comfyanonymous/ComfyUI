@@ -42,12 +42,6 @@ def test_cached_save_creates_delivery_record(mock_create_session, db_engine):
 
 
 def test_cached_save_against_missing_content_is_nonevent(mock_create_session):
-    """S10.4: cached registration against non-live content is a logged non-event.
-
-    Once the live content at the path is gone (marked missing), a cached replay
-    no longer falls back to a fresh executed registration - it returns None and
-    creates nothing, leaving only the original (now-missing) content row.
-    """
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
     path = os.path.join(output_dir, "test_cached_save_missing.png")

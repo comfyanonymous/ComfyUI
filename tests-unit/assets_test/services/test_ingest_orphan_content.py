@@ -1,17 +1,3 @@
-"""Orphan-content regression: a failed record insert must not leak content.
-
-``create_content`` inserts inside a SAVEPOINT (``begin_nested``). Under pysqlite
-that insert survives the enclosing ``rollback`` because pysqlite has no real
-nested transaction, so a follow-on ``create_record`` failure would otherwise
-leave a live, unreferenced ``AssetContent`` row behind. A live row occupying a
-path makes later scans skip it indefinitely, so every ingest path that creates
-content before its record must discard the orphan on failure.
-
-These tests inject a ``create_record`` failure AFTER ``create_content`` has
-succeeded, then assert no live ``AssetContent`` row is left behind, for each of
-the three claimed paths: ``upload_from_temp_path``, ``register_file_in_place``
-(ingest) and ``seed_asset_specs`` (scanner).
-"""
 import os
 import uuid
 
@@ -64,12 +50,10 @@ def _live_content_count(session: Session) -> int:
 def test_upload_from_temp_path_discards_content_on_record_failure(
     mock_create_session, hashing_off, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Given a fresh upload whose record insert will fail after content creation
     content = b"orphan-upload-" + uuid.uuid4().bytes
     temp_path = _write_temp(content)
     monkeypatch.setattr(ingest, "create_record", _raise_create_record)
 
-    # When the upload runs and create_record blows up
     with pytest.raises(RuntimeError, match="forced create_record failure"):
         upload_from_temp_path(
             temp_path=temp_path,
@@ -78,7 +62,6 @@ def test_upload_from_temp_path_discards_content_on_record_failure(
             client_filename="orphan.bin",
         )
 
-    # Then no live content row is left orphaned
     with mock_create_session() as session:
         assert _live_content_count(session) == 0
 
@@ -86,7 +69,6 @@ def test_upload_from_temp_path_discards_content_on_record_failure(
 def test_register_file_in_place_discards_content_on_record_failure(
     mock_create_session, hashing_off, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Given a fresh on-disk file whose record insert will fail after content creation
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
     path = os.path.join(output_dir, f"orphan_inplace_{uuid.uuid4().hex}.png")
@@ -95,11 +77,9 @@ def test_register_file_in_place_discards_content_on_record_failure(
     monkeypatch.setattr(ingest, "create_record", _raise_create_record)
 
     try:
-        # When registration runs and create_record blows up
         with pytest.raises(RuntimeError, match="forced create_record failure"):
             register_file_in_place(abs_path=path, name="orphan_inplace.png", tags=["output"])
 
-        # Then no live content row is left orphaned
         with mock_create_session() as session:
             assert _live_content_count(session) == 0
     finally:
@@ -124,7 +104,6 @@ def _seed_spec(path: str, size_bytes: int, mtime_ns: int, name: str) -> SeedAsse
 def test_seed_asset_specs_discards_content_on_record_failure(
     session: Session, tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Given three specs where the second record insert fails after content creation
     specs: list[SeedAssetSpec] = []
     fail_name = "vanished.bin"
     for name in ("first.bin", fail_name, "last.bin"):
@@ -142,11 +121,9 @@ def test_seed_asset_specs_discards_content_on_record_failure(
 
     monkeypatch.setattr("app.assets.scanner.create_record", _create_record_or_raise)
 
-    # When the batch seed runs and the second record insert blows up
     with pytest.raises(RuntimeError, match="forced create_record failure"):
         seed_asset_specs(session, specs)
     session.rollback()
 
-    # Then no live content row is left orphaned by the aborted batch
     assert _live_content_count(session) == 0
     assert session.scalar(select(func.count()).select_from(Asset)) == 0

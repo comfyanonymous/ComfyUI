@@ -27,14 +27,7 @@ def _resolve_output_path(entry: dict) -> str | None:
 
 
 def _enrich_in_place(output_ui: dict, job_id, register) -> None:
-    """Register each output file entry and attach the returned id, in place.
-
-    The caller always passes a *copy* it owns, so mutating here never touches
-    the argument the adapter received. S10.6: producers that write the same
-    output path are not coalesced (unsupported) - every entry is registered
-    independently. S10.4: a registration failure is logged, leaves the entry
-    without an id, and never propagates.
-    """
+    """S10.6: producers that write the same output path are not coalesced (unsupported)."""
     for entries in output_ui.values():
         if not isinstance(entries, list):
             continue
@@ -53,7 +46,6 @@ def _enrich_in_place(output_ui: dict, job_id, register) -> None:
 
 
 def _strip_ids(output_ui: dict) -> None:
-    """Drop any pre-existing ``id`` keys so a replay never reuses a stale id."""
     for entries in output_ui.values():
         if not isinstance(entries, list):
             continue
@@ -63,12 +55,6 @@ def _strip_ids(output_ui: dict) -> None:
 
 
 def register_executed_outputs(output_ui: dict, job_id) -> dict:
-    """Register a freshly-executed node's outputs and return an enriched COPY.
-
-    Pure: deep-copies ``output_ui`` and enriches the copy, so the raw dict the
-    caller stores in the cache stays id-free (S10.5). Gated on
-    ``args.enable_assets``; when disabled the copy is returned unenriched.
-    """
     from comfy.cli_args import args
 
     enriched = copy.deepcopy(output_ui)
@@ -81,14 +67,6 @@ def register_executed_outputs(output_ui: dict, job_id) -> dict:
 
 
 def register_cached_outputs(ui_wrapper, job_id):
-    """Register a replayed cached node's outputs and return an enriched COPY.
-
-    ``ui_wrapper`` is the cache UI wrapper ``{"meta": ..., "output": output_ui}``.
-    Pure: deep-copies the whole wrapper, strips any legacy ids from the copy,
-    then enriches ``copy["output"]`` as a cached-replay delivery. The argument
-    (``cached.ui``) is never mutated (S10.5). Returns ``None`` for a ``None``
-    wrapper; gated on ``args.enable_assets``.
-    """
     if ui_wrapper is None:
         return None
 
@@ -109,15 +87,6 @@ def register_cached_outputs(ui_wrapper, job_id):
 
 
 def emit_cached_output(server, node_id, display_node_id, cached, prompt_id, ui_outputs) -> None:
-    """Register + deliver a cached node's UI at emission time.
-
-    Registers the replay (even with no connected client), publishes the enriched
-    COPY to ``ui_outputs`` (never ``cached.ui`` itself), and only then returns
-    early when no client is connected - so the client send is the sole part that
-    depends on ``client_id``. Double-emission guard (D6d): a node already present
-    in ``ui_outputs`` is skipped, giving exactly one delivery record per cached
-    node per prompt.
-    """
     if node_id in ui_outputs:
         return
     enriched = register_cached_outputs(cached.ui, prompt_id)

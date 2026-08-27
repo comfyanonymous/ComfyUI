@@ -31,9 +31,6 @@ class RemoveTagsResult:
     removed: list[str]
     not_present: list[str]
     total_tags: list[str]
-    # Tags that ARE present on the record but carry origin="automatic", so they
-    # cannot be removed via this API. Kept distinct from ``not_present`` so a
-    # caller can tell "the tag wasn't there" apart from "the tag is protected".
     protected: list[str] = field(default_factory=list)
 
 
@@ -47,10 +44,6 @@ def list_tags_with_usage(
 ) -> tuple[list[tuple[str, int]], int]:
     prefix_filter = prefix.strip() if prefix else ""
 
-    # Every asset counts toward each tag it carries, missing content included, so
-    # /api/tags agrees with the catalog list/refine surfaces on tag counts. A
-    # record whose content went missing keeps ALL its tags countable here, not
-    # just the automatic "missing" one.
     counts_sq = (
         select(
             AssetTag.tag_name.label("tag_name"),
@@ -136,7 +129,6 @@ def list_tag_counts_for_filtered_assets(
         .subquery()
     )
 
-    # Count every tag carried by the matching assets.
     q = (
         select(
             AssetTag.tag_name,

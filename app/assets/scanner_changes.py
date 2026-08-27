@@ -1,5 +1,3 @@
-"""Content identity transitions driven by scanner mtime observations."""
-
 from __future__ import annotations
 
 import os
@@ -41,7 +39,6 @@ def pending_recovery_count() -> int:
 def recover_missing_content(
     session: Session, path: str, stat_result: os.stat_result, hashing_is_enabled: bool
 ) -> Literal["recovered", "no_match", "unstable"]:
-    """Recover only an unambiguous missing row with the current stable hash."""
     if not hashing_is_enabled:
         return "no_match"
     snapshot = snapshot_hash(path)
@@ -75,7 +72,6 @@ def is_path_under_prefixes(path: str, prefixes: list[str]) -> bool:
 
 
 def split_content(session: Session, content: AssetContent, stat_result: os.stat_result, hash_value: str | None) -> AssetContent:
-    """Retire old bytes and create a separate record for the current path bytes."""
     mark_content_missing(session, content.id)
     name, tags = get_name_and_tags_from_asset_path(content.path)
     replacement = create_content(
@@ -108,21 +104,11 @@ def detect_content_change(
         queue_pending_verification(content.id)
         return
     if content.size_bytes == stat_result.st_size:
-        # User identity rule: a same-size mtime bump (rsync, cloud sync, backup
-        # restore) is the same file. Without a hash to prove a content change,
-        # keep the record rather than split and destroy the user's tags and
-        # metadata. Hash mode above defers to the snapshot hash instead.
-        #
-        # The stat snapshot must adopt the observed values (lookup.
-        # _stat_consistent demands exact mtime equality, so a stale stored mtime
-        # leaves the file unservable and re-triggers this branch every scan) —
-        # but refreshing the stat ALONE re-qualifies the row for hash lookup
-        # while the bytes may have changed underneath it at the same size, so
-        # /view?filename=<old hash> would serve bytes that are not that digest.
-        # OFF mode cannot prove the bytes, so the unverifiable digest is dropped
-        # too. That destroys no user data and re-enters the row into the enrich
-        # predicate (hash IS NULL OR system_metadata IS NULL), so an OFF->ON
-        # transition or a later enrich pass refills the true digest in place.
+        # User identity rule: a same-size mtime bump (rsync, cloud sync, backup restore) is the
+        # same file — never split, or the record's tags and metadata are destroyed.
+        # The stored hash goes with the refreshed stat: OFF mode cannot prove the bytes, and a
+        # refreshed stat alone would re-qualify the row to be served under a digest it may no
+        # longer match.
         content.size_bytes = stat_result.st_size
         content.mtime_ns = stat_result.st_mtime_ns
         content.hash = None
@@ -131,7 +117,6 @@ def detect_content_change(
 
 
 def drain_pending_verifications(session: Session, limit: int | None = None) -> int:
-    """Consume changed content using stable snapshot hashes; unstable work is retained."""
     queued_count = min(len(_pending_verification_ids), limit or len(_pending_verification_ids))
     processed = 0
     for _ in range(queued_count):

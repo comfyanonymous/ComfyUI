@@ -1,20 +1,3 @@
-"""Registration primitives: rename, deferred output hash, synchronous metadata,
-no cached fallback (D6, D8, D14a; S29/S29.2/S10.4).
-
-These lock the post-remediation contract of the three ingest registration
-paths:
-
-* ``register_executed_output`` (the renamed executed-output primitive) never
-  hashes inline - the enrich pass fills the hash later - and stores
-  synchronously-extracted ``system_metadata`` at creation.
-* ``register_cached_output`` copies ``system_metadata`` from the earliest
-  sibling record of the same content (or extracts it fresh when the content is
-  orphaned), and treats missing live content as a logged non-event that creates
-  nothing.
-* The upload path keeps hashing inline (H-OPEN) while also gaining synchronous
-  metadata.
-* Registration failures never raise into the caller and leave no partial rows.
-"""
 import os
 from datetime import datetime
 
@@ -37,7 +20,6 @@ def _output_path(name: str) -> str:
 
 
 def test_executed_creates_metadata_and_null_hash(mock_create_session):
-    """Executed output stores synchronous metadata; content hash stays NULL."""
     body = b"pixels"
     path = _output_path("primitives_executed_meta.png")
     with open(path, "wb") as fh:
@@ -67,7 +49,6 @@ def test_executed_creates_metadata_and_null_hash(mock_create_session):
 
 
 def test_executed_over_live_path_marks_old_missing(mock_create_session):
-    """Re-registering a live path splits content; old record is left intact."""
     path = _output_path("primitives_executed_overwrite.png")
 
     try:
@@ -97,7 +78,6 @@ def test_executed_over_live_path_marks_old_missing(mock_create_session):
 
 
 def test_cached_copies_sibling_metadata(mock_create_session):
-    """Cached record copies system_metadata from the existing sibling record."""
     sibling_metadata = {"provenance": "sibling", "width": 4, "kind": "image"}
     path = _output_path("primitives_cached_copy.png")
     with open(path, "wb") as fh:
@@ -128,12 +108,6 @@ def test_cached_copies_sibling_metadata(mock_create_session):
 
 
 def test_cached_earliest_sibling_wins(mock_create_session):
-    """Earliest created_at wins; ties broken by ascending id.
-
-    Two siblings share the earliest ``created_at`` with controlled distinct
-    ids - the LOWER id must win. A third, later sibling carries the lowest id
-    of all to prove ``created_at`` dominates the id tiebreak.
-    """
     earliest = datetime(2020, 1, 1, 0, 0, 0)
     later = datetime(2020, 1, 2, 0, 0, 0)
     winner_metadata = {"winner": "earliest-low-id"}
@@ -185,7 +159,6 @@ def test_cached_earliest_sibling_wins(mock_create_session):
 
 
 def test_cached_orphan_content_extracts_fresh(mock_create_session):
-    """Live content with zero sibling records extracts metadata fresh."""
     body = b"pixels"
     path = _output_path("primitives_cached_orphan.png")
     with open(path, "wb") as fh:
@@ -214,7 +187,6 @@ def test_cached_orphan_content_extracts_fresh(mock_create_session):
 
 
 def test_cached_missing_content_is_nonevent(mock_create_session):
-    """No live content: cached registration returns None and creates nothing."""
     path = _output_path("primitives_cached_missing.png")
     with open(path, "wb") as fh:
         fh.write(b"pixels")
@@ -246,7 +218,6 @@ def test_cached_missing_content_is_nonevent(mock_create_session):
 def test_registration_failure_never_raises_and_leaves_no_rows(
     mock_create_session, monkeypatch
 ):
-    """A create_record failure returns None without raising or leaving rows."""
     def _boom(*args, **kwargs):
         raise RuntimeError("simulated create_record failure")
 
@@ -283,7 +254,6 @@ def test_registration_failure_never_raises_and_leaves_no_rows(
 
 
 def test_upload_record_has_metadata_and_hash(mock_create_session):
-    """Uploads still hash inline (H-OPEN) and gain synchronous metadata."""
     body = b"pixels-content"
     path = _output_path("primitives_upload_in_place.png")
     with open(path, "wb") as fh:

@@ -1,15 +1,3 @@
-"""Emission-time output-registration adapters against a real DB (D6).
-
-These integration tests drive the ``comfy_execution.asset_enrichment`` adapters
-through the real ``register_executed_output`` / ``register_cached_output``
-primitives and an in-memory SQLite database (``mock_create_session``). They
-replace the retired batch dispatch and the post-hoc execution-state
-classification it depended on.
-
-The adapters gate on ``args.enable_assets``; that flag is provided by patching
-``comfy.cli_args`` in ``sys.modules`` so the real ``folder_paths`` and DB layers
-stay live.
-"""
 import os
 import sys
 import types
@@ -29,7 +17,6 @@ from comfy_execution.asset_enrichment import (
 
 @contextmanager
 def _assets_enabled(enabled: bool = True):
-    """Patch only the adapter's ``args.enable_assets`` gate (real fs + DB)."""
     with patch.dict(
         sys.modules,
         {"comfy.cli_args": types.SimpleNamespace(args=types.SimpleNamespace(enable_assets=enabled))},
@@ -61,7 +48,6 @@ def test_executed_adapter_registers_new_output(mock_create_session):
             enriched = register_executed_outputs(output_ui, "exec-job")
 
         new_id = enriched["images"][0]["id"]
-        # the raw dict the cache stores is never enriched (S10.5)
         assert "id" not in output_ui["images"][0]
         with mock_create_session() as session:
             record = session.get(Asset, new_id)
@@ -122,7 +108,6 @@ def test_executed_adapter_disabled_registers_nothing(mock_create_session):
 
 
 def test_executed_adapter_registration_failure_never_raises(mock_create_session):
-    """S10.4: a registration failure leaves the entry id-free and does not raise."""
     path = _write_output_file("adapter-executed-error.png", b"exec")
     try:
         output_ui = _output_ui(path.name)
@@ -139,7 +124,6 @@ def test_executed_adapter_registration_failure_never_raises(mock_create_session)
 
 
 def test_cached_adapter_without_live_content_is_nonevent(mock_create_session):
-    """S10.4: a cached replay with no live content creates nothing."""
     path = _write_output_file("adapter-cached-missing.png", b"new content")
     try:
         wrapper = _wrapper(path.name)
