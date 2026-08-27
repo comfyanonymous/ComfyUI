@@ -36,6 +36,10 @@ jobs:
           # default; this dispatch targets another repo.
           owner: Comfy-Org
           repositories: cloud
+          # Without this, the minted token carries every permission the
+          # installation holds. Pinning it to the one scope repository_dispatch
+          # needs keeps that true even if the App is later granted more.
+          permission-contents: write
 
       - name: Send repository dispatch to cloud
         env:
@@ -43,11 +47,6 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-
-          if [ -z "${DISPATCH_TOKEN:-}" ]; then
-            echo "::error::App token generation produced an empty token."
-            exit 1
-          fi
 
           RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${RELEASE_TAG}"
 
