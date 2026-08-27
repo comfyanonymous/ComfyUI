@@ -13,7 +13,7 @@ from comfy_execution.asset_enrichment import (
     register_cached_outputs,
     register_executed_outputs,
 )
-from inmemory_assets import AssetCall, InMemoryAssets
+from test_inmemory_assets import AssetCall, InMemoryAssets
 
 _CacheEntry = namedtuple("_CacheEntry", ["ui", "outputs"])
 
