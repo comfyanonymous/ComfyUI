@@ -444,7 +444,7 @@ class JsonExtractString(io.ComfyNode):
 
             return io.NodeOutput("")
 
-        except (json.JSONDecodeError, TypeError):
+        except (json.JSONDecodeError, TypeError, IndexError):
             return io.NodeOutput("")
 
 
