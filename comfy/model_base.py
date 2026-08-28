@@ -779,6 +779,7 @@ class SD3(BaseModel):
         return kwargs["pooled_output"]
 
     def extra_conds(self, **kwargs):
+        """Prepare text conditioning and image-safe frame-rate conditioning."""
         out = super().extra_conds(**kwargs)
         cross_attn = kwargs.get("cross_attn", None)
         if cross_attn is not None:
@@ -1170,7 +1171,10 @@ class LTXV(BaseModel):
         return latent_image
 
 class LTXVImage(LTXV):
+    """Model wrapper for image-only LTXV checkpoints."""
+
     def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
+        """Initialize the wrapper with the image-only LTXV diffusion model."""
         BaseModel.__init__(self, model_config, model_type, device=device, unet_model=comfy.ldm.lightricks.model.LTXVImageModel)
 
     def extra_conds(self, **kwargs):

@@ -992,8 +992,11 @@ class LTXVSpatioTemporalGuidance(io.ComfyNode):
 
 
 class LTXVGuidanceRescale(io.ComfyNode):
+    """ComfyUI node that applies Diffusers-style guidance rescale to LTXV."""
+
     @classmethod
     def define_schema(cls):
+        """Define the guidance-rescale node inputs and outputs."""
         return io.Schema(
             node_id="LTXVGuidanceRescale",
             display_name="LTXV Guidance Rescale",
@@ -1008,9 +1011,11 @@ class LTXVGuidanceRescale(io.ComfyNode):
 
     @classmethod
     def execute(cls, model, guidance_rescale) -> io.NodeOutput:
+        """Attach a post-CFG rescale callback to a cloned model."""
         m = model.clone()
 
         def post_cfg_function(args):
+            """Rescale the CFG result to match the conditional prediction variance."""
             if guidance_rescale <= 0:
                 return args["denoised"]
 

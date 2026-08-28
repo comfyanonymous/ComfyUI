@@ -423,6 +423,8 @@ def _attention_with_guide_mask(q, k, v, heads, guide_mask, attn_precision, trans
 
 
 class CrossAttention(nn.Module):
+    """Attention layer used by LTX transformer blocks."""
+
     def __init__(
         self,
         query_dim,
@@ -436,6 +438,7 @@ class CrossAttention(nn.Module):
         device=None,
         operations=None,
     ):
+        """Create LTX cross-attention projections and optional per-head gates."""
         super().__init__()
         inner_dim = dim_head * heads
         context_dim = query_dim if context_dim is None else context_dim
@@ -462,6 +465,7 @@ class CrossAttention(nn.Module):
         )
 
     def forward(self, x, context=None, mask=None, pe=None, k_pe=None, transformer_options={}):
+        """Apply attention with optional RoPE, guide masks, STG passthrough, and gates."""
         self_attn = context is None
         q = self.to_q(x)
         context = x if context is None else context
@@ -507,9 +511,12 @@ ADALN_BASE_PARAMS_COUNT = 6
 ADALN_CROSS_ATTN_PARAMS_COUNT = 9
 
 class BasicTransformerBlock(nn.Module):
+    """Transformer block used by LTXV video and image transformer variants."""
+
     def __init__(
         self, dim, n_heads, d_head, context_dim=None, attn_precision=None, cross_attention_adaln=False, ff_bias=True, apply_gated_attention=False, dtype=None, device=None, operations=None
     ):
+        """Create self-attention, cross-attention, and feed-forward layers."""
         super().__init__()
 
         self.attn_precision = attn_precision
@@ -546,6 +553,7 @@ class BasicTransformerBlock(nn.Module):
             self.prompt_scale_shift_table = nn.Parameter(torch.empty(2, dim, device=device, dtype=dtype))
 
     def forward(self, x, context=None, attention_mask=None, timestep=None, pe=None, transformer_options={}, self_attention_mask=None, prompt_timestep=None):
+        """Run one LTX transformer block with AdaLN modulation."""
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (self.scale_shift_table[None, None, :6].to(device=x.device, dtype=x.dtype) + timestep.reshape(x.shape[0], timestep.shape[1], self.scale_shift_table.shape[0], -1)[:, :, :6, :]).unbind(dim=2)
 
         if comfy.model_management.in_training:
@@ -734,6 +742,7 @@ class LTXBaseModel(torch.nn.Module, ABC):
         operations=None,
         **kwargs,
     ):
+        """Initialize shared LTX transformer components from the model config."""
         super().__init__()
         self.generator = None
         self.vae_scale_factors = vae_scale_factors
@@ -1402,6 +1411,7 @@ class LTXVModel(LTXBaseModel):
             if ("double_block", i) in blocks_replace:
 
                 def block_wrap(args):
+                    """Run the original LTXV block for patch replacement hooks."""
                     out = {}
                     out["img"] = block(args["img"], context=args["txt"], attention_mask=args["attention_mask"], timestep=args["vec"], pe=args["pe"], transformer_options=args["transformer_options"], self_attention_mask=args.get("self_attention_mask"), prompt_timestep=args.get("prompt_timestep"))
                     return out
@@ -1454,6 +1464,8 @@ class LTXVModel(LTXBaseModel):
 
 
 class LTXVImageModel(LTXVModel):
+    """Image-only LTXV model that omits video/audio-only embedding paths."""
+
     def _init_model_components(self, device, dtype, **kwargs):
         """Initialize image-only LTXV components."""
         self.video_embeddings_connector = None
@@ -1477,6 +1489,7 @@ class LTXVImageModel(LTXVModel):
         )
 
     def preprocess_text_embeds(self, context, unprocessed=False):
+        """Trim and optionally project text embeddings for image-only checkpoints."""
         if context.shape[-1] > self.cross_attention_dim:
             context = context[..., :self.cross_attention_dim]
         elif not unprocessed and context.shape[-1] == self.cross_attention_dim:

@@ -943,11 +943,14 @@ class LTXV(supported_models_base.BASE):
         return supported_models_base.ClipTarget(comfy.text_encoders.lt.LTXVT5Tokenizer, comfy.text_encoders.lt.ltxv_te(**t5_detect))
 
 class LTXVImage(LTXV):
+    """Supported-model entry for image-only LTXV checkpoints."""
+
     unet_config = {
         "image_model": "ltxv_image",
     }
 
     def get_model(self, state_dict, prefix="", device=None):
+        """Create the model_base wrapper for an image-only LTXV checkpoint."""
         out = model_base.LTXVImage(self, device=device)
         return out
 
