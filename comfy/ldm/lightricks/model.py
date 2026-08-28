@@ -949,7 +949,7 @@ class LTXBaseModel(torch.nn.Module, ABC):
         return attention_mask
 
     def forward(
-        self, x, timestep, context, attention_mask, frame_rate=25, transformer_options={}, keyframe_idxs=None, denoise_mask=None, **kwargs
+        self, x, timestep, context, attention_mask=None, frame_rate=25, transformer_options={}, keyframe_idxs=None, denoise_mask=None, **kwargs
     ):
         """
         Forward pass for LTX models.
