@@ -309,12 +309,11 @@ def _build_asset_response(
         preview_url = None
     if result.ref.file_path:
         paths = compute_asset_response_paths(result.ref.file_path)
-        logical_path = paths[0] if paths else None
         display_name = paths[1] if paths else None
         # In-root loader path (model category dropped): what model loaders consume.
         loader_path = result.ref.loader_path
     else:
-        logical_path, display_name = None, None
+        display_name = None
         loader_path = None
     asset_content_hash = result.asset.hash if result.asset else None
     return schemas_out.Asset(
@@ -323,7 +322,6 @@ def _build_asset_response(
         hash=asset_content_hash,
         loader_path=loader_path,
         display_name=display_name,
-        file_path=logical_path,
         size=int(result.asset.size_bytes) if result.asset else None,
         mime_type=result.asset.mime_type if result.asset else None,
         tags=result.tags,
@@ -346,7 +344,6 @@ def _build_record_response(
 ) -> schemas_out.Asset:
     content = record.content
     paths = compute_asset_response_paths(content.path)
-    logical_path = paths[0] if paths else None
     display_name = paths[1] if paths else None
     if record.preview_id:
         preview_url = _build_view_url(preview_paths.get(record.preview_id))
@@ -367,7 +364,6 @@ def _build_record_response(
         hash=content.hash,
         loader_path=record.loader_path,
         display_name=display_name,
-        file_path=logical_path,
         size=content.size_bytes,
         mime_type=record.mime_type,
         tags=tags,

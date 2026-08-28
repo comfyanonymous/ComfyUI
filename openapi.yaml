@@ -11,10 +11,6 @@ components:
                     description: Human-facing label for the asset. Not unique.
                     nullable: true
                     type: string
-                file_path:
-                    description: Relative path in global-namespace-root form (e.g. "models/checkpoints/flux.safetensors")
-                    nullable: true
-                    type: string
                 hash:
                     description: Blake3 hash of the asset content.
                     pattern: ^blake3:[a-f0-9]{64}$
@@ -147,10 +143,6 @@ components:
             properties:
                 display_name:
                     description: Human-facing label for the asset. Not unique.
-                    nullable: true
-                    type: string
-                file_path:
-                    description: Relative path in global-namespace-root form (e.g. "models/checkpoints/flux.safetensors")
                     nullable: true
                     type: string
                 hash:

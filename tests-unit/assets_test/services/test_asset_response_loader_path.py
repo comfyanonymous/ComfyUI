@@ -71,7 +71,6 @@ def test_null_stored_loader_path_is_served_as_null(tmp_path: Path):
 
         assert resp.loader_path is None
         assert resp.display_name == "checkpoints/bar.safetensors"
-        assert resp.file_path == "models/checkpoints/bar.safetensors"
 
 
 def test_all_path_fields_null_without_file_path():
@@ -82,10 +81,9 @@ def test_all_path_fields_null_without_file_path():
 
     assert resp.loader_path is None
     assert resp.display_name is None
-    assert resp.file_path is None
 
 
-def test_display_name_and_file_path_are_serialized(tmp_path: Path):
+def test_display_name_is_serialized_and_file_path_is_not(tmp_path: Path):
     models = tmp_path / "models"
     ckpt = models / "checkpoints"
     ckpt.mkdir(parents=True)
@@ -106,4 +104,6 @@ def test_display_name_and_file_path_are_serialized(tmp_path: Path):
         dumped = resp.model_dump(mode="json")
 
     assert dumped["display_name"] == "checkpoints/flux.safetensors"
-    assert dumped["file_path"] == "models/checkpoints/flux.safetensors"
+    assert "file_path" not in dumped, (
+        "the namespace-rooted storage path must not leak into this public response"
+    )
