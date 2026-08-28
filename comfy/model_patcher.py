@@ -2072,62 +2072,12 @@ class ModelPatcherDynamic(ModelPatcher):
         return pin_state["weights"][3][0] + pin_state["weights-loaded"][3][0]
 
     def unregister_inactive_pins(self, ram_to_unload, subsets=[ "weights-loaded", "patches-loaded", "weights", "patches" ], protected=None, prefetch_only=False):
-        freed = 0
         pin_state = self.model.dynamic_pins[self.load_device]
-        for subset in subsets:
-            _, stack, stack_split, *_ = pin_state[subset]
-            candidates = []
-            for stack_index in range(stack_split[0] + 1):
-                module, _ = stack[stack_index]
-                module_pin = module._pins[subset]
-                if not module_pin["registered"]:
-                    continue
-                if protected is not None and (module, subset) in protected:
-                    continue
-                is_protected, order_state = comfy.pinned_memory.pin_eviction_state(module, subset)
-                preferred = order_state is not None and order_state[0]
-                if is_protected or (prefetch_only and (order_state is None or preferred)):
-                    continue
-                candidates.append((*comfy.pinned_memory.pin_eviction_priority(order_state), stack_index, module))
-
-            candidates.sort(reverse=True, key=lambda entry: entry[:3])
-            for *_, module in candidates:
-                size = comfy.pinned_memory.unregister_pin(module, subset)
-                freed += size
-                ram_to_unload -= size
-                if ram_to_unload <= 0:
-                    return freed
-        return freed
+        return comfy.pinned_memory.unregister_inactive_pins(pin_state, ram_to_unload, subsets, protected=protected, prefetch_only=prefetch_only)
 
     def partially_unload_ram(self, ram_to_unload, subsets=[ "weights-loaded", "patches-loaded", "weights", "patches" ], protected=None):
-        freed = 0
         pin_state = self.model.dynamic_pins[self.load_device]
-        for subset in subsets:
-            hostbuf, stack, stack_split, pinned_size, *_ = pin_state[subset]
-            while len(stack) > 0:
-                module, offset = stack.pop()
-                module_pin = module._pins[subset]
-                if protected is not None:
-                    is_protected, _ = comfy.pinned_memory.pin_eviction_state(module, subset)
-                    if is_protected or (module, subset) in protected:
-                        stack.append((module, offset))
-                        break
-                pin = module_pin["pin"]
-                size = pin.numel() * pin.element_size()
-                module_pin["balancer_entry"][-1] = None
-                del module_pin["balancer_entry"]
-                del module_pin["pin"]
-                registered = module_pin["registered"]
-                hostbuf.truncate(offset, do_unregister=registered)
-                stack_split[0] = min(stack_split[0], len(stack) - 1)
-                if registered:
-                    comfy.model_management.TOTAL_PINNED_MEMORY = max(0, comfy.model_management.TOTAL_PINNED_MEMORY - size)
-                    pinned_size[0] = max(0, pinned_size[0] - size)
-                freed += size
-                ram_to_unload -= size
-                if ram_to_unload <= 0:
-                    return freed
-        return freed
+        return comfy.pinned_memory.partially_unload_ram(pin_state, ram_to_unload, subsets, protected=protected)
 
     def patch_model(self, device_to=None, lowvram_model_memory=0, load_weights=True, force_patch_weights=False):
         #This isn't used by the core at all and can only be to load a model out of

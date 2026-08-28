@@ -357,6 +357,24 @@ def test_in_flight_pin_cannot_be_unregistered(monkeypatch):
     assert model_management.TOTAL_PINNED_MEMORY == pin.nbytes
 
 
+def test_ram_pressure_cannot_unload_in_flight_pin(monkeypatch):
+    pinned, _, _ = _load_pinned_memory(monkeypatch)
+
+    class HostBuffer:
+        def truncate(self, *args, **kwargs):
+            raise AssertionError("in-flight host buffer was truncated")
+
+    module = types.SimpleNamespace(_pins={"weights": {"registered": True}})
+    stack = [(module, 0)]
+    pin_state = {
+        "weights": (HostBuffer(), stack, [-1], [1024], [0], {}),
+    }
+    monkeypatch.setattr(pinned, "pin_eviction_state", lambda *args: (True, None))
+
+    assert pinned.partially_unload_ram(pin_state, 1024, subsets=["weights"]) == 0
+    assert stack == [(module, 0)]
+
+
 def test_unregister_failure_keeps_registration_and_ledger(monkeypatch):
     pinned, model_management, _ = _load_pinned_memory(monkeypatch)
     module, pin, module_pin = _retained_pin(True)
