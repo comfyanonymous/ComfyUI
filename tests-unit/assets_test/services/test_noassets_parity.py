@@ -141,18 +141,6 @@ def test_noassets_shutdown_without_database_sweeps_files_without_session_access(
     create_session.assert_not_called()
 
 
-def test_noassets_preflight_cleanup_sweeps_temp_dir(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    temp_file = tmp_path / "preflight-stale.bin"
-    temp_file.write_bytes(b"stale")
-    monkeypatch.setattr(folder_paths, "get_temp_directory", lambda: str(tmp_path))
-
-    _no_assets().preflight_cleanup()
-
-    assert not temp_file.exists()
-
-
 def test_noassets_callbacks_are_noops_without_seeder_side_effects() -> None:
     manager = _no_assets()
     with (
@@ -163,8 +151,9 @@ def test_noassets_callbacks_are_noops_without_seeder_side_effects() -> None:
         patch.object(asset_seeder, "set_event_sink") as set_event_sink,
     ):
         assert manager.ensure_scan_started() is None
-        assert manager.on_prompt_start() is None
-        assert manager.on_gc_tick() is None
+        assert manager.pause_background_scan() is None
+        assert manager.queue_output_enrichment() is None
+        assert manager.resume_background_scan() is None
         assert manager.set_event_sink(Mock()) is None
 
     start.assert_not_called()

@@ -22,6 +22,7 @@ console_log_level = get_console_log_level(args.verbose)
 file_log_outputs = get_file_log_outputs(args.verbose)
 setup_logger(log_level=console_log_level, file_outputs=file_log_outputs, use_stdout=args.log_stdout)
 
+from app.assets.lifecycle import cleanup_temp_filesystem
 from app.assets.manager import AssetManager, default_asset_manager
 import itertools
 import utils.extra_config
@@ -384,7 +385,7 @@ def prompt_worker(q, server_instance, asset_manager):
             for k in sensitive:
                 extra_data[k] = sensitive[k]
 
-            asset_manager.on_prompt_start()
+            asset_manager.pause_background_scan()
             e.execute(item[2], prompt_id, extra_data, item[4])
 
             need_gc = True
@@ -431,7 +432,8 @@ def prompt_worker(q, server_instance, asset_manager):
                 need_gc = False
                 hook_breaker_ac10a0.restore_functions()
 
-                asset_manager.on_gc_tick()
+                asset_manager.queue_output_enrichment()
+                asset_manager.resume_background_scan()
 
 
 async def run(server_instance, address='', port=8188, verbose=True, call_on_start=None):
@@ -513,7 +515,8 @@ def start_comfyui(asyncio_loop=None):
         folder_paths.set_temp_directory(temp_dir)
 
     asset_manager: AssetManager = default_asset_manager()
-    asset_manager.preflight_cleanup()
+    if not (asset_manager.enabled and dependencies_available()):
+        cleanup_temp_filesystem()
 
     if not asyncio_loop:
         asyncio_loop = asyncio.new_event_loop()
