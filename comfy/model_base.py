@@ -69,6 +69,7 @@ import comfy.ldm.ideogram4.model
 import comfy.ldm.krea2.model
 import comfy.ldm.kandinsky5.model
 import comfy.ldm.anima.model
+import comfy.ldm.trellis2.model
 import comfy.ldm.ace.ace_step15
 import comfy.ldm.cogvideo.model
 import comfy.ldm.rt_detr.rtdetr_v4
@@ -1925,6 +1926,23 @@ class WAN22(WAN21):
 
     def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
         return latent_image
+
+class Trellis2(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None, unet_model=comfy.ldm.trellis2.model.Trellis2):
+        super().__init__(model_config, model_type, device, unet_model)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        embeds = kwargs.get("embeds")
+        out["embeds"] = comfy.conds.CONDRegular(embeds)
+        # CONDConstant: shared across pos/neg
+        for k in ("trellis2_coords", "trellis2_coord_counts",
+                  "trellis2_generation_mode", "trellis2_shape_slat",
+                  "trellis2_proj_feats", "trellis2_model_frame"):
+            v = kwargs.get(k)
+            if v is not None:
+                out[k] = comfy.conds.CONDConstant(v)
+        return out
 
 class WAN21_FlowRVS(WAN21):
     def __init__(self, model_config, model_type=ModelType.IMG_TO_IMG_FLOW, image_to_video=False, device=None):

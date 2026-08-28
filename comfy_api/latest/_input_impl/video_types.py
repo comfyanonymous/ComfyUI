@@ -1,3 +1,4 @@
+from av.bitstream import BitStreamFilterContext
 from av.container import InputContainer
 from av.subtitles.stream import SubtitleStream
 from av.video.reformatter import ColorPrimaries, ColorRange, ColorTrc
@@ -94,6 +95,31 @@ def video_stream_bit_depth(stream) -> int:
     if stream is None or stream.format is None or not stream.format.components:
         return 8
     return max(component.bits for component in stream.format.components)
+
+
+def isobmff_hevc_filter(output_container, stream, out_stream):
+    """Apple players need the 'hvc1' sample entry, not FFmpeg's default 'hev1'. Annex B input without
+    extradata makes the muxer build hvcC from the first packet and strip in-band parameter sets;
+    'hvc1' sources already have a complete hvcC and only need the tag PyAV reset."""
+    if output_container.format.name not in ("mp4", "mov") or stream.codec.canonical_name != "hevc":
+        return None
+    try:
+        codec_tag = stream.codec_context.codec_tag
+    except UnicodeDecodeError:
+        codec_tag = ""
+    if codec_tag == "hvc1":
+        out_stream.codec_context.codec_tag = "hvc1"
+        return None
+    hevc_filter = BitStreamFilterContext("hevc_mp4toannexb", stream, out_stream)
+    out_stream.codec_context.codec_tag = "hvc1"
+    out_stream.codec_context.extradata = None
+    return hevc_filter
+
+
+def filter_hevc_packet(hevc_filter, packet):
+    if packet.has_sidedata("new_extradata"):
+        raise ValueError("HEVC with multiple sample descriptions cannot be remuxed as hvc1; re-encode it instead")
+    return hevc_filter.filter(packet)
 
 
 def last_decodable_audio_stream(container: InputContainer):
@@ -601,19 +627,26 @@ class VideoFromFile(VideoInput):
 
                 # Add streams to the new container. Streams with no codec context cannot be used as an output template.
                 stream_map = {}
+                hevc_filters = {}
                 for stream in streams:
                     if isinstance(stream, (av.VideoStream, av.AudioStream, SubtitleStream)):
                         if stream.codec_context is None:
                             logging.warning("Skipping %s stream %d with unsupported codec", stream.type, stream.index)
                             continue
                         out_stream = output_container.add_stream_from_template(template=stream, opaque=True)
+                        hevc_filter = isobmff_hevc_filter(output_container, stream, out_stream)
+                        if hevc_filter is not None:
+                            hevc_filters[stream] = hevc_filter
                         stream_map[stream] = out_stream
 
                 # Write packets to the new container
                 for packet in container.demux():
                     if packet.stream in stream_map and packet.dts is not None:
-                        packet.stream = stream_map[packet.stream]
-                        output_container.mux(packet)
+                        out_stream = stream_map[packet.stream]
+                        hevc_filter = hevc_filters.get(packet.stream)
+                        for out_packet in filter_hevc_packet(hevc_filter, packet) if hevc_filter else (packet,):
+                            out_packet.stream = out_stream
+                            output_container.mux(out_packet)
 
     def _save_transcoded(
         self,
@@ -644,8 +677,6 @@ class VideoFromFile(VideoInput):
         audio_stream = last_decodable_audio_stream(container)
         source_color_space = video_stream_color_space(video_stream)
         preserve_source_color = source_color_space is not None
-        if color_space in HDR_COLOR_TRANSFERS or source_color_space in HDR_COLOR_TRANSFERS:
-            bit_depth = max(bit_depth, 10)
         pix_fmt = "yuv420p10le" if bit_depth >= 10 else "yuv420p"
         rate = Fraction(video_stream.average_rate) if video_stream.average_rate else Fraction(1)
 
@@ -932,10 +963,13 @@ class VideoFromComponents(VideoInput):
     Class representing video input from tensors.
     """
 
-    def __init__(self, components: VideoComponents, bit_depth: int = 8):
+    def __init__(self, components: VideoComponents, bit_depth: int = 8, color_space: str = "sRGB"):
+        if color_space not in VIDEO_COLOR_TRANSFERS:
+            raise ValueError(f"Unsupported video color space: {color_space}")
         self.__components = components
         # Tensor components have no inherent bit depth; this is the depth used when encoding.
         self.__bit_depth = bit_depth
+        self.__color_space = color_space
 
     def get_components(self) -> VideoComponents:
         return VideoComponents(
@@ -948,7 +982,7 @@ class VideoFromComponents(VideoInput):
         return self.__bit_depth
 
     def get_color_space(self) -> str:
-        return "sRGB"
+        return self.__color_space
 
     def save_to(
         self,
@@ -962,15 +996,13 @@ class VideoFromComponents(VideoInput):
     ):
         """Save the video to a file path or BytesIO buffer."""
         if color_space is None:
-            color_space = "sRGB"
+            color_space = self.__color_space
         if color_space is not None and color_space not in VIDEO_COLOR_TRANSFERS:
             raise ValueError(f"Unsupported video color space: {color_space}")
         open_kwargs, output_format, output_codec = video_output_config(path, format, codec)
         # None means "use the depth this video was created with" (CreateVideo's choice).
         if bit_depth is None:
             bit_depth = self.__bit_depth
-        if color_space in HDR_COLOR_TRANSFERS:
-            bit_depth = max(bit_depth, 10)
         is_10bit = bit_depth >= 10
         with av.open(path, **open_kwargs) as output:
             # Add metadata before writing any streams

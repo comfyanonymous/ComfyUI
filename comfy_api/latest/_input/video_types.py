@@ -37,8 +37,8 @@ class VideoInput(ABC):
 
         bit_depth selects the encoded bit depth; None keeps the video's native depth.
         crf selects the H.264 or AV1 constant rate factor; None uses the encoder default.
-        color_space="sRGB" writes SDR BT.709/sRGB video. "HDR" writes 10-bit BT.2020/HLG video;
-        "HDR PQ" selects BT.2020/PQ.
+        color_space="sRGB" selects SDR BT.709/sRGB, "HDR" selects BT.2020/HLG, and "HDR PQ"
+        selects BT.2020/PQ. Bit depth is selected independently.
         Tensor-created videos default to sRGB when color_space is None. Loaded videos keep matching recognized native color
         properties; other input pixels must already use the selected color space.
         """
