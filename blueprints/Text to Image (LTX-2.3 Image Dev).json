@@ -88,22 +88,22 @@
           "link": null
         },
         {
-          "name": "pag_scale",
+          "name": "stg_scale",
           "type": "FLOAT",
           "widget": {
-            "name": "pag_scale"
+            "name": "stg_scale"
           },
           "link": null,
-          "label": "pag_scale"
+          "label": "stg_scale"
         },
         {
-          "name": "pag_blocks",
+          "name": "stg_blocks",
           "type": "STRING",
           "widget": {
-            "name": "pag_blocks"
+            "name": "stg_blocks"
           },
           "link": null,
-          "label": "pag_blocks"
+          "label": "stg_blocks"
         },
         {
           "name": "guidance_rescale",
@@ -323,12 +323,12 @@
           },
           {
             "id": "979932bc-9556-486a-b9a5-7ec88803653b",
-            "name": "pag_scale",
+            "name": "stg_scale",
             "type": "FLOAT",
             "linkIds": [
               639
             ],
-            "label": "pag_scale",
+            "label": "stg_scale",
             "pos": [
               862.162109375,
               4440
@@ -336,12 +336,12 @@
           },
           {
             "id": "8c6a0173-2707-4571-bcb8-9e06b9198694",
-            "name": "pag_blocks",
+            "name": "stg_blocks",
             "type": "STRING",
             "linkIds": [
               640
             ],
-            "label": "pag_blocks",
+            "label": "stg_blocks",
             "pos": [
               862.162109375,
               4460
@@ -359,32 +359,6 @@
               4480
             ],
             "label": "guidance_rescale"
-          },
-          {
-            "id": "e5a9c4d7-4c1a-43f0-84c5-ltx23lora",
-            "name": "lora_name",
-            "type": "COMBO",
-            "linkIds": [
-              644
-            ],
-            "label": "distilled_lora",
-            "pos": [
-              882.162109375,
-              4500
-            ]
-          },
-          {
-            "id": "7dff1fd5-7a22-4b8f-ae17-ltx23str",
-            "name": "lora_strength",
-            "type": "FLOAT",
-            "linkIds": [
-              645
-            ],
-            "label": "distilled_lora_strength",
-            "pos": [
-              882.162109375,
-              4520
-            ]
           },
           {
             "id": "92b8f222-0fd4-4915-b224-ltx23neg",
@@ -1967,7 +1941,7 @@
                 "localized_name": "model",
                 "name": "model",
                 "type": "MODEL",
-                "link": 646
+                "link": 638
               },
               {
                 "localized_name": "scale",
@@ -2088,66 +2062,6 @@
             },
             "widgets_values": [
               0.7
-            ]
-          },
-          {
-            "id": 287,
-            "type": "LoraLoaderModelOnly",
-            "pos": [
-              2080,
-              3830
-            ],
-            "size": [
-              300,
-              130
-            ],
-            "flags": {},
-            "order": 11,
-            "mode": 0,
-            "inputs": [
-              {
-                "localized_name": "model",
-                "name": "model",
-                "type": "MODEL",
-                "link": 638
-              },
-              {
-                "localized_name": "lora_name",
-                "name": "lora_name",
-                "type": "COMBO",
-                "widget": {
-                  "name": "lora_name"
-                },
-                "link": 644
-              },
-              {
-                "localized_name": "strength_model",
-                "name": "strength_model",
-                "type": "FLOAT",
-                "widget": {
-                  "name": "strength_model"
-                },
-                "link": 645
-              }
-            ],
-            "outputs": [
-              {
-                "localized_name": "MODEL",
-                "name": "MODEL",
-                "type": "MODEL",
-                "links": [
-                  646
-                ]
-              }
-            ],
-            "properties": {
-              "cnr_id": "comfy-core",
-              "ver": "0.3.75",
-              "Node name for S&R": "LoraLoaderModelOnly"
-            },
-            "widgets_values": [
-              "ltx-2.3-22b-distilled-lora-384.safetensors",
-              0.0
             ]
           }
         ],
@@ -2516,7 +2430,7 @@
             "id": 638,
             "origin_id": 318,
             "origin_slot": 0,
-            "target_id": 287,
+            "target_id": 325,
             "target_slot": 0,
             "type": "MODEL"
           },
@@ -2559,30 +2473,6 @@
             "target_id": 326,
             "target_slot": 1,
             "type": "FLOAT"
-          },
-          {
-            "id": 644,
-            "origin_id": -10,
-            "origin_slot": 11,
-            "target_id": 287,
-            "target_slot": 1,
-            "type": "COMBO"
-          },
-          {
-            "id": 645,
-            "origin_id": -10,
-            "origin_slot": 12,
-            "target_id": 287,
-            "target_slot": 2,
-            "type": "FLOAT"
-          },
-          {
-            "id": 646,
-            "origin_id": 287,
-            "origin_slot": 0,
-            "target_id": 325,
-            "target_slot": 0,
-            "type": "MODEL"
           },
           {
             "id": 647,

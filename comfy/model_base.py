@@ -1183,6 +1183,7 @@ class LTXVImage(LTXV):
         if cross_attn is not None:
             context = cross_attn.cond
             if hasattr(self.diffusion_model, "preprocess_text_embeds"):
+                context = context.to(device=kwargs["device"], dtype=self.get_dtype_inference())
                 context = self.diffusion_model.preprocess_text_embeds(context, unprocessed=kwargs.get("unprocessed_ltxav_embeds", False))
 
             target_dim = getattr(self.diffusion_model, "cross_attention_dim", None)

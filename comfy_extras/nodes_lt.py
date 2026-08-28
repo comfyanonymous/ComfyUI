@@ -1023,7 +1023,8 @@ class LTXVGuidanceRescale(io.ComfyNode):
             cfg_result = args["denoised"]
             dims = list(range(1, cfg_result.ndim))
             std_text = cond_pred.std(dim=dims, keepdim=True)
-            std_cfg = cfg_result.std(dim=dims, keepdim=True).clamp_min(1e-12)
+            std_cfg = cfg_result.std(dim=dims, keepdim=True)
+            std_cfg = std_cfg.clamp_min(torch.finfo(std_cfg.dtype).tiny)
             rescaled = cfg_result * (std_text / std_cfg)
             return guidance_rescale * rescaled + (1.0 - guidance_rescale) * cfg_result
 

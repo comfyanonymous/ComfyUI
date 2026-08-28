@@ -70,22 +70,22 @@
           "link": null
         },
         {
-          "name": "pag_scale",
+          "name": "stg_scale",
           "type": "FLOAT",
           "widget": {
-            "name": "pag_scale"
+            "name": "stg_scale"
           },
           "link": null,
-          "label": "pag_scale"
+          "label": "stg_scale"
         },
         {
-          "name": "pag_blocks",
+          "name": "stg_blocks",
           "type": "STRING",
           "widget": {
-            "name": "pag_blocks"
+            "name": "stg_blocks"
           },
           "link": null,
-          "label": "pag_blocks"
+          "label": "stg_blocks"
         },
         {
           "name": "guidance_rescale",
@@ -173,8 +173,8 @@
         "version": 1,
         "state": {
           "lastGroupId": 26,
-          "lastNodeId": 325,
-          "lastLinkId": 635,
+          "lastNodeId": 326,
+          "lastLinkId": 637,
           "lastRerouteId": 0,
           "last_link_id": 637,
           "last_node_id": 326
@@ -279,12 +279,12 @@
           },
           {
             "id": "382657e3-e26b-463e-8159-745af03b8600",
-            "name": "pag_scale",
+            "name": "stg_scale",
             "type": "FLOAT",
             "linkIds": [
               633
             ],
-            "label": "pag_scale",
+            "label": "stg_scale",
             "pos": [
               862.162109375,
               4440
@@ -292,12 +292,12 @@
           },
           {
             "id": "8099dfb6-2f5a-439d-a4bb-e9967d33c47c",
-            "name": "pag_blocks",
+            "name": "stg_blocks",
             "type": "STRING",
             "linkIds": [
               634
             ],
-            "label": "pag_blocks",
+            "label": "stg_blocks",
             "pos": [
               862.162109375,
               4460
