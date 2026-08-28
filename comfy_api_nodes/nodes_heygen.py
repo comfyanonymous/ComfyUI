@@ -416,10 +416,10 @@ class HeyGenAvatarVideoNode(IO.ComfyNode):
                 widgets.engine = "avatar_iii"
                   ? {"type":"range_usd","min_usd":0.023881,"max_usd":0.061919,"format":{"suffix":"/second"}}
                   : widgets.engine = "avatar_v"
-                  ? {"type":"usd","usd":0.095381,"format":{"suffix":"/second"}}
+                  ? {"type":"usd","usd":0.1716,"format":{"suffix":"/second"}}
                   : widgets.engine = "avatar_iv"
-                  ? {"type":"range_usd","min_usd":0.0715,"max_usd":0.095381,"format":{"suffix":"/second"}}
-                  : {"type":"range_usd","min_usd":0.023881,"max_usd":0.095381,"format":{"suffix":"/second"}}
+                  ? {"type":"range_usd","min_usd":0.0715,"max_usd":0.115115,"format":{"suffix":"/second"}}
+                  : {"type":"range_usd","min_usd":0.023881,"max_usd":0.1716,"format":{"suffix":"/second"}}
                 """,
             ),
         )
