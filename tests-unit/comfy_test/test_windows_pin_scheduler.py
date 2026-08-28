@@ -73,6 +73,19 @@ def test_live_budget_evicts_with_hysteresis_and_rechecks():
     assert budget.ensure(2 * GiB, evict)
     assert evictions == [GiB + GiB // 2]
     assert budget.last_headroom == 2 * GiB + GiB // 2
+    assert budget.query_count == 2
+
+
+def test_live_budget_tracks_query_cost(monkeypatch):
+    timestamps = iter((100, 150, 200, 275))
+    monkeypatch.setattr(windows_dxgi.time, "perf_counter_ns", lambda: next(timestamps))
+    budget = LivePinBudget(SyntheticProvider(16 * GiB, 8 * GiB), reserve=2 * GiB, hysteresis=GiB // 2)
+
+    assert budget.ensure(GiB, lambda size: 0)
+    assert budget.ensure(GiB, lambda size: 0)
+    assert budget.query_count == 2
+    assert budget.query_ns == 125
+    assert budget.max_query_ns == 75
 
 
 def test_budget_increase_does_not_evict_or_churn():
@@ -123,7 +136,7 @@ def test_non_windows_does_not_create_dxgi_policy(monkeypatch):
     assert create_dxgi_budget_provider(0) is None
 
 
-def test_prefetch_order_protects_upcoming_and_prefers_consumed_blocks():
+def test_prefetch_order_prefers_upcoming_over_consumed_blocks():
     blocks = [FakeBlock(index) for index in range(8)]
     order = PrefetchPinOrder(blocks, window=3)
     for _ in range(4):
@@ -136,7 +149,8 @@ def test_prefetch_order_protects_upcoming_and_prefers_consumed_blocks():
     order.close()
 
 
-def test_fifty_sequential_blocks_cycle_through_bounded_pin_window():
+def test_fifty_sequential_blocks_cycle_through_constrained_live_budget(monkeypatch):
+    pinned, _, _ = _load_pinned_memory(monkeypatch)
     blocks = [FakeBlock(index) for index in range(50)]
     order = PrefetchPinOrder(blocks, window=3)
     provider = SyntheticProvider(16 * GiB, 8 * GiB)
@@ -147,15 +161,9 @@ def test_fifty_sequential_blocks_cycle_through_bounded_pin_window():
     peak_registered = 0
 
     def evict(size):
-        candidates = []
-        for block in registered:
-            state = order.state(block)
-            if state is not None and not state[0]:
-                candidates.append((state[1], block))
-        candidates.sort(reverse=True, key=lambda entry: entry[0])
+        candidates = sorted(registered, reverse=True, key=lambda block: pinned.pin_eviction_priority(order.state(block)))
         freed = 0
-        for _, block in candidates:
-            assert not order.state(block)[0]
+        for block in candidates:
             registered.remove(block)
             evicted.append(block.index)
             provider.usage -= GiB
@@ -173,12 +181,40 @@ def test_fifty_sequential_blocks_cycle_through_bounded_pin_window():
         pinned_before_transfer.append(block in registered)
         peak_registered = max(peak_registered, len(registered))
         assert provider.usage + budget.reserve <= provider.budget
-        assert all(not order.state(victim)[0] for victim in registered if victim.index < block.index - 3)
 
     assert all(pinned_before_transfer)
     assert peak_registered <= 6
     assert evicted
     assert len(registered) <= 6
+    order.close()
+
+
+def test_live_budget_smaller_than_preferred_band_evicts_farthest_first(monkeypatch):
+    pinned, _, _ = _load_pinned_memory(monkeypatch)
+    blocks = [FakeBlock(index) for index in range(3)]
+    order = PrefetchPinOrder(blocks, window=3)
+    order.advance()
+    provider = SyntheticProvider(4 * GiB, 3 * GiB)
+    budget = LivePinBudget(provider, reserve=2 * GiB, hysteresis=0)
+    registered = set(blocks)
+    evicted = []
+
+    def evict(size):
+        candidates = sorted(registered, reverse=True, key=lambda block: pinned.pin_eviction_priority(order.state(block)))
+        freed = 0
+        for block in candidates:
+            registered.remove(block)
+            evicted.append(block.index)
+            provider.usage -= GiB
+            freed += GiB
+            if freed >= size:
+                break
+        return freed
+
+    assert budget.ensure(0, evict)
+    assert evicted == [2]
+    assert blocks[0] in registered
+    assert blocks[1] in registered
     order.close()
 
 
@@ -265,6 +301,31 @@ def test_registered_pin_is_reconsidered_after_budget_shrink(monkeypatch):
     assert module._pin_state["weights"][3][0] == 0
 
 
+def test_requested_pin_survives_when_farther_preferred_pin_can_be_evicted(monkeypatch):
+    pinned, model_management, _ = _load_pinned_memory(monkeypatch)
+    requested, requested_pin, requested_state = _retained_pin(True)
+    farther, farther_pin, farther_state = _retained_pin(True)
+    for module in (requested, farther):
+        module._v = object()
+        module.modules = lambda module=module: [module]
+    order = PrefetchPinOrder([requested, farther], window=3)
+    order.advance()
+    model_management.TOTAL_PINNED_MEMORY = requested_pin.nbytes + farther_pin.nbytes
+    monkeypatch.setattr(pinned, "_host_unregister", lambda value: 0)
+
+    def ensure(size, **kwargs):
+        assert kwargs["protected"] == {(requested, "weights")}
+        return pinned.unregister_pin(farther, "weights") == farther_pin.nbytes
+
+    model_management.ensure_pin_registerable = ensure
+
+    assert pinned.get_pin(requested) is requested_pin
+    assert requested_state["registered"]
+    assert not farther_state["registered"]
+    assert model_management.TOTAL_PINNED_MEMORY == requested_pin.nbytes
+    order.close()
+
+
 def test_prefetch_boundary_check_avoids_per_module_budget_query(monkeypatch):
     pinned, model_management, _ = _load_pinned_memory(monkeypatch)
     module, pin, module_pin = _retained_pin(True)
@@ -333,7 +394,7 @@ def test_non_live_re_register_failure_keeps_original_single_attempt(monkeypatch)
     assert model_management.TOTAL_PINNED_MEMORY == 0
 
 
-def test_non_live_prefetch_order_steals_consumed_not_upcoming_pin(monkeypatch):
+def test_non_live_prefetch_order_steals_consumed_before_upcoming_pin(monkeypatch):
     pinned, model_management, _ = _load_pinned_memory(monkeypatch)
     model_management.has_live_pin_budget = lambda device: False
     blocks = [FakeBlock(index) for index in range(5)]
@@ -359,6 +420,39 @@ def test_non_live_prefetch_order_steals_consumed_not_upcoming_pin(monkeypatch):
     assert upcoming._pins["weights"]["pin"] is upcoming_pin
     assert "pin" not in consumed._pins["weights"]
     order.close()
+
+
+def test_severe_pressure_steals_far_future_before_current_pin(monkeypatch):
+    pinned, model_management, _ = _load_pinned_memory(monkeypatch)
+    model_management.has_live_pin_budget = lambda device: True
+    blocks = [FakeBlock(index) for index in range(3)]
+    order = PrefetchPinOrder(blocks, window=3)
+    order.advance()
+
+    current, incoming, far_future = blocks
+    current_pin = FakePin(pointer=111)
+    far_future_pin = FakePin(pointer=333)
+    current._pins = {"weights": {"pin": current_pin, "registered": True, "stack_index": 0}}
+    incoming._pins = {"weights": {}}
+    far_future._pins = {"weights": {"pin": far_future_pin, "registered": True, "stack_index": 1}}
+    stack = [(current, 0), (far_future, current_pin.nbytes)]
+    buckets = {}
+    pinned._add_to_bucket(current, current._pins["weights"], buckets, current_pin.nbytes, 100)
+    pinned._add_to_bucket(far_future, far_future._pins["weights"], buckets, far_future_pin.nbytes, 200)
+
+    assert pinned._steal_pin(incoming, stack, buckets, current_pin.nbytes, 0, "weights")
+    assert incoming._pins["weights"]["pin"] is far_future_pin
+    assert current._pins["weights"]["pin"] is current_pin
+    assert "pin" not in far_future._pins["weights"]
+    order.close()
+
+
+def test_eviction_hierarchy_prefers_stale_then_generic_then_upcoming(monkeypatch):
+    pinned, _, _ = _load_pinned_memory(monkeypatch)
+
+    assert pinned.pin_eviction_priority((False, 50)) > pinned.pin_eviction_priority(None)
+    assert pinned.pin_eviction_priority(None) > pinned.pin_eviction_priority((True, 2))
+    assert pinned.pin_eviction_priority((True, 2)) > pinned.pin_eviction_priority((True, 0))
 
 
 def test_register_failure_evicts_retries_and_updates_ledger_once(monkeypatch):

@@ -11,7 +11,7 @@ class NullPinOrder:
     def advance(self):
         self.current += 1
 
-    def protected_indices(self):
+    def preferred_indices(self):
         return []
 
     def close(self):
@@ -54,13 +54,13 @@ class PrefetchPinOrder:
             return None
         if index >= self.current:
             distance = index - self.current
-            protected = distance < self.window
+            preferred = distance < self.window
         else:
             distance = len(self.modules) + index
-            protected = False
-        return protected, distance
+            preferred = False
+        return preferred, distance
 
-    def protected_indices(self):
+    def preferred_indices(self):
         if self.current < 0:
             return []
         return list(range(self.current, min(len(self.modules), self.current + self.window)))

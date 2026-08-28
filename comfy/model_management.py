@@ -809,6 +809,13 @@ def pin_budget_status(device):
     return budget.last_info, budget.last_headroom, budget.evicted
 
 
+def pin_budget_query_stats(device):
+    budget = _pin_budget(device)
+    if budget is None:
+        return None
+    return budget.query_count, budget.query_ns, budget.max_query_ns
+
+
 def ensure_pin_registerable(size, evict_active=True, device=None, protected=None):
     budget = _pin_budget(device)
     if budget is not None:

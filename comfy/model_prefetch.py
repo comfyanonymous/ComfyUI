@@ -17,9 +17,11 @@ GRAPH_CAPTURE_STREAMS = {}
 
 
 class PrefetchQueue(list):
-    def __init__(self, queue, pin_scheduler, live_budget):
+    def __init__(self, queue, pin_scheduler, live_budget, query_stats=None):
         self.pin_order = comfy.pin_order.PrefetchPinOrder(queue) if pin_scheduler else comfy.pin_order.NullPinOrder()
         self.live_budget = live_budget
+        self.query_count = 0 if query_stats is None else query_stats[0]
+        self.query_ns = 0 if query_stats is None else query_stats[1]
         super().__init__([None] + queue + [None])
 
     def close(self):
@@ -139,17 +141,27 @@ def prefetch_queue_pop(queue, device, module, dtype=None, core=None, enable_grap
         budget_status = comfy.model_management.pin_budget_status(device)
         if budget_status is not None:
             info, headroom, evicted = budget_status
+            query_count, query_ns, max_query_ns = comfy.model_management.pin_budget_query_stats(device)
+            block_query_count = query_count - queue.query_count
+            block_query_ns = query_ns - queue.query_ns
+            queue.query_count = query_count
+            queue.query_ns = query_ns
             detail(
-                "AIMDO pin scheduler: block=%s dxgi_budget=%.1fGiB dxgi_usage=%.1fGiB safe_headroom=%.1fGiB comfy_registered=%.1fGiB protected=%s evicted=%.1fGiB register_failures=%s pageable_prefetches=%s",
+                "AIMDO pin scheduler: block=%s dxgi_budget=%.1fGiB dxgi_usage=%.1fGiB safe_headroom=%.1fGiB comfy_registered=%.1fGiB preferred=%s evicted=%.1fGiB register_failures=%s pageable_prefetches=%s block_dxgi_queries=%s block_dxgi_query_ms=%.3f total_dxgi_queries=%s total_dxgi_query_ms=%.3f dxgi_query_max_ms=%.3f",
                 queue.pin_order.current,
                 info.budget / (1024 ** 3),
                 info.current_usage / (1024 ** 3),
                 headroom / (1024 ** 3),
                 comfy.model_management.TOTAL_PINNED_MEMORY / (1024 ** 3),
-                queue.pin_order.protected_indices(),
+                queue.pin_order.preferred_indices(),
                 evicted / (1024 ** 3),
                 comfy.pinned_memory.PIN_SCHEDULER_STATS["register_failures"],
                 comfy.pinned_memory.PIN_SCHEDULER_STATS["pageable_prefetches"],
+                block_query_count,
+                block_query_ns / 1_000_000,
+                query_count,
+                query_ns / 1_000_000,
+                max_query_ns / 1_000_000,
             )
 
     if core is not None:
@@ -187,10 +199,12 @@ def make_prefetch_queue(queue, device, transformer_options):
         or not comfy.model_management.device_supports_non_blocking(device)):
         return None
 
+    live_budget = comfy.model_management.has_live_pin_budget(device)
     queue = PrefetchQueue(
         queue,
         pin_scheduler=not args.disable_pinned_memory,
-        live_budget=comfy.model_management.has_live_pin_budget(device),
+        live_budget=live_budget,
+        query_stats=comfy.model_management.pin_budget_query_stats(device) if live_budget else None,
     )
     PREFETCH_QUEUES.append(queue)
     return queue

@@ -3,6 +3,7 @@ from __future__ import annotations
 import ctypes
 import logging
 import platform
+import time
 import uuid
 from dataclasses import dataclass
 
@@ -35,9 +36,22 @@ class LivePinBudget:
         self.last_info = None
         self.last_headroom = None
         self.evicted = 0
+        self.query_count = 0
+        self.query_ns = 0
+        self.max_query_ns = 0
+
+    def query(self):
+        start = time.perf_counter_ns()
+        try:
+            return self.provider.query()
+        finally:
+            elapsed = time.perf_counter_ns() - start
+            self.query_count += 1
+            self.query_ns += elapsed
+            self.max_query_ns = max(self.max_query_ns, elapsed)
 
     def ensure(self, size, evict):
-        info = self.provider.query()
+        info = self.query()
         self.last_info = info
         margin = info.budget - info.current_usage - self.reserve
         self.last_headroom = max(0, margin)
@@ -45,7 +59,7 @@ class LivePinBudget:
             return True
 
         self.evicted += evict(size - margin + self.hysteresis)
-        info = self.provider.query()
+        info = self.query()
         self.last_info = info
         margin = info.budget - info.current_usage - self.reserve
         self.last_headroom = max(0, margin)

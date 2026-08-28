@@ -49,8 +49,14 @@ def _in_flight(module_pin):
 def pin_eviction_state(module, subset):
     module_pin = module._pins[subset]
     state = comfy.pin_order.prefetch_pin_state(module)
-    protected = _in_flight(module_pin) or (state is not None and state[0])
-    return protected, state
+    return _in_flight(module_pin), state
+
+
+def pin_eviction_priority(state):
+    if state is None:
+        return 1, -1
+    preferred, distance = state
+    return (0 if preferred else 2), distance
 
 
 def mark_modules_in_flight(comfy_modules, stream):
@@ -79,12 +85,12 @@ def _registered(module, subset, pin, size):
     pinned_size[0] += size
 
 
-def unregister_pin(module, subset, ignore_prefetch=False):
+def unregister_pin(module, subset):
     module_pin = module._pins[subset]
     if not module_pin["registered"]:
         return 0
     protected, _ = pin_eviction_state(module, subset)
-    if protected and not ignore_prefetch:
+    if protected:
         return 0
     pin = module_pin["pin"]
     size = pin.nbytes
@@ -121,7 +127,7 @@ def _steal_pin(module, stack, buckets, size, priority, subset):
 
     incoming_state = comfy.pin_order.prefetch_pin_state(module)
     victim_index = None
-    victim_distance = -1
+    victim_key = None
     for index in range(len(bucket) - 1, -1, -1):
         *_, candidate = bucket[index]
         if candidate is None:
@@ -132,10 +138,10 @@ def _steal_pin(module, stack, buckets, size, priority, subset):
         ordered_reuse = incoming_state is not None and incoming_state[0] and candidate_state is not None
         if not ordered_reuse and priority <= -bucket[index][0]:
             continue
-        distance = -1 if candidate_state is None else candidate_state[1]
-        if victim_index is None or distance > victim_distance:
+        candidate_key = pin_eviction_priority(candidate_state)
+        if victim_key is None or candidate_key > victim_key:
             victim_index = index
-            victim_distance = distance
+            victim_key = candidate_key
     if victim_index is None:
         return False
 
@@ -173,9 +179,8 @@ def get_pin(module, subset="weights"):
             return pin
         if comfy.model_management.ensure_pin_registerable(0, device=device, protected=protected):
             return pin
-        if not _in_flight(module_pin):
-            if unregister_pin(module, subset, ignore_prefetch=True):
-                PIN_SCHEDULER_STATS["pageable_prefetches"] += 1
+        if unregister_pin(module, subset):
+            PIN_SCHEDULER_STATS["pageable_prefetches"] += 1
         return pin
 
     live_budget = comfy.model_management.has_live_pin_budget(device)

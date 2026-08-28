@@ -2085,10 +2085,10 @@ class ModelPatcherDynamic(ModelPatcher):
                 if protected is not None and (module, subset) in protected:
                     continue
                 is_protected, order_state = comfy.pinned_memory.pin_eviction_state(module, subset)
-                if is_protected or (prefetch_only and order_state is None):
+                preferred = order_state is not None and order_state[0]
+                if is_protected or (prefetch_only and (order_state is None or preferred)):
                     continue
-                distance = -1 if order_state is None else order_state[1]
-                candidates.append((order_state is not None, distance, stack_index, module))
+                candidates.append((*comfy.pinned_memory.pin_eviction_priority(order_state), stack_index, module))
 
             candidates.sort(reverse=True, key=lambda entry: entry[:3])
             for *_, module in candidates:
