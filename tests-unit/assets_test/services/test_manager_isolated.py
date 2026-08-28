@@ -148,33 +148,6 @@ def test_ensure_scan_started_starts_the_lazy_object_info_scan(
     seeder_start.assert_called_once_with(roots=("models", "input", "output"))
 
 
-@pytest.mark.parametrize(
-    ("dependencies_are_available", "temp_file_exists"),
-    [(False, False), (True, True)],
-)
-def test_preflight_cleanup_only_sweeps_when_dependencies_are_unavailable(
-    enabled_manager: AssetsEnabled,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    dependencies_are_available: bool,
-    temp_file_exists: bool,
-) -> None:
-    temp_dir = tmp_path / "temp"
-    temp_dir.mkdir()
-    stale_file = temp_dir / "stale.tmp"
-    stale_file.write_bytes(b"stale")
-    monkeypatch.setattr(folder_paths, "get_temp_directory", lambda: str(temp_dir))
-    monkeypatch.setattr(
-        manager_module,
-        "dependencies_available",
-        lambda: dependencies_are_available,
-    )
-
-    enabled_manager.preflight_cleanup()
-
-    assert stale_file.exists() is temp_file_exists
-
-
 def test_shutdown_runs_lifecycle_cleanup_when_seeder_shutdown_times_out(
     enabled_manager: AssetsEnabled,
     asset_roots: tuple[Path, Path, Path],

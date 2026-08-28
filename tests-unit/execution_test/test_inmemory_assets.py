@@ -37,34 +37,33 @@ class InMemoryAssets:
         self.deliveries_by_path: dict[str, list[Delivery]] = {}
         self._live_output_by_path: dict[str, RegisteredAsset] = {}
         self._counter: int = 0
-        self.event_sink: EventSink | None = None
 
     @property
     def enabled(self) -> bool:
         return True
 
     def startup(self) -> None:
-        self._record("startup")
+        return None
 
     def shutdown(self) -> None:
-        self._record("shutdown")
-
-    def preflight_cleanup(self) -> None:
-        self._record("preflight_cleanup")
+        return None
 
     def register_routes(
         self, app: web.Application, user_manager: UserManager | None
     ) -> None:
-        self._record("register_routes")
+        return None
 
     def ensure_scan_started(self) -> None:
-        self._record("ensure_scan_started")
+        return None
 
-    def on_prompt_start(self) -> None:
-        self._record("on_prompt_start")
+    def pause_background_scan(self) -> None:
+        return None
 
-    def on_gc_tick(self) -> None:
-        self._record("on_gc_tick")
+    def queue_output_enrichment(self) -> None:
+        return None
+
+    def resume_background_scan(self) -> None:
+        return None
 
     def register_upload(
         self,
@@ -75,14 +74,6 @@ class InMemoryAssets:
         *,
         content_written: bool,
     ) -> UploadAssetView | None:
-        self._record(
-            "register_upload",
-            abs_path,
-            name,
-            upload_type,
-            subfolder,
-            content_written,
-        )
         return None
 
     def register_executed_output(
@@ -124,8 +115,7 @@ class InMemoryAssets:
         return asset
 
     def set_event_sink(self, sink: EventSink) -> None:
-        self._record("set_event_sink")
-        self.event_sink = sink
+        return None
 
     def _record(self, method: str, *arguments: CallArgument) -> None:
         self.calls.append(AssetCall(method, arguments))
@@ -142,11 +132,11 @@ def test_conforms() -> None:
     )
     manager.startup()
     manager.shutdown()
-    manager.preflight_cleanup()
     manager.register_routes(web.Application(), None)
     manager.ensure_scan_started()
-    manager.on_prompt_start()
-    manager.on_gc_tick()
+    manager.pause_background_scan()
+    manager.queue_output_enrichment()
+    manager.resume_background_scan()
     assert (
         manager.register_upload(
             "/output/upload.png",

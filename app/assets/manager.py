@@ -1,16 +1,11 @@
 import logging
-from typing import Any, Callable, Protocol, cast
+from typing import Any, Callable, Protocol
 
 from aiohttp import web
 
 from app.assets import mode
 from app.assets.api.routes import register_assets_routes
-from app.assets.lifecycle import (
-    cleanup_temp_filesystem,
-    record_hash_mode_transition_intent,
-    run_shutdown,
-    run_startup,
-)
+from app.assets.lifecycle import record_hash_mode_transition_intent, run_shutdown, run_startup
 from app.assets.seeder import asset_seeder
 from app.assets.services.ingest import (
     register_cached_output as ingest_register_cached_output,
@@ -19,7 +14,6 @@ from app.assets.services.ingest import (
 )
 from app.assets.services.path_utils import get_known_subfolder_tags
 from app.assets.services.schemas import RegisteredAsset, UploadAssetView
-from app.database.db import dependencies_available
 from app.user_manager import UserManager
 from comfy.cli_args import args
 
@@ -32,17 +26,17 @@ class AssetManager(Protocol):
 
     def shutdown(self) -> None: ...
 
-    def preflight_cleanup(self) -> None: ...
-
     def register_routes(
         self, app: web.Application, user_manager: UserManager | None
     ) -> None: ...
 
     def ensure_scan_started(self) -> None: ...
 
-    def on_prompt_start(self) -> None: ...
+    def pause_background_scan(self) -> None: ...
 
-    def on_gc_tick(self) -> None: ...
+    def queue_output_enrichment(self) -> None: ...
+
+    def resume_background_scan(self) -> None: ...
 
     def register_upload(
         self,
@@ -91,9 +85,6 @@ class NoAssets:
     def shutdown(self) -> None:
         _shutdown_assets()
 
-    def preflight_cleanup(self) -> None:
-        cleanup_temp_filesystem()
-
     def register_routes(
         self, app: web.Application, user_manager: UserManager | None
     ) -> None:
@@ -103,10 +94,13 @@ class NoAssets:
     def ensure_scan_started(self) -> None:
         return None
 
-    def on_prompt_start(self) -> None:
+    def pause_background_scan(self) -> None:
         return None
 
-    def on_gc_tick(self) -> None:
+    def queue_output_enrichment(self) -> None:
+        return None
+
+    def resume_background_scan(self) -> None:
         return None
 
     def register_upload(
@@ -137,7 +131,6 @@ class NoAssets:
 class AssetsEnabled:
     def __init__(self, args: _ArgsLike) -> None:
         self._args = args
-        self._enable_asset_hashing = args.enable_asset_hashing
 
     @property
     def enabled(self) -> bool:
@@ -151,10 +144,6 @@ class AssetsEnabled:
     def shutdown(self) -> None:
         _shutdown_assets()
 
-    def preflight_cleanup(self) -> None:
-        if not dependencies_available():
-            cleanup_temp_filesystem()
-
     def register_routes(
         self, app: web.Application, user_manager: UserManager | None
     ) -> None:
@@ -163,14 +152,16 @@ class AssetsEnabled:
     def ensure_scan_started(self) -> None:
         asset_seeder.start(roots=("models", "input", "output"))
 
-    def on_prompt_start(self) -> None:
+    def pause_background_scan(self) -> None:
         asset_seeder.pause()
 
-    def on_gc_tick(self) -> None:
+    def queue_output_enrichment(self) -> None:
         if not asset_seeder.is_disabled():
             asset_seeder.enqueue_enrich(
-                roots=("output",), compute_hashes=self._enable_asset_hashing
+                roots=("output",), compute_hashes=self._args.enable_asset_hashing
             )
+
+    def resume_background_scan(self) -> None:
         asset_seeder.resume()
 
     def register_upload(
@@ -223,4 +214,4 @@ class AssetsEnabled:
 
 
 def default_asset_manager() -> AssetManager:
-    return AssetsEnabled(cast("_ArgsLike", cast(object, args))) if args.enable_assets else NoAssets(cast("_ArgsLike", cast(object, args)))
+    return AssetsEnabled(args) if args.enable_assets else NoAssets(args)
