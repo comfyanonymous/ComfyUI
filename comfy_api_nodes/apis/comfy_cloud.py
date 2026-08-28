@@ -13,6 +13,7 @@ ComfyCloudWorkflow = Literal[
     "image.krea-2-creative-image.v1",
     "image.qwen-image-edit-2511.v1",
     "image.seedvr2-image-upscale.v1",
+    "image.z-image-turbo.v1",
     "video.minimax-h3-text-sound.v1",
     "video.minimax-h3-image-sound.v1",
     "video.ltx-2-3-image-audio-performance.v1",

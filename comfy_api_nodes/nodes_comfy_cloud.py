@@ -371,6 +371,33 @@ def _image_schema(node_id: str, display_name: str, inputs: list[IO.Input]) -> IO
     )
 
 
+class ComfyCloudZImageTurboNode(_ComfyCloudWorkflowNode):
+    workflow = "image.z-image-turbo.v1"
+    node_id = "ComfyCloudZImageTurboNode"
+    display_name = "Z-Image Turbo"
+    category = "partner/image/Comfy Cloud"
+    requires_image = False
+    returns_video = False
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return _image_schema(
+            cls.node_id,
+            cls.display_name,
+            [
+                _prompt_input(),
+                _seed_input(),
+            ],
+        )
+
+    @classmethod
+    # pylint: disable=arguments-renamed
+    async def execute(cls, prompt: str, seed: int = 0) -> IO.NodeOutput:
+        values = _validate_node_inputs(cls, locals())
+        prompt = values["prompt"]
+        return await cls._run(ComfyCloudWorkflowInputs(prompt=prompt, seed=seed))
+
+
 class ComfyCloudKrea2CreativeImageNode(_ComfyCloudWorkflowNode):
     workflow = "image.krea-2-creative-image.v1"
     node_id = "ComfyCloudKrea2CreativeImageNode"
@@ -645,6 +672,7 @@ class ComfyCloudExtension(ComfyExtension):
             ComfyCloudMiniMaxH3ImageSoundNode,
             ComfyCloudWan22FirstLastFrameNode,
             ComfyCloudLTX23ImageAudioPerformanceNode,
+            ComfyCloudZImageTurboNode,
             ComfyCloudKrea2CreativeImageNode,
             ComfyCloudQwenImageEdit2511Node,
             ComfyCloudSeedVR2ImageUpscaleNode,
