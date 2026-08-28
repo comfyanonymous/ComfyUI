@@ -991,6 +991,41 @@ class LTXVSpatioTemporalGuidance(io.ComfyNode):
         return io.NodeOutput(m)
 
 
+class LTXVGuidanceRescale(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="LTXVGuidanceRescale",
+            display_name="LTXV Guidance Rescale",
+            category="advanced/guidance",
+            description="Rescales guided predictions to the conditional prediction standard deviation, matching Diffusers guidance_rescale.",
+            inputs=[
+                io.Model.Input("model"),
+                io.Float.Input("guidance_rescale", default=0.7, min=0.0, max=1.0, step=0.01, round=0.01),
+            ],
+            outputs=[io.Model.Output()],
+        )
+
+    @classmethod
+    def execute(cls, model, guidance_rescale) -> io.NodeOutput:
+        m = model.clone()
+
+        def post_cfg_function(args):
+            if guidance_rescale <= 0:
+                return args["denoised"]
+
+            cond_pred = args["cond_denoised"]
+            cfg_result = args["denoised"]
+            dims = list(range(1, cfg_result.ndim))
+            std_text = cond_pred.std(dim=dims, keepdim=True)
+            std_cfg = cfg_result.std(dim=dims, keepdim=True).clamp_min(1e-12)
+            rescaled = cfg_result * (std_text / std_cfg)
+            return guidance_rescale * rescaled + (1.0 - guidance_rescale) * cfg_result
+
+        m.set_model_sampler_post_cfg_function(post_cfg_function)
+        return io.NodeOutput(m)
+
+
 class LTXVModalityGuidance(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -1194,6 +1229,7 @@ class LtxvExtension(ComfyExtension):
             LTXVDualCFGGuider,
             LTXVModalityGuidance,
             LTXVSpatioTemporalGuidance,
+            LTXVGuidanceRescale,
             LTXVDurationPredictor,
         ]
 
