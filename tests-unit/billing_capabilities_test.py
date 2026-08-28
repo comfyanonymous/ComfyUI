@@ -1,3 +1,5 @@
+import asyncio
+
 import aiohttp
 import pytest
 from aiohttp import web
@@ -93,15 +95,16 @@ async def test_relay_preserves_expected_responses(aiohttp_client, aiohttp_server
 @pytest.mark.parametrize(
     ("status", "body", "content_type"),
     [
-        (500, '{"internal": "detail"}', "application/json"),
-        (200, "not json", "text/plain"),
+        (500, b'{"internal": "detail"}', "application/json"),
+        (200, b"not json", "text/plain"),
+        (200, b'\xff\xfe{"can_manage_subscription": true}', "application/json"),
     ],
 )
 async def test_relay_converts_invalid_upstream_responses_to_502(
     aiohttp_client, aiohttp_server, monkeypatch, status, body, content_type
 ):
     async def upstream_handler(_request):
-        return web.Response(status=status, text=body, content_type=content_type)
+        return web.Response(status=status, body=body, content_type=content_type)
 
     upstream_app = web.Application()
     upstream_app.router.add_get("/api/billing/capabilities", upstream_handler)
@@ -121,3 +124,67 @@ async def test_relay_converts_connection_failure_to_502(aiohttp_client, monkeypa
 
     assert response.status == 502
     assert await response.json() == {"error": "Billing capabilities unavailable"}
+
+
+async def test_relay_converts_upstream_timeout_to_502(aiohttp_client, aiohttp_server, monkeypatch):
+    async def upstream_handler(_request):
+        await asyncio.sleep(5)
+        return web.json_response({"can_manage_subscription": True})
+
+    upstream_app = web.Application()
+    upstream_app.router.add_get("/api/billing/capabilities", upstream_handler)
+    upstream = await aiohttp_server(upstream_app)
+    monkeypatch.setattr("comfy_api.billing_capabilities._TIMEOUT", aiohttp.ClientTimeout(total=0.05))
+    client = await _relay_client(aiohttp_client, monkeypatch, str(upstream.make_url("/")))
+
+    response = await client.get("/api/billing/capabilities")
+
+    assert response.status == 502
+    assert await response.json() == {"error": "Billing capabilities unavailable"}
+
+
+async def test_relay_drops_unlisted_upstream_response_headers(aiohttp_client, aiohttp_server, monkeypatch):
+    async def upstream_handler(_request):
+        return web.json_response(
+            {"can_manage_subscription": True},
+            headers={
+                "Cache-Control": "private, max-age=30",
+                "Set-Cookie": "upstream_session=secret",
+                "X-Upstream-Internal": "internal-detail",
+                "Access-Control-Allow-Origin": "https://upstream.example",
+            },
+        )
+
+    upstream_app = web.Application()
+    upstream_app.router.add_get("/api/billing/capabilities", upstream_handler)
+    upstream = await aiohttp_server(upstream_app)
+    client = await _relay_client(aiohttp_client, monkeypatch, str(upstream.make_url("/")))
+
+    response = await client.get("/api/billing/capabilities")
+
+    assert response.status == 200
+    assert response.headers["Cache-Control"] == "private, max-age=30"
+    assert "Set-Cookie" not in response.headers
+    assert "X-Upstream-Internal" not in response.headers
+    assert "Access-Control-Allow-Origin" not in response.headers
+    assert response.cookies == {}
+
+
+@pytest.mark.parametrize("request_headers", [{}, {"Authorization": "", "X-API-Key": ""}])
+async def test_relay_omits_absent_auth_headers(aiohttp_client, aiohttp_server, monkeypatch, request_headers):
+    received = {}
+
+    async def upstream_handler(request):
+        received["headers"] = request.headers
+        return web.json_response({"can_manage_subscription": False})
+
+    upstream_app = web.Application()
+    upstream_app.router.add_get("/api/billing/capabilities", upstream_handler)
+    upstream = await aiohttp_server(upstream_app)
+    client = await _relay_client(aiohttp_client, monkeypatch, str(upstream.make_url("/")))
+
+    response = await client.get("/api/billing/capabilities", headers=request_headers)
+
+    assert response.status == 200
+    assert "Authorization" not in received["headers"]
+    assert "X-API-Key" not in received["headers"]
