@@ -437,10 +437,10 @@ class JsonExtractString(io.ComfyNode):
                 if value is None:
                     return io.NodeOutput("")
                 
-                if isinstance(value, (str, int, float)):
-                    return io.NodeOutput(str(value))
+                if isinstance(value, (dict, list)):
+                    return io.NodeOutput(json.dumps(value))
                 
-                return io.NodeOutput(json.dumps(value))
+                return io.NodeOutput(str(value))
 
             return io.NodeOutput("")
 
