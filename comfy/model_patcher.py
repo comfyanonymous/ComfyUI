@@ -24,6 +24,7 @@ import logging
 import math
 import time
 import uuid
+import weakref
 from typing import Callable, Optional
 
 import torch
@@ -1788,6 +1789,7 @@ class ModelPatcherDynamic(ModelPatcher):
                 "failed": False,
                 "active": False,
                 "current_prompt": False,
+                "prefetch_orders": weakref.WeakSet(),
             }
 
     def is_dynamic(self):

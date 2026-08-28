@@ -31,9 +31,8 @@ def _pin_device(module):
 
 
 def copy_prefetch_order(source, target):
-    order = getattr(source, "_pin_prefetch_order", None)
-    if order is not None:
-        target._pin_prefetch_order = order
+    for order in tuple(source._pin_state["prefetch_orders"]):
+        order.copy_position(source, target)
 
 
 def _in_flight(module_pin):

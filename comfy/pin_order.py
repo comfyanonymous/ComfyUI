@@ -27,6 +27,7 @@ class PrefetchPinOrder:
         self.budget_checked = False
         self.positions = weakref.WeakKeyDictionary()
         self.modules = []
+        self.pin_states = []
         for index, unit in enumerate(units):
             roots = unit if isinstance(unit, (list, tuple)) else (unit,)
             modules = []
@@ -40,9 +41,22 @@ class PrefetchPinOrder:
                                 sources.append(lowvram_source)
                         for source in sources:
                             modules.append(source)
-                            self.positions[source] = index
-                            source._pin_prefetch_order = weakref.ref(self)
+                            self.add_source(source, index)
             self.modules.append(modules)
+
+    def add_source(self, source, index):
+        if source in self.positions:
+            return
+        self.positions[source] = index
+        pin_state = source._pin_state
+        if not any(state is pin_state for state in self.pin_states):
+            pin_state["prefetch_orders"].add(self)
+            self.pin_states.append(pin_state)
+
+    def copy_position(self, source, target):
+        index = self.positions.get(source)
+        if index is not None:
+            self.add_source(target, index)
 
     def advance(self):
         self.current += 1
@@ -66,21 +80,24 @@ class PrefetchPinOrder:
         return list(range(self.current, min(len(self.modules), self.current + self.window)))
 
     def close(self):
-        for module in self.positions:
-            order = getattr(module, "_pin_prefetch_order", None)
-            if order is not None and order() is self:
-                del module._pin_prefetch_order
+        for pin_state in self.pin_states:
+            pin_state["prefetch_orders"].discard(self)
+        self.pin_states.clear()
         self.positions.clear()
         self.modules.clear()
 
 
+def _prefetch_orders(module):
+    return [order for order in module._pin_state["prefetch_orders"] if module in order.positions]
+
+
 def prefetch_pin_state(module):
-    order = getattr(module, "_pin_prefetch_order", None)
-    order = None if order is None else order()
-    return None if order is None else order.state(module)
+    states = [state for order in _prefetch_orders(module) if (state := order.state(module)) is not None]
+    if not states:
+        return None
+    return min(states, key=lambda state: (not state[0], state[1]))
 
 
 def prefetch_budget_checked(module):
-    order = getattr(module, "_pin_prefetch_order", None)
-    order = None if order is None else order()
-    return order is not None and order.budget_checked
+    orders = _prefetch_orders(module)
+    return bool(orders) and all(order.budget_checked for order in orders)

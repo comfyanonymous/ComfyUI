@@ -15,6 +15,7 @@ from pathlib import Path
 import platform
 import sys
 import types
+import weakref
 
 
 MiB = 1024 ** 2
@@ -85,6 +86,7 @@ def make_pin_state(host_buffer, device, total_bytes):
         "device": device,
         "active": True,
         "current_prompt": True,
+        "prefetch_orders": weakref.WeakSet(),
         "weights": bucket(),
         "weights-loaded": empty_bucket(host_buffer),
         "patches": empty_bucket(host_buffer),

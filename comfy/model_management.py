@@ -996,8 +996,8 @@ def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins
         unloaded_models.append(current_loaded_models.pop(i))
 
     if not for_dynamic and pins_required > 0:
-        ensure_pin_budget(pins_required)
-        ensure_pin_registerable(pins_required)
+        ensure_pin_budget(pins_required, device=device)
+        ensure_pin_registerable(pins_required, device=device)
 
     if len(unloaded_model) > 0:
         soft_empty_cache()

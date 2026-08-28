@@ -2,11 +2,12 @@ import ctypes
 import importlib.util
 import sys
 import types
+import weakref
 from pathlib import Path
 
 import pytest
 
-from comfy.pin_order import PrefetchPinOrder
+from comfy.pin_order import PrefetchPinOrder, prefetch_budget_checked, prefetch_pin_state
 from comfy import windows_dxgi
 from comfy.windows_dxgi import DXGINonLocalBudgetProvider, DXGIUnavailable, LivePinBudget, VideoMemoryInfo, create_dxgi_budget_provider, safe_headroom
 
@@ -38,9 +39,10 @@ class FakeAdapter:
 
 
 class FakeBlock:
-    def __init__(self, index):
+    def __init__(self, index, pin_state=None):
         self.index = index
         self._v = object()
+        self._pin_state = {"prefetch_orders": weakref.WeakSet()} if pin_state is None else pin_state
 
     def modules(self):
         return [self]
@@ -147,6 +149,33 @@ def test_prefetch_order_prefers_upcoming_over_consumed_blocks():
     assert not order.state(blocks[2])[0]
     assert order.state(blocks[2])[1] > order.state(blocks[7])[1]
     order.close()
+
+
+def test_overlapping_prefetch_orders_keep_independent_state():
+    pin_state = {"prefetch_orders": weakref.WeakSet()}
+    shared = FakeBlock(0, pin_state)
+    first_only = FakeBlock(1, pin_state)
+    second_only = FakeBlock(2, pin_state)
+    first = PrefetchPinOrder([shared, first_only])
+    second = PrefetchPinOrder([second_only, shared])
+
+    first.advance()
+    second.advance()
+    assert prefetch_pin_state(shared) == (True, 0)
+    first.advance()
+    assert prefetch_pin_state(shared) == (True, 1)
+
+    first.budget_checked = True
+    assert not prefetch_budget_checked(shared)
+    second.budget_checked = True
+    assert prefetch_budget_checked(shared)
+
+    first.close()
+    assert prefetch_pin_state(shared) == (True, 1)
+    second.close()
+    assert prefetch_pin_state(shared) is None
+    assert not prefetch_budget_checked(shared)
+    assert not hasattr(shared, "_pin_prefetch_order")
 
 
 def test_fifty_sequential_blocks_cycle_through_constrained_live_budget(monkeypatch):
@@ -283,9 +312,30 @@ def _retained_pin(registered):
     module._pins = {"weights": module_pin}
     module._pin_state = {
         "device": types.SimpleNamespace(index=0),
+        "prefetch_orders": weakref.WeakSet(),
         "weights": (None, [(module, 0)], [0], [pin.nbytes if registered else 0], [0], {}),
     }
     return module, pin, module_pin
+
+
+def test_lowvram_source_copies_all_active_prefetch_orders(monkeypatch):
+    pinned, _, _ = _load_pinned_memory(monkeypatch)
+    pin_state = {"prefetch_orders": weakref.WeakSet()}
+    source = FakeBlock(0, pin_state)
+    target = FakeBlock(3, pin_state)
+    first = PrefetchPinOrder([source, FakeBlock(1, pin_state)])
+    second = PrefetchPinOrder([FakeBlock(2, pin_state), source])
+    first.advance()
+    second.advance()
+
+    pinned.copy_prefetch_order(source, target)
+
+    assert first.state(target) == (True, 0)
+    assert second.state(target) == (True, 1)
+    assert prefetch_pin_state(target) == (True, 0)
+    first.close()
+    assert prefetch_pin_state(target) == (True, 1)
+    second.close()
 
 
 def test_registered_pin_is_reconsidered_after_budget_shrink(monkeypatch):
