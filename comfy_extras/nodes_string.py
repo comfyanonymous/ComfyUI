@@ -429,7 +429,7 @@ class JsonExtractString(io.ComfyNode):
         try:
             data = json.loads(json_string)
             if (isinstance(data, dict) and key in data) or (isinstance(data, list) and key.isdigit()):
-                if key.isdigit():
+                if isinstance(data, list) and key.isdigit():
                     key = int(key)
 
                 value = data[key]
