@@ -1,21 +1,13 @@
 import copy
 import logging
 import os
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
     from app.assets.manager import AssetManager
     from app.assets.services.schemas import RegisteredAsset
     from comfy_execution.server_protocol import ExecutionServer
-
-
-class _CachedOutput(Protocol):
-    @property
-    def ui(self) -> dict | None: ...
-
-
-class _Register(Protocol):
-    def __call__(self, abs_path: str, job_id: str | None) -> "RegisteredAsset | None": ...
+    from execution import CacheEntry
 
 
 def _resolve_output_path(entry: dict) -> str | None:
@@ -44,7 +36,7 @@ def _resolve_output_path(entry: dict) -> str | None:
 def _enrich_in_place(
     output_ui: dict,
     job_id: str | None,
-    register: _Register,
+    register: Callable[[str, str | None], "RegisteredAsset | None"],
 ) -> None:
     """S10.6: producers that write the same output path are not coalesced (unsupported)."""
     for entries in output_ui.values():
@@ -57,7 +49,7 @@ def _enrich_in_place(
                 abs_path = _resolve_output_path(entry)
                 if abs_path is None:
                     continue
-                result = register(abs_path, job_id=job_id)
+                result = register(abs_path, job_id)
                 if result is not None:
                     entry["id"] = result.id
             except Exception:
@@ -99,7 +91,7 @@ def register_cached_outputs(ui_wrapper: dict | None, job_id: str, asset_manager:
     return enriched
 
 
-def emit_cached_output(server: "ExecutionServer", node_id: str, display_node_id: str, cached: _CachedOutput, prompt_id: str, ui_outputs: dict, asset_manager: "AssetManager") -> None:
+def emit_cached_output(server: "ExecutionServer", node_id: str, display_node_id: str, cached: "CacheEntry", prompt_id: str, ui_outputs: dict, asset_manager: "AssetManager") -> None:
     if node_id in ui_outputs:
         return
     enriched = register_cached_outputs(cached.ui, prompt_id, asset_manager)
