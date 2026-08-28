@@ -1394,8 +1394,12 @@ class LTXVModel(LTXBaseModel):
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
         prompt_timestep = kwargs.get("prompt_timestep", None)
-
+        stg_self_attn_blocks = transformer_options.get("stg_self_attn_blocks", None)
         for i, block in enumerate(self.transformer_blocks):
+            block_transformer_options = transformer_options
+            if stg_self_attn_blocks is not None:
+                block_transformer_options = transformer_options.copy()
+                block_transformer_options["stg_skip_self_attn"] = i in stg_self_attn_blocks
             if ("double_block", i) in blocks_replace:
 
                 def block_wrap(args):
@@ -1403,7 +1407,7 @@ class LTXVModel(LTXBaseModel):
                     out["img"] = block(args["img"], context=args["txt"], attention_mask=args["attention_mask"], timestep=args["vec"], pe=args["pe"], transformer_options=args["transformer_options"], self_attention_mask=args.get("self_attention_mask"), prompt_timestep=args.get("prompt_timestep"))
                     return out
 
-                out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "attention_mask": attention_mask, "vec": timestep, "pe": pe, "transformer_options": transformer_options, "self_attention_mask": self_attention_mask, "prompt_timestep": prompt_timestep}, {"original_block": block_wrap})
+                out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "attention_mask": attention_mask, "vec": timestep, "pe": pe, "transformer_options": block_transformer_options, "self_attention_mask": self_attention_mask, "prompt_timestep": prompt_timestep}, {"original_block": block_wrap})
                 x = out["img"]
             else:
                 x = block(
@@ -1412,7 +1416,7 @@ class LTXVModel(LTXBaseModel):
                     attention_mask=attention_mask,
                     timestep=timestep,
                     pe=pe,
-                    transformer_options=transformer_options,
+                    transformer_options=block_transformer_options,
                     self_attention_mask=self_attention_mask,
                     prompt_timestep=prompt_timestep,
                 )
