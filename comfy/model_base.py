@@ -1169,6 +1169,30 @@ class LTXV(BaseModel):
     def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
         return latent_image
 
+class LTXVImage(LTXV):
+    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
+        BaseModel.__init__(self, model_config, model_type, device=device, unet_model=comfy.ldm.lightricks.model.LTXVImageModel)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = out.get('c_crossattn', None)
+        if cross_attn is not None:
+            context = cross_attn.cond
+            if hasattr(self.diffusion_model, "preprocess_text_embeds"):
+                context = self.diffusion_model.preprocess_text_embeds(context, unprocessed=kwargs.get("unprocessed_ltxav_embeds", False))
+
+            target_dim = getattr(self.diffusion_model, "cross_attention_dim", None)
+            if target_dim is not None and context.shape[-1] != target_dim:
+                context = context[..., :target_dim]
+            out['c_crossattn'] = comfy.conds.CONDRegular(context)
+
+        frame_rate = out.get('frame_rate', None)
+        if frame_rate is not None:
+            value = frame_rate.cond
+            if (torch.is_tensor(value) and torch.any(value <= 0)) or (not torch.is_tensor(value) and value <= 0):
+                out['frame_rate'] = comfy.conds.CONDConstant(1)
+        return out
+
 class LTXAV(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.lightricks.av_model.LTXAVModel) #TODO

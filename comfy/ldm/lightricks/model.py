@@ -1080,7 +1080,6 @@ class LTXVModel(LTXBaseModel):
     def _init_model_components(self, device, dtype, **kwargs):
         """Initialize LTXV-specific components."""
         pass
-
     def _init_transformer_blocks(self, device, dtype, **kwargs):
         """Initialize transformer blocks for LTXV."""
         self.transformer_blocks = nn.ModuleList(
@@ -1452,3 +1451,39 @@ class LTXVModel(LTXBaseModel):
         )
 
         return x
+
+
+class LTXVImageModel(LTXVModel):
+    def _init_model_components(self, device, dtype, **kwargs):
+        """Initialize image-only LTXV components."""
+        self.video_embeddings_connector = None
+        if not kwargs.get("use_embeddings_connector", False):
+            return
+
+        from comfy.ldm.lightricks.embeddings_connector import Embeddings1DConnector
+
+        self.video_embeddings_connector = Embeddings1DConnector(
+            attention_head_dim=kwargs.get("connector_attention_head_dim", 128),
+            num_attention_heads=kwargs.get("connector_num_attention_heads", 32),
+            num_layers=kwargs.get("connector_num_layers", 8),
+            positional_embedding_max_pos=kwargs.get("connector_positional_embedding_max_pos", [4096]),
+            num_learnable_registers=kwargs.get("connector_num_learnable_registers", 128),
+            split_rope=kwargs.get("rope_type", "split") == "split",
+            double_precision_rope=kwargs.get("frequencies_precision", "float64") == "float64",
+            apply_gated_attention=kwargs.get("connector_apply_gated_attention", False),
+            dtype=dtype,
+            device=device,
+            operations=self.operations,
+        )
+
+    def preprocess_text_embeds(self, context, unprocessed=False):
+        if context.shape[-1] > self.cross_attention_dim:
+            context = context[..., :self.cross_attention_dim]
+        elif not unprocessed and context.shape[-1] == self.cross_attention_dim:
+            return context
+
+        if self.caption_proj_before_connector:
+            context = self.caption_projection(context)
+        if self.video_embeddings_connector is not None:
+            context = self.video_embeddings_connector(context)[0]
+        return context
