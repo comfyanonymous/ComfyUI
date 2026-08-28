@@ -797,6 +797,8 @@ class MergeBatchListNode(io.ComfyNode):
             raise ValueError("Merge Batch List requires at least one input")
 
         mode = overlap.get("overlap", "disabled")
+        if isinstance(mode, list):
+            mode = mode[0]
         overlap_frames = overlap.get("overlap_frames", 0)
         if isinstance(overlap_frames, list):
             overlap_frames = overlap_frames[0]
@@ -806,16 +808,14 @@ class MergeBatchListNode(io.ComfyNode):
             return io.NodeOutput(_batch_list_concat(inputs, dimension))
 
         if mode == "start":
-            inputs = [_batch_list_slice(input, dimension, start=overlap_frames) for input in inputs]
-        elif mode == "end":
-            tail = _batch_list_slice(inputs[-1], dimension, start=-overlap_frames)
-            inputs = [
-                _batch_list_slice(input, dimension, start=overlap_frames if index == 0 else None, end=-overlap_frames)
-                for index, input in enumerate(inputs)
+            inputs = [inputs[0]] + [
+                _batch_list_slice(input, dimension, start=overlap_frames) for input in inputs[1:]
             ]
-            inputs.append(tail)
+        elif mode == "end":
+            inputs = [
+                _batch_list_slice(input, dimension, end=-overlap_frames) for input in inputs[:-1]
+            ] + [inputs[-1]]
         else:
-            inputs[0] = _batch_list_slice(inputs[0], dimension, start=overlap_frames)
             overlap_frames = min(overlap_frames, min(_batch_list_frame_count(input, dimension) for input in inputs) - 1)
             if overlap_frames <= 0:
                 return io.NodeOutput(_batch_list_concat(inputs, dimension))
