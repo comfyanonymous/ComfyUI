@@ -8,7 +8,7 @@ import threading
 import time
 import traceback
 from enum import Enum
-from typing import TYPE_CHECKING, Callable, List, Literal, NamedTuple, Optional, Union
+from typing import TYPE_CHECKING, List, Literal, NamedTuple, Optional, Union
 import asyncio
 
 import torch
@@ -655,17 +655,16 @@ async def execute(server: "ExecutionServer", dynprompt, caches, current_item, ex
     return (ExecutionResult.SUCCESS, None, None)
 
 class PromptExecutor:
-    def __init__(self, server: "ExecutionServer", cache_type=False, cache_args=None, asset_manager: AssetManager | None = None, cache_factory: Callable[[], "CacheSet"] | None = None):
+    def __init__(self, server: "ExecutionServer", cache_type=False, cache_args=None, asset_manager: AssetManager | None = None):
         self.cache_args = cache_args
         self.cache_type = cache_type
-        self.cache_factory: Callable[[], CacheSet] | None = cache_factory
         self.server = server
         self.asset_manager = asset_manager if asset_manager is not None else default_asset_manager()
         self.prompt_model_tracker = comfy.model_patcher.PromptModelTracker()
         self.reset()
 
     def reset(self):
-        self.caches = self.cache_factory() if self.cache_factory is not None else CacheSet(cache_type=self.cache_type, cache_args=self.cache_args)
+        self.caches = CacheSet(cache_type=self.cache_type, cache_args=self.cache_args)
         self.status_messages = []
         self.success = True
 
