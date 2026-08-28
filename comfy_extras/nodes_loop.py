@@ -238,8 +238,8 @@ class LoopVariable:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "next_value": ("*", {"lazy": True, "nonNavigable": True}),
                 "iteration": ("INT", {"lazy": True, "forceInput": True}),
+                "next_value": ("*", {"lazy": True, "nonNavigable": True}),
             },
             "optional": {
                 "initial_value": ("*", {"lazy": True}),
@@ -255,7 +255,7 @@ class LoopVariable:
     FUNCTION = "current"
     CATEGORY = "looping"
 
-    def check_lazy_status(self, next_value, iteration, initial_value=None, execution_list=None, unique_id=None):
+    def check_lazy_status(self, iteration, next_value, initial_value=None, execution_list=None, unique_id=None):
         state = execution_list.get_projection_state(unique_id)
         if state is None or "value" not in state:
             required = ["iteration"]
@@ -264,7 +264,7 @@ class LoopVariable:
             return required
         return ["iteration"]
 
-    def current(self, next_value, iteration, initial_value=None, execution_list=None, unique_id=None):
+    def current(self, iteration, next_value, initial_value=None, execution_list=None, unique_id=None):
         state = execution_list.get_projection_state(unique_id)
         if state is None:
             raise ValueError(f"Loop Variable {unique_id} does not belong to a Loop")
