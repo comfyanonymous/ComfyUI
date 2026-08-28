@@ -508,7 +508,7 @@ ADALN_CROSS_ATTN_PARAMS_COUNT = 9
 
 class BasicTransformerBlock(nn.Module):
     def __init__(
-        self, dim, n_heads, d_head, context_dim=None, attn_precision=None, cross_attention_adaln=False, ff_bias=True, dtype=None, device=None, operations=None
+        self, dim, n_heads, d_head, context_dim=None, attn_precision=None, cross_attention_adaln=False, ff_bias=True, apply_gated_attention=False, dtype=None, device=None, operations=None
     ):
         super().__init__()
 
@@ -520,6 +520,7 @@ class BasicTransformerBlock(nn.Module):
             dim_head=d_head,
             context_dim=None,
             attn_precision=self.attn_precision,
+            apply_gated_attention=apply_gated_attention,
             dtype=dtype,
             device=device,
             operations=operations,
@@ -532,6 +533,7 @@ class BasicTransformerBlock(nn.Module):
             heads=n_heads,
             dim_head=d_head,
             attn_precision=self.attn_precision,
+            apply_gated_attention=apply_gated_attention,
             dtype=dtype,
             device=device,
             operations=operations,
@@ -726,6 +728,7 @@ class LTXBaseModel(torch.nn.Module, ABC):
         ff_bias=True,
         use_prompt_adaln_single=True,
         use_keyframes_abs_pos_embedding=False,
+        apply_gated_attention=False,
         dtype=None,
         device=None,
         operations=None,
@@ -758,6 +761,7 @@ class LTXBaseModel(torch.nn.Module, ABC):
         self.ff_bias = ff_bias
         self.use_prompt_adaln_single = use_prompt_adaln_single
         self.use_keyframes_abs_pos_embedding = use_keyframes_abs_pos_embedding
+        self.apply_gated_attention = apply_gated_attention
 
         # Common dimensions
         self.inner_dim = num_attention_heads * attention_head_dim
@@ -1088,6 +1092,7 @@ class LTXVModel(LTXBaseModel):
                     context_dim=self.cross_attention_dim,
                     cross_attention_adaln=self.cross_attention_adaln,
                     ff_bias=self.ff_bias,
+                    apply_gated_attention=self.apply_gated_attention,
                     dtype=dtype,
                     device=device,
                     operations=self.operations,
