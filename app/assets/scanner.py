@@ -479,8 +479,8 @@ def enrich_asset(
         )
         return False
 
-    # Discards the metadata too, not just the hash: a row with non-NULL system_metadata is
-    # never an enrichment candidate again, so a stale half-result would be permanent.
+    # Non-NULL system_metadata permanently excludes the row from re-enrichment, so a
+    # disagreement here must discard the metadata too, not just the hash.
     if verified_stat is not None and (
         get_mtime_ns(verified_stat) != initial_mtime_ns
         or verified_stat.st_size != stat_p.st_size

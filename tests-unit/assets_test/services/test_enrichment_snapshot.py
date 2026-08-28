@@ -66,9 +66,6 @@ def test_enrichment_discards_unstable_hash(session, temp_dir: Path):
 def test_enrichment_discards_metadata_read_from_a_different_file_than_the_hash(
     session, temp_dir: Path
 ):
-    """A writer landing between the metadata stat and the hash read must not weld the
-    old file's metadata to the new file's digest — the whole result is discarded and the
-    row stays a candidate for the next enrichment pass."""
     path = temp_dir / "swapped.bin"
     path.write_bytes(b"original bytes")
     content, record = _create_unhashed_record(session, path)
@@ -96,8 +93,6 @@ def test_enrichment_discards_metadata_read_from_a_different_file_than_the_hash(
 def test_enrichment_discards_result_when_only_the_hashed_mtime_disagrees(
     session, temp_dir: Path
 ):
-    """Same size, different mtime is still a different observation: the bytes may have
-    been rewritten in place, so the digest cannot be trusted to describe the stat."""
     path = temp_dir / "touched.bin"
     path.write_bytes(b"same length bytes")
     content, record = _create_unhashed_record(session, path)
