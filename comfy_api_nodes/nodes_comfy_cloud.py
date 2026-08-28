@@ -371,6 +371,114 @@ def _image_schema(node_id: str, display_name: str, inputs: list[IO.Input]) -> IO
     )
 
 
+class ComfyCloudCapybaraTextToImageNode(_ComfyCloudWorkflowNode):
+    workflow = "image.capybara-0-1-text-to-image.v1"
+    node_id = "ComfyCloudCapybaraTextToImageNode"
+    display_name = "Capybara 0.1 Text to Image"
+    category = "partner/image/Comfy Cloud"
+    requires_image = False
+    returns_video = False
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return _image_schema(
+            cls.node_id,
+            cls.display_name,
+            [
+                _prompt_input(),
+                _seed_input(),
+            ],
+        )
+
+    @classmethod
+    # pylint: disable=arguments-renamed
+    async def execute(cls, prompt: str, seed: int = 0) -> IO.NodeOutput:
+        values = _validate_node_inputs(cls, locals())
+        prompt = values["prompt"]
+        return await cls._run(ComfyCloudWorkflowInputs(prompt=prompt, seed=seed))
+
+
+class ComfyCloudIdeogram4TextToImageNode(_ComfyCloudWorkflowNode):
+    workflow = "image.ideogram-4-text-to-image.v1"
+    node_id = "ComfyCloudIdeogram4TextToImageNode"
+    display_name = "Ideogram 4 Text to Image"
+    category = "partner/image/Comfy Cloud"
+    requires_image = False
+    returns_video = False
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return _image_schema(
+            cls.node_id,
+            cls.display_name,
+            [
+                _prompt_input(),
+                _seed_input(),
+            ],
+        )
+
+    @classmethod
+    # pylint: disable=arguments-renamed
+    async def execute(cls, prompt: str, seed: int = 0) -> IO.NodeOutput:
+        values = _validate_node_inputs(cls, locals())
+        prompt = values["prompt"]
+        return await cls._run(ComfyCloudWorkflowInputs(prompt=prompt, seed=seed))
+
+
+class ComfyCloudLongCatTextToImageNode(_ComfyCloudWorkflowNode):
+    workflow = "image.longcat-text-to-image.v1"
+    node_id = "ComfyCloudLongCatTextToImageNode"
+    display_name = "LongCat Text to Image"
+    category = "partner/image/Comfy Cloud"
+    requires_image = False
+    returns_video = False
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return _image_schema(
+            cls.node_id,
+            cls.display_name,
+            [
+                _prompt_input(),
+                _seed_input(),
+            ],
+        )
+
+    @classmethod
+    # pylint: disable=arguments-renamed
+    async def execute(cls, prompt: str, seed: int = 0) -> IO.NodeOutput:
+        values = _validate_node_inputs(cls, locals())
+        prompt = values["prompt"]
+        return await cls._run(ComfyCloudWorkflowInputs(prompt=prompt, seed=seed))
+
+
+class ComfyCloudFlux2TextToImageNode(_ComfyCloudWorkflowNode):
+    workflow = "image.flux-2-text-to-image.v1"
+    node_id = "ComfyCloudFlux2TextToImageNode"
+    display_name = "Flux 2 Text to Image"
+    category = "partner/image/Comfy Cloud"
+    requires_image = False
+    returns_video = False
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return _image_schema(
+            cls.node_id,
+            cls.display_name,
+            [
+                _prompt_input(),
+                _seed_input(),
+            ],
+        )
+
+    @classmethod
+    # pylint: disable=arguments-renamed
+    async def execute(cls, prompt: str, seed: int = 0) -> IO.NodeOutput:
+        values = _validate_node_inputs(cls, locals())
+        prompt = values["prompt"]
+        return await cls._run(ComfyCloudWorkflowInputs(prompt=prompt, seed=seed))
+
+
 class ComfyCloudZImageTurboNode(_ComfyCloudWorkflowNode):
     workflow = "image.z-image-turbo.v1"
     node_id = "ComfyCloudZImageTurboNode"
@@ -672,6 +780,10 @@ class ComfyCloudExtension(ComfyExtension):
             ComfyCloudMiniMaxH3ImageSoundNode,
             ComfyCloudWan22FirstLastFrameNode,
             ComfyCloudLTX23ImageAudioPerformanceNode,
+            ComfyCloudFlux2TextToImageNode,
+            ComfyCloudIdeogram4TextToImageNode,
+            ComfyCloudLongCatTextToImageNode,
+            ComfyCloudCapybaraTextToImageNode,
             ComfyCloudZImageTurboNode,
             ComfyCloudKrea2CreativeImageNode,
             ComfyCloudQwenImageEdit2511Node,

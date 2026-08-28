@@ -608,6 +608,10 @@ def test_extension_registers_exactly_the_shipped_set():
         nodes_comfy_cloud.ComfyCloudQwenImageEdit2511Node,
         nodes_comfy_cloud.ComfyCloudSeedVR2ImageUpscaleNode,
         nodes_comfy_cloud.ComfyCloudZImageTurboNode,
+        nodes_comfy_cloud.ComfyCloudFlux2TextToImageNode,
+        nodes_comfy_cloud.ComfyCloudIdeogram4TextToImageNode,
+        nodes_comfy_cloud.ComfyCloudLongCatTextToImageNode,
+        nodes_comfy_cloud.ComfyCloudCapybaraTextToImageNode,
     }
     registered = set(asyncio.run(nodes_comfy_cloud.ComfyCloudExtension().get_node_list()))
 
