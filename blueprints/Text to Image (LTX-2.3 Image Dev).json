@@ -113,6 +113,15 @@
           },
           "link": null,
           "label": "guidance_rescale"
+        },
+        {
+          "name": "negative_prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "negative_prompt"
+          },
+          "link": null,
+          "label": "negative_prompt"
         }
       ],
       "outputs": [
@@ -2477,7 +2486,7 @@
           {
             "id": 647,
             "origin_id": -10,
-            "origin_slot": 13,
+            "origin_slot": 11,
             "target_id": 315,
             "target_slot": 1,
             "type": "STRING"

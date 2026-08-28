@@ -779,7 +779,7 @@ class SD3(BaseModel):
         return kwargs["pooled_output"]
 
     def extra_conds(self, **kwargs):
-        """Prepare text conditioning and image-safe frame-rate conditioning."""
+        """Prepare cross-attention text conditioning when provided."""
         out = super().extra_conds(**kwargs)
         cross_attn = kwargs.get("cross_attn", None)
         if cross_attn is not None:
