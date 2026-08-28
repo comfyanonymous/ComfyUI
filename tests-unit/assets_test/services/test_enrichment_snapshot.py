@@ -87,7 +87,10 @@ def test_enrichment_discards_metadata_read_from_a_different_file_than_the_hash(
     assert enriched is False
     session.expire_all()
     assert session.get(AssetContent, content.id).hash is None
-    assert session.get(Asset, record.id).system_metadata is None
+    assert session.get(Asset, record.id).system_metadata is None, (
+        "a mismatched hash observation must discard already-computed metadata too, "
+        "not just the hash"
+    )
 
 
 def test_enrichment_discards_result_when_only_the_hashed_mtime_disagrees(
@@ -115,7 +118,10 @@ def test_enrichment_discards_result_when_only_the_hashed_mtime_disagrees(
     assert enriched is False
     session.expire_all()
     assert session.get(AssetContent, content.id).hash is None
-    assert session.get(Asset, record.id).system_metadata is None
+    assert session.get(Asset, record.id).system_metadata is None, (
+        "size matching alone is not proof the file is unchanged; an mtime "
+        "disagreement alone must also discard the result"
+    )
 
 
 def test_enrichment_lands_metadata_and_hash_from_one_stable_observation(
