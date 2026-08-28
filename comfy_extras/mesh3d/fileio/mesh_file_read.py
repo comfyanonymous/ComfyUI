@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 import re
 import struct
 
@@ -90,7 +90,7 @@ def load_obj(data: bytes) -> dict:
                 faces.append((indices[0], indices[i], indices[i + 1]))
         elif tag in ("mtllib", "usemtl") and not warned_mtl:
             warned_mtl = True
-            logging.warning("File3DToMesh: OBJ materials (.mtl) are not loaded; geometry only")
+            logging.warning("Get3DComponents: OBJ materials (.mtl) are not loaded; geometry only")
 
     if not faces:
         raise ValueError("OBJ contains no faces")
@@ -105,7 +105,7 @@ def load_obj(data: bytes) -> dict:
         "material": None,
     }
     if any_normal and missing_normal:
-        logging.warning("File3DToMesh: OBJ has faces without vn indices; normals dropped")
+        logging.warning("Get3DComponents: OBJ has faces without vn indices; normals dropped")
     elif any_normal:
         nrm = np.array(out_nrm, np.float32)
         lengths = np.linalg.norm(nrm, axis=1, keepdims=True)

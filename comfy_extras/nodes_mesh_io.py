@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 import os
 
 import numpy as np
@@ -27,7 +27,7 @@ def _merge_primitives(prims: list[dict]) -> dict:
     all_tangents = all_normals and all(p["tangents"] is not None for p in prims)
     color_channels = max((p["colors"].shape[1] for p in prims if p["colors"] is not None), default=3)
     if not all_normals and any(p["normals"] is not None for p in prims):
-        logging.warning("File3DToMesh: some primitives lack normals; normals dropped "
+        logging.warning("Get3DComponents: some primitives lack normals; normals dropped "
                         "(MeshSmoothNormals can regenerate them)")
 
     verts, faces, uvs, colors, normals, tangents = [], [], [], [], [], []
@@ -64,13 +64,13 @@ def _batch(arr):
     return torch.from_numpy(arr)[None] if arr is not None else None
 
 
-class File3DToMesh(IO.ComfyNode):
+class Get3DComponents(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
         return IO.Schema(
-            node_id="File3DToMesh",
-            display_name="File 3D To Mesh",
-            category="3d/mesh",
+            node_id="Get3DComponents",
+            display_name="Get 3D Components",
+            category="3d",
             description=(
                 "Parse a 3D model file (GLB, GLTF, OBJ, STL) into an editable MESH for the "
                 "mesh-processing nodes (decimate, remesh, UV unwrap, bake, ...). All scene "
@@ -78,7 +78,7 @@ class File3DToMesh(IO.ComfyNode):
                 "textures and material factors come from the first material. "
                 "Counterpart of MeshToFile3D."
             ),
-            search_aliases=["extract mesh", "convert 3d", "parse glb", "import mesh",
+            search_aliases=["file 3d to mesh", "extract mesh", "convert 3d", "parse glb", "import mesh",
                             "load mesh from file", "file to mesh"],
             is_experimental=True,
             inputs=[
@@ -86,7 +86,7 @@ class File3DToMesh(IO.ComfyNode):
                     "model_3d",
                     types=[IO.File3DGLB, IO.File3DGLTF, IO.File3DOBJ, IO.File3DSTL, IO.File3DAny],
                     tooltip="3D model file from Load 3D or another 3D node. "
-                            "FBX/USDZ are not supported — convert to GLB first.",
+                            "FBX/USDZ are not supported - convert to GLB first.",
                 ),
             ],
             outputs=[IO.Mesh.Output(display_name="mesh")],
@@ -97,21 +97,21 @@ class File3DToMesh(IO.ComfyNode):
         data = model_3d.get_bytes()
         fmt = (model_3d.format or _sniff_format(data)).lower()
         if fmt in ("fbx", "usdz"):
-            raise ValueError(f"File3DToMesh: .{fmt} parsing is not supported; convert the model to GLB/GLTF first")
+            raise ValueError(f"Get3DComponents: .{fmt} parsing is not supported; convert the model to GLB/GLTF first")
 
         warned = set()
 
         def warn_once(key, message):
             if key not in warned:
                 warned.add(key)
-                logging.warning("File3DToMesh: %s", message)
+                logging.warning("Get3DComponents: %s", message)
 
         material_info = None
         if fmt in ("glb", "gltf"):
             base_dir = os.path.dirname(model_3d.get_source()) if model_3d.is_disk_backed else None
             gltf, buffers, prims = gltf_read.load_gltf(data, base_dir, warn_once)
             if not prims:
-                raise ValueError("File3DToMesh: no triangle geometry found in the glTF scene")
+                raise ValueError("Get3DComponents: no triangle geometry found in the glTF scene")
             material_indices = [p["material"] for p in prims if p["material"] is not None]
             if len(set(material_indices)) > 1:
                 warn_once("multimat", f"{len(set(material_indices))} materials found; "
@@ -123,14 +123,14 @@ class File3DToMesh(IO.ComfyNode):
         elif fmt == "stl":
             prims = [mesh_file_read.load_stl(data)]
         else:
-            raise ValueError(f"File3DToMesh: unsupported or unrecognized format {fmt!r} "
+            raise ValueError(f"Get3DComponents: unsupported or unrecognized format {fmt!r} "
                              "(supported: glb, gltf, obj, stl)")
 
         merged = _merge_primitives(prims)
         n_verts = merged["vertices"].shape[0]
         max_face = int(merged["faces"].max())
         if max_face >= n_verts:
-            raise ValueError(f"File3DToMesh: face index {max_face} out of range for {n_verts} vertices (corrupt file?)")
+            raise ValueError(f"Get3DComponents: face index {max_face} out of range for {n_verts} vertices (corrupt file?)")
 
         material_info = material_info or {}
         mesh = Types.MESH(
@@ -148,7 +148,7 @@ class File3DToMesh(IO.ComfyNode):
             occlusion_in_mr=bool(material_info.get("occlusion_in_mr", False)),
             material=material_info.get("material") or None,
         )
-        logging.info("File3DToMesh: %s -> %d vertices, %d faces (%d primitives)",
+        logging.info("Get3DComponents: %s -> %d vertices, %d faces (%d primitives)",
                      fmt, n_verts, merged["faces"].shape[0], len(prims))
         return IO.NodeOutput(mesh)
 
@@ -156,7 +156,7 @@ class File3DToMesh(IO.ComfyNode):
 class MeshIOExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
-        return [File3DToMesh]
+        return [Get3DComponents]
 
 
 async def comfy_entrypoint() -> MeshIOExtension:
