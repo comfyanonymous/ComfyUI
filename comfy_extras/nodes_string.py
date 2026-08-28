@@ -428,8 +428,8 @@ class JsonExtractString(io.ComfyNode):
     def execute(cls, json_string, key):
         try:
             data = json.loads(json_string)
-            if (isinstance(data, dict) and key in data) or (isinstance(data, list) and key.isdigit()):
-                if isinstance(data, list) and key.isdigit():
+            if (isinstance(data, dict) and key in data) or (isinstance(data, list) and key.isdecimal()):
+                if isinstance(data, list) and key.isdecimal():
                     key = int(key)
 
                 value = data[key]
