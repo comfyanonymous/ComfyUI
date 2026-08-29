@@ -223,12 +223,23 @@ class ExecutionList(TopologicalSort):
 
     def has_effective_blockers(self, node_id):
         return any(
-            blocker_id not in self.increment_pending_nodes
-            and self.execution_cache.get(node_id, {}).get(blocker_id) is None
+            self.execution_cache.get(node_id, {}).get(blocker_id) is None
+            and (
+                blocker_id not in self.increment_pending_nodes
+                or PROJECTED_BLOCKER not in self.blocking[blocker_id][node_id]
+            )
             for blocker_id in self.blockers[node_id]
         )
 
     def get_ready_nodes(self):
+        for node_id in self.pendingNodes:
+            for blocker_id in self.blockers[node_id]:
+                if (
+                    blocker_id in self.increment_pending_nodes
+                    and self.execution_cache.get(node_id, {}).get(blocker_id) is None
+                    and PROJECTED_BLOCKER not in self.blocking[blocker_id][node_id]
+                ):
+                    self.increment_pending_nodes.discard(blocker_id)
         return [
             node_id for node_id in self.pendingNodes
             if node_id not in self.increment_pending_nodes
