@@ -270,7 +270,6 @@ class ModelPatchLoader:
                         config['broken'] = True
             model = comfy.ldm.lumina.controlnet.ZImage_Control(device=comfy.model_management.unet_offload_device(), dtype=dtype, operations=comfy.ops.manual_cast, **config)
         elif comfy.ldm.minimax.controlnet.is_minimax_h3_fun_state_dict(sd):
-            sd = comfy.ldm.minimax.controlnet.convert_minimax_h3_fun_state_dict(sd)
             load_device = comfy.model_management.get_torch_device()
             quant = comfy.utils.detect_layer_quantization(sd, "")
             if quant is not None:

@@ -70,48 +70,13 @@ class MiniMaxH3FunControl(torch.nn.Module):
 
 
 def is_minimax_h3_fun_state_dict(state_dict):
-    common = (
+    required = (
         "control_proj_in.weight",
         "control_blocks.0.adaln_proj.linear.weight",
         "control_blocks.0.after_proj.weight",
         "control_blocks.0.before_proj.weight",
-    )
-    native = (
         "control_blocks.0.attn.qkv_proj.weight",
         "control_blocks.0.attn.q_norm.weight",
         "control_blocks.0.mlp.fc1.weight",
     )
-    diffusers = (
-        "control_blocks.0.attn.to_q.weight",
-        "control_blocks.0.attn.to_k.weight",
-        "control_blocks.0.attn.to_v.weight",
-        "control_blocks.0.attn.norm_q.weight",
-        "control_blocks.0.ff.net.0.proj.weight",
-    )
-    return all(key in state_dict for key in common) and (all(key in state_dict for key in native) or all(key in state_dict for key in diffusers))
-
-
-def convert_minimax_h3_fun_state_dict(state_dict):
-    if "control_blocks.0.attn.to_q.weight" not in state_dict:
-        return state_dict
-
-    converted = {}
-    for key, value in state_dict.items():
-        if key.endswith(".attn.to_q.weight"):
-            base = key[:-len("to_q.weight")]
-            converted[base + "qkv_proj.weight"] = torch.cat([
-                state_dict[base + "to_q.weight"],
-                state_dict[base + "to_k.weight"],
-                state_dict[base + "to_v.weight"],
-            ], dim=0)
-        elif key.endswith(".attn.to_k.weight") or key.endswith(".attn.to_v.weight"):
-            continue
-        elif key.endswith(".ff.net.0.proj.weight"):
-            half = value.shape[0] // 2
-            converted[key.replace(".ff.net.0.proj.", ".mlp.fc1.")] = torch.cat([value[half:], value[:half]], dim=0)
-        else:
-            converted[key.replace(".attn.norm_q.", ".attn.q_norm.")
-                         .replace(".attn.norm_k.", ".attn.k_norm.")
-                         .replace(".attn.to_out.0.", ".attn.out_proj.")
-                         .replace(".ff.net.2.", ".mlp.fc2.")] = value
-    return converted
+    return all(key in state_dict for key in required)

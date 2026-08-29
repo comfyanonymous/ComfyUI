@@ -16,14 +16,13 @@ import torch.nn.functional as F
 import torchaudio
 
 import nodes
-import comfy.ldm.minimax.controlnet
 import comfy.model_management
 import comfy.model_sampling
 import comfy.nested_tensor
 import comfy.patcher_extension
 import comfy.utils
 import node_helpers
-from comfy.ldm.minimax.model import FRAME_PER_TOKEN, FRAME_RESCALE, MiniMaxH3Model
+from comfy.ldm.minimax.model import FRAME_PER_TOKEN, FRAME_RESCALE
 from comfy_api.latest import ComfyExtension, io
 
 CANVAS_MULTIPLE = 32
@@ -585,29 +584,6 @@ class MiniMaxH3FunControlNetApply(io.ComfyNode):
                 control_video=None, mask=None, source_video=None) -> io.NodeOutput:
         if strength == 0 or (control_video is None and mask is None):
             return io.NodeOutput(model)
-        if not isinstance(model_patch.model, comfy.ldm.minimax.controlnet.MiniMaxH3FunControl):
-            raise ValueError("this node needs a MiniMax H3 Fun ControlNet model patch")
-
-        diffusion_model = model.get_model_object("diffusion_model")
-        if not isinstance(diffusion_model, MiniMaxH3Model):
-            raise ValueError("MiniMax H3 Fun ControlNet only works with MiniMax H3 models")
-        control_model = model_patch.model
-        if control_model.control_in_dim < diffusion_model.latents_dim:
-            raise ValueError("MiniMax H3 Fun ControlNet input width does not match the base model")
-        if mask is not None and control_model.control_in_dim < diffusion_model.latents_dim * 2 + 1:
-            raise ValueError("this MiniMax H3 Fun model patch does not support inpainting")
-        if control_model.control_proj_in.out_features != diffusion_model.hidden_size:
-            raise ValueError("MiniMax H3 Fun ControlNet hidden width does not match the base model")
-        if control_model.patch_size != diffusion_model.patch_size:
-            raise ValueError("MiniMax H3 Fun ControlNet patch size does not match the base model")
-        if control_model.control_blocks[0].adaln_proj.linear.in_features != diffusion_model.blocks[0].adaln_proj.linear.in_features:
-            raise ValueError("MiniMax H3 Fun ControlNet adaln form does not match the base model")
-        control_attn = control_model.control_blocks[0].attn
-        base_attn = diffusion_model.blocks[0].attn
-        if control_attn.heads != base_attn.heads or control_attn.head_dim != base_attn.head_dim:
-            raise ValueError("MiniMax H3 Fun ControlNet attention shape does not match the base model")
-        if control_model.injection_layers[-1] >= len(diffusion_model.blocks):
-            raise ValueError("MiniMax H3 Fun ControlNet has more injection layers than the base model")
 
         model_patched = model.clone()
         model_sampling = model.get_model_object("model_sampling")
