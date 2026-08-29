@@ -77,6 +77,10 @@ class Loop(io.ComfyNode):
                     if input_info is None or not input_info.get("lazy", False):
                         nested_links.append((value[0], value[1], node_id))
             projected_nodes.difference_update(nested_openers)
+            nested_ordering_links = [
+                (opener_id, loop_projection(dynprompt, opener_id)[1])
+                for opener_id in nested_openers
+            ]
             close_inputs = dynprompt.get_node(close_id)["inputs"]
             output_source = tuple(close_inputs["output_value"])
             next_source = tuple(close_inputs["next_value"])
@@ -100,11 +104,14 @@ class Loop(io.ComfyNode):
                 "index": -1,
                 "carried_value": initial_value[0] if initial_value else None,
                 "projected_nodes": projected_nodes,
-                "scheduled_nodes": projected_nodes.intersection(execution_list.pendingNodes).union(
-                    internal_source_nodes
+                "scheduled_nodes": projected_nodes.intersection(
+                    execution_list.pendingNodes.keys() - execution_list.increment_pending_nodes
+                ).union(internal_source_nodes),
+                "nested_openers": nested_openers.intersection(
+                    execution_list.pendingNodes.keys() - execution_list.increment_pending_nodes
                 ),
-                "nested_openers": nested_openers.intersection(execution_list.pendingNodes),
                 "nested_links": nested_links,
+                "nested_ordering_links": nested_ordering_links,
                 "invalidated_nodes": projected_nodes.union(nested_openers),
                 "close_id": close_id,
                 "output_source": output_source,
@@ -181,10 +188,14 @@ class Loop(io.ComfyNode):
 
         execution_list.requeue_nodes(
             state["scheduled_nodes"].union(state["nested_openers"]),
-            state["invalidated_nodes"],
+            state["invalidated_nodes"].union(state["projected_nodes"]),
         )
         for link in state["nested_links"]:
-            execution_list.add_strong_link(*link)
+            if link[2] in execution_list.pendingNodes:
+                execution_list.add_strong_link(*link)
+        for opener_id, nested_close_id in state["nested_ordering_links"]:
+            if nested_close_id in execution_list.pendingNodes:
+                execution_list.add_ordering_link(opener_id, nested_close_id)
         for source_id, source_socket in state["internal_sources"]:
             if source_id != unique_id:
                 execution_list.cache_link(source_id, unique_id, source_socket)

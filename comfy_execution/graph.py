@@ -236,15 +236,21 @@ class ExecutionList(TopologicalSort):
         )
 
     def get_ready_nodes(self):
-        for node_id in self.pendingNodes:
-            for blocker_id in self.blockers[node_id]:
-                if (
-                    blocker_id in self.increment_pending_nodes
-                    and self.execution_cache.get(node_id, {}).get(blocker_id) is None
-                    and PROJECTED_BLOCKER not in self.blocking[blocker_id][node_id]
-                    and LAZY_BLOCKER not in self.blocking[blocker_id][node_id]
-                ):
-                    self.increment_pending_nodes.discard(blocker_id)
+        reactivated = True
+        while reactivated:
+            reactivated = False
+            for node_id in self.pendingNodes:
+                if node_id in self.increment_pending_nodes:
+                    continue
+                for blocker_id in self.blockers[node_id]:
+                    if (
+                        blocker_id in self.increment_pending_nodes
+                        and self.execution_cache.get(node_id, {}).get(blocker_id) is None
+                        and PROJECTED_BLOCKER not in self.blocking[blocker_id][node_id]
+                        and LAZY_BLOCKER not in self.blocking[blocker_id][node_id]
+                    ):
+                        self.increment_pending_nodes.discard(blocker_id)
+                        reactivated = True
         return [
             node_id for node_id in self.pendingNodes
             if node_id not in self.increment_pending_nodes
@@ -258,7 +264,9 @@ class ExecutionList(TopologicalSort):
         for node_id in scheduled_node_ids:
             if node_id not in self.pendingNodes:
                 self.add_node(node_id)
-        scheduled_node_ids.update(node_ids.intersection(self.pendingNodes))
+        scheduled_node_ids.update(
+            node_ids.intersection(self.pendingNodes.keys() - self.increment_pending_nodes)
+        )
         self.projection_nodes[projector_id] = node_ids
         self.projection_scheduled_nodes[projector_id] = scheduled_node_ids
         for node_id in node_ids:
@@ -270,7 +278,8 @@ class ExecutionList(TopologicalSort):
                 self.blockers[projector_id].add(node_id)
         return node_ids, scheduled_node_ids
 
-    def inherit_projected_nodes(self, parent_id, node_ids):
+    def inherit_projected_nodes(self, parent_id, node_ids, scheduled_node_ids=()):
+        scheduled_node_ids = set(scheduled_node_ids)
         owners = self.projected_node_owners.get(parent_id, ())
         for projector_id in owners:
             projected_nodes = self.projection_nodes[projector_id]
@@ -282,7 +291,8 @@ class ExecutionList(TopologicalSort):
                 self.projected_node_counts[node_id] = self.projected_node_counts.get(node_id, 0) + 1
                 self.projected_node_owners.setdefault(node_id, set()).add(projector_id)
                 if node_id in self.pendingNodes:
-                    scheduled_nodes.add(node_id)
+                    if node_id in scheduled_node_ids:
+                        scheduled_nodes.add(node_id)
                     self.blocking[node_id].setdefault(projector_id, {})[PROJECTED_BLOCKER] = True
                     self.blockers[projector_id].add(node_id)
                 else:
@@ -303,10 +313,9 @@ class ExecutionList(TopologicalSort):
                 self.projected_node_counts[node_id] = count
             else:
                 self.projected_node_counts.pop(node_id, None)
-                if node_id in self.increment_pending_nodes:
-                    self.increment_pending_nodes.discard(node_id)
-                    if node_id in self.pendingNodes:
-                        self.spent_nodes.add(node_id)
+                self.increment_pending_nodes.discard(node_id)
+                if node_id in self.pendingNodes:
+                    self.spent_nodes.add(node_id)
             owners = self.projected_node_owners.get(node_id)
             if owners is not None:
                 owners.discard(projector_id)
@@ -428,6 +437,9 @@ class ExecutionList(TopologicalSort):
     def add_strong_link(self, from_node_id, from_socket, to_node_id):
         super().add_strong_link(from_node_id, from_socket, to_node_id)
         self.cache_link(from_node_id, to_node_id, from_socket)
+
+    def add_ordering_link(self, from_node_id, to_node_id):
+        super().add_strong_link(from_node_id, None, to_node_id)
 
     def make_input_strong_link(self, to_node_id, to_input):
         value = self.dynprompt.get_node(to_node_id)["inputs"].get(to_input)

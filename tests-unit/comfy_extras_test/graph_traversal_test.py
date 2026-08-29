@@ -101,3 +101,56 @@ def test_termination_input_brings_preview_branch_into_loop_body():
     })
 
     assert loop_projection(prompt, "loop") == ({"body", "preview"}, "close")
+
+
+def test_nested_phase_step_and_window_loops_have_distinct_closes():
+    prompt = DynPrompt({
+        "phase": node("Loop"),
+        "step": node("Loop", iteration_outer=["phase", 0], initial_value=["phase", 4]),
+        "sample": node("Body", latent=["step", 4], iteration=["step", 0]),
+        "step_close": node(
+            "CloseLoop",
+            output_value=["sample", 0],
+            next_value=["sample", 0],
+            accumulate=False,
+        ),
+        "split": node("Body", latent=["step_close", 0]),
+        "window": node("Loop", list=["split", 0]),
+        "process": node("Body", latent=["window", 3]),
+        "save": node("Preview", image=["process", 0], last=["window", 2]),
+        "window_close": node(
+            "CloseLoop",
+            output_value=["process", 0],
+            next_value=["process", 0],
+            accumulate=True,
+            termination0=["save", 0],
+        ),
+        "merge": node("Body", windows=["window_close", 0]),
+        "phase_close": node(
+            "CloseLoop",
+            output_value=["merge", 0],
+            next_value=["merge", 0],
+            accumulate=False,
+        ),
+        "output": node("Output", value=["phase_close", 0]),
+    })
+
+    assert loop_projection(prompt, "step") == ({"sample"}, "step_close")
+    assert loop_projection(prompt, "window") == (
+        {"process", "save"},
+        "window_close",
+    )
+    assert loop_projection(prompt, "phase") == (
+        {
+            "step",
+            "sample",
+            "step_close",
+            "split",
+            "window",
+            "process",
+            "save",
+            "window_close",
+            "merge",
+        },
+        "phase_close",
+    )

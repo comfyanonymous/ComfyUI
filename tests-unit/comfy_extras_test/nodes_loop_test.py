@@ -17,10 +17,13 @@ class DynPrompt:
 
 
 class ExecutionList:
-    pendingNodes = {"close"}
+    pendingNodes = {"close": True}
 
     def __init__(self):
         self.states = {}
+        self.increment_pending_nodes = set()
+        self.ordering_links = []
+        self.strong_links = []
 
     def get_projection_state(self, node_id):
         return self.states.get(node_id)
@@ -47,10 +50,16 @@ class ExecutionList:
         return lambda: None
 
     def add_strong_link(self, *args):
-        pass
+        self.strong_links.append(args)
+
+    def add_ordering_link(self, *args):
+        self.ordering_links.append(args)
 
     def cache_link(self, *args):
         pass
+
+    def get_cache(self, *args):
+        return SimpleNamespace(outputs=["next"])
 
     def get_input_info(self, *args):
         return None, None, None
@@ -164,3 +173,110 @@ def test_loop_step_must_not_be_zero(monkeypatch):
             monkeypatch,
             {"mode": ["For"], "start_iteration": [0], "max_iteration": [1], "step": [0]},
         )
+
+
+def test_outer_loop_orders_nested_close_after_nested_opener(monkeypatch):
+    execution_list = ExecutionList()
+    execution_list.pendingNodes = {
+        "outer_close": True,
+        "inner": True,
+        "inner_close": True,
+    }
+    dynprompt = DynPrompt({
+        "outer": {"class_type": "Loop", "inputs": {}},
+        "inner": {"class_type": "Loop", "inputs": {"iteration_outer": ["outer", 0]}},
+        "inner_body": {"class_type": "Body", "inputs": {"value": ["inner", 0]}},
+        "inner_close": {
+            "class_type": "CloseLoop",
+            "inputs": {
+                "output_value": ["inner_body", 0],
+                "next_value": ["inner_body", 0],
+                "accumulate": False,
+            },
+        },
+        "outer_close": {
+            "class_type": "CloseLoop",
+            "inputs": {
+                "output_value": ["inner_close", 0],
+                "next_value": ["inner_close", 0],
+                "accumulate": False,
+            },
+        },
+    })
+    nodes_loop.Loop.hidden = SimpleNamespace(
+        dynprompt=dynprompt,
+        execution_list=execution_list,
+        unique_id="outer",
+    )
+
+    def projection(dynprompt, node_id):
+        if node_id == "outer":
+            return {"inner", "inner_body", "inner_close"}, "outer_close"
+        assert node_id == "inner"
+        return {"inner_body"}, "inner_close"
+
+    monkeypatch.setattr(nodes_loop, "loop_projection", projection)
+    monkeypatch.setattr(
+        nodes_loop,
+        "PromptServer",
+        SimpleNamespace(instance=SimpleNamespace(send_progress_text=lambda *args: None)),
+    )
+
+    nodes_loop.Loop.execute({"mode": ["simple"], "num_iterations": [1]})
+
+    assert execution_list.ordering_links == [("inner", "inner_close")]
+
+
+def test_outer_loop_ignores_nested_link_whose_target_has_finished(monkeypatch):
+    execution_list = ExecutionList()
+    execution_list.pendingNodes = {
+        "outer_close": True,
+        "inner": True,
+        "inner_body": True,
+        "inner_close": True,
+    }
+    dynprompt = DynPrompt({
+        "outer": {"class_type": "Loop", "inputs": {}},
+        "inner": {"class_type": "Loop", "inputs": {"iteration_outer": ["outer", 0]}},
+        "inner_body": {"class_type": "Body", "inputs": {"value": ["inner", 0]}},
+        "inner_close": {
+            "class_type": "CloseLoop",
+            "inputs": {
+                "output_value": ["inner_body", 0],
+                "next_value": ["inner_body", 0],
+                "accumulate": False,
+            },
+        },
+        "outer_close": {
+            "class_type": "CloseLoop",
+            "inputs": {
+                "output_value": ["inner_close", 0],
+                "next_value": ["inner_close", 0],
+                "accumulate": False,
+            },
+        },
+    })
+    nodes_loop.Loop.hidden = SimpleNamespace(
+        dynprompt=dynprompt,
+        execution_list=execution_list,
+        unique_id="outer",
+    )
+
+    def projection(dynprompt, node_id):
+        if node_id == "outer":
+            return {"inner", "inner_body", "inner_close"}, "outer_close"
+        return {"inner_body"}, "inner_close"
+
+    monkeypatch.setattr(nodes_loop, "loop_projection", projection)
+    monkeypatch.setattr(
+        nodes_loop,
+        "PromptServer",
+        SimpleNamespace(instance=SimpleNamespace(send_progress_text=lambda *args: None)),
+    )
+
+    nodes_loop.Loop.execute({"mode": ["simple"], "num_iterations": [2]})
+    execution_list.pendingNodes.pop("inner_body")
+    execution_list.strong_links.clear()
+    nodes_loop.Loop.execute({"mode": ["simple"], "num_iterations": [2]})
+
+    assert ("inner", 0, "inner_body") not in execution_list.strong_links
