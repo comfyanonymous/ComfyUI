@@ -24,3 +24,39 @@ web_custom_versions/
 filtered-openapi.yaml
 uv.lock
 .comfy_environment
+# >>> subfloor managed ignores >>>
+# The engine is a materialized, gitignored DEPENDENCY (B7) — fetched from
+# upstream, refreshed by `./sc update`, never committed to the fork. Your project
+# is everything ELSE in this repo.
+/.super-coder/
+# Boot artifacts + per-shell skill render — rebuilt at launch from the DB.
+/CLAUDE.md
+/AGENTS.md
+/opencode.json
+/.claude/skills/
+/.agents/skills/
+/.opencode/skills/
+# Engine-managed harness config re-emitted each launch (per-harness branch-guard
+# hook); kept apart from a fork's own tracked config (claude settings.json /
+# codex config.toml).
+/.claude/settings.local.json
+/.codex/hooks.json
+# Shell worktrees — one per shell, linked inside the repo root.
+/.sc-worktrees/
+# The engine pin is tracked. Every generated instance artifact is local-only.
+/.sc-state/engine.ref.prev
+/.sc-state/content.sql
+/.sc-state/map_content.sql
+/.sc-state/map.config.json
+/.sc-state/skills_retired.json
+/.sc-state/local/
+/roadmap_sc.md
+/docs_sc/
+/specs_sc/
+/skills_sc/
+# Map DB — derived cache of the repo (dr_*), rebuilt by `./sc map`.
+/.sc-state/map.db
+/.sc-state/map.db-wal
+/.sc-state/map.db-shm
+/.sc-state/db_backups/
+# <<< subfloor managed ignores <<<

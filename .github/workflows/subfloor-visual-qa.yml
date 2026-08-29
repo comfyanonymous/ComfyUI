@@ -1,0 +1,65 @@
+# managed-by: subfloor — visual-qa shim v4
+# Edits are overwritten by `make update`. Delete the managed-by line to take
+# ownership; subfloor will then leave this file alone.
+name: Subfloor Visual QA
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: subfloor-visual-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visual-qa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Materialize the pinned Subfloor engine
+        shell: bash
+        run: |
+          test -s .sc-state/engine.ref || { echo "::error::No engine.ref; run make update first"; exit 1; }
+          engine_ref="$(tr -d '[:space:]' < .sc-state/engine.ref)"
+          git clone --filter=blob:none --no-checkout https://github.com/jedbjorn/subfloor.git .subfloor-source
+          git -C .subfloor-source checkout "$engine_ref" -- .super-coder
+          mv .subfloor-source/.super-coder .super-coder
+      - name: Restore Playwright browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('.super-coder/scripts/visual_qa.py') }}
+      - name: Resolve artifact retention
+        id: config
+        shell: python
+        run: |
+          import json, os
+          from pathlib import Path
+          try:
+              days = json.loads(Path(".sc-state/visual-qa.json").read_text()).get("artifact_retention_days", 14)
+          except Exception:
+              days = 14
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              print(f"retention={days}", file=out)
+      - id: visual_qa
+        run: ./sc visual-qa ci
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Upload Visual QA gallery
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-qa-gallery
+          path: ${{ steps.visual_qa.outputs.output || 'gallery' }}/
+          if-no-files-found: warn
+          retention-days: ${{ steps.config.outputs.retention || 14 }}

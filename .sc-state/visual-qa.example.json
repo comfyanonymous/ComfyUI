@@ -1,0 +1,15 @@
+{
+  "cwd": ".",
+  "setup": ["npm ci", "npm run build"],
+  "serve": "npm run preview -- --port {port} --host 127.0.0.1",
+  "port": 4173,
+  "ready_path": "/",
+  "ready_timeout_s": 120,
+  "settle_ms": 500,
+  "routes": ["/", "/dashboard"],
+  "viewports": "default",
+  "paths": ["src/**", "static/**", "package.json"],
+  "services": [],
+  "output": "gallery",
+  "artifact_retention_days": 14
+}
