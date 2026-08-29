@@ -7,6 +7,7 @@ from app.assets.database.queries import (
     RemoveTagsResult,
     list_tags_with_usage,
 )
+from app.assets.database.queries.records import bump_record_updated_at
 from app.assets.database.queries.tags import list_tag_counts_for_filtered_assets
 from app.assets.database.models import Asset, AssetTag, Tag
 from app.assets.helpers import normalize_tags
@@ -43,6 +44,8 @@ def apply_tags(
                     )
                 )
         session.flush()
+        if requested_tags - current_tags:
+            bump_record_updated_at(session, reference_id)
         total_tags = list(
             session.scalars(
                 select(AssetTag.tag_name)
@@ -94,6 +97,7 @@ def remove_tags(
                     AssetTag.tag_name.in_(removable_tags),
                 )
             )
+            bump_record_updated_at(session, reference_id)
         total_tags = list(
             session.scalars(
                 select(AssetTag.tag_name)

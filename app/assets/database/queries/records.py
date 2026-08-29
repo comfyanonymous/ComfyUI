@@ -137,6 +137,12 @@ def update_record_access_time(
     session.execute(stmt.values(last_access_time=ts))
 
 
+def bump_record_updated_at(session: Session, record_id: str) -> None:
+    session.execute(
+        sa.update(Asset).where(Asset.id == record_id).values(updated_at=get_utc_now())
+    )
+
+
 def build_record_tag_filter_clauses(
     all_tags: Sequence[str],
     any_tags: Sequence[str],

@@ -11,8 +11,12 @@ from app.assets.database.queries import (
     get_record_by_id,
     update_record_access_time,
 )
-from app.assets.database.queries.records import get_preview_file_paths_by_ids, rename_record
-from app.assets.helpers import normalize_tags, validate_blake3_hash
+from app.assets.database.queries.records import (
+    bump_record_updated_at,
+    get_preview_file_paths_by_ids,
+    rename_record,
+)
+from app.assets.helpers import get_utc_now, normalize_tags, validate_blake3_hash
 from app.assets.services.lookup import lookup_for_view
 from app.assets.services.schemas import (
     AssetData,
@@ -60,6 +64,17 @@ def get_asset_detail(
         return _record_to_detail_result(session, record)
 
 
+def _fetch_manual_tags(session, reference_id: str) -> set[str]:
+    return set(
+        session.scalars(
+            select(AssetTag.tag_name).where(
+                AssetTag.asset_id == reference_id,
+                AssetTag.origin != "automatic",
+            )
+        )
+    )
+
+
 def update_asset_metadata(
     reference_id: str,
     name: str | None = None,
@@ -80,9 +95,11 @@ def update_asset_metadata(
             session.execute(
                 update(Asset)
                 .where(Asset.id == reference_id)
-                .values(user_metadata=dict(user_metadata))
+                .values(user_metadata=dict(user_metadata), updated_at=get_utc_now())
             )
+        manual_tags_before: set[str] = set()
         if tags is not None:
+            manual_tags_before = _fetch_manual_tags(session, reference_id)
             session.execute(
                 delete(AssetTag).where(
                     AssetTag.asset_id == reference_id,
@@ -93,7 +110,7 @@ def update_asset_metadata(
             session.execute(
                 update(Asset)
                 .where(Asset.id == reference_id)
-                .values(mime_type=mime_type)
+                .values(mime_type=mime_type, updated_at=get_utc_now())
             )
         if preview_id is not None:
             if session.get(Asset, preview_id) is None:
@@ -103,7 +120,7 @@ def update_asset_metadata(
             session.execute(
                 update(Asset)
                 .where(Asset.id == reference_id)
-                .values(preview_id=preview_id)
+                .values(preview_id=preview_id, updated_at=get_utc_now())
             )
         if tags is not None:
             for tag_name in normalize_tags(list(tags)):
@@ -118,6 +135,9 @@ def update_asset_metadata(
                             origin=tag_origin,
                         )
                     )
+            session.flush()
+            if _fetch_manual_tags(session, reference_id) != manual_tags_before:
+                bump_record_updated_at(session, reference_id)
         session.commit()
 
     detail = get_asset_detail(reference_id)
