@@ -240,30 +240,20 @@ Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
 Put your VAE in: models/vae
 
 
-### AMD GPUs (Linux)
+### AMD GPUs (Windows and Linux)
 
-AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
+AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version for all supported devices:
 
-```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm7.2```
-
-This is the command to install the nightly with ROCm 7.2 which might have some performance improvements:
-
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm7.2```
-
-
-### AMD GPUs (Experimental: Windows and Linux), newer architectures.
-
-These have less hardware support than the builds above but they work on windows. See [ROCm/TheRock RELEASES](https://github.com/ROCm/TheRock/blob/main/RELEASES.md#installing-multi-arch-pytorch-python-packages) for more & per-device info.
-
-E.g. for 7900 XTX / 7900 GRE "gfx1100":
-
+```sh
+pip install --index-url https://stable.repo.amd.com/rocm/whl-next/ "torch[device-all]" "torchvision[device-all]" torchaudio
 ```
+
+Nightlies are available from rocm.nightlies.amd.com, installs targetted at a specific device are also possible.
+
+E.g. for 7900 XTX / 7900 GRE "gfx1100" nightly:
+
+```sh
 pip install --index-url https://rocm.nightlies.amd.com/whl-multi-arch/ "torch[device-gfx1100]" "torchvision[device-gfx1100]" torchaudio
-```
-
-Or all supported devices:
-```
-pip install --index-url https://rocm.nightlies.amd.com/whl-multi-arch/ "torch[device-all]" "torchvision[device-all]" torchaudio
 ```
 
 ### Intel GPUs (Windows and Linux)
