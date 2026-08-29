@@ -2522,6 +2522,7 @@ async def init_builtin_extra_nodes():
         "nodes_wandancer.py",
         "nodes_hidream_o1.py",
         "nodes_save_3d.py",
+        "nodes_mesh_io.py",
         "nodes_moge.py",
         "nodes_mediapipe.py",
         "nodes_gaussian_splat.py",
@@ -2529,6 +2530,7 @@ async def init_builtin_extra_nodes():
         "nodes_depth_anything_3.py",
         "nodes_seed.py",
         "nodes_text.py",
+        "nodes_sam3d_body.py",
     ]
 
     import_failed = []
