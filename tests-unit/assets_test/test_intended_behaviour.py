@@ -49,7 +49,6 @@ from app.assets.services.file_utils import list_files_recursively
 from app.assets.services.ingest import register_cached_output, upload_from_temp_path
 from app.assets.services.lookup import (
     lookup_for_from_hash,
-    lookup_for_upload_dedup,
     lookup_for_view,
 )
 from app.assets.services.snapshot_hash import snapshot_hash
@@ -221,23 +220,32 @@ def test_scenario_5_rename_always(session):
     assert rename_record(session, second.id, "same").name == first.name
 
 
-def test_scenario_6_upload_dedup(session, tmp_path):
-    """Ruling 6: upload dedup runs unconditionally in both hashing modes; only
-    scanner/output hashing is gated by ``--enable-asset-hashing``.
+def test_scenario_6_upload_reuses_content_never_the_record(session, tmp_path):
+    """Ruling 6: every upload is a delivery event, so it always mints its own
+    record; dedup is content-level only, and runs in both hashing modes.
 
-    Ratified 2026-08-26, superseding the earlier "only hash mode permits upload
-    deduplication" wording, which never described the code. Uploads hash
-    unconditionally — ``upload_from_temp_path`` calls
-    ``_snapshot_hash_with_retry`` before it consults anything, and
-    ``lookup_for_upload_dedup`` never asks ``mode.hashing_enabled`` (unlike
-    ``lookup_for_from_hash``, which does). That is the deliberate product
-    decision made in 4bced38a, so dedup is available in BOTH modes by design.
+    Ratified 2026-08-28, superseding the "same name + same bytes returns the
+    existing record" behavior. Content dedup is unchanged: identical bytes
+    still share one ``AssetContent`` row, in BOTH modes — uploads hash
+    unconditionally (``upload_from_temp_path`` calls
+    ``_snapshot_hash_with_retry`` before it consults anything) and
+    ``lookup_for_view`` never asks ``mode.hashing_enabled``, unlike
+    ``lookup_for_from_hash``. What changed is record identity: a re-upload is a
+    new delivery, so it gets a new record carrying the attributes THAT request
+    supplied, instead of silently handing back an older record that never saw
+    them.
     """
     (tmp_path / "output").mkdir(parents=True)
     payload = b"the-uploaded-bytes"
     expected_hash = to_stored_hash(blake3(payload).hexdigest())
 
-    def upload(uploaded: bytes, name: str, *, hashing: bool):
+    def upload(
+        uploaded: bytes,
+        name: str,
+        *,
+        hashing: bool,
+        user_metadata: dict | None = None,
+    ):
         staging = tmp_path / "temp" / "uploads" / uuid.uuid4().hex
         staging.mkdir(parents=True)
         staged = staging / ".upload.part"
@@ -254,11 +262,17 @@ def test_scenario_6_upload_dedup(session, tmp_path):
             patch.object(mode, "hashing_enabled", return_value=hashing),
         ):
             return upload_from_temp_path(
-                temp_path=str(staged), name=name, tags=["output"], client_filename=name
+                temp_path=str(staged),
+                name=name,
+                tags=["output"],
+                client_filename=name,
+                user_metadata=user_metadata,
             )
 
     first = upload(payload, "upload.bin", hashing=False)
-    again = upload(payload, "upload.bin", hashing=False)
+    again = upload(
+        payload, "upload.bin", hashing=False, user_metadata={"note": "second delivery"}
+    )
     renamed = upload(payload, "renamed.bin", hashing=False)
     in_hash_mode = upload(payload, "upload.bin", hashing=True)
     other = upload(b"a wholly different payload", "upload.bin", hashing=False)
@@ -266,11 +280,22 @@ def test_scenario_6_upload_dedup(session, tmp_path):
     assert first.created_new is True
     assert first.asset.hash == expected_hash
 
-    assert again.created_new is False
-    assert again.ref.id == first.ref.id
+    assert again.created_new is True
+    assert again.ref.id != first.ref.id, "a re-upload is its own delivery"
+    assert again.ref.user_metadata == {"note": "second delivery"}, (
+        "the new record carries the attributes THIS request supplied"
+    )
+    assert (
+        session.get(Asset, again.ref.id).content_id
+        == session.get(Asset, first.ref.id).content_id
+    ), "identical bytes still share one content row"
 
-    assert in_hash_mode.created_new is False
-    assert in_hash_mode.ref.id == first.ref.id
+    assert in_hash_mode.created_new is True
+    assert in_hash_mode.ref.id != first.ref.id
+    assert (
+        session.get(Asset, in_hash_mode.ref.id).content_id
+        == session.get(Asset, first.ref.id).content_id
+    ), "content dedup is mode-independent"
 
     assert renamed.created_new is True
     assert renamed.ref.id != first.ref.id
@@ -681,6 +706,6 @@ def test_scenario_28_temp_exclusion(session, tmp_path):
     path.write_bytes(b"bytes")
     record = _record(session, path, "temp", "digest")
     with patch("app.assets.services.lookup.is_temp_path", return_value=True):
-        assert lookup_for_upload_dedup(session, "digest", "temp") is None
+        assert lookup_for_view(session, "digest") is None
     with patch("app.assets.services.lookup.is_temp_path", return_value=False):
-        assert lookup_for_upload_dedup(session, "digest", "temp").id == record.id
+        assert lookup_for_view(session, "digest").id == record.content_id

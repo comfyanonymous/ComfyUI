@@ -14,7 +14,12 @@ from app.assets.database.queries.records import create_content, create_record, m
 from app.assets.helpers import normalize_tags, to_stored_hash
 from app.assets.services.file_utils import get_mtime_ns, get_size_and_mtime_ns
 from app.assets.services.image_dimensions import extract_image_dimensions
-from app.assets.services.lookup import lookup_for_from_hash, lookup_for_upload_dedup
+from app.assets.services.lookup import (
+    claim_qualified_content,
+    lookup_for_from_hash,
+    lookup_for_view,
+    refresh_qualified_content,
+)
 from app.assets.services.metadata_extract import extract_file_metadata
 from app.assets.services.path_utils import (
     compute_loader_path,
@@ -332,8 +337,8 @@ def _settle_destination_before_write(session: Session, dest_abs: str) -> None:
     post-move reconciliation with a known hash to compare, so it never has to
     read equal sizes as equal bytes.
 
-    Running before ``lookup_for_upload_dedup`` is what keeps a merely stale row
-    from being skipped as stat-inconsistent and duplicated.
+    Running before ``lookup_for_view`` is what keeps a merely stale row from
+    being skipped as stat-inconsistent and duplicated.
     """
     if not os.path.isfile(dest_abs):
         return
@@ -365,6 +370,67 @@ def _settle_destination_before_write(session: Session, dest_abs: str) -> None:
     )
 
 
+class _UploadRecordSpec(NamedTuple):
+
+    name: str
+    tags: list[str]
+    mime_type: str | None
+    user_metadata: UserMetadata
+    preview_id: str | None
+
+
+def _reuse_qualified_content(
+    session: Session, stored_hash: str, spec: _UploadRecordSpec
+) -> UploadResult | None:
+    """Mint a delivery record against content that already holds these bytes.
+
+    Returns ``None`` when no live content qualifies, which routes the caller
+    into the new-content path with its uploaded file still on disk.
+
+    The lookup, the claim, the filesystem re-check and the insert share one
+    transaction, and the caller deletes the upload only once this has
+    committed. All of that matters: a scanner pass or a competing writer can
+    retire the selected row - or correct its hash - between the initial lookup
+    and the insert, and the old sequencing (select, delete the upload, then
+    insert from a detached id in a fresh session) had no way back once that
+    happened - it wrote a record pointing at content that was already gone,
+    having destroyed the only remaining copy of the bytes.
+
+    ``claim_qualified_content`` is what actually closes that window: it is a
+    conditional UPDATE, not a second SELECT, so from the moment it succeeds
+    this session holds SQLite's write lock continuously through to its own
+    commit below, and its own WHERE clause (hash + liveness) is re-evaluated
+    against the row's true committed state at that instant, not a stale read.
+    That lock is database-file-wide (this app's default SQLite locking has no
+    row-level granularity) - holding it briefly serializes every writer in the
+    app, not just writers to this row, for the length of this short critical
+    section. That is the correctness mechanism, not an incidental side effect.
+    """
+    content = lookup_for_view(session, stored_hash)
+    if content is None:
+        return None
+    content_id = content.id
+    if not claim_qualified_content(session, content_id, stored_hash):
+        session.rollback()
+        return None
+    content = refresh_qualified_content(session, content_id)
+    if content is None:
+        session.rollback()
+        return None
+    record = _create_upload_record(
+        session,
+        content_id,
+        spec.name,
+        content.path,
+        spec.tags,
+        spec.mime_type,
+        spec.user_metadata,
+        spec.preview_id,
+    )
+    session.commit()
+    return _record_to_upload_result(session, record, created_new=True)
+
+
 def upload_from_temp_path(
     temp_path: str,
     name: str | None = None,
@@ -393,31 +459,20 @@ def upload_from_temp_path(
         if settle_target is not None:
             _settle_destination_before_write(session, settle_target)
             session.commit()
-        dedup = lookup_for_upload_dedup(session, stored_hash, display_name)
-
-    if isinstance(dedup, Asset):
-        _remove_temp_path(temp_path)
-        with create_session() as session:
-            record = session.get(Asset, dedup.id)
-            if record is None:
-                raise RuntimeError("inconsistent DB state after dedup")
-            return _record_to_upload_result(session, record, created_new=False)
-
-    if isinstance(dedup, AssetContent):
-        _remove_temp_path(temp_path)
-        with create_session() as session:
-            record = _create_upload_record(
-                session,
-                dedup.id,
+        reused = _reuse_qualified_content(
+            session,
+            stored_hash,
+            _UploadRecordSpec(
                 display_name,
-                dedup.path,
                 [*(tags or []), "uploaded"],
                 mime_type,
                 user_metadata,
                 preview_id,
-            )
-            session.commit()
-            return _record_to_upload_result(session, record, created_new=True)
+            ),
+        )
+    if reused is not None:
+        _remove_temp_path(temp_path)
+        return reused
 
     if not tags:
         _remove_temp_path(temp_path)

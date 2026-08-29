@@ -53,7 +53,7 @@ def _write_temp(content: bytes) -> str:
     return path
 
 
-def test_upload_stores_prefixed_hash_expected_hash_succeeds_and_dedups(
+def test_upload_stores_prefixed_hash_expected_hash_succeeds_and_reuses_content(
     mock_create_session, hashing_on
 ):
     content_bytes = b"prefixed-stored-upload-bytes"
@@ -94,10 +94,11 @@ def test_upload_stores_prefixed_hash_expected_hash_succeeds_and_dedups(
             client_filename="pref.bin",
             expected_hash=expected,
         )
-        assert r2.created_new is False
-        assert r2.ref.id == r1.ref.id
+        assert r2.created_new is True
+        assert r2.ref.id != r1.ref.id, "every upload is its own delivery record"
         with mock_create_session() as session:
             assert session.scalar(select(func.count()).select_from(AssetContent)) == 1
+            assert session.scalar(select(func.count()).select_from(Asset)) == 2
     finally:
         for path in (temp1, temp2):
             if os.path.exists(path):

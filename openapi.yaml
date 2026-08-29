@@ -86,7 +86,7 @@ components:
                 - $ref: '#/components/schemas/Asset'
                 - properties:
                     created_new:
-                        description: Whether this was a new asset creation (true) or returned existing (false)
+                        description: True whenever a new asset record was created for this request. Content already known to the server is reused behind the new record rather than returned in place of it.
                         type: boolean
                   required:
                     - created_new
@@ -1800,7 +1800,8 @@ paths:
             description: |
                 Creates a new asset from a direct file upload (multipart/form-data) with associated metadata.
 
-                If an asset with the same hash already exists, returns the existing asset.
+                Every upload creates a new asset record. If content with the same hash already exists, the
+                new record reuses that content instead of storing the bytes again.
             operationId: createAsset
             requestBody:
                 content:
@@ -1814,10 +1815,6 @@ paths:
                                 hash:
                                     description: Content hash of the file.
                                     pattern: ^(blake3|sha256):[a-f0-9]{64}$
-                                    type: string
-                                id:
-                                    description: Optional asset ID for idempotent creation. If provided and asset exists, returns existing asset.
-                                    format: uuid
                                     type: string
                                 mime_type:
                                     description: MIME type of the asset (e.g., "image/png", "video/mp4")
@@ -1840,14 +1837,6 @@ paths:
                             type: object
                 required: true
             responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/AssetCreated'
-                    description: |
-                        Asset already existed for this user (deduplicated by content hash); the
-                        existing asset is returned with created_new=false.
                 "201":
                     content:
                         application/json:

@@ -56,6 +56,12 @@ def _content_hash_for_asset(db_path: str, asset_id: str) -> str | None:
     return rows[0][0]
 
 
+def _content_id_for_asset(db_path: str, asset_id: str) -> str:
+    rows = _query(db_path, "SELECT content_id FROM assets WHERE id = ?", (asset_id,))
+    assert rows, f"no asset row found for {asset_id}"
+    return rows[0][0]
+
+
 def _is_stored_blake3_hash(value: str | None) -> bool:
     if not isinstance(value, str) or not value.startswith("blake3:"):
         return False
@@ -117,7 +123,10 @@ def test_upload_via_image_hashes_in_on_mode(http, api_base, comfy_tmp_base_dir, 
     assert _is_stored_blake3_hash(digest), f"expected a stored blake3 hash, got {digest!r}"
 
 
-def test_upload_dedup_works_in_on_mode(http, api_base):
+def test_repeat_upload_mints_a_new_record_in_on_mode(
+    http, api_base, comfy_tmp_base_dir, request
+):
+    db_path = _db_path(comfy_tmp_base_dir, request)
     data = _unique_bytes("dedup-on-mode")
     status1, first = _upload_via_api(
         http, api_base, name="dedup_on.bin", tags=["output", "unit-tests"], data=data
@@ -125,10 +134,13 @@ def test_upload_dedup_works_in_on_mode(http, api_base):
     status2, second = _upload_via_api(
         http, api_base, name="dedup_on.bin", tags=["output", "unit-tests"], data=data
     )
-    assert status1 in (200, 201), first
-    assert status2 in (200, 201), second
-    assert second["id"] == first["id"], "dedup should return the same entity id"
-    assert second.get("created_new") is False
+    assert status1 == 201, first
+    assert status2 == 201, second
+    assert second["id"] != first["id"], "every upload is its own delivery record"
+    assert second.get("created_new") is True
+    assert _content_id_for_asset(db_path, second["id"]) == _content_id_for_asset(
+        db_path, first["id"]
+    ), "same bytes stay one content row (hashes alone can collide across rows)"
 
 
 def test_seeded_file_not_hashed_in_on_mode(

@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from unittest.mock import patch
 
@@ -7,12 +8,13 @@ from sqlalchemy.orm import Session
 
 import app.assets.mode as mode_module
 from app.assets.database.models import AssetContent
-from app.assets.database.queries.records import create_content, create_record
+from app.assets.database.queries.records import create_content
 from app.assets.services.lookup import (
+    claim_qualified_content,
     is_temp_path as _is_temp_path,
     lookup_for_from_hash,
-    lookup_for_upload_dedup,
     lookup_for_view,
+    refresh_qualified_content,
 )
 from app.database.models import Base
 
@@ -79,7 +81,7 @@ def test_off_mode_from_hash_returns_none(session, tmp_path):
     assert result is None
 
 
-def test_dedup_not_gated_on_hashing_flag(session, tmp_path):
+def test_upload_content_lookup_not_gated_on_hashing_flag(session, tmp_path):
     class FakeArgs:
         enable_asset_hashing = False
 
@@ -87,7 +89,7 @@ def test_dedup_not_gated_on_hashing_flag(session, tmp_path):
     f = _make_file(tmp_path, "f4.png")
     content = create_content(session, path=f, hash="abc123")
     session.commit()
-    result = lookup_for_upload_dedup(session, "abc123", "test.png")
+    result = lookup_for_view(session, "abc123")
     assert result is not None
     assert result.id == content.id
 
@@ -107,13 +109,51 @@ def test_stale_older_newer_live_returns_newer(session, tmp_path):
     assert result.id == c_new.id
 
 
-def test_dedup_returns_matching_name_entity(session, tmp_path):
-    f = _make_file(tmp_path, "match.png")
+def test_claim_qualified_content_true_for_a_live_matching_row(session, tmp_path):
+    f = _make_file(tmp_path, "revalidate_ok.png")
     content = create_content(session, path=f, hash="dup")
-    create_record(session, content_id=content.id, name="match.png")
     session.commit()
 
-    result = lookup_for_upload_dedup(session, "dup", "match.png")
-    assert result is not None
-    assert hasattr(result, "name"), "Should return an Asset record"
-    assert result.name == "match.png"
+    assert claim_qualified_content(session, content.id, "dup") is True
+
+
+def test_claim_qualified_content_false_once_retired(session, tmp_path):
+    f = _make_file(tmp_path, "revalidate_retired.png")
+    content = create_content(session, path=f, hash="dup")
+    session.commit()
+
+    session.execute(
+        update(AssetContent).where(AssetContent.id == content.id).values(is_missing=True)
+    )
+    session.commit()
+
+    assert claim_qualified_content(session, content.id, "dup") is False, (
+        "a row retired after the lookup must not be reused"
+    )
+
+
+def test_claim_qualified_content_false_once_hash_changed(session, tmp_path):
+    f = _make_file(tmp_path, "revalidate_rehashed.png")
+    content = create_content(session, path=f, hash="dup")
+    session.commit()
+
+    session.execute(
+        update(AssetContent).where(AssetContent.id == content.id).values(hash="different")
+    )
+    session.commit()
+
+    assert claim_qualified_content(session, content.id, "dup") is False, (
+        "a row whose recorded content changed identity must not be reused"
+        " for the hash that used to describe it"
+    )
+
+
+def test_refresh_qualified_content_none_when_file_vanishes(session, tmp_path):
+    f = _make_file(tmp_path, "revalidate_gone.png")
+    content = create_content(session, path=f, hash="dup")
+    session.commit()
+    assert claim_qualified_content(session, content.id, "dup") is True
+
+    os.unlink(f)
+
+    assert refresh_qualified_content(session, content.id) is None

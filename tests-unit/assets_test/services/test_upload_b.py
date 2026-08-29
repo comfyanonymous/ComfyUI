@@ -1,11 +1,15 @@
 import os
 import uuid
+from contextlib import contextmanager
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import create_engine, func, select, update
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import Session as SASession
 
 import app.assets.mode as mode_module
+import app.assets.services.ingest as ingest_module
 import folder_paths
 from app.assets.database.models import Asset, AssetContent, AssetTag
 from app.assets.database.queries.records import (
@@ -20,8 +24,13 @@ from app.assets.services.ingest import (
     register_file_in_place,
     upload_from_temp_path,
 )
-from app.assets.services.lookup import lookup_for_view
+from app.assets.services.lookup import (
+    claim_qualified_content as _real_claim_qualified_content,
+    is_temp_path,
+    lookup_for_view,
+)
 from app.assets.services.snapshot_hash import snapshot_hash
+from app.database.models import Base
 
 
 def _bump_mtime(path: str) -> int:
@@ -62,7 +71,7 @@ def _write_temp(content: bytes) -> str:
     return path
 
 
-def test_hash_mode_multipart_dedups_but_in_place_keeps_its_own_path(
+def test_hash_mode_multipart_reuses_content_but_in_place_keeps_its_own_path(
     mock_create_session, hashing_on
 ):
     content = b"duplicate-bytes"
@@ -84,8 +93,17 @@ def test_hash_mode_multipart_dedups_but_in_place_keeps_its_own_path(
             tags=["output"],
             client_filename="dup.bin",
         )
-        assert r1.ref.id == r2.ref.id
-        assert r2.created_new is False
+        assert r1.ref.id != r2.ref.id, "every upload is its own delivery record"
+        assert r2.created_new is True
+        with mock_create_session() as session:
+            assert (
+                session.scalar(
+                    select(func.count())
+                    .select_from(AssetContent)
+                    .where(AssetContent.is_missing.is_(False))
+                )
+                == 1
+            ), "same bytes reuse the one content row"
 
         with open(image_path, "wb") as file:
             file.write(content)
@@ -97,7 +115,7 @@ def test_hash_mode_multipart_dedups_but_in_place_keeps_its_own_path(
         assert r3.ref.file_path == os.path.abspath(image_path)
 
         with mock_create_session() as session:
-            assert session.scalar(select(func.count()).select_from(Asset)) == 2
+            assert session.scalar(select(func.count()).select_from(Asset)) == 3
             live = {
                 row.id: row.path
                 for row in session.scalars(
@@ -118,7 +136,7 @@ def test_hash_mode_multipart_dedups_but_in_place_keeps_its_own_path(
                 os.unlink(path)
 
 
-def test_off_mode_api_assets_dedups_same_bytes_same_name(
+def test_off_mode_api_assets_reuses_content_same_bytes_same_name(
     mock_create_session, hashing_off
 ):
     content = b"off-mode-bytes"
@@ -137,10 +155,10 @@ def test_off_mode_api_assets_dedups_same_bytes_same_name(
             tags=["output"],
             client_filename="off.bin",
         )
-        assert r1.ref.id == r2.ref.id
-        assert r2.created_new is False
+        assert r1.ref.id != r2.ref.id, "every upload is its own delivery record"
+        assert r2.created_new is True
         with mock_create_session() as session:
-            assert session.scalar(select(func.count()).select_from(Asset)) == 1
+            assert session.scalar(select(func.count()).select_from(Asset)) == 2
             contents = list(
                 session.scalars(
                     select(AssetContent).where(AssetContent.is_missing.is_(False))
@@ -642,7 +660,7 @@ def test_upload_unhashed_destination_holding_other_bytes_is_retired(
                 os.unlink(path)
 
 
-def test_upload_matching_hash_stale_stat_reuses_record(
+def test_upload_matching_hash_stale_stat_reuses_content_under_a_new_record(
     mock_create_session, hashing_on
 ):
     payload = b"upload-stale-stat-bytes"
@@ -668,9 +686,18 @@ def test_upload_matching_hash_stale_stat_reuses_record(
             client_filename="up.bin",
         )
 
-        assert result.ref.id == record_id
-        assert result.created_new is False
+        assert result.ref.id != record_id, "a re-upload mints its own record"
+        assert result.created_new is True
         with mock_create_session() as session:
+            minted = session.get(Asset, result.ref.id)
+            assert minted is not None
+            assert minted.content_id == content_id, (
+                "settle refreshes the stale row before lookup, so it qualifies "
+                "and is reused rather than duplicated"
+            )
+            assert (
+                session.scalar(select(func.count()).select_from(AssetContent)) == 1
+            ), "no second content row for bytes already on disk"
             content = session.get(AssetContent, content_id)
             assert content is not None
             assert content.is_missing is False
@@ -679,7 +706,6 @@ def test_upload_matching_hash_stale_stat_reuses_record(
             served = lookup_for_view(session, stored_hash)
             assert served is not None
             assert served.id == content_id
-            assert session.scalar(select(func.count()).select_from(Asset)) == 1
     finally:
         for path in (temp, dest):
             if os.path.exists(path):
@@ -807,11 +833,321 @@ def test_upload_unknown_preview_id_raises(mock_create_session, hashing_on):
             os.unlink(temp)
 
 
-def test_off_mode_upload_calls_dedup_lookup(mock_create_session, hashing_off):
+def test_reupload_of_known_bytes_carries_this_requests_attributes(
+    mock_create_session, hashing_on
+):
+    payload = b"attribute-carrying-upload-bytes"
+    temp1 = _write_temp(payload)
+    temp2 = _write_temp(payload)
+    try:
+        first = upload_from_temp_path(
+            temp_path=temp1,
+            name="attrs.bin",
+            tags=["output"],
+            client_filename="attrs.bin",
+        )
+        second = upload_from_temp_path(
+            temp_path=temp2,
+            name="attrs.bin",
+            tags=["output"],
+            user_metadata={"note": "second delivery"},
+            client_filename="attrs.bin",
+            preview_id=first.ref.id,
+        )
+
+        assert second.ref.id != first.ref.id
+        assert second.created_new is True
+        assert second.ref.user_metadata == {"note": "second delivery"}, (
+            "the re-upload's own user_metadata must land on its record"
+        )
+        assert second.ref.preview_id == first.ref.id, (
+            "the re-upload's own preview_id must land on its record"
+        )
+        with mock_create_session() as session:
+            assert session.scalar(select(func.count()).select_from(AssetContent)) == 1
+            assert (
+                session.get(Asset, second.ref.id).content_id
+                == session.get(Asset, first.ref.id).content_id
+            )
+    finally:
+        for path in (temp1, temp2):
+            if os.path.exists(path):
+                os.unlink(path)
+
+
+def test_upload_does_not_reuse_temp_backed_content(mock_create_session, hashing_on):
+    payload = b"temp-backed-content-bytes"
+    staged = _write_temp(payload)
+    stored_hash = to_stored_hash(_digest_of(staged))
+    temp = _write_temp(payload)
+    try:
+        with mock_create_session() as session:
+            temp_content_id, _ = _seed_live_content(session, staged, stored_hash)
+
+        result = upload_from_temp_path(
+            temp_path=temp,
+            name="t.bin",
+            tags=["output"],
+            client_filename="t.bin",
+        )
+
+        assert result.created_new is True
+        with mock_create_session() as session:
+            minted = session.get(Asset, result.ref.id)
+            assert minted is not None
+            assert minted.content_id != temp_content_id, (
+                "a temporary location can never become permanent shared content"
+            )
+            content = session.get(AssetContent, minted.content_id)
+            assert content is not None
+            assert not is_temp_path(content.path)
+    finally:
+        for path in (staged, temp):
+            if os.path.exists(path):
+                os.unlink(path)
+
+
+def test_content_retired_after_lookup_falls_back_to_a_new_content_row(
+    mock_create_session, hashing_on
+):
+    """Same-session shape check only: proves the fallback branch is wired up
+    correctly (retired row -> reject -> new-content path), not that a genuinely
+    competing connection is blocked. That inter-connection guarantee is proven
+    by the two-session tests below, which use two real SQLite connections and
+    do not patch production code to simulate the retirement.
+    """
+    payload = b"raced-retirement-upload-bytes"
+    temp1 = _write_temp(payload)
+    temp2 = _write_temp(payload)
+    try:
+        first = upload_from_temp_path(
+            temp_path=temp1,
+            name="raced.bin",
+            tags=["output"],
+            client_filename="raced.bin",
+        )
+        with mock_create_session() as session:
+            reused_content_id = session.get(Asset, first.ref.id).content_id
+
+        def retire_then_claim(session, content_id, hash):
+            """Stand in for a scanner pass retiring the row we just selected."""
+            mark_content_missing(session, content_id)
+            session.commit()
+            return _real_claim_qualified_content(session, content_id, hash)
+
+        with patch(
+            "app.assets.services.ingest.claim_qualified_content",
+            retire_then_claim,
+        ):
+            second = upload_from_temp_path(
+                temp_path=temp2,
+                name="raced.bin",
+                tags=["output"],
+                client_filename="raced.bin",
+            )
+
+        assert second.created_new is True
+        assert second.ref.id != first.ref.id
+        with mock_create_session() as session:
+            minted = session.get(Asset, second.ref.id)
+            assert minted is not None
+            assert minted.content_id != reused_content_id, (
+                "a record must never be attached to content retired mid-flight"
+            )
+            fresh = session.get(AssetContent, minted.content_id)
+            assert fresh is not None
+            assert fresh.is_missing is False
+            assert os.path.isfile(fresh.path)
+            with open(fresh.path, "rb") as file:
+                assert file.read() == payload, "the uploaded bytes must not be lost"
+    finally:
+        for path in (temp1, temp2):
+            if os.path.exists(path):
+                os.unlink(path)
+
+
+def _file_backed_engine(db_path):
+    """A real file-backed SQLite database reachable from independent connections.
+
+    ``:memory:`` (what ``mock_create_session`` uses) is only ever one shared
+    connection, so it cannot exhibit real inter-connection locking. A short
+    ``timeout`` makes a blocked writer fail fast (``OperationalError``) instead
+    of hanging for pysqlite's five-second default, which is what lets the
+    TOCTOU test assert on contention deterministically instead of guessing at
+    thread timing.
+    """
+    engine = create_engine(
+        f"sqlite:///{db_path}",
+        connect_args={"check_same_thread": False, "timeout": 0.2},
+    )
+    Base.metadata.create_all(engine)
+    return engine
+
+
+@contextmanager
+def _session_factory(engine):
+    with SASession(engine) as sess:
+        yield sess
+
+
+def test_two_connections_hash_changed_between_lookup_and_claim_falls_back(
+    tmp_path, hashing_on
+):
+    """Reproduces Oracle blocker 1: a second, real connection commits a hash
+    change on the exact row the upload is about to reuse, in the window
+    between the upload's initial lookup and its claim. The claim's WHERE
+    clause must catch the mismatch and reject the row.
+    """
+    engine = _file_backed_engine(tmp_path / "race_hash.db")
+    output_dir = folder_paths.get_output_directory()
+    os.makedirs(output_dir, exist_ok=True)
+    seed_path = os.path.join(output_dir, "seed_hash_race.bin")
+    payload = b"two-connection-hash-race-bytes"
+    with open(seed_path, "wb") as file:
+        file.write(payload)
+    stored_hash = to_stored_hash(_digest_of(seed_path))
+    with SASession(engine) as seed_session:
+        content_id, _ = _seed_live_content(seed_session, seed_path, stored_hash)
+
+    temp = _write_temp(payload)
+    real_claim = ingest_module.claim_qualified_content
+
+    def claim_after_a_rehashes(session, content_id_arg, hash_arg):
+        with SASession(engine) as connection_a:
+            connection_a.execute(
+                update(AssetContent)
+                .where(AssetContent.id == content_id_arg)
+                .values(hash="a-different-hash-entirely")
+            )
+            connection_a.commit()
+        return real_claim(session, content_id_arg, hash_arg)
+
+    try:
+        with (
+            patch(
+                "app.assets.services.ingest.create_session",
+                lambda: _session_factory(engine),
+            ),
+            patch(
+                "app.assets.services.ingest.claim_qualified_content",
+                claim_after_a_rehashes,
+            ),
+        ):
+            result = upload_from_temp_path(
+                temp_path=temp,
+                name="race_hash.bin",
+                tags=["output"],
+                client_filename="race_hash.bin",
+            )
+
+        assert result.created_new is True
+        with SASession(engine) as verify:
+            minted = verify.get(Asset, result.ref.id)
+            assert minted is not None
+            assert minted.content_id != content_id, (
+                "the row whose hash changed out from under the claim must "
+                "not be reused"
+            )
+            original = verify.get(AssetContent, content_id)
+            assert original is not None
+            assert original.hash == "a-different-hash-entirely"
+            fresh = verify.get(AssetContent, minted.content_id)
+            assert fresh is not None
+            assert os.path.isfile(fresh.path)
+            with open(fresh.path, "rb") as file:
+                assert file.read() == payload, "the uploaded bytes must not be lost"
+    finally:
+        for path in (seed_path, temp):
+            if os.path.exists(path):
+                os.unlink(path)
+
+
+def test_two_connections_competing_retirement_is_blocked_until_commit(
+    tmp_path, hashing_on
+):
+    """Reproduces Oracle blocker 2: a second, real connection attempts to
+    retire the exact row the upload just claimed, in the window between the
+    claim succeeding and the upload's own commit. The claim must already hold
+    SQLite's write lock at that point, so connection A's commit cannot land
+    until connection B (the upload) finishes - proven here by connection A's
+    attempt raising ``OperationalError`` rather than succeeding.
+    """
+    engine = _file_backed_engine(tmp_path / "race_toctou.db")
+    output_dir = folder_paths.get_output_directory()
+    os.makedirs(output_dir, exist_ok=True)
+    seed_path = os.path.join(output_dir, "seed_toctou_race.bin")
+    payload = b"two-connection-toctou-race-bytes"
+    with open(seed_path, "wb") as file:
+        file.write(payload)
+    stored_hash = to_stored_hash(_digest_of(seed_path))
+    with SASession(engine) as seed_session:
+        content_id, _ = _seed_live_content(seed_session, seed_path, stored_hash)
+
+    temp = _write_temp(payload)
+    real_create_upload_record = ingest_module._create_upload_record
+    outcome: dict[str, bool] = {}
+
+    def create_record_after_a_retires(session, content_id_arg, *args, **kwargs):
+        with SASession(engine) as connection_a:
+            try:
+                mark_content_missing(connection_a, content_id_arg)
+                connection_a.commit()
+            except OperationalError as exc:
+                assert "lock" in str(exc).lower(), (
+                    "A must fail specifically on SQLite lock contention, not "
+                    f"some other OperationalError: {exc}"
+                )
+                outcome["a_was_blocked"] = True
+                connection_a.rollback()
+            else:
+                outcome["a_was_blocked"] = False
+        return real_create_upload_record(session, content_id_arg, *args, **kwargs)
+
+    try:
+        with (
+            patch(
+                "app.assets.services.ingest.create_session",
+                lambda: _session_factory(engine),
+            ),
+            patch(
+                "app.assets.services.ingest._create_upload_record",
+                create_record_after_a_retires,
+            ),
+        ):
+            result = upload_from_temp_path(
+                temp_path=temp,
+                name="race_toctou.bin",
+                tags=["output"],
+                client_filename="race_toctou.bin",
+            )
+
+        assert outcome["a_was_blocked"] is True, (
+            "connection A's competing retirement must be blocked by the "
+            "claim's write lock, not merely lose a race"
+        )
+        assert result.created_new is True
+        with SASession(engine) as verify:
+            minted = verify.get(Asset, result.ref.id)
+            assert minted is not None
+            assert minted.content_id == content_id, (
+                "the claimed row is still the one reused once A is blocked"
+            )
+            reused = verify.get(AssetContent, content_id)
+            assert reused is not None
+            assert reused.is_missing is False, (
+                "the reused content row must not end up retired"
+            )
+    finally:
+        for path in (seed_path, temp):
+            if os.path.exists(path):
+                os.unlink(path)
+
+
+def test_off_mode_upload_calls_content_lookup(mock_create_session, hashing_off):
     temp = _write_temp(b"off-mode")
     try:
         with patch(
-            "app.assets.services.ingest.lookup_for_upload_dedup"
+            "app.assets.services.ingest.lookup_for_view"
         ) as mock_dedup:
             mock_dedup.return_value = None
             upload_from_temp_path(
