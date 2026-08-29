@@ -265,6 +265,8 @@ class PromptServer():
         self.client_id = None
 
         self.on_prompt_handlers = []
+        # Optional async callback: admission context -> prompt error mapping or None.
+        self.prompt_admission_hook = None
 
         @routes.get('/ws')
         async def websocket_handler(request):
@@ -1128,6 +1130,19 @@ class PromptServer():
                         if sensitive_val in extra_data:
                             sensitive[sensitive_val] = extra_data.pop(sensitive_val)
                     extra_data["create_time"] = int(time.time() * 1000)  # timestamp in milliseconds
+                    if self.prompt_admission_hook is not None:
+                        admission_error = await self.prompt_admission_hook({
+                            "prompt_id": prompt_id,
+                            "prompt": prompt,
+                            "extra_data": extra_data,
+                            "sensitive": sensitive,
+                            "number": number,
+                            "front": json_data.get("front", False),
+                            "queue_controls": {key: json_data[key] for key in ("front", "number") if key in json_data},
+                            "outputs_to_execute": outputs_to_execute,
+                        })
+                        if admission_error is not None:
+                            return web.json_response({"error": admission_error, "node_errors": valid[3]}, status=400)
                     self.prompt_queue.put((number, prompt_id, prompt, extra_data, outputs_to_execute, sensitive))
                     response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
                     return web.json_response(response)
