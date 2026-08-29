@@ -156,7 +156,7 @@ def rope_rotation_table(angles, dtype):
 
 
 class Attention(nn.Module):
-    def __init__(self, hidden, heads, head_dim, eps, dtype=None, device=None, operations=None):
+    def __init__(self, hidden, heads, head_dim, eps, gate_compress=False, dtype=None, device=None, operations=None):
         super().__init__()
         self.heads = heads
         self.head_dim = head_dim
@@ -165,6 +165,10 @@ class Attention(nn.Module):
         self.q_norm = operations.RMSNorm(head_dim, eps=eps, dtype=dtype, device=device)
         self.k_norm = operations.RMSNorm(head_dim, eps=eps, dtype=dtype, device=device)
         self.out_proj = operations.Linear(inner, hidden, bias=False, dtype=dtype, device=device)
+        if gate_compress:
+            # VSA-trained checkpoints (FastVideo): per-token gate for the coarse attention
+            # branch. Unused by the dense forward; consumed by sparse attention patches.
+            self.to_gate_compress = operations.Linear(hidden, inner, bias=False, dtype=dtype, device=device)
 
     def forward(self, x, rope_freqs=None, transformer_options={}):
         s = x.shape[0]
@@ -273,11 +277,12 @@ class TokenRefiner(nn.Module):
 
 class DiTBlock(nn.Module):
     def __init__(self, hidden, heads, head_dim, ffn, t_dim, eps, qk_eps,
-                 apply_silu=True, adaln_dtype=None, dtype=None, device=None, operations=None):
+                 apply_silu=True, adaln_dtype=None, gate_compress=False, dtype=None, device=None, operations=None):
         super().__init__()
         self.norm1 = operations.RMSNorm(hidden, eps=eps, dtype=dtype, device=device)
         self.norm2 = operations.RMSNorm(hidden, eps=eps, dtype=dtype, device=device)
-        self.attn = Attention(hidden, heads, head_dim, qk_eps, dtype=dtype, device=device, operations=operations)
+        self.attn = Attention(hidden, heads, head_dim, qk_eps, gate_compress=gate_compress,
+                              dtype=dtype, device=device, operations=operations)
         self.mlp = MLP(hidden, ffn, dtype=dtype, device=device, operations=operations)
         self.adaln_proj = AdalnProj(t_dim, hidden, 6, 3, apply_silu=apply_silu,
                                     dtype=adaln_dtype if adaln_dtype is not None else dtype,
@@ -445,7 +450,7 @@ class MiniMaxH3Model(nn.Module):
                  timestep_input_dim=256, time_embed_hidden_size=5376, time_embed_dim=2688,
                  rope_inv_freq_len=16, norm_eps=1e-5, qk_norm_eps=1e-5, final_norm_eps=1e-5,
                  sigma_shift_video=12.0, sigma_shift_audio=3.0,
-                 adaln_curve_grid=None,
+                 adaln_curve_grid=None, gate_compress=False,
                  image_model=None, dtype=None, device=None, operations=None, **kwargs):
         super().__init__()
         self.dtype = dtype
@@ -476,7 +481,8 @@ class MiniMaxH3Model(nn.Module):
                                           final_norm_eps, dtype=dtype, device=device, operations=operations)
         self.blocks = nn.ModuleList([
             DiTBlock(hidden_size, num_attention_heads, attention_head_dim, ffn_hidden_size,
-                     time_embed_dim, norm_eps, qk_norm_eps, **curve, dtype=dtype, device=device, operations=operations)
+                     time_embed_dim, norm_eps, qk_norm_eps, **curve, gate_compress=gate_compress,
+                     dtype=dtype, device=device, operations=operations)
             for _ in range(num_layers)])
         self.final_layer = FinalLayer(hidden_size, time_embed_dim, video_patch_dim, audio_latents_dim,
                                       final_norm_eps, **curve, dtype=dtype, device=device, operations=operations)
