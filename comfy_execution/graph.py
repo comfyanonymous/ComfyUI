@@ -10,6 +10,7 @@ from comfy.comfy_types.node_typing import ComfyNodeABC, InputTypeDict, InputType
 ExecutionBlocker = ExecutionBlocker
 
 PROJECTED_BLOCKER = "__projected__"
+LAZY_BLOCKER = "__lazy__"
 
 class DependencyCycleError(Exception):
     pass
@@ -226,7 +227,10 @@ class ExecutionList(TopologicalSort):
             self.execution_cache.get(node_id, {}).get(blocker_id) is None
             and (
                 blocker_id not in self.increment_pending_nodes
-                or PROJECTED_BLOCKER not in self.blocking[blocker_id][node_id]
+                or (
+                    PROJECTED_BLOCKER not in self.blocking[blocker_id][node_id]
+                    and LAZY_BLOCKER not in self.blocking[blocker_id][node_id]
+                )
             )
             for blocker_id in self.blockers[node_id]
         )
@@ -238,6 +242,7 @@ class ExecutionList(TopologicalSort):
                     blocker_id in self.increment_pending_nodes
                     and self.execution_cache.get(node_id, {}).get(blocker_id) is None
                     and PROJECTED_BLOCKER not in self.blocking[blocker_id][node_id]
+                    and LAZY_BLOCKER not in self.blocking[blocker_id][node_id]
                 ):
                     self.increment_pending_nodes.discard(blocker_id)
         return [
@@ -425,9 +430,14 @@ class ExecutionList(TopologicalSort):
         self.cache_link(from_node_id, to_node_id, from_socket)
 
     def make_input_strong_link(self, to_node_id, to_input):
+        value = self.dynprompt.get_node(to_node_id)["inputs"].get(to_input)
+        from_node_id = value[0] if is_link(value) else None
+        existing_blocker = from_node_id is not None and from_node_id in self.blockers[to_node_id]
         if to_node_id in self.projected_node_counts:
             self.requeue_lazy_input(to_node_id, to_input)
         super().make_input_strong_link(to_node_id, to_input)
+        if from_node_id is not None and not existing_blocker and from_node_id in self.blockers[to_node_id]:
+            self.blocking[from_node_id][to_node_id][LAZY_BLOCKER] = True
 
     async def stage_node_execution(self):
         assert self.staged_node_id is None
