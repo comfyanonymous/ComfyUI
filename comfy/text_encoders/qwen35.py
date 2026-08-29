@@ -366,12 +366,8 @@ class GatedAttention(nn.Module):
                     xv = torch.cat((past_value[:, :, :index], xv), dim=2)
                 present_key_value = (xk, xv, index + num_tokens)
 
-        # Expand KV heads for GQA
-        if self.num_heads != self.num_kv_heads:
-            xk = xk.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
-            xv = xv.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
-
-        output = optimized_attention(xq, xk, xv, self.num_heads, mask=attention_mask, skip_reshape=True)
+        gqa_kwargs = {"enable_gqa": True} if self.num_heads != self.num_kv_heads else {}
+        output = optimized_attention(xq, xk, xv, self.num_heads, mask=attention_mask, skip_reshape=True, **gqa_kwargs)
         output = output * gate.sigmoid()
 
         return self.o_proj(output), present_key_value

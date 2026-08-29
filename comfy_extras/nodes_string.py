@@ -440,6 +440,57 @@ class JsonExtractString(io.ComfyNode):
         except (json.JSONDecodeError, TypeError):
             return io.NodeOutput("")
 
+
+def _dump_json(value, indent):
+    return json.dumps(value, ensure_ascii=False, indent=indent or None)
+
+
+class ConvertDictionaryToString(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ConvertDictionaryToString",
+            display_name="Convert Dictionary to String",
+            category="text",
+            search_aliases=["json", "dict to json", "stringify", "serialize", "dict to string"],
+            inputs=[
+                io.Dict.Input("dictionary"),
+                io.Int.Input("indent", default=2, min=0, max=8,
+                             tooltip="Spaces per indent level. 0 produces compact single-line string."),
+            ],
+            outputs=[
+                io.String.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, dictionary, indent=2):
+        return io.NodeOutput(_dump_json(dictionary, indent))
+
+
+class ConvertArrayToString(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ConvertArrayToString",
+            display_name="Convert Array to String",
+            category="text",
+            search_aliases=["json", "list to json", "stringify", "serialize", "list to string", "array to json"],
+            inputs=[
+                io.Array.Input("array"),
+                io.Int.Input("indent", default=2, min=0, max=8,
+                             tooltip="Spaces per indent level. 0 produces compact single-line string."),
+            ],
+            outputs=[
+                io.String.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, array, indent=2):
+        return io.NodeOutput(_dump_json(array, indent))
+
+
 class StringExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
@@ -457,6 +508,8 @@ class StringExtension(ComfyExtension):
             RegexExtract,
             RegexReplace,
             JsonExtractString,
+            ConvertDictionaryToString,
+            ConvertArrayToString,
         ]
 
 async def comfy_entrypoint() -> StringExtension:

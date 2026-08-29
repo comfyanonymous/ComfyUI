@@ -337,6 +337,36 @@ class ModelMergeQwenImage(comfy_extras.nodes_model_merging.ModelMergeBlocks):
 
         return {"required": arg_dict}
 
+class ModelMergeKrea2(comfy_extras.nodes_model_merging.ModelMergeBlocks):
+    CATEGORY = "model/merging/model specific"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        arg_dict = { "model1": ("MODEL",),
+                              "model2": ("MODEL",)}
+
+        argument = ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01})
+
+        arg_dict["first."] = argument
+        arg_dict["tmlp."] = argument
+        arg_dict["txtmlp."] = argument
+        arg_dict["tproj."] = argument
+
+        for i in range(2):
+            arg_dict["txtfusion.layerwise_blocks.{}.".format(i)] = argument
+
+        arg_dict["txtfusion.projector."] = argument
+
+        for i in range(2):
+            arg_dict["txtfusion.refiner_blocks.{}.".format(i)] = argument
+
+        for i in range(28):
+            arg_dict["blocks.{}.".format(i)] = argument
+
+        arg_dict["last."] = argument
+
+        return {"required": arg_dict}
+
 NODE_CLASS_MAPPINGS = {
     "ModelMergeSD1": ModelMergeSD1,
     "ModelMergeSD2": ModelMergeSD1, #SD1 and SD2 have the same blocks
@@ -353,4 +383,5 @@ NODE_CLASS_MAPPINGS = {
     "ModelMergeCosmosPredict2_2B": ModelMergeCosmosPredict2_2B,
     "ModelMergeCosmosPredict2_14B": ModelMergeCosmosPredict2_14B,
     "ModelMergeQwenImage": ModelMergeQwenImage,
+    "ModelMergeKrea2": ModelMergeKrea2,
 }

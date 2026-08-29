@@ -9,8 +9,20 @@ class Asset(BaseModel):
     ``id`` here is the AssetReference id, not the content-addressed Asset id."""
 
     id: str
-    name: str
+    name: str = Field(
+        ...,
+        deprecated=True,
+        description="Reference label, often caller-provided or derived from the filename. Deprecated for storage path/display semantics; use `loader_path` and `display_name` when present.",
+    )
     hash: str | None = None
+    loader_path: str | None = Field(
+        default=None,
+        description="The value a loader consumes to load this asset. `None` when no loader can resolve the file.",
+    )
+    display_name: str | None = Field(
+        default=None,
+        description="Human-facing label for the asset. Not unique.",
+    )
     asset_hash: str | None = None
     size: int | None = None
     mime_type: str | None = None
