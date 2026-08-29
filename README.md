@@ -215,7 +215,7 @@ AMD users can install rocm and pytorch with pip if you don't have it already ins
 pip install --index-url https://stable.repo.amd.com/rocm/whl-next/ "torch[device-all]" "torchvision[device-all]" torchaudio
 ```
 
-Nightlies are available from rocm.nightlies.amd.com, installs targetted at a specific device are also possible.
+Nightlies are available from rocm.nightlies.amd.com, installs targeted at a specific device are also possible.
 
 E.g. for 7900 XTX / 7900 GRE "gfx1100" nightly:
 
