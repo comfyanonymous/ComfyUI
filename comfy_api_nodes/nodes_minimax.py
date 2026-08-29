@@ -467,6 +467,7 @@ HAILUO_03_REGENERATION_ENDPOINT = "/proxy/minimax/v2/video_regeneration"
 
 HAILUO_03_MAX_MODEL = "MiniMax H3 Max"
 HAILUO_03_MAX_ENDPOINT = "/proxy/minimax/h3-max"
+HAILUO_03_MAX_PROMPT_MAX_LENGTH = 50000
 
 
 def _hailuo03_model_inputs(include_ratio: bool = True, allow_adaptive: bool = True):
@@ -693,6 +694,7 @@ class MinimaxHailuo03TextToVideoNode(IO.ComfyNode):
         if model["model"] == HAILUO_03_MAX_MODEL:
             if watermark:
                 raise ValueError("Watermark is only supported by MiniMax H3.")
+            validate_string(model["prompt"], strip_whitespace=False, max_length=HAILUO_03_MAX_PROMPT_MAX_LENGTH)
             return await _hailuo03_max_run_task(
                 cls,
                 endpoint="text-to-video",
@@ -803,6 +805,10 @@ class MinimaxHailuo03FirstLastFrameNode(IO.ComfyNode):
         if model["model"] == HAILUO_03_MAX_MODEL:
             if watermark:
                 raise ValueError("Watermark is only supported by MiniMax H3.")
+            validate_string(model["prompt"], strip_whitespace=False, max_length=HAILUO_03_MAX_PROMPT_MAX_LENGTH)
+            image_url = (
+                await upload_images_to_comfyapi(cls, first_frame, max_images=1, wait_label="Uploading first frame")
+            )[0]
             end_image_url = None
             if last_frame is not None:
                 end_image_url = (
@@ -817,11 +823,7 @@ class MinimaxHailuo03FirstLastFrameNode(IO.ComfyNode):
                     resolution=model["resolution"],
                     prompt_expansion_mode=model["prompt_expansion_mode"],
                     seed=seed,
-                    image_url=(
-                        await upload_images_to_comfyapi(
-                            cls, first_frame, max_images=1, wait_label="Uploading first frame"
-                        )
-                    )[0],
+                    image_url=image_url,
                     end_image_url=end_image_url,
                 ),
             )
