@@ -49,7 +49,6 @@ def loop_projection(dynprompt, opener_id):
 
     projected = set()
     close_nodes = set()
-    variable_nodes = set()
     ready = [node_id for node_id, count in parent_counts.items() if count == 0]
     processed = 0
     while ready:
@@ -73,8 +72,6 @@ def loop_projection(dynprompt, opener_id):
         next_closed_scopes = closed_scopes
         if class_type == "Loop":
             next_scopes = (*scopes, node_id)
-        elif class_type == "LoopVariable" and scopes and scopes[-1] == opener_id:
-            variable_nodes.add(node_id)
         elif class_type == "CloseLoop" and scopes:
             owner_id = scopes[-1]
             next_scopes = scopes[:-1]
@@ -93,4 +90,23 @@ def loop_projection(dynprompt, opener_id):
     if processed != len(reachable):
         raise ValueError(f"Loop {opener_id} contains a dependency cycle")
 
-    return projected, close_nodes, variable_nodes
+    if len(close_nodes) != 1:
+        raise ValueError(
+            f"Loop {opener_id} must have exactly one Close Loop, found {len(close_nodes)}"
+        )
+
+    close_id = next(iter(close_nodes))
+    parents = {}
+    for parent_id, child_ids in children.items():
+        for child_id in child_ids:
+            parents.setdefault(child_id, set()).add(parent_id)
+    close_ancestors = _walk_graph((close_id,), lambda node_id: parents.get(node_id, ()))
+    outside_close = projected.difference(close_ancestors)
+    if outside_close:
+        nodes = ", ".join(sorted(outside_close))
+        raise ValueError(
+            f"Loop {opener_id} has downstream nodes that do not terminate at Close Loop {close_id}: {nodes}"
+        )
+
+    projected.discard(close_id)
+    return projected, close_id

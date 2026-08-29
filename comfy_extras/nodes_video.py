@@ -224,6 +224,7 @@ class AccumulateSaveVideo(io.ComfyNode):
                 io.Boolean.Input("last", default=False),
                 io.Audio.Input("complete_audio", optional=True, tooltip="Optional complete audio track to write once at finalization."),
             ],
+            outputs=[io.Video.Output()],
             hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo, io.Hidden.unique_id, io.Hidden.dynprompt],
             is_output_node=True,
         )
@@ -322,7 +323,7 @@ class AccumulateSaveVideo(io.ComfyNode):
                 state["audio_chunks"].append(components.audio["waveform"][0])
 
             if not last:
-                return io.NodeOutput()
+                return io.NodeOutput(video)
 
             for packet in state["video_stream"].encode(None):
                 state["output"].mux(packet)
@@ -344,7 +345,10 @@ class AccumulateSaveVideo(io.ComfyNode):
                     state["output"].mux(packet)
             state["output"].close()
             ACCUMULATE_SAVE_VIDEO_STATES.pop(node_id, None)
-            return io.NodeOutput(ui=ui.PreviewVideo([ui.SavedResult(state["file"], state["subfolder"], io.FolderType.output)]))
+            return io.NodeOutput(
+                video,
+                ui=ui.PreviewVideo([ui.SavedResult(state["file"], state["subfolder"], io.FolderType.output)]),
+            )
         except Exception:
             state["output"].close()
             ACCUMULATE_SAVE_VIDEO_STATES.pop(node_id, None)
