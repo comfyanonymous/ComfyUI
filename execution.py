@@ -1344,22 +1344,27 @@ class PromptQueue:
             return len(self.queue) + len(self.currently_running)
 
     def wipe_queue(self):
+        self.wipe_queue_with_items()
+
+    def wipe_queue_with_items(self):
         with self.mutex:
+            removed = self.queue
             self.queue = []
             self.server.queue_updated()
+            return removed
 
     def delete_queue_item(self, function):
+        return self.delete_queue_item_with_item(function) is not None
+
+    def delete_queue_item_with_item(self, function):
         with self.mutex:
             for x in range(len(self.queue)):
                 if function(self.queue[x]):
-                    if len(self.queue) == 1:
-                        self.wipe_queue()
-                    else:
-                        self.queue.pop(x)
-                        heapq.heapify(self.queue)
+                    removed = self.queue.pop(x)
+                    heapq.heapify(self.queue)
                     self.server.queue_updated()
-                    return True
-        return False
+                    return removed
+        return None
 
     def get_history(self, prompt_id=None, max_items=None, offset=-1, map_function=None):
         with self.mutex:

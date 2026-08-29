@@ -267,6 +267,8 @@ class PromptServer():
         self.on_prompt_handlers = []
         # Optional async callback: admission context -> prompt error mapping or None.
         self.prompt_admission_hook = None
+        # Optional async callback for admitted prompts removed before execution.
+        self.prompt_cancellation_hook = None
 
         @routes.get('/ws')
         async def websocket_handler(request):
@@ -950,11 +952,12 @@ class PromptServer():
             jobs are dequeued (same mechanism as /queue {"delete": [...]}).
             Already-finished or unknown ids are no-ops. State-agnostic.
 
-            Returns True when a cancel was actually dispatched (running or
-            pending job), False when the call was a no-op (terminal/unknown id).
+            Returns whether a cancel was dispatched and the removed queue item,
+            if a pending prompt was dequeued.
             """
             running, queued = self.prompt_queue.get_current_queue()
             history = self.prompt_queue.get_history()
+            removed_item = None
 
             def interrupt(prompt_id):
                 logging.info(f"Cancelling running prompt {prompt_id}")
@@ -964,11 +967,13 @@ class PromptServer():
                 return self.prompt_queue.interrupt_if_running(prompt_id)
 
             def dequeue(prompt_id):
+                nonlocal removed_item
                 logging.info(f"Cancelling pending prompt {prompt_id}")
-                return self.prompt_queue.delete_queue_item(lambda a: a[1] == prompt_id)
+                removed_item = self.prompt_queue.delete_queue_item_with_item(lambda a: a[1] == prompt_id)
+                return removed_item is not None
 
             classification = cancel_job(job_id, running, queued, history, interrupt, dequeue)
-            return classification in (CANCEL_RUNNING, CANCEL_PENDING)
+            return classification in (CANCEL_RUNNING, CANCEL_PENDING), removed_item
 
         @routes.post("/api/jobs/{job_id}/cancel")
         async def cancel_job_by_id(request):
@@ -985,7 +990,9 @@ class PromptServer():
                     status=400
                 )
 
-            cancelled = _cancel_job_by_id(job_id)
+            cancelled, removed_item = _cancel_job_by_id(job_id)
+            if removed_item is not None:
+                await self._cancel_queued_prompts([removed_item], "queue_delete")
             return web.json_response({"cancelled": cancelled})
 
         @routes.post("/api/jobs/cancel")
@@ -1038,9 +1045,15 @@ class PromptServer():
             # that has finished or never existed is a no-op rather than a reason
             # to fail the whole batch.
             cancelled = False
+            removed_items = []
             for jid in job_ids:
-                if _cancel_job_by_id(jid):
+                job_cancelled, removed_item = _cancel_job_by_id(jid)
+                if job_cancelled:
                     cancelled = True
+                if removed_item is not None:
+                    removed_items.append(removed_item)
+
+            await self._cancel_queued_prompts(removed_items, "queue_delete")
 
             return web.json_response({"cancelled": cancelled})
 
@@ -1130,6 +1143,7 @@ class PromptServer():
                         if sensitive_val in extra_data:
                             sensitive[sensitive_val] = extra_data.pop(sensitive_val)
                     extra_data["create_time"] = int(time.time() * 1000)  # timestamp in milliseconds
+                    admitted = False
                     if self.prompt_admission_hook is not None:
                         admission_error = await self.prompt_admission_hook({
                             "prompt_id": prompt_id,
@@ -1143,7 +1157,14 @@ class PromptServer():
                         })
                         if admission_error is not None:
                             return web.json_response({"error": admission_error, "node_errors": valid[3]}, status=400)
-                    self.prompt_queue.put((number, prompt_id, prompt, extra_data, outputs_to_execute, sensitive))
+                        admitted = True
+                    queue_item = (number, prompt_id, prompt, extra_data, outputs_to_execute, sensitive)
+                    try:
+                        self.prompt_queue.put(queue_item)
+                    except Exception:
+                        if admitted:
+                            await self._cancel_queued_prompts([queue_item], "enqueue_failed")
+                        raise
                     response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
                     return web.json_response(response)
                 else:
@@ -1163,12 +1184,17 @@ class PromptServer():
             json_data =  await request.json()
             if "clear" in json_data:
                 if json_data["clear"]:
-                    self.prompt_queue.wipe_queue()
+                    removed_items = self.prompt_queue.wipe_queue_with_items()
+                    await self._cancel_queued_prompts(removed_items, "queue_clear")
             if "delete" in json_data:
                 to_delete = json_data['delete']
+                removed_items = []
                 for id_to_delete in to_delete:
                     delete_func = lambda a: a[1] == id_to_delete
-                    self.prompt_queue.delete_queue_item(delete_func)
+                    removed_item = self.prompt_queue.delete_queue_item_with_item(delete_func)
+                    if removed_item is not None:
+                        removed_items.append(removed_item)
+                await self._cancel_queued_prompts(removed_items, "queue_delete")
 
             return web.Response(status=200)
 
@@ -1227,6 +1253,26 @@ class PromptServer():
                     self.prompt_queue.delete_history_item(id_to_delete)
 
             return web.Response(status=200)
+
+    async def _cancel_queued_prompts(self, items, reason):
+        hook = self.prompt_cancellation_hook
+        if hook is None:
+            return
+
+        first_error = None
+        for item in items:
+            try:
+                await hook({
+                    "prompt_id": item[1],
+                    "sensitive": item[5],
+                    "reason": reason,
+                })
+            except Exception as error:
+                if first_error is None:
+                    first_error = error
+
+        if first_error is not None:
+            raise first_error
 
     async def setup(self):
         timeout = aiohttp.ClientTimeout(total=None) # no timeout
