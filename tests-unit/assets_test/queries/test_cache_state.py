@@ -176,6 +176,39 @@ class TestUpsertReference:
         ref = session.query(AssetReference).filter_by(file_path=file_path).one()
         assert ref.mtime_ns == final_mtime
 
+    def test_upsert_refreshes_loader_path_on_existing_reference(self, session: Session):
+        """Re-ingesting an existing reference writes the loader_path computed
+        by that ingest, healing NULL or stale values even when nothing else
+        about the row changed."""
+        asset = _make_asset(session, "hash1")
+        file_path = "/models/checkpoints/sub/model.safetensors"
+
+        upsert_reference(
+            session, asset_id=asset.id, file_path=file_path, name="model",
+            mtime_ns=100, loader_path=None,
+        )
+        session.commit()
+
+        created, updated = upsert_reference(
+            session, asset_id=asset.id, file_path=file_path, name="model",
+            mtime_ns=100, loader_path="sub/model.safetensors",
+        )
+        session.commit()
+
+        assert created is False
+        assert updated is True
+        ref = session.query(AssetReference).filter_by(file_path=file_path).one()
+        assert ref.loader_path == "sub/model.safetensors"
+
+        # Identical loader_path is a no-op, not a spurious update.
+        created, updated = upsert_reference(
+            session, asset_id=asset.id, file_path=file_path, name="model",
+            mtime_ns=100, loader_path="sub/model.safetensors",
+        )
+        session.commit()
+        assert created is False
+        assert updated is False
+
     def test_upsert_restores_missing_reference(self, session: Session):
         """Upserting a reference that was marked missing should restore it."""
         asset = _make_asset(session, "hash1")

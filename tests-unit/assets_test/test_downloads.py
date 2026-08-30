@@ -23,7 +23,7 @@ def test_download_svg_forced_to_attachment(http: requests.Session, api_base: str
     svg = b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
     files = {"file": ("evil.svg", svg, "image/svg+xml")}
     form_data = {
-        "tags": json.dumps(["models", "checkpoints", "unit-tests", "svgxss"]),
+        "tags": json.dumps(["models", "model_type:checkpoints", "unit-tests", "svgxss"]),
         "name": "evil.svg",
     }
     up = http.post(api_base + "/api/assets", files=files, data=form_data, timeout=120)
@@ -131,7 +131,7 @@ def test_download_chooses_existing_state_and_updates_access_time(
         assert t1 > t0
 
 
-@pytest.mark.parametrize("seeded_asset", [{"tags": ["models", "checkpoints"]}], indirect=True)
+@pytest.mark.parametrize("seeded_asset", [{"tags": ["models", "model_type:checkpoints"]}], indirect=True)
 def test_download_missing_file_returns_404(
     http: requests.Session, api_base: str, comfy_tmp_base_dir: Path, seeded_asset: dict
 ):

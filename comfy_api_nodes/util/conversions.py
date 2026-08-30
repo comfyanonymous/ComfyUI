@@ -16,12 +16,14 @@ from comfy_api.latest import Input, InputImpl, Types
 from ._helpers import mimetype_to_extension
 
 
-def bytesio_to_image_tensor(image_bytesio: BytesIO, mode: str = "RGBA") -> torch.Tensor:
+def bytesio_to_image_tensor(image_bytesio: BytesIO, mode: str | None = None) -> torch.Tensor:
     """Converts image data from BytesIO to a torch.Tensor.
 
     Args:
         image_bytesio: BytesIO object containing the image data.
-        mode: The PIL mode to convert the image to (e.g., "RGB", "RGBA").
+        mode: The PIL mode to convert the image to (e.g., "RGB", "RGBA"). Defaults
+            to RGBA when the decoded image carries transparency and RGB when it
+            does not, so an API that returns no alpha does not get an opaque one.
 
     Returns:
         A torch.Tensor representing the image (1, H, W, C).
@@ -31,6 +33,8 @@ def bytesio_to_image_tensor(image_bytesio: BytesIO, mode: str = "RGBA") -> torch
         ValueError: If the specified mode is invalid.
     """
     image = Image.open(image_bytesio)
+    if mode is None:
+        mode = "RGBA" if "A" in image.getbands() or "transparency" in image.info else "RGB"
     image = image.convert(mode)
     image_array = np.array(image).astype(np.float32) / 255.0
     return torch.from_numpy(image_array).unsqueeze(0)
@@ -51,6 +55,17 @@ def image_tensor_pair_to_batch(image1: torch.Tensor, image2: torch.Tensor) -> to
             "center",
         ).movedim(1, -1)
     return torch.cat((image1, image2), dim=0)
+
+
+def pad_images_to_common_channels(images: list[torch.Tensor]) -> list[torch.Tensor]:
+    """Pads [B, H, W, C] image tensors with opaque alpha so they all share the largest channel count."""
+    channels = max(image.shape[-1] for image in images)
+    return [
+        torch.nn.functional.pad(image, (0, channels - image.shape[-1]), value=1.0)
+        if image.shape[-1] < channels
+        else image
+        for image in images
+    ]
 
 
 def tensor_to_bytesio(
@@ -266,15 +281,13 @@ def audio_tensor_to_contiguous_ndarray(waveform: torch.Tensor) -> np.ndarray:
         waveform: a tensor of shape (1, channels, samples) derived from a Comfy `AUDIO` type.
 
     Returns:
-        Contiguous numpy array of the audio waveform. If the audio was batched,
-            the first item is taken.
+        Contiguous numpy array of the audio waveform.
+
+    Raises:
+        ValueError: If the waveform is not shaped (1, channels, samples).
     """
     if waveform.ndim != 3 or waveform.shape[0] != 1:
         raise ValueError("Expected waveform tensor shape (1, channels, samples)")
-
-    # If batch is > 1, take first item
-    if waveform.shape[0] > 1:
-        waveform = waveform[0]
 
     # Prepare for av: remove batch dim, move to CPU, make contiguous, convert to numpy array
     audio_data_np = waveform.squeeze(0).cpu().contiguous().numpy()
@@ -285,20 +298,21 @@ def audio_tensor_to_contiguous_ndarray(waveform: torch.Tensor) -> np.ndarray:
 
 
 def audio_input_to_mp3(audio: Input.Audio) -> BytesIO:
-    waveform = audio["waveform"].cpu()
+    audio_data_np = audio_tensor_to_contiguous_ndarray(audio["waveform"])
+    sample_rate = int(audio["sample_rate"])
 
     output_buffer = BytesIO()
     output_container = av.open(output_buffer, mode="w", format="mp3")
 
-    out_stream = output_container.add_stream("libmp3lame", rate=audio["sample_rate"])
+    out_stream = output_container.add_stream("libmp3lame", rate=sample_rate)
     out_stream.bit_rate = 320000
 
     frame = av.AudioFrame.from_ndarray(
-        waveform.movedim(0, 1).reshape(1, -1).float().numpy(),
-        format="flt",
-        layout="mono" if waveform.shape[0] == 1 else "stereo",
+        audio_data_np,
+        format="fltp",
+        layout="stereo" if audio_data_np.shape[0] > 1 else "mono",
     )
-    frame.sample_rate = audio["sample_rate"]
+    frame.sample_rate = sample_rate
     frame.pts = 0
     output_container.mux(out_stream.encode(frame))
     output_container.mux(out_stream.encode(None))
