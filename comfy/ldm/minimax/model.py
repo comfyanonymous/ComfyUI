@@ -229,17 +229,27 @@ def _mod_row(vecs, row, dtype):
 
 
 def _mod_scale_shift(h, shift, scale, segments):
-    # segments: [(start, stop, mod_row)] covering h contiguously.
+    # segments: [(start, stop, mod_row)] or 1D segment_ids tensor covering h contiguously.
+    if isinstance(segments, torch.Tensor):
+        return h.mul_(1.0 + scale[segments].to(h.dtype)).add_(shift[segments].to(h.dtype))
     for a, b, row in segments:
         h[a:b].mul_(1.0 + _mod_row(scale, row, h.dtype)).add_(_mod_row(shift, row, h.dtype))
     return h
 
 
 def _mod_gate(x, gate, other, segments):
-    # other is the fresh attn/mlp output: accumulate the gated residual into the stream in place, one fused kernel per segment
+    # other is the fresh attn/mlp output: accumulate the gated residual into the stream in place
+    if isinstance(segments, torch.Tensor):
+        return x.addcmul_(other, gate[segments].to(x.dtype))
     for a, b, row in segments:
         x[a:b].addcmul_(other[a:b], _mod_row(gate, row, x.dtype))
     return x
+
+
+def _rms_adaln(norm, x, shift, scale, segment_ids):
+    with comfy.ops.CastBiasWeightContext(norm, x, offloadable=True) as (weight, _):
+        scale = (1.0 + scale[segment_ids].to(x.dtype)).mul_(weight).sub_(1.0)
+        return comfy.quant_ops.ck.rms_adaln(x, scale, shift[segment_ids].to(x.dtype), eps=norm.eps)
 
 
 class RefinerBlock(nn.Module):
@@ -285,9 +295,15 @@ class DiTBlock(nn.Module):
 
     def forward(self, x, t_emb, mod_segments, rope_freqs, transformer_options={}):
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaln_proj(t_emb)
-        h = _mod_scale_shift(self.norm1(x), shift_msa, scale_msa, mod_segments)
+        if isinstance(mod_segments, torch.Tensor):
+            h = _rms_adaln(self.norm1, x, shift_msa, scale_msa, mod_segments)
+        else:
+            h = _mod_scale_shift(self.norm1(x), shift_msa, scale_msa, mod_segments)
         x = _mod_gate(x, gate_msa, self.attn(h, rope_freqs=rope_freqs, transformer_options=transformer_options), mod_segments)
-        h = _mod_scale_shift(self.norm2(x), shift_mlp, scale_mlp, mod_segments)
+        if isinstance(mod_segments, torch.Tensor):
+            h = _rms_adaln(self.norm2, x, shift_mlp, scale_mlp, mod_segments)
+        else:
+            h = _mod_scale_shift(self.norm2(x), shift_mlp, scale_mlp, mod_segments)
         return _mod_gate(x, gate_mlp, self.mlp(h), mod_segments)
 
 
@@ -666,6 +682,10 @@ class MiniMaxH3Model(nn.Module):
             else:
                 mod_segments.append((a, b, row_base + seg_tag[kind]))
 
+        segment_ids = torch.empty(layout.seq_len, dtype=torch.long, device=device)
+        for a, b, row in mod_segments:
+            segment_ids[a:b] = row
+
         # embed
         img_update = layout.img_update.to(device)
         audio_update = layout.audio_update.to(device)
@@ -727,14 +747,15 @@ class MiniMaxH3Model(nn.Module):
             comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, device, block)
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
-                    return {"img": block(args["img"], args["t_emb"], args["mod_segments"], args["rope_freqs"],
+                    segments = args["segment_ids"] if "segment_ids" in args else args["mod_segments"]
+                    return {"img": block(args["img"], args["t_emb"], segments, args["rope_freqs"],
                                          transformer_options=args["transformer_options"])}
                 h = blocks_replace[("double_block", i)](
-                    {"img": h, "t_emb": t_emb, "mod_segments": mod_segments, "rope_freqs": rope_freqs,
+                    {"img": h, "t_emb": t_emb, "mod_segments": mod_segments, "segment_ids": segment_ids, "rope_freqs": rope_freqs,
                      "transformer_options": transformer_options},
                     {"original_block": block_wrap})["img"]
             else:
-                h = block(h, t_emb, mod_segments, rope_freqs, transformer_options=transformer_options)
+                h = block(h, t_emb, segment_ids, rope_freqs, transformer_options=transformer_options)
         if prefetch_queue is not None:
             comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, device, None)
 
