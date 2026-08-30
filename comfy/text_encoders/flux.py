@@ -188,7 +188,7 @@ class KleinVLTokenizer(sd1_clip.SD1Tokenizer):
     def tokenize_with_weights(self, text, return_word_ids=False, llama_template=None, images=[], **kwargs):
         image = kwargs.pop("image", None)
         if image is not None and len(images) == 0:
-            images = [image[i:i + 1] for i in range(image.shape[0])]
+            images = [image[i:i + 1].clone() for i in range(image.shape[0])]
         if llama_template is None:
             llama_text = KLEIN_VL_IMAGE_BLOCK * len(images) + self.llama_template.format(text)
         else:
