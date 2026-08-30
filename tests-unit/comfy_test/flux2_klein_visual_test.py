@@ -78,6 +78,29 @@ def test_klein_vl_text_template_matches_existing_klein(old_tokenizer, new_tokeni
     assert old_tokens == new_tokens
 
 
+@pytest.mark.parametrize(
+    ("old_tokenizer", "new_tokenizer"),
+    ((flux.KleinTokenizer, flux.KleinVLTokenizer), (flux.KleinTokenizer8B, flux.KleinVLTokenizer8B)),
+)
+def test_klein_vl_text_template_override_matches_existing_klein(old_tokenizer, new_tokenizer):
+    prompt = "a small red cube"
+    template = "<|im_start|>user\nDescribe this: {}<|im_end|>\n<|im_start|>assistant\n"
+    old_tokens = next(iter(old_tokenizer().tokenize_with_weights(prompt, False, template).values()))
+    new_tokens = next(iter(new_tokenizer().tokenize_with_weights(prompt, False, template).values()))
+    assert old_tokens == new_tokens
+
+
+def test_klein_vl_custom_template_owns_image_block_placement():
+    image = torch.zeros((1, 32, 32, 3))
+    prompt = f"Picture 1: {flux.KLEIN_VL_IMAGE_BLOCK}describe"
+    tokens = flux.KleinVLTokenizer().tokenize_with_weights(prompt, False, "{}", images=[image])
+    rows = next(iter(tokens.values()))
+    image_entries = [token for row in rows for token, _ in row if isinstance(token, dict)]
+    image_pad_tokens = [token for row in rows for token, _ in row if token == 151655]
+    assert len(image_entries) == 1
+    assert image_pad_tokens == []
+
+
 def test_klein_vl_tokenizer_exposes_native_image_entry():
     tokens = flux.KleinVLTokenizer().tokenize_with_weights("describe", images=[torch.zeros((1, 32, 32, 3))])
     assert list(tokens) == ["qwen3_4b"]

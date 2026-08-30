@@ -185,11 +185,14 @@ class KleinVLTokenizer(sd1_clip.SD1Tokenizer):
         super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, name=model_type, tokenizer=tokenizer)
         self.llama_template = KLEIN_VL_TEMPLATE
 
-    def tokenize_with_weights(self, text, return_word_ids=False, images=[], **kwargs):
+    def tokenize_with_weights(self, text, return_word_ids=False, llama_template=None, images=[], **kwargs):
         image = kwargs.pop("image", None)
         if image is not None and len(images) == 0:
             images = [image[i:i + 1] for i in range(image.shape[0])]
-        llama_text = KLEIN_VL_IMAGE_BLOCK * len(images) + self.llama_template.format(text)
+        if llama_template is None:
+            llama_text = KLEIN_VL_IMAGE_BLOCK * len(images) + self.llama_template.format(text)
+        else:
+            llama_text = llama_template.format(text)
         tokens = sd1_clip.SD1Tokenizer.tokenize_with_weights(self, llama_text, return_word_ids=return_word_ids, disable_weights=True, min_length=1 if images else 512, **kwargs)
         return comfy.text_encoders.qwen3vl.add_image_entries(tokens, images)
 
