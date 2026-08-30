@@ -451,7 +451,7 @@ class VideoTrim(io.ComfyNode):
                 io.VideoEdit.Input(
                     "trim",
                     features=["trim"],
-                    tooltip="Trim window in seconds. Duration 0 keeps the video until the end.",
+                    tooltip="Trim window using start/end frames.",
                 ),
                 io.Boolean.Input(
                     "strict_duration",
