@@ -31,14 +31,17 @@ class VideoInput(ABC):
         bit_depth: int | None = None,
         crf: float | None = None,
         color_space: str | None = None,
+        preset: str | None = None,
     ):
         """
         Abstract method to save the video input to a file.
 
         bit_depth selects the encoded bit depth; None keeps the video's native depth.
         crf selects the H.264 or AV1 constant rate factor; None uses the encoder default.
-        color_space="sRGB" writes SDR BT.709/sRGB video. "HDR" writes 10-bit BT.2020/HLG video;
-        "HDR PQ" selects BT.2020/PQ.
+        preset selects the H.264 encoder speed/compression trade-off (e.g. "ultrafast");
+        None uses the encoder default. Ignored for other codecs.
+        color_space="sRGB" selects SDR BT.709/sRGB, "HDR" selects BT.2020/HLG, and "HDR PQ"
+        selects BT.2020/PQ. Bit depth is selected independently.
         Tensor-created videos default to sRGB when color_space is None. Loaded videos keep matching recognized native color
         properties; other input pixels must already use the selected color space.
         """
@@ -91,11 +94,11 @@ class VideoInput(ABC):
         cx, cy, cw, ch = rect
         return VideoFromComponents(
             VideoComponents(
-                images=components.images[:, cy:cy + ch, cx:cx + cw, :],
+                images=components.images[:, cy:cy + ch, cx:cx + cw, :].clone(),
                 audio=components.audio,
                 frame_rate=components.frame_rate,
                 metadata=components.metadata,
-                alpha=components.alpha[:, cy:cy + ch, cx:cx + cw]
+                alpha=components.alpha[:, cy:cy + ch, cx:cx + cw].clone()
                 if components.alpha is not None
                 else None,
             ),

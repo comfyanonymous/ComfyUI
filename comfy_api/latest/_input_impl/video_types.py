@@ -1,3 +1,4 @@
+from av.bitstream import BitStreamFilterContext
 from av.container import InputContainer
 from av.subtitles.stream import SubtitleStream
 from av.video.reformatter import ColorPrimaries, ColorRange, ColorTrc
@@ -13,6 +14,7 @@ import math
 import os
 import torch
 from .._util import VideoContainer, VideoCodec, VideoComponents, normalize_crop_rect
+import comfy.utils
 import logging
 
 
@@ -94,6 +96,31 @@ def video_stream_bit_depth(stream) -> int:
     if stream is None or stream.format is None or not stream.format.components:
         return 8
     return max(component.bits for component in stream.format.components)
+
+
+def isobmff_hevc_filter(output_container, stream, out_stream):
+    """Apple players need the 'hvc1' sample entry, not FFmpeg's default 'hev1'. Annex B input without
+    extradata makes the muxer build hvcC from the first packet and strip in-band parameter sets;
+    'hvc1' sources already have a complete hvcC and only need the tag PyAV reset."""
+    if output_container.format.name not in ("mp4", "mov") or stream.codec.canonical_name != "hevc":
+        return None
+    try:
+        codec_tag = stream.codec_context.codec_tag
+    except UnicodeDecodeError:
+        codec_tag = ""
+    if codec_tag == "hvc1":
+        out_stream.codec_context.codec_tag = "hvc1"
+        return None
+    hevc_filter = BitStreamFilterContext("hevc_mp4toannexb", stream, out_stream)
+    out_stream.codec_context.codec_tag = "hvc1"
+    out_stream.codec_context.extradata = None
+    return hevc_filter
+
+
+def filter_hevc_packet(hevc_filter, packet):
+    if packet.has_sidedata("new_extradata"):
+        raise ValueError("HEVC with multiple sample descriptions cannot be remuxed as hvc1; re-encode it instead")
+    return hevc_filter.filter(packet)
 
 
 def last_decodable_audio_stream(container: InputContainer):
@@ -180,12 +207,18 @@ def video_stream_color_space(stream) -> str | None:
     return VIDEO_TRANSFER_COLOR_SPACES.get(stream.color_trc)
 
 
-def video_encoder_options(codec: VideoCodec, crf: float | None) -> dict[str, str]:
-    if crf is None:
-        return {}
-    if codec == VideoCodec.AV1 and crf == 0:
-        return {"svtav1-params": "lossless=1"}
-    return {"crf": str(crf)}
+def video_encoder_options(
+    codec: VideoCodec, crf: float | None, preset: str | None = None
+) -> dict[str, str]:
+    options = {}
+    if preset is not None and codec == VideoCodec.H264:
+        options["preset"] = preset
+    if crf is not None:
+        if codec == VideoCodec.AV1 and crf == 0:
+            options["svtav1-params"] = "lossless=1"
+        else:
+            options["crf"] = str(crf)
+    return options
 
 
 def webm_streams_compatible(streams) -> bool:
@@ -425,6 +458,7 @@ class VideoFromFile(VideoInput):
 
     def get_components_internal(self, container: InputContainer) -> VideoComponents:
         video_stream = self._get_first_video_stream(container)
+        video_stream.thread_type = "AUTO"
         start_time, duration = self.get_active_trim_window()
 
         # Get video frames
@@ -593,6 +627,7 @@ class VideoFromFile(VideoInput):
         bit_depth: int | None = None,
         crf: float | None = None,
         color_space: str | None = None,
+        preset: str | None = None,
     ):
         if color_space is not None and color_space not in VIDEO_COLOR_TRANSFERS:
             raise ValueError(f"Unsupported video color space: {color_space}")
@@ -631,7 +666,7 @@ class VideoFromFile(VideoInput):
             if not reuse_streams:
                 if bit_depth is None:
                     bit_depth = source_bit_depth
-                return self._save_transcoded(container, path, format=format, codec=codec, metadata=metadata, bit_depth=bit_depth, crf=crf, color_space=color_space)
+                return self._save_transcoded(container, path, format=format, codec=codec, metadata=metadata, bit_depth=bit_depth, crf=crf, color_space=color_space, preset=preset)
 
             streams = container.streams
 
@@ -642,19 +677,26 @@ class VideoFromFile(VideoInput):
 
                 # Add streams to the new container. Streams with no codec context cannot be used as an output template.
                 stream_map = {}
+                hevc_filters = {}
                 for stream in streams:
                     if isinstance(stream, (av.VideoStream, av.AudioStream, SubtitleStream)):
                         if stream.codec_context is None:
                             logging.warning("Skipping %s stream %d with unsupported codec", stream.type, stream.index)
                             continue
                         out_stream = output_container.add_stream_from_template(template=stream, opaque=True)
+                        hevc_filter = isobmff_hevc_filter(output_container, stream, out_stream)
+                        if hevc_filter is not None:
+                            hevc_filters[stream] = hevc_filter
                         stream_map[stream] = out_stream
 
                 # Write packets to the new container
                 for packet in container.demux():
                     if packet.stream in stream_map and packet.dts is not None:
-                        packet.stream = stream_map[packet.stream]
-                        output_container.mux(packet)
+                        out_stream = stream_map[packet.stream]
+                        hevc_filter = hevc_filters.get(packet.stream)
+                        for out_packet in filter_hevc_packet(hevc_filter, packet) if hevc_filter else (packet,):
+                            out_packet.stream = out_stream
+                            output_container.mux(out_packet)
 
     def _save_transcoded(
         self,
@@ -666,10 +708,12 @@ class VideoFromFile(VideoInput):
         bit_depth: int,
         crf: float | None = None,
         color_space: str | None = None,
+        preset: str | None = None,
     ):
         """Re-encode one frame at a time; peak memory does not scale with video length."""
         open_kwargs, output_format, output_codec = video_output_config(path, format, codec)
         video_stream = self._get_first_video_stream(container)
+        video_stream.thread_type = "AUTO"
         start_time, duration = self.get_active_trim_window()
         start_pts = int(start_time / video_stream.time_base)
         end_pts = int((start_time + duration) / video_stream.time_base) if duration else None
@@ -685,8 +729,6 @@ class VideoFromFile(VideoInput):
         audio_stream = last_decodable_audio_stream(container)
         source_color_space = video_stream_color_space(video_stream)
         preserve_source_color = source_color_space is not None
-        if color_space in HDR_COLOR_TRANSFERS or source_color_space in HDR_COLOR_TRANSFERS:
-            bit_depth = max(bit_depth, 10)
         pix_fmt = "yuv420p10le" if bit_depth >= 10 else "yuv420p"
         rate = Fraction(video_stream.average_rate) if video_stream.average_rate else Fraction(1)
 
@@ -714,9 +756,13 @@ class VideoFromFile(VideoInput):
             if duration:
                 duration_cap = math.ceil(duration * sample_rate)
 
-        import comfy.utils
-        raw_duration = self._get_raw_duration()
-        window_seconds = duration if duration else max(raw_duration - start_time, 0.0)
+        if duration:
+            window_seconds = duration
+        else:
+            try:
+                window_seconds = max(self._get_raw_duration() - start_time, 0.0)
+            except ValueError:
+                window_seconds = 0.0
         progress_total = max(1, int(round(window_seconds * float(rate))))
         pbar = comfy.utils.ProgressBar(progress_total)
 
@@ -816,8 +862,18 @@ class VideoFromFile(VideoInput):
                                 crop_rect = normalize_crop_rect(*self.__crop, out_width, out_height)
                                 if crop_rect is not None:
                                     out_width, out_height = crop_rect[2], crop_rect[3]
+                            if (out_width % 2 or out_height % 2) and crop_rect is None:
+                                even_width = out_width - out_width % 2
+                                even_height = out_height - out_height % 2
+                                if even_width > 0 and even_height > 0:
+                                    crop_rect = (0, 0, even_width, even_height)
+                                    out_width, out_height = even_width, even_height
                             if out_width % 2 or out_height % 2:
                                 raise ValueError(f"{output_codec.value.upper()} output requires even dimensions, got {out_width}x{out_height}")
+                            if any(component.is_alpha for component in frame.format.components):
+                                logging.warning(
+                                    "Transcoded video output does not support alpha; the alpha channel will be discarded."
+                                )
                             source_size = (frame.width, frame.height)
                             output = av.open(path, **open_kwargs)
                             # Add metadata before writing any streams
@@ -829,7 +885,7 @@ class VideoFromFile(VideoInput):
                             out_video.width = out_width
                             out_video.height = out_height
                             out_video.pix_fmt = pix_fmt
-                            out_video.options = video_encoder_options(output_codec, crf)
+                            out_video.options = video_encoder_options(output_codec, crf, preset)
                             if preserve_source_color:
                                 copy_color_properties(video_stream, out_video.codec_context)
                             elif color_space is not None:
@@ -990,7 +1046,7 @@ class VideoFromFile(VideoInput):
             duration=duration,
             crop=self.__crop,
         )
-        if trimmed.get_duration() < duration and strict_duration:
+        if strict_duration and duration and trimmed.get_duration() < duration:
             return None
         return trimmed
 
@@ -1030,10 +1086,13 @@ class VideoFromComponents(VideoInput):
     Class representing video input from tensors.
     """
 
-    def __init__(self, components: VideoComponents, bit_depth: int = 8):
+    def __init__(self, components: VideoComponents, bit_depth: int = 8, color_space: str = "sRGB"):
+        if color_space not in VIDEO_COLOR_TRANSFERS:
+            raise ValueError(f"Unsupported video color space: {color_space}")
         self.__components = components
         # Tensor components have no inherent bit depth; this is the depth used when encoding.
         self.__bit_depth = bit_depth
+        self.__color_space = color_space
 
     def get_components(self) -> VideoComponents:
         return VideoComponents(
@@ -1048,7 +1107,7 @@ class VideoFromComponents(VideoInput):
         return self.__bit_depth
 
     def get_color_space(self) -> str:
-        return "sRGB"
+        return self.__color_space
 
     def save_to(
         self,
@@ -1059,18 +1118,17 @@ class VideoFromComponents(VideoInput):
         bit_depth: int | None = None,
         crf: float | None = None,
         color_space: str | None = None,
+        preset: str | None = None,
     ):
         """Save the video to a file path or BytesIO buffer."""
         if color_space is None:
-            color_space = "sRGB"
+            color_space = self.__color_space
         if color_space is not None and color_space not in VIDEO_COLOR_TRANSFERS:
             raise ValueError(f"Unsupported video color space: {color_space}")
         open_kwargs, output_format, output_codec = video_output_config(path, format, codec)
         # None means "use the depth this video was created with" (CreateVideo's choice).
         if bit_depth is None:
             bit_depth = self.__bit_depth
-        if color_space in HDR_COLOR_TRANSFERS:
-            bit_depth = max(bit_depth, 10)
         is_10bit = bit_depth >= 10
         with av.open(path, **open_kwargs) as output:
             # Add metadata before writing any streams
@@ -1085,7 +1143,7 @@ class VideoFromComponents(VideoInput):
             video_stream.width = self.__components.images.shape[2]
             video_stream.height = self.__components.images.shape[1]
             video_stream.pix_fmt = pix_fmt
-            video_stream.options = video_encoder_options(output_codec, crf)
+            video_stream.options = video_encoder_options(output_codec, crf, preset)
             if color_space is not None:
                 set_video_color_properties(video_stream.codec_context, color_space)
 

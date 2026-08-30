@@ -66,6 +66,8 @@ def normalize_crop_rect(
         return None
     x = max(0, min(int(x), source_width - 1))
     y = max(0, min(int(y), source_height - 1))
+    x -= x % 2
+    y -= y % 2
     width = min(width, source_width - x)
     height = min(height, source_height - y)
     if x == 0 and y == 0 and width == source_width and height == source_height:
