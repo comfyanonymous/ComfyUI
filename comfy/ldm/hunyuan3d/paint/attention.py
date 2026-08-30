@@ -51,16 +51,17 @@ class MaterialAttention(CrossAttention):
                 val = self.processor[f"to_v_{mat}"](x)
                 out = optimized_attention(q, k, val, self.heads, transformer_options=transformer_options)
                 outs.append(self.processor[f"to_out_{mat}"](out))
-        return torch.stack(outs, dim=1).reshape(b, m, v, l, c)
+        return torch.stack(outs, dim=1).reshape(b, v, m, l, c).transpose(1, 2)
 
     def forward_reference(self, albedo_tokens, bank_tokens, materials, transformer_options={}):
         """Reference-injection attention with wide-head value packing.
 
         Queries come from the albedo tokens only (``(B, V*L, C)``); keys from the
-        bank tokens; the per-material value projections are channel-concatenated so
-        every head attends over a ``M*dim_head``-wide value slice mixing all
-        materials, then each head's output is split back per material and routed
-        through that material's output projection. Returns ``(M, B, V*L, C)``.
+        bank tokens; the per-material value projections are channel-concatenated
+        and split head-first into ``M*dim_head``-wide slices, so each head attends
+        over a contiguous chunk of the concatenated channels (mixing materials),
+        then each head's output is split back per material and routed through that
+        material's output projection. Returns ``(M, B, V*L, C)``.
         """
         b, tq = albedo_tokens.shape[:2]
         n_mat = len(materials)
@@ -73,8 +74,7 @@ class MaterialAttention(CrossAttention):
 
         q = q.view(b, tq, self.heads, self.dim_head).transpose(1, 2)
         k = k.view(b, -1, self.heads, self.dim_head).transpose(1, 2)
-        v = v.view(b, -1, n_mat, self.heads, self.dim_head).permute(0, 3, 1, 2, 4)
-        v = v.reshape(b, self.heads, -1, n_mat * self.dim_head)
+        v = v.view(b, -1, self.heads, n_mat * self.dim_head).transpose(1, 2)
         if n_mat == 1:
             out = optimized_attention(q, k, v, self.heads, skip_reshape=True,
                                       transformer_options=transformer_options)

@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import comfy.ops
 from comfy.ldm.modules.attention import CrossAttention, FeedForward
 from comfy.ldm.hunyuan3d.paint.attention import (
     MaterialAttention,
@@ -182,13 +183,9 @@ class PaintTransformerBlock(nn.Module):
         l, c = x.shape[1], x.shape[2]
         n1 = t.norm1(x)
         grouped_n1 = n1.reshape(b, m, v, l, c)
-        # Trained quirk (pinned by the Tier-1 golden): material self-attention selects
-        # its per-material projections by frame % M, not by the material-major frame
-        # grouping the other paths use.
-        interleaved = n1.reshape(b, v, m, l, c).transpose(1, 2)
-        x = x + t.attn1.forward_per_material(interleaved, state.materials,
+        x = x + t.attn1.forward_per_material(grouped_n1, state.materials,
                                              transformer_options=transformer_options
-                                             ).transpose(1, 2).reshape(b * m * v, l, c)
+                                             ).reshape(b * m * v, l, c)
         if state.bank is not None:
             bank = state.bank[self.block_index]
             if bank.shape[0] != b:
@@ -458,7 +455,8 @@ class UNet2p5DConditionModel(nn.Module):
         as ``(B, R*L_block, C_block)`` tensors, in block tree order."""
         b, r = ref_latents.shape[:2]
         flat = ref_latents.reshape(b * r, *ref_latents.shape[2:])
-        ref_context = self.unet.get_parameter("learned_text_clip_ref").unsqueeze(0).expand(b * r, -1, -1)
+        ref_context = comfy.ops.cast_to_input(self.unet.get_parameter("learned_text_clip_ref"), flat)
+        ref_context = ref_context.unsqueeze(0).expand(b * r, -1, -1)
         capture = ReferenceCapture()
         timesteps = torch.zeros(b * r, device=flat.device)
         self.unet_dual(flat, timesteps, ref_context, state=capture)
