@@ -66,7 +66,7 @@ def save_bundle(path, tensors, metadata):
     meta = {"format_version": FORMAT_VERSION}
     for k, v in metadata.items():
         meta[str(k)] = v if isinstance(v, str) else json.dumps(v)
-    save_file({k: v.contiguous() for k, v in tensors.items()}, str(path), metadata=meta)
+    save_file({k: v.clone().contiguous() for k, v in tensors.items()}, str(path), metadata=meta)
 
 
 def load_bundle(path):
