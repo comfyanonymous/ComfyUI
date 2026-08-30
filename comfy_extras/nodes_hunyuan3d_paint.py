@@ -56,16 +56,20 @@ def _pack_mr_gltf(mr_native):
     return out
 
 
-def view_scale_mapping(azim):
-    """Per-view CFG multiplier from the reference pipeline (``cam_mapping``):
-    1.0 at the front view, ramping to 2.0 for side/back/top/bottom views."""
-    azim = float(azim) % 360.0
-    if 0 <= azim < 90:
-        return azim / 90.0 + 1.0
-    elif 90 <= azim < 330:
+def view_scale_mapping(azimuth):
+    """Per-view CFG multiplier as a function of the view azimuth (degrees).
+
+    The front view (azimuth 0) follows the reference image closely and needs
+    little guidance; side/back views are underconstrained and get double
+    guidance, with linear ramps of slope 1/90 near the front. The function is
+    intentionally discontinuous at 330 degrees (trained behavior).
+    """
+    a = azimuth % 360.0
+    if a < 90.0:
+        return 1.0 + a / 90.0
+    if a < 330.0:
         return 2.0
-    else:
-        return -azim / 90.0 + 5.0
+    return 4.0 / 3.0 - (a - 330.0) / 90.0
 
 
 def trailing_timesteps(num_steps, num_train_timesteps=1000):
