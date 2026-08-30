@@ -75,103 +75,93 @@ def _validate_resolution(value, name, where):
 
 
 class Cameras:
-    """A set of V orthographic views sharing the paint model's intrinsics.
-
-    Carries just the per-view elevation/azimuth (degrees) plus the shared projection
-    parameters, so it can be passed between the multiview and bake nodes and re-used to
-    rasterize the same views for back-projection.
-    """
+    """Orbit-camera set: per-view elevation/azimuth (degrees) plus bake weights,
+    with the fixed orthographic intrinsics of the released paint model."""
 
     def __init__(self, elevs, azims, weights=None, ortho_scale=ORTHO_SCALE,
                  camera_distance=CAMERA_DISTANCE, near=NEAR, far=FAR):
-        self.elevs = [float(e) for e in elevs]
-        self.azims = [float(a) for a in azims]
-        if weights is None:
-            weights = [1.0] * len(self.elevs)
-        self.weights = [float(w) for w in weights]
-        self.ortho_scale = float(ortho_scale)
-        self.camera_distance = float(camera_distance)
-        self.near = float(near)
-        self.far = float(far)
+        if len(elevs) != len(azims):
+            raise ValueError(f"Cameras: {len(elevs)} elevations vs {len(azims)} azimuths")
+        self.elevs = list(elevs)
+        self.azims = list(azims)
+        self.weights = list(weights) if weights is not None else [1.0] * len(elevs)
+        self.ortho_scale = ortho_scale
+        self.camera_distance = camera_distance
+        self.near = near
+        self.far = far
 
     def __len__(self):
         return len(self.elevs)
 
 
 def standard_cameras(num_views=6):
-    n = max(1, min(int(num_views), len(STANDARD_VIEW_AZIMS)))
-    return Cameras(STANDARD_VIEW_ELEVS[:n], STANDARD_VIEW_AZIMS[:n], STANDARD_VIEW_WEIGHTS[:n])
+    """The first ``num_views`` cameras of the standard 6-view set."""
+    return Cameras(STANDARD_VIEW_ELEVS[:num_views], STANDARD_VIEW_AZIMS[:num_views],
+                   STANDARD_VIEW_WEIGHTS[:num_views])
 
 
 # ---------------------------------------------------------------------------
 # Camera matrices (matches the reference camera conventions of
 # hy3dpaint/DifferentiableRenderer/camera_utils.py)
 # ---------------------------------------------------------------------------
-def view_matrix(elev, azim, camera_distance, device="cpu", dtype=torch.float32):
-    """World->camera (4x4) look-at with a Z-up frame, matching get_mv_matrix."""
-    elev = -float(elev)
-    azim = float(azim) + 90.0
-    er = math.radians(elev)
-    ar = math.radians(azim)
-    cam = torch.tensor([
-        camera_distance * math.cos(er) * math.cos(ar),
-        camera_distance * math.cos(er) * math.sin(ar),
-        camera_distance * math.sin(er),
-    ], device=device, dtype=dtype)
+def view_matrix(elev, azim, camera_distance=CAMERA_DISTANCE, device="cpu"):
+    """World-to-camera matrix (4, 4) of a look-at orbit camera.
 
-    lookat = -cam
-    lookat = lookat / lookat.norm()
-    up = torch.tensor([0.0, 0.0, 1.0], device=device, dtype=dtype)
-    right = torch.linalg.cross(lookat, up)
-    if right.norm() < 1e-6:
-        # Pole view (lookat parallel to +Z). Use the right vector the reference's
-        # residual float rounding resolves to, so top/bottom orientation matches
-        # hy3dpaint deterministically instead of hanging off a 1e-17 residual.
-        right = torch.tensor([-math.sin(ar), math.cos(ar), 0.0], device=device, dtype=dtype)
-    right = right / right.norm()
-    up = torch.linalg.cross(right, lookat)
-    up = up / up.norm()
+    The camera sits at radius ``camera_distance`` on the orbit given by
+    ``elev``/``azim`` (degrees, Z-up world frame) and looks at the origin with
+    world +Z as the up reference.
+    """
+    e = math.radians(elev)
+    a = math.radians(azim)
+    ce, se = math.cos(e), math.sin(e)
+    ca, sa = math.cos(a), math.sin(a)
+    pos = torch.tensor([-ce * sa, ce * ca, -se], dtype=torch.float32, device=device)
+    pos = pos * camera_distance
+    forward = F.normalize(-pos, dim=0)
+    if abs(ce) < 1e-8:
+        # forward is parallel to the +Z up reference; the limit of the look-at
+        # basis as elevation approaches +/-90 degrees is this right vector.
+        right = torch.tensor([-ca, -sa, 0.0], dtype=torch.float32, device=device)
+    else:
+        up_ref = torch.tensor([0.0, 0.0, 1.0], dtype=torch.float32, device=device)
+        right = F.normalize(torch.linalg.cross(forward, up_ref), dim=0)
+    up = torch.linalg.cross(right, forward)
 
-    rot = torch.stack([right, up, -lookat], dim=-1)  # camera->world rotation (3x3)
-    w2c = torch.eye(4, device=device, dtype=dtype)
-    w2c[:3, :3] = rot.t()
-    w2c[:3, 3] = -(rot.t() @ cam)
+    w2c = torch.eye(4, dtype=torch.float32, device=device)
+    w2c[0, :3] = right
+    w2c[1, :3] = up
+    w2c[2, :3] = -forward
+    w2c[:3, 3] = -w2c[:3, :3] @ pos
     return w2c
 
 
-def orthographic_matrix(scale, near, far, device="cpu", dtype=torch.float32):
-    l, r = -scale * 0.5, scale * 0.5
-    b, t = -scale * 0.5, scale * 0.5
-    m = torch.eye(4, device=device, dtype=dtype)
-    m[0, 0] = 2.0 / (r - l)
-    m[1, 1] = 2.0 / (t - b)
-    m[2, 2] = -2.0 / (far - near)
-    m[0, 3] = -(r + l) / (r - l)
-    m[1, 3] = -(t + b) / (t - b)
-    m[2, 3] = -(far + near) / (far - near)
-    return m
+def orthographic_matrix(ortho_scale=ORTHO_SCALE, near=NEAR, far=FAR, device="cpu"):
+    """Symmetric OpenGL-style orthographic projection (4, 4): a world length of
+    ``ortho_scale`` spans the full [-1, 1] NDC range in x and y, and camera-space
+    depth in [near, far] maps to [-1, 1]."""
+    proj = torch.eye(4, dtype=torch.float32, device=device)
+    proj[0, 0] = 2.0 / ortho_scale
+    proj[1, 1] = 2.0 / ortho_scale
+    proj[2, 2] = -2.0 / (far - near)
+    proj[2, 3] = -(far + near) / (far - near)
+    return proj
 
 
 # ---------------------------------------------------------------------------
 # Mesh normalization (matches MeshRender.set_mesh auto_center path)
 # ---------------------------------------------------------------------------
 def normalize_mesh(vertices, scale_factor=MESH_SCALE_FACTOR):
-    """Convert GLB-frame vertices into the renderer's centered/scaled Z-up frame.
+    """Canonicalize glTF-frame vertices (N, 3) for the paint renderer.
 
-    Returns the transformed vertices (same N, 3). The axis swaps map the glTF Y-up
-    front-facing frame onto the look-at camera's Z-up frame so azim=0/elev=0 is the
-    front view; the object is then centered and scaled to a fixed radius.
+    Applies the fixed frame change (x, y, z) -> (-x, z, -y), centers the
+    axis-aligned bounding box at the origin, and uniformly scales so the
+    bounding-sphere diameter equals ``scale_factor``. Computed in fp32.
     """
-    v = vertices.clone().to(torch.float32)
-    v[:, [0, 1]] = -v[:, [0, 1]]
-    v[:, [1, 2]] = v[:, [2, 1]]
-    max_bb = v.max(dim=0).values
-    min_bb = v.min(dim=0).values
-    center = (max_bb + min_bb) / 2.0
-    scale = torch.norm(v - center, dim=1).max() * 2.0
-    scale = torch.clamp(scale, min=1e-8)
-    v = (v - center) * (scale_factor / scale)
-    return v
+    v = vertices.to(torch.float32)
+    v = torch.stack([-v[:, 0], v[:, 2], -v[:, 1]], dim=1)
+    v = v - (v.amin(dim=0) + v.amax(dim=0)) * 0.5
+    radius = v.norm(dim=1).max().clamp(min=1e-8)
+    return v * (scale_factor / (2.0 * radius))
 
 
 def face_normals(vertices, faces):
