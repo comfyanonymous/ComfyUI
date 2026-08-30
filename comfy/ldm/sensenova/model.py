@@ -296,7 +296,7 @@ class Attention(nn.Module):
             key,
             value,
             NUM_HEADS,
-            mask=attention_mask,
+            mask=attention_mask.to(query.dtype),
             skip_reshape=True,
             transformer_options=transformer_options,
             enable_gqa=True,

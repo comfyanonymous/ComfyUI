@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import torch
 
 from comfy import model_detection
+from comfy.ldm.sensenova import model as sensenova_model
 from comfy.ldm.sensenova.conditioning import (
     condition_input_ids,
     conditioned_input_length,
@@ -141,6 +142,34 @@ def test_sensenova_reference_tokens_and_indexes():
     assert conditioned.shape[1] == conditioned_input_length(input_ids.shape[1], grids)
     assert torch.count_nonzero(conditioned == 151669) == 8
     assert indexes.shape == (1, 3, conditioned.shape[1])
+
+
+def test_sensenova_prefix_mask_matches_attention_dtype(monkeypatch):
+    query = torch.empty(1, 32, 3, 128, dtype=torch.bfloat16)
+    key = torch.empty(1, 8, 3, 128, dtype=torch.bfloat16)
+    value = torch.empty_like(key)
+    captured = {}
+
+    def optimized_attention(query, key, value, heads, **kwargs):
+        captured.update(query=query, key=key, value=value, heads=heads, kwargs=kwargs)
+        return torch.empty(1, 3, 4096, dtype=torch.bfloat16)
+
+    monkeypatch.setattr(sensenova_model, "optimized_attention", optimized_attention)
+    attention = SimpleNamespace(
+        _project=lambda hidden_states, indexes, generation: (query, key, value),
+        o_proj=lambda output: output,
+    )
+
+    output, _, _ = sensenova_model.Attention.forward_prefix(
+        attention,
+        torch.empty(1, 3, 4096, dtype=torch.bfloat16),
+        torch.empty(3, 1, 3),
+        torch.zeros(1, 1, 3, 3, dtype=torch.float32),
+        {},
+    )
+
+    assert output.shape == (1, 3, 4096)
+    assert captured["kwargs"]["mask"].dtype == torch.bfloat16
 
 
 def test_sensenova_tokenizer_control_token_ids():
