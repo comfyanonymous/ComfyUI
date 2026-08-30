@@ -2,12 +2,13 @@ import pytest
 import torch
 import tempfile
 import os
+import subprocess
 import sys
 import av
 import io
 import numpy as np
 from fractions import Fraction
-from comfy_api.input_impl.video_types import VideoFromFile, VideoFromComponents
+from comfy_api.input_impl.video_types import VideoFromFile, VideoFromComponents, VideoConcatenated
 from comfy_api.util.video_types import VideoComponents, VideoContainer, VideoCodec
 from comfy_api.input.basic_types import AudioInput
 from av.error import InvalidDataError
@@ -1469,3 +1470,50 @@ def test_save_to_transcode_skips_undecodable_audio():
         for path in (mixed, all_bad):
             if path:
                 os.unlink(path)
+
+
+def test_video_from_file_open_ended_trim_frame_count():
+    """start_time with duration 0 ("to the end") counts the remaining frames, not zero"""
+    file_path = create_transcode_source(frames=45)  # 1.5 s @ 30 fps
+    try:
+        assert VideoFromFile(file_path, start_time=0.5).get_frame_count() == 30
+        assert VideoFromFile(file_path).as_trimmed(0.5, 0, strict_duration=False).get_frame_count() == 30
+        assert VideoFromFile(file_path, start_time=0.5, duration=0.5).get_frame_count() == 15
+    finally:
+        os.unlink(file_path)
+
+
+def test_concatenated_save_to_streams_without_buffering_frames():
+    """Concatenation must decode/encode one frame at a time, never materializing the sources.
+
+    Measured in a fresh subprocess so the ru_maxrss delta is independent of whatever peak earlier
+    tests left in this process (two 640x480x300 sources would be ~2.2 GiB as float32 if buffered)."""
+    resource = pytest.importorskip("resource")  # no getrusage on Windows
+    del resource
+    rss_scale = 1 if sys.platform == "darwin" else 1024  # ru_maxrss: bytes on macOS, KiB elsewhere
+    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    sources = [create_transcode_source(width=640, height=480, frames=300) for _ in range(2)]
+    child = f"""
+import io, resource, sys
+sys.path.insert(0, {repo_root!r})
+from comfy_api.input_impl.video_types import VideoConcatenated, VideoFromFile
+from comfy_api.util.video_types import VideoCodec, VideoContainer
+video = VideoConcatenated([VideoFromFile(path) for path in {sources!r}])
+before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+video.save_to(io.BytesIO(), format=VideoContainer.MP4, codec=VideoCodec.H264)
+print("RSS_DELTA", resource.getrusage(resource.RUSAGE_SELF).ru_maxrss - before)
+"""
+    try:
+        completed = subprocess.run([sys.executable, "-c", child], capture_output=True, text=True, cwd=repo_root)
+        assert completed.returncode == 0, completed.stderr[-2000:]
+        rss_delta = int(completed.stdout.strip().rsplit("RSS_DELTA", 1)[1]) * rss_scale
+        assert rss_delta < 500 * 2**20, f"concat buffered frames in RAM (peak grew {rss_delta / 2**20:.0f} MiB)"
+
+        result = transcode_and_probe(VideoConcatenated([VideoFromFile(path) for path in sources]))
+        assert result["codec"] == "h264"
+        assert result["frames"] == 600
+        assert result["video_seconds"] == pytest.approx(20.0, abs=0.1)
+        assert result["audio_seconds"] == pytest.approx(20.0, abs=0.1)
+    finally:
+        for path in sources:
+            os.unlink(path)

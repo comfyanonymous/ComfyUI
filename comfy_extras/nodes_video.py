@@ -370,6 +370,44 @@ class VideoSlice(io.ComfyNode):
         )
 
 
+class VideoConcat(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        template = io.Autogrow.TemplatePrefix(io.Video.Input("video"), prefix="video", min=2, max=32)
+        return io.Schema(
+            node_id="VideoConcat",
+            display_name="Concatenate Videos",
+            search_aliases=["combine videos", "join videos", "chain videos", "merge videos", "stitch videos", "append video"],
+            category="video",
+            essentials_category="Video Tools",
+            description="Plays the connected videos back-to-back as one video, in input order, keeping audio. "
+                        "With resize=fit, later clips are scaled to fit inside the first clip's frame (black bars); "
+                        "with resize=error, mismatched resolutions fail. The result is re-encoded when saved, and all "
+                        "audio is conformed to one sample rate and channel layout.",
+            inputs=[
+                io.Autogrow.Input("videos", template=template, tooltip="Videos in playback order."),
+                io.Combo.Input(
+                    "resize",
+                    options=["fit", "error"],
+                    default="fit",
+                    tooltip="fit: scale later clips to fit inside the first clip's frame (black bars). error: fail if resolutions differ.",
+                ),
+            ],
+            outputs=[
+                io.Video.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, videos: io.Autogrow.Type, resize: str) -> io.NodeOutput:
+        sources = [video for video in videos.values() if video is not None]
+        if not sources:
+            raise ValueError("Concatenate Videos: connect at least two videos.")
+        if len(sources) == 1:
+            return io.NodeOutput(sources[0])
+        return io.NodeOutput(InputImpl.VideoConcatenated(sources, resize=resize))
+
+
 class VideoExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
@@ -380,6 +418,7 @@ class VideoExtension(ComfyExtension):
             GetVideoComponents,
             LoadVideo,
             VideoSlice,
+            VideoConcat,
         ]
 
 async def comfy_entrypoint() -> VideoExtension:
