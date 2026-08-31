@@ -603,6 +603,19 @@ def create_from_hash(
     mime_type: str | None = None,
     preview_id: str | None = None,
 ) -> UploadResult | None:
+    """Mint a record against content the caller identified by hash alone.
+
+    The claim/refresh sequencing is the same one ``_reuse_qualified_content``
+    documents in full: a competing retirement between the lookup and this
+    session's commit would otherwise leave a record pointing at content that is
+    already gone.
+
+    Losing that race returns ``None``, which is indistinguishable from
+    hash-not-found - and deliberately so. Unlike the upload path there are no
+    bytes here to fall back to a new-content path with, so ``None`` is the only
+    truthful answer; the route maps it to a 404, and a client that retries gets
+    the same 404 for as long as the content stays retired.
+    """
     if not mode.hashing_enabled():
         return None
 
@@ -617,9 +630,17 @@ def create_from_hash(
         if content is None:
             logging.warning("create_from_hash: no asset found for hash %s", hash_str)
             return None
+        content_id = content.id
+        if not claim_qualified_content(session, content_id, stored_hash):
+            session.rollback()
+            return None
+        content = refresh_qualified_content(session, content_id)
+        if content is None:
+            session.rollback()
+            return None
         record = _create_upload_record(
             session,
-            content.id,
+            content_id,
             display_name,
             content.path,
             tags or [],
