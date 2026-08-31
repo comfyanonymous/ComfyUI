@@ -65,17 +65,19 @@ class ExecutionList:
         return None, None, None
 
 
-def run_loop(monkeypatch, mode, initial_value=None):
+def run_loop(monkeypatch, mode, initial_value=None, include_output=True):
     execution_list = ExecutionList()
+    close_inputs = {
+        "next_value": ["loop", 0],
+        "accumulate": False,
+    }
+    if include_output:
+        close_inputs["output_value"] = ["loop", 0]
     dynprompt = DynPrompt({
         "loop": {"class_type": "Loop", "inputs": {}},
         "close": {
             "class_type": "CloseLoop",
-            "inputs": {
-                "output_value": ["loop", 0],
-                "next_value": ["loop", 0],
-                "accumulate": False,
-            },
+            "inputs": close_inputs,
         },
     })
     nodes_loop.Loop.hidden = SimpleNamespace(
@@ -136,12 +138,23 @@ def test_close_loop_selects_final_or_accumulated_output(monkeypatch):
     _, execution_list = run_loop(monkeypatch, {"mode": ["simple"], "num_iterations": [2]})
     nodes_loop.CloseLoop.hidden = SimpleNamespace(execution_list=execution_list, unique_id="close")
 
-    assert nodes_loop.CloseLoop.execute(None, None, [False]).result == ([1],)
+    assert nodes_loop.CloseLoop.execute(None, [False]).result == ([1],)
 
     _, execution_list = run_loop(monkeypatch, {"mode": ["simple"], "num_iterations": [2]})
     nodes_loop.CloseLoop.hidden = SimpleNamespace(execution_list=execution_list, unique_id="close")
 
-    assert nodes_loop.CloseLoop.execute(None, None, [True]).result == ([0, 1],)
+    assert nodes_loop.CloseLoop.execute(None, [True]).result == ([0, 1],)
+
+
+def test_close_loop_allows_no_output_value(monkeypatch):
+    _, execution_list = run_loop(
+        monkeypatch,
+        {"mode": ["simple"], "num_iterations": [2]},
+        include_output=False,
+    )
+    nodes_loop.CloseLoop.hidden = SimpleNamespace(execution_list=execution_list, unique_id="close")
+
+    assert nodes_loop.CloseLoop.execute(None, [True]).result == ([],)
 
 
 def test_loop_schema_has_integrated_carried_value():
@@ -161,8 +174,8 @@ def test_loop_schema_has_integrated_carried_value():
 def test_close_loop_schema_has_one_list_output_and_dynamic_terminations():
     inputs = nodes_loop.CloseLoop.INPUT_TYPES()
 
-    assert list(inputs["required"]) == ["output_value", "next_value", "accumulate"]
-    assert list(inputs["optional"]) == ["terminations"]
+    assert list(inputs["required"]) == ["next_value", "accumulate"]
+    assert list(inputs["optional"]) == ["output_value", "terminations"]
     assert nodes_loop.CloseLoop.RETURN_NAMES == ["output"]
     assert nodes_loop.CloseLoop.OUTPUT_IS_LIST == [True]
 

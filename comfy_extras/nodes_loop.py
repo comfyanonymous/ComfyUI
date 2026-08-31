@@ -82,14 +82,17 @@ class Loop(io.ComfyNode):
                 for opener_id in nested_openers
             ]
             close_inputs = dynprompt.get_node(close_id)["inputs"]
-            output_source = tuple(close_inputs["output_value"])
+            output_value = close_inputs.get("output_value")
+            output_source = tuple(output_value) if is_link(output_value) else None
             next_source = tuple(close_inputs["next_value"])
             termination_sources = {
                 input_name: tuple(source)
                 for input_name, source in close_inputs.items()
                 if input_name.startswith("termination") and is_link(source)
             }
-            close_sources = (output_source, next_source, *termination_sources.values())
+            close_sources = (next_source, *termination_sources.values())
+            if output_source is not None:
+                close_sources = (output_source, *close_sources)
             internal_source_nodes = {
                 source_id for source_id, _ in close_sources
                 if source_id != unique_id and source_id in projected_nodes
@@ -151,22 +154,23 @@ class Loop(io.ComfyNode):
                     )
                 return cached.outputs[source_socket]
 
-            output_values = source_values(state["output_source"], "output_value")
             close_state = execution_list.get_projection_state(state["close_id"])
-            if close_state["output_width"] is None:
-                close_state["output_width"] = len(output_values)
-                if len(output_values) > 1:
-                    close_state["outputs"] = [[] for _ in output_values]
-            elif close_state["output_width"] != len(output_values):
-                raise RuntimeError(
-                    f"Close Loop {state['close_id']} output_value changed list length between iterations"
-                )
-            if len(output_values) == 1:
-                close_state["outputs"].append(output_values[0])
-            else:
-                for outputs, output in zip(close_state["outputs"], output_values):
-                    outputs.append(output)
-            close_state["last_output"] = output_values
+            if state["output_source"] is not None:
+                output_values = source_values(state["output_source"], "output_value")
+                if close_state["output_width"] is None:
+                    close_state["output_width"] = len(output_values)
+                    if len(output_values) > 1:
+                        close_state["outputs"] = [[] for _ in output_values]
+                elif close_state["output_width"] != len(output_values):
+                    raise RuntimeError(
+                        f"Close Loop {state['close_id']} output_value changed list length between iterations"
+                    )
+                if len(output_values) == 1:
+                    close_state["outputs"].append(output_values[0])
+                else:
+                    for outputs, output in zip(close_state["outputs"], output_values):
+                        outputs.append(output)
+                close_state["last_output"] = output_values
 
             next_values = source_values(state["next_source"], "next_value")
             if not next_values:
@@ -238,7 +242,7 @@ class CloseLoop(io.ComfyNode):
             category="looping",
             is_input_list=True,
             inputs=[
-                io.MatchType.Input("output_value", output_type),
+                io.MatchType.Input("output_value", output_type, optional=True),
                 io.MatchType.Input("next_value", carried_type),
                 io.Boolean.Input("accumulate", default=False),
                 io.Autogrow.Input("terminations", template=terminations, optional=True),
@@ -250,14 +254,16 @@ class CloseLoop(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, output_value, next_value, accumulate, terminations=None):
+    def execute(cls, next_value, accumulate, output_value=None, **terminations):
         execution_list = cls.hidden.execution_list
         unique_id = cls.hidden.unique_id
         state = execution_list.get_projection_state(unique_id)
         if state is None or "outputs" not in state:
             raise ValueError(f"Close Loop {unique_id} does not belong to a Loop")
         execution_list.clear_projection_state(unique_id)
-        values = state["outputs"] if accumulate[0] else state["last_output"]
+        values = []
+        if state["output_width"] is not None:
+            values = state["outputs"] if accumulate[0] else state["last_output"]
         return io.NodeOutput(values)
 
     @classmethod
