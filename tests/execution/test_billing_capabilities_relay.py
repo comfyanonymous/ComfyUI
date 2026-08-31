@@ -26,6 +26,8 @@ UNPREFIXED_CAPABILITIES_ROUTE = "/billing/capabilities"
 UPSTREAM_ROUTE = "/api/billing/capabilities"
 UPSTREAM_BODY = {"can_manage_subscription": True, "can_top_up": False}
 UPSTREAM_REVISION = "rev-42"
+UPSTREAM_CACHE_CONTROL = "private, max-age=30"
+UPSTREAM_VARY = "Authorization, X-API-Key"
 CALLER_SUPPLIED = "caller-supplied"
 SERVER_READY_TIMEOUT = 300
 
@@ -56,7 +58,9 @@ class UpstreamStub:
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(body)))
                 self.send_header("X-Capability-Revision", UPSTREAM_REVISION)
-                self.send_header("Cache-Control", "private, max-age=60")
+                self.send_header("Cache-Control", UPSTREAM_CACHE_CONTROL)
+                self.send_header("Vary", UPSTREAM_VARY)
+                self.send_header("Set-Cookie", "upstream_session=must-not-leak")
                 self.end_headers()
                 self.wfile.write(body)
 
@@ -151,6 +155,13 @@ class TestBillingCapabilitiesRelay:
         assert json.loads(body) == UPSTREAM_BODY
         assert headers["X-Capability-Revision"] == UPSTREAM_REVISION
         assert [request["path"] for request in upstream.received] == [UPSTREAM_ROUTE]
+
+    def test_core_middleware_preserves_relayed_cache_headers(self, relay_port):
+        _status, _body, headers = _get(relay_port, CAPABILITIES_ROUTE)
+
+        assert headers["Cache-Control"] == UPSTREAM_CACHE_CONTROL
+        assert headers["Vary"] == UPSTREAM_VARY
+        assert "Set-Cookie" not in headers
 
     def test_upstream_receives_allowlisted_headers_and_core_owned_context(self, relay_port, upstream):
         status, _body, _headers = _get(relay_port, CAPABILITIES_ROUTE, {
