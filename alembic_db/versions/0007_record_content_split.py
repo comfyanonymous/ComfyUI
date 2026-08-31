@@ -92,7 +92,17 @@ def downgrade() -> None:
     op.drop_table("asset_meta")
     op.drop_table("assets")
     op.drop_table("asset_contents")
-    op.create_table("assets", sa.Column("id", sa.String(36), primary_key=True), sa.Column("hash", sa.String(256)), sa.Column("size_bytes", sa.BigInteger(), nullable=False), sa.Column("mime_type", sa.String(255)), sa.Column("created_at", sa.DateTime(), nullable=False))
+    op.create_table(
+        "assets",
+        sa.Column("id", sa.String(length=36), primary_key=True),
+        sa.Column("hash", sa.String(length=256), nullable=True),
+        sa.Column("size_bytes", sa.BigInteger(), nullable=False, server_default="0"),
+        sa.Column("mime_type", sa.String(length=255), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=False), nullable=False),
+        sa.CheckConstraint("size_bytes >= 0", name="ck_assets_size_nonneg"),
+    )
+    op.create_index("uq_assets_hash", "assets", ["hash"], unique=True)
+    op.create_index("ix_assets_mime_type", "assets", ["mime_type"])
     op.create_table("asset_references", sa.Column("id", sa.String(36), primary_key=True), sa.Column("asset_id", sa.String(36), sa.ForeignKey("assets.id", ondelete="CASCADE"), nullable=False), sa.Column("file_path", sa.Text()), sa.Column("loader_path", sa.Text()), sa.Column("mtime_ns", sa.BigInteger()), sa.Column("needs_verify", sa.Boolean(), nullable=False), sa.Column("is_missing", sa.Boolean(), nullable=False), sa.Column("enrichment_level", sa.Integer(), nullable=False), sa.Column("owner_id", sa.String(128), nullable=False), sa.Column("name", sa.String(512), nullable=False), sa.Column("preview_id", sa.String(36), sa.ForeignKey("asset_references.id", ondelete="SET NULL")), sa.Column("user_metadata", sa.JSON()), sa.Column("system_metadata", sa.JSON()), sa.Column("job_id", sa.String(36)), sa.Column("created_at", sa.DateTime(), nullable=False), sa.Column("updated_at", sa.DateTime(), nullable=False), sa.Column("last_access_time", sa.DateTime(), nullable=False), sa.Column("deleted_at", sa.DateTime()))
     op.create_index("uq_asset_references_file_path", "asset_references", ["file_path"], unique=True)
     op.create_index("ix_asset_references_asset_id", "asset_references", ["asset_id"])

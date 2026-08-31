@@ -142,6 +142,57 @@ def test_0007_downgrade_chain_past_0003_succeeds(db_at_0006):
     assert "asset_contents" not in tables
 
 
+def test_0007_downgrade_restores_legacy_assets_definition(db_at_0006, tmp_path):
+    """0007's recreated legacy `assets` must match what 0001 originally built.
+
+    0001's downgrade drops `uq_assets_hash` and `ix_assets_mime_type` by name, so a
+    recreation that omits them breaks the downgrade chain at 0001.
+    """
+    from sqlalchemy import create_engine, inspect
+
+    cfg, db_path = db_at_0006
+
+    reference_db = str(tmp_path / "reference_0006.db")
+    reference_cfg = _make_config(reference_db)
+    command.upgrade(reference_cfg, _BASELINE_0006)
+
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, _BASELINE_0006)
+
+    def _assets_shape(path: str):
+        engine = create_engine(f"sqlite:///{path}")
+        try:
+            inspector = inspect(engine)
+            indexes = {
+                (index["name"], tuple(index["column_names"]), bool(index["unique"]))
+                for index in inspector.get_indexes("assets")
+            }
+            checks = {
+                (check["name"], check["sqltext"])
+                for check in inspector.get_check_constraints("assets")
+            }
+            defaults = {
+                column["name"]: column["default"]
+                for column in inspector.get_columns("assets")
+            }
+            return indexes, checks, defaults
+        finally:
+            engine.dispose()
+
+    restored_indexes, restored_checks, restored_defaults = _assets_shape(db_path)
+    expected_indexes, expected_checks, expected_defaults = _assets_shape(reference_db)
+
+    assert restored_indexes == expected_indexes, (
+        f"index drift: restored={restored_indexes}, expected={expected_indexes}"
+    )
+    assert restored_checks == expected_checks, (
+        f"check drift: restored={restored_checks}, expected={expected_checks}"
+    )
+    assert restored_defaults == expected_defaults, (
+        f"default drift: restored={restored_defaults}, expected={expected_defaults}"
+    )
+
+
 def test_0007_downgrade_restores_0006_asset_references_indexes(db_at_0006, tmp_path):
     from sqlalchemy import create_engine, inspect
 
