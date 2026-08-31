@@ -18,7 +18,7 @@ def make_cache(cache_type, entries, execution_times=None):
 
 def release_one_entry(monkeypatch, cache):
     availability = iter((0, 0, 1))
-    monkeypatch.setattr("comfy_execution.caching.psutil.virtual_memory", lambda: SimpleNamespace(available=next(availability)))
+    monkeypatch.setattr("comfy_execution.caching.virtual_memory_available", lambda: next(availability))
     cache.ram_release(1, free_active=True)
 
 

@@ -2,11 +2,11 @@ import asyncio
 import bisect
 import heapq
 import itertools
-import psutil
 import time
 import torch
 from typing import Sequence, Mapping, Dict
 from comfy.model_patcher import is_model_patcher_output
+from comfy.system_memory import virtual_memory_available
 from comfy_execution.graph import DynamicPrompt
 from abc import ABC, abstractmethod
 
@@ -587,7 +587,7 @@ class RAMPressureCache(LRUCache):
         self.children.pop(key, None)
 
     def ram_release(self, target, free_active=False, min_entry_size=0):
-        if psutil.virtual_memory().available >= target:
+        if virtual_memory_available() >= target:
             return 0
 
         clean_list = []
@@ -601,7 +601,7 @@ class RAMPressureCache(LRUCache):
             bisect.insort(clean_list, (oom_score, self.timestamps[key], key, ram_usage))
 
         freed = 0
-        while psutil.virtual_memory().available < target and clean_list:
+        while virtual_memory_available() < target and clean_list:
             _, _, key, ram_usage = clean_list.pop()
             self._remove_entry(key)
             freed += ram_usage
@@ -625,7 +625,7 @@ class ScoreCache(RAMPressureCache):
         self.execution_times.pop(key, None)
 
     def ram_release(self, target, free_active=False, min_entry_size=0):
-        available = psutil.virtual_memory().available
+        available = virtual_memory_available()
         if available >= target:
             return 0
 
@@ -638,7 +638,7 @@ class ScoreCache(RAMPressureCache):
             heapq.heappush(eviction_heap, (-score, self.timestamps[key], next(tie_breaker), key, ram_usage))
 
         freed = 0
-        while psutil.virtual_memory().available < target and eviction_heap:
+        while virtual_memory_available() < target and eviction_heap:
             _, _, _, key, ram_usage = heapq.heappop(eviction_heap)
             self._remove_entry(key)
             freed += ram_usage
