@@ -280,6 +280,30 @@ def test_agent_cannot_modify_the_original_pack_tree(
     assert (source / "nodes" / "demo.py").read_text() == "class DemoNode:\n    pass\n"
 
 
+def test_conversion_rejects_legacy_registration_without_a_v2_entrypoint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _source_pack(tmp_path / "source")
+    output = tmp_path / "converted"
+    _provide_fake_codex(monkeypatch)
+
+    def agent(
+        invocation: magicpatch.AgentInvocation,
+    ) -> subprocess.CompletedProcess[str]:
+        _finish_conversion(invocation.cwd)
+        (invocation.cwd / "v2" / "__init__.py").write_text(
+            "from .nodes.demo import DemoNode\n"
+            "NODE_CLASS_MAPPINGS = {'DemoNode': DemoNode}\n"
+        )
+        return _codex_result(invocation, _agent_value())
+
+    with pytest.raises(magicpatch.MagicPatchError, match="comfy_entrypoint"):
+        magicpatch.convert_pack(
+            _config(source, output, max_passes=1), execute_agent=agent
+        )
+
+
 def test_patch_round_trip_rejects_a_changed_binary(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

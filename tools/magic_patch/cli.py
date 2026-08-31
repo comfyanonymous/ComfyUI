@@ -1098,6 +1098,35 @@ def _validate_workspace(
         return ["v2/ is missing"]
     if (v2 / "v2").exists():
         problems.append("v2/ contains a nested v2/ directory")
+
+    entrypoint = v2 / "__init__.py"
+    if entrypoint.is_symlink() or not entrypoint.is_file():
+        problems.append("v2/__init__.py is missing")
+    else:
+        try:
+            entrypoint_tree = ast.parse(entrypoint.read_text(), filename=str(entrypoint))
+        except (OSError, SyntaxError) as error:
+            problems.append(f"v2/__init__.py does not parse: {error}")
+        else:
+            has_entrypoint = any(
+                isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and statement.name == "comfy_entrypoint"
+                for statement in entrypoint_tree.body
+            )
+            if not has_entrypoint:
+                problems.append("v2/__init__.py must define comfy_entrypoint")
+            legacy_names = {
+                node.id
+                for node in ast.walk(entrypoint_tree)
+                if isinstance(node, ast.Name)
+                and node.id
+                in {"NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"}
+            }
+            if legacy_names:
+                problems.append(
+                    "v2/__init__.py retains legacy registration names: "
+                    f"{sorted(legacy_names)}"
+                )
     for path in v2.rglob("*"):
         relative = path.relative_to(v2)
         if path.is_symlink():

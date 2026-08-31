@@ -191,8 +191,11 @@ directories are data declarations consumed by the trusted loader.
 
 ## Registration and manifest
 
-Keep normal V2 `NODE_CLASS_MAPPINGS` and display mappings in the converted pack
-for portable OSS loading. They map original ids to the converted classes.
+Replace legacy `NODE_CLASS_MAPPINGS` and display mappings with a normal V2
+`comfy_entrypoint` returning a `ComfyExtension`. Its node list contains the
+converted classes, whose schemas preserve the original workflow ids. Do not
+leave the legacy registration names in `v2/__init__.py`: the local loader gives
+them precedence over `comfy_entrypoint`.
 
 Also create `v2/secure-nodes.json`. Normal local ComfyUI uses the V2 entrypoint;
 an optional secure runtime reads this metadata without importing the pack in
