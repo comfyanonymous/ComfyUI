@@ -120,6 +120,35 @@ async def test_relay_converts_invalid_upstream_responses_to_502(
     assert await response.json() == {"error": "Billing capabilities unavailable"}
 
 
+async def test_relay_refuses_to_follow_upstream_redirects(aiohttp_client, aiohttp_server, monkeypatch):
+    redirect_target_requests = []
+
+    async def redirect_target_handler(request):
+        redirect_target_requests.append(request.headers)
+        return web.json_response({"can_manage_subscription": True})
+
+    target_app = web.Application()
+    target_app.router.add_get("/api/billing/capabilities", redirect_target_handler)
+    target = await aiohttp_server(target_app)
+
+    async def upstream_handler(_request):
+        raise web.HTTPFound(str(target.make_url("/api/billing/capabilities")))
+
+    upstream_app = web.Application()
+    upstream_app.router.add_get("/api/billing/capabilities", upstream_handler)
+    upstream = await aiohttp_server(upstream_app)
+    client = await _relay_client(aiohttp_client, monkeypatch, str(upstream.make_url("/")))
+
+    response = await client.get(
+        "/api/billing/capabilities",
+        headers={"Authorization": "Bearer secret", "X-API-Key": "api-secret"},
+    )
+
+    assert response.status == 502
+    assert await response.json() == {"error": "Billing capabilities unavailable"}
+    assert redirect_target_requests == []
+
+
 async def test_relay_converts_connection_failure_to_502(aiohttp_client, monkeypatch, unused_tcp_port):
     client = await _relay_client(aiohttp_client, monkeypatch, f"http://127.0.0.1:{unused_tcp_port}")
 

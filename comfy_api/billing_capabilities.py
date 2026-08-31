@@ -32,7 +32,9 @@ async def relay_billing_capabilities(request: web.Request, client_session: aioht
 
     base_url = normalize_comfy_api_base(args.comfy_api_base).rstrip("/")
     try:
-        async with client_session.get(f"{base_url}{_UPSTREAM_PATH}", headers=headers, timeout=_TIMEOUT) as upstream:
+        async with client_session.get(
+            f"{base_url}{_UPSTREAM_PATH}", headers=headers, timeout=_TIMEOUT, allow_redirects=False
+        ) as upstream:
             if upstream.status not in _EXPECTED_STATUSES:
                 return _unavailable_response()
 
