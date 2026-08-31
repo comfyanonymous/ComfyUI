@@ -84,17 +84,26 @@ def drain_transition_queue(session: Session) -> None:
             continue
         if snapshot is None:
             # snapshot_hash returns None both for a file that vanished and for one that would
-            # not hold still. Requeuing either forever wedges the completion gate below.
-            if os.path.isfile(path):
+            # not hold still. `os.path.isfile` would swallow every stat failure into "not
+            # present" — a transient permission or I/O error there would mark a PRESENT file's
+            # row missing, bypassing the OSError requeue above. Classify explicitly instead:
+            # FileNotFoundError means gone; any other OSError (including a vanished parent
+            # directory, i.e. NotADirectoryError) is transient and requeues, same as the
+            # snapshot_hash OSError branch; a stat that succeeds means present-but-unstable.
+            try:
+                os.stat(path)
+            except FileNotFoundError:
+                gone = session.scalars(
+                    select(AssetContent).where(
+                        AssetContent.path == path, AssetContent.is_missing.is_(False)
+                    )
+                ).first()
+                if gone is not None:
+                    mark_content_missing(session, gone.id)
+            except OSError:
                 _PENDING_QUEUE.append(path)
-                continue
-            gone = session.scalars(
-                select(AssetContent).where(
-                    AssetContent.path == path, AssetContent.is_missing.is_(False)
-                )
-            ).first()
-            if gone is not None:
-                mark_content_missing(session, gone.id)
+            else:
+                _PENDING_QUEUE.append(path)
             continue
         digest, stat = snapshot
         stored_hash = to_stored_hash(digest)

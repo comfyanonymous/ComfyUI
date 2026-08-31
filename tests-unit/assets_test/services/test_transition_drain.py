@@ -187,6 +187,44 @@ def test_transition_drain_marks_deleted_path_missing_and_completes_transition(
     )
 
 
+def test_transition_drain_requeues_transient_stat_error_without_marking_it_missing(
+    session, temp_dir, monkeypatch
+):
+    # A transient, non-FileNotFoundError OSError at the disambiguation stat (permission denied,
+    # EIO, a stale NFS handle) must requeue like the snapshot_hash OSError branch above it — not
+    # be misclassified as "gone" the way a bare os.path.isfile (which swallows every OSError into
+    # False) would. NotADirectoryError is deliberately included in "transient/requeue", not
+    # "gone": a vanished parent directory component says nothing about whether this file's own
+    # bytes still exist, so only FileNotFoundError itself is treated as gone.
+    path = temp_dir / "transient-stat-error.bin"
+    path.write_bytes(b"present the whole time")
+    stat = path.stat()
+    content = create_content(session, str(path), size_bytes=stat.st_size, mtime_ns=stat.st_mtime_ns)
+    content_id = content.id
+    write_stored_mode(session, "off")
+    monkeypatch.setattr(hash_mode_state._mode, "hashing_enabled", lambda: True)
+    monkeypatch.setattr(hash_mode_state, "snapshot_hash", lambda candidate_path: None)
+    real_stat = hash_mode_state.os.stat
+
+    def flaky_stat(candidate_path, *args, **kwargs):
+        if candidate_path == str(path):
+            raise NotADirectoryError("stale handle mid-drain")
+        return real_stat(candidate_path, *args, **kwargs)
+
+    monkeypatch.setattr(hash_mode_state.os, "stat", flaky_stat)
+
+    transition = record_transition_intent(session)
+    enqueue_transition_work(session, transition)
+    drain_transition_queue(session)
+    session.commit()
+
+    assert session.get(AssetContent, content_id).is_missing is False, (
+        "a transient stat failure on a file that is still present must not mark its row missing"
+    )
+    assert hash_mode_state.pending_transition_count() == 1
+    assert read_stored_mode(session) == "off"
+
+
 def test_transition_drain_requeues_unstable_present_file_without_marking_it_missing(
     session, temp_dir, monkeypatch
 ):
