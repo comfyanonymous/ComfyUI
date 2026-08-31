@@ -389,8 +389,25 @@ def prompt_worker(q, server_instance):
             for k in sensitive:
                 extra_data[k] = sensitive[k]
 
-            asset_seeder.pause()
-            e.execute(item[2], prompt_id, extra_data, item[4])
+            lease_acquired = False
+            start_hook = server_instance.prompt_execution_start_hook
+            if start_hook is not None:
+                asyncio.run_coroutine_threadsafe(
+                    start_hook({"prompt_id": prompt_id, "sensitive": sensitive}),
+                    server_instance.loop,
+                ).result()
+                lease_acquired = True
+
+            try:
+                asset_seeder.pause()
+                e.execute(item[2], prompt_id, extra_data, item[4])
+            finally:
+                complete_hook = server_instance.prompt_execution_complete_hook
+                if lease_acquired and complete_hook is not None:
+                    asyncio.run_coroutine_threadsafe(
+                        complete_hook({"prompt_id": prompt_id, "sensitive": sensitive}),
+                        server_instance.loop,
+                    ).result()
 
             need_gc = True
 

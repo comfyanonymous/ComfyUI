@@ -269,6 +269,8 @@ class PromptServer():
         self.prompt_admission_hook = None
         # Optional async callback for admitted prompts removed before execution.
         self.prompt_cancellation_hook = None
+        self.prompt_execution_start_hook = None
+        self.prompt_execution_complete_hook = None
 
         @routes.get('/ws')
         async def websocket_handler(request):

@@ -90,6 +90,8 @@ async def test_valid_prompt_without_hook_enqueues_once_unchanged(prompt_server, 
     }))
 
     assert prompt_server.prompt_admission_hook is None
+    assert prompt_server.prompt_execution_start_hook is None
+    assert prompt_server.prompt_execution_complete_hook is None
     assert response.status == 200
     assert response_json(response) == {"prompt_id": PROMPT_ID, "number": 7.0, "node_errors": {}}
     prompt_queue.put.assert_called_once_with((
