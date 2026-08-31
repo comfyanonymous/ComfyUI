@@ -53,8 +53,6 @@ from ._llama_cpp import InProcessLlamaCpp
 if TYPE_CHECKING:  # keep this module import-safe / torch-free at import time
     import torch
 
-    from ._io import NodeOutput
-
 logger = logging.getLogger(__name__)
 
 # Env var an operator points at a directory/module implementing ``register``.
@@ -16088,13 +16086,13 @@ class InProcessOps:
                 if not isinstance(raw_box, dict):
                     raise RuntimeError("SAM3 grounding returned an invalid box")
                 box: dict[str, float] = {}
-                for field in ("x", "y", "width", "height", "score"):
-                    value = raw_box.get(field)
+                for box_field in ("x", "y", "width", "height", "score"):
+                    value = raw_box.get(box_field)
                     if (type(value) not in (int, float)
                             or not math.isfinite(float(value))):
                         raise RuntimeError(
-                            f"SAM3 grounding box has invalid {field}")
-                    box[field] = float(value)
+                            f"SAM3 grounding box has invalid {box_field}")
+                    box[box_field] = float(value)
                 if (box["width"] < 0.0 or box["height"] < 0.0
                         or not 0.0 <= box["score"] <= 1.0
                         or abs(box["x"]) > width * 4
@@ -16579,6 +16577,7 @@ class Providers:
         self.ops_provider: OpsProvider = InProcessOps()
         self.ref_resolver_factory: Callable[[], RefResolver] = InProcessRefResolver
         self._overlay_name: Optional[str] = None
+        self._extension_host_module_url: Optional[str] = None
 
     # Overlay entry points -------------------------------------------------- #
     def register_execution_backend(self, impl: ExecutionBackend) -> None:
@@ -16596,6 +16595,21 @@ class Providers:
     def register_ref_resolver_factory(self, factory: Callable[[], RefResolver]) -> None:
         logger.info("SDK: ref resolver -> %s", getattr(factory, "__name__", factory))
         self.ref_resolver_factory = factory
+
+    def register_extension_host(self, module_url: str) -> None:
+        if not module_url:
+            raise ValueError("extension host module URL must not be empty")
+        self._extension_host_module_url = module_url
+
+    @property
+    def frontend_runtime_config(self) -> dict[str, Any]:
+        if self._extension_host_module_url is None:
+            return {}
+        return {
+            "extension_host": {
+                "module_url": self._extension_host_module_url,
+            }
+        }
 
     @property
     def overlay_active(self) -> bool:
@@ -16643,15 +16657,21 @@ def load_overlay(spec: Optional[str] = None) -> bool:
         module = importlib.import_module(spec)  # importable module name
 
     if module is None:
-        logger.error("SDK overlay %r could not be loaded", spec)
-        return False
+        raise RuntimeError(f"SDK overlay {spec!r} could not be loaded")
 
     register = getattr(module, "register", None)
     if not callable(register):
-        logger.error("SDK overlay %r has no register(providers) entrypoint", spec)
-        return False
+        raise RuntimeError(
+            f"SDK overlay {spec!r} has no register(providers) entrypoint"
+        )
 
     register(providers)
     providers._overlay_name = getattr(module, "__name__", spec)
     logger.info("SDK overlay loaded: %s", providers._overlay_name)
     return True
+
+
+def should_load_legacy_custom_nodes(
+    *, secure_mode: bool, disabled: bool, has_whitelist: bool
+) -> bool:
+    return not secure_mode and (not disabled or has_whitelist)

@@ -821,6 +821,7 @@ class PromptExecutor:
         self.cache_args = cache_args
         self.cache_type = cache_type
         self.server = server
+        self.prompt_model_tracker = comfy.model_patcher.PromptModelTracker()
         self._runner = asyncio.Runner()
         self._active_loop = None
         self._active_task = None
