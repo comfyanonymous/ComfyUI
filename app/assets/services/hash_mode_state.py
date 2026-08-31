@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -82,7 +83,18 @@ def drain_transition_queue(session: Session) -> None:
             _PENDING_QUEUE.append(path)
             continue
         if snapshot is None:
-            _PENDING_QUEUE.append(path)
+            # snapshot_hash returns None both for a file that vanished and for one that would
+            # not hold still. Requeuing either forever wedges the completion gate below.
+            if os.path.isfile(path):
+                _PENDING_QUEUE.append(path)
+                continue
+            gone = session.scalars(
+                select(AssetContent).where(
+                    AssetContent.path == path, AssetContent.is_missing.is_(False)
+                )
+            ).first()
+            if gone is not None:
+                mark_content_missing(session, gone.id)
             continue
         digest, stat = snapshot
         stored_hash = to_stored_hash(digest)

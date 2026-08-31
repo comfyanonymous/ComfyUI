@@ -5,7 +5,7 @@ import pytest
 from blake3 import blake3
 from sqlalchemy import select
 
-from app.assets.database.models import Asset, AssetContent
+from app.assets.database.models import Asset, AssetContent, AssetTag
 from app.assets.database.queries.records import create_content, create_record
 from app.assets.helpers import to_stored_hash
 from app.assets.services import hash_mode_state
@@ -152,6 +152,97 @@ def test_transition_drain_requeues_permission_errors_and_processes_other_paths(
     assert healthy_content.hash == to_stored_hash(blake3(healthy_payload).hexdigest())
     assert hash_mode_state.pending_transition_count() == 1
     assert read_stored_mode(session) == "off"
+
+
+def test_transition_drain_marks_deleted_path_missing_and_completes_transition(
+    session, temp_dir, monkeypatch
+):
+    path = temp_dir / "vanished.bin"
+    monkeypatch.setattr("folder_paths.get_input_directory", lambda: str(temp_dir))
+    path.write_bytes(b"bytes that die during the outage")
+    stat = path.stat()
+    content = create_content(session, str(path), size_bytes=stat.st_size, mtime_ns=stat.st_mtime_ns)
+    content_id = content.id
+    record = create_record(session, content_id, "vanished.bin")
+    record_id = record.id
+    write_stored_mode(session, "off")
+    monkeypatch.setattr(hash_mode_state._mode, "hashing_enabled", lambda: True)
+    path.unlink()
+
+    transition = record_transition_intent(session)
+    enqueue_transition_work(session, transition)
+    drain_transition_queue(session)
+    session.commit()
+
+    assert session.get(AssetContent, content_id).is_missing is True, (
+        "a path deleted while every server was down must be marked missing, not requeued forever"
+    )
+    assert session.get(AssetTag, {"asset_id": record_id, "tag_name": "missing"}) is not None
+    assert hash_mode_state.pending_transition_count() == 0, (
+        "the queue never empties while a deleted path is requeued unconditionally"
+    )
+    assert read_stored_mode(session) == "on", (
+        "the completion gate stays wedged at 'off' for the process lifetime when the queue "
+        "cannot drain, so hash-addressed serving never gets its re-verification certificate"
+    )
+
+
+def test_transition_drain_requeues_unstable_present_file_without_marking_it_missing(
+    session, temp_dir, monkeypatch
+):
+    path = temp_dir / "still-being-written.bin"
+    path.write_bytes(b"a partial write in flight")
+    stat = path.stat()
+    content = create_content(session, str(path), size_bytes=stat.st_size, mtime_ns=stat.st_mtime_ns)
+    content_id = content.id
+    create_record(session, content_id, "still-being-written.bin")
+    write_stored_mode(session, "off")
+    monkeypatch.setattr(hash_mode_state._mode, "hashing_enabled", lambda: True)
+    monkeypatch.setattr(hash_mode_state, "snapshot_hash", lambda candidate_path: None)
+
+    transition = record_transition_intent(session)
+    enqueue_transition_work(session, transition)
+    drain_transition_queue(session)
+    session.commit()
+
+    assert session.get(AssetContent, content_id).is_missing is False, (
+        "snapshot_hash returns None for drift too; a file still on disk is unstable, not gone"
+    )
+    assert hash_mode_state.pending_transition_count() == 1
+    assert read_stored_mode(session) == "off"
+
+
+def test_transition_drain_mixes_a_deleted_path_with_a_healthy_one(session, temp_dir, monkeypatch):
+    monkeypatch.setattr("folder_paths.get_input_directory", lambda: str(temp_dir))
+    deleted_path = temp_dir / "deleted.bin"
+    healthy_path = temp_dir / "survivor.bin"
+    deleted_path.write_bytes(b"deleted during the outage")
+    healthy_path.write_bytes(b"survivor")
+    content_ids = {}
+    for path in (deleted_path, healthy_path):
+        stat = path.stat()
+        content = create_content(
+            session, str(path), size_bytes=stat.st_size, mtime_ns=stat.st_mtime_ns
+        )
+        content_ids[path] = content.id
+        create_record(session, content.id, path.name)
+    write_stored_mode(session, "off")
+    monkeypatch.setattr(hash_mode_state._mode, "hashing_enabled", lambda: True)
+    healthy_hash = _stored_hash(healthy_path)
+    deleted_path.unlink()
+
+    transition = record_transition_intent(session)
+    enqueue_transition_work(session, transition)
+    drain_transition_queue(session)
+    session.commit()
+
+    assert session.get(AssetContent, content_ids[deleted_path]).is_missing is True
+    healthy_content = session.get(AssetContent, content_ids[healthy_path])
+    assert (healthy_content.is_missing, healthy_content.hash) == (False, healthy_hash), (
+        "one dead path must not cost the healthy paths behind it their hashes"
+    )
+    assert hash_mode_state.pending_transition_count() == 0
+    assert read_stored_mode(session) == "on"
 
 
 def test_transition_drain_skips_out_of_root_path(session, temp_dir, monkeypatch, caplog):
