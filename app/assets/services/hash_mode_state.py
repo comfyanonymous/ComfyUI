@@ -87,9 +87,10 @@ def drain_transition_queue(session: Session) -> None:
             # not hold still. `os.path.isfile` would swallow every stat failure into "not
             # present" — a transient permission or I/O error there would mark a PRESENT file's
             # row missing, bypassing the OSError requeue above. Classify explicitly instead:
-            # FileNotFoundError means gone; any other OSError (including a vanished parent
-            # directory, i.e. NotADirectoryError) is transient and requeues, same as the
-            # snapshot_hash OSError branch; a stat that succeeds means present-but-unstable.
+            # FileNotFoundError means gone; any other OSError — including NotADirectoryError,
+            # which means a path component currently isn't a directory, not that the file is
+            # gone — is transient and requeues, same as snapshot_hash's own OSError propagation;
+            # a stat that succeeds means present-but-unstable.
             try:
                 os.stat(path)
             except FileNotFoundError:

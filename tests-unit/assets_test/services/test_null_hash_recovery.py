@@ -134,6 +134,49 @@ def test_different_bytes_restored_at_same_path_does_not_recover_old_row(
     assert len(session.scalars(select(AssetContent)).all()) == 2
 
 
+def test_same_size_different_mtime_restored_at_same_path_does_not_recover_old_row(
+    session, temp_dir, monkeypatch
+):
+    path = temp_dir / "retimed.bin"
+    monkeypatch.setattr("folder_paths.get_input_directory", lambda: str(temp_dir))
+    original_bytes = b"identical length, different moment in time"
+    path.write_bytes(original_bytes)
+    stat = path.stat()
+    content = create_content(session, str(path), size_bytes=stat.st_size, mtime_ns=stat.st_mtime_ns)
+    content_id = content.id
+    create_record(session, content_id, "retimed.bin")
+    session.commit()
+
+    write_stored_mode(session, "off")
+    monkeypatch.setattr(hash_mode_state._mode, "hashing_enabled", lambda: True)
+    path.unlink()
+    transition = record_transition_intent(session)
+    enqueue_transition_work(session, transition)
+    drain_transition_queue(session)
+    session.commit()
+    assert session.get(AssetContent, content_id).is_missing is True
+
+    # Same bytes, same length — but written back at a different moment, so the restored mtime
+    # deliberately does not match the missing row's recorded mtime_ns. Size alone would pass;
+    # exact mtime is the strongest recorded discriminator available and must also hold.
+    path.write_bytes(original_bytes)
+    shifted_ns = stat.st_mtime_ns + 5_000_000_000
+    os.utime(path, ns=(stat.st_atime_ns, shifted_ns))
+    assert path.stat().st_mtime_ns != stat.st_mtime_ns, "setup: mtime must actually differ"
+    assert path.stat().st_size == stat.st_size, "setup: size must match so only mtime disambiguates"
+
+    with patch("app.assets.scanner.mode.hashing_enabled", return_value=True):
+        created = seed_asset_specs(session, [_spec(path)])
+    session.commit()
+
+    assert created == 1, "a same-size-but-different-mtime restore must take the new-content path"
+    assert session.get(AssetContent, content_id).is_missing is True, (
+        "a matching size with a mismatched mtime is not proof the old row's bytes are back — "
+        "recovering here would hand the wrong record's identity to different bytes"
+    )
+    assert len(session.scalars(select(AssetContent)).all()) == 2
+
+
 def test_two_missing_null_hash_candidates_at_same_path_do_not_recover(
     session, temp_dir, monkeypatch
 ):
