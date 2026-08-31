@@ -821,7 +821,6 @@ class PromptExecutor:
         self.cache_args = cache_args
         self.cache_type = cache_type
         self.server = server
-        self.prompt_model_tracker = comfy.model_patcher.PromptModelTracker()
         self._runner = asyncio.Runner()
         self._active_loop = None
         self._active_task = None
@@ -1071,7 +1070,6 @@ class PromptExecutor:
             if self.cache_type == CacheType.RAM_PRESSURE:
                 detail("RAM cache evictions: prompt=%s active=%s full=%s", prompt_id, self.caches.outputs.active_evictions, self.caches.outputs.full_evictions)
             comfy.memory_management.set_ram_cache_release_state(None, 0)
-            self.prompt_model_tracker.end()
             try:
                 try:
                     await _notify_execution_backend_lifecycle(

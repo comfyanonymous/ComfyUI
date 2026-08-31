@@ -296,14 +296,12 @@ class Qwen3VL_4BConfig(Qwen3VL_8BConfig):
 
 @dataclass
 class Qwen3VL_32BConfig(Qwen3VL_8BConfig):
-    # MiniMax H3 conditioning checkpoint: truncated to the first 50 of 64 layers,
-    # consumed as the unnormalized hidden state after layer 50 (no final norm, no lm_head)
     hidden_size: int = 5120
     intermediate_size: int = 25600
-    num_hidden_layers: int = 50
+    num_hidden_layers: int = 64
     num_attention_heads: int = 64
-    lm_head: bool = False
-    final_norm: bool = False
+    num_key_value_heads: int = 8
+    lm_head: bool = True
 
 @dataclass
 class Ovis25_2BConfig:
@@ -1041,7 +1039,7 @@ class BaseGenerate:
     def init_kv_cache(self, batch, max_cache_len, device, execution_dtype):
         return self.model.init_kv_cache(batch, max_cache_len, device, execution_dtype)
 
-    def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, seed=42, stop_tokens=None, initial_tokens=[], execution_dtype=None, min_tokens=0, presence_penalty=0.0, initial_input_ids=None, position_ids=None, deepstack_embeds=None, visual_pos_masks=None, embeds_info=None, num_beams=1):
+    def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, seed=42, stop_tokens=None, initial_tokens=[], execution_dtype=None, min_tokens=0, presence_penalty=0.0, initial_input_ids=None, position_ids=None, deepstack_embeds=None, visual_pos_masks=None, num_beams=1):
         if num_beams != 1:
             return self.generate_beam(
                 embeds=embeds,
@@ -1055,7 +1053,6 @@ class BaseGenerate:
                 position_ids=position_ids,
                 deepstack_embeds=deepstack_embeds,
                 visual_pos_masks=visual_pos_masks,
-                embeds_info=embeds_info,
                 num_beams=num_beams,
             )
         device = embeds.device
@@ -1121,7 +1118,7 @@ class BaseGenerate:
         self, *, embeds, max_length, repetition_penalty, stop_tokens,
         initial_tokens, execution_dtype, presence_penalty,
         initial_input_ids, position_ids, deepstack_embeds,
-        visual_pos_masks, embeds_info, num_beams,
+        visual_pos_masks, num_beams,
     ):
         """Bounded deterministic beam search for canonical language models."""
         if isinstance(num_beams, bool) or not isinstance(num_beams, int):
@@ -1157,7 +1154,6 @@ class BaseGenerate:
             input_ids=initial_input_ids,
             position_ids=position_ids,
             **extra,
-            embeds_info=embeds_info,
         )
         logits = self.logits(output)[:, -1]
         log_probs = torch.nn.functional.log_softmax(logits.float(), dim=-1)

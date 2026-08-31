@@ -147,6 +147,8 @@ def test_load_gguf_text_encoders_rejects_unsafe_or_ambiguous_inputs(
 def test_load_gguf_text_encoders_requires_compatible_gguf_extension(
     monkeypatch,
 ):
+    import comfy.sd
+
     monkeypatch.setattr(
         folder_paths,
         "get_filename_list",

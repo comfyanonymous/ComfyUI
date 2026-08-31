@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import os
 
 import pytest
 import torch
@@ -451,7 +452,7 @@ def test_onnx_multilabel_classifier_keeps_scores_opaque_and_pages_matches(
 ):
     import numpy as np
     import onnx
-    from onnx import TensorProto, helper
+    from onnx import TensorProto, helper, numpy_helper
     import folder_paths
     from comfy_api.latest import _sdk
 
