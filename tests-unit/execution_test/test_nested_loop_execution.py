@@ -64,6 +64,31 @@ class CapturePassthrough:
         return (value,)
 
 
+class Pair:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"value": ("INT",)}}
+
+    RETURN_TYPES = ("*",)
+    OUTPUT_IS_LIST = (True,)
+    FUNCTION = "execute"
+
+    def execute(self, value):
+        return ([value, str(value)],)
+
+
+class ListBackedScalar:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"value": ("INT",)}}
+
+    RETURN_TYPES = ("*",)
+    FUNCTION = "execute"
+
+    def execute(self, value):
+        return ([[value]],)
+
+
 class Server:
     client_id = None
 
@@ -193,3 +218,77 @@ def test_loop_executes_termination_without_carried_or_output_value(monkeypatch):
     assert executor.success
     assert Increment.calls == [1, 2]
     assert CapturePassthrough.values == [1, 2]
+
+
+def run_nested_accumulation(monkeypatch, producer_name, producer_class):
+    Capture.values = []
+    monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "Loop", nodes_loop.Loop)
+    monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "CloseLoop", nodes_loop.CloseLoop)
+    monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, producer_name, producer_class)
+    monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "TestCapture", Capture)
+    monkeypatch.setattr(
+        nodes_loop,
+        "PromptServer",
+        type("PromptServer", (), {"instance": type("Progress", (), {"send_progress_text": lambda *args: None})()}),
+    )
+
+    prompt = {
+        "outer": {
+            "class_type": "Loop",
+            "inputs": {"mode": "simple", "mode.num_iterations": 2},
+        },
+        "inner": {
+            "class_type": "Loop",
+            "inputs": {
+                "mode": "simple",
+                "mode.num_iterations": 2,
+                "iteration_outer": ["outer", 0],
+            },
+        },
+        "producer": {
+            "class_type": producer_name,
+            "inputs": {"value": ["inner", 0]},
+        },
+        "inner_close": {
+            "class_type": "CloseLoop",
+            "inputs": {
+                "output_value": ["producer", 0],
+                "accumulate": True,
+            },
+        },
+        "outer_close": {
+            "class_type": "CloseLoop",
+            "inputs": {
+                "output_value": ["inner_close", 0],
+                "accumulate": True,
+            },
+        },
+        "capture": {
+            "class_type": "TestCapture",
+            "inputs": {"value": ["outer_close", 0]},
+        },
+    }
+    executor = PromptExecutor(
+        Server(),
+        cache_type=False,
+        cache_args={"ram": 0, "ram_inactive": 0},
+    )
+
+    executor.execute(prompt, "nested-loop-accumulation-test", execute_outputs=["capture"])
+
+    assert executor.success
+    return Capture.values
+
+
+def test_nested_loop_concatenates_zipped_lists(monkeypatch):
+    assert run_nested_accumulation(monkeypatch, "TestPair", Pair) == [
+        [0, 1, 0, 1],
+        ["0", "1", "0", "1"],
+    ]
+
+
+def test_nested_loop_does_not_flatten_list_backed_scalars(monkeypatch):
+    assert run_nested_accumulation(monkeypatch, "TestListBackedScalar", ListBackedScalar) == [
+        [[[0]], [[0]]],
+        [[[1]], [[1]]],
+    ]

@@ -84,6 +84,18 @@ class Loop(io.ComfyNode):
             close_inputs = dynprompt.get_node(close_id)["inputs"]
             output_value = close_inputs.get("output_value")
             output_source = tuple(output_value) if is_link(output_value) else None
+            concat_output_lists = False
+            if output_source is not None:
+                output_node = dynprompt.get_node(output_source[0])
+                nested_output = output_node["inputs"].get("output_value")
+                if output_node["class_type"] == "CloseLoop" and is_link(nested_output):
+                    import nodes
+                    source_node = dynprompt.get_node(nested_output[0])
+                    source_class = nodes.NODE_CLASS_MAPPINGS.get(source_node["class_type"])
+                    if source_class is not None:
+                        source_output_is_list = getattr(source_class, "OUTPUT_IS_LIST", ())
+                        if nested_output[1] < len(source_output_is_list):
+                            concat_output_lists = source_output_is_list[nested_output[1]]
             next_value = close_inputs.get("next_value")
             next_source = tuple(next_value) if is_link(next_value) else None
             termination_sources = {
@@ -121,6 +133,7 @@ class Loop(io.ComfyNode):
                 "invalidated_nodes": projected_nodes.union(nested_openers),
                 "close_id": close_id,
                 "output_source": output_source,
+                "concat_output_lists": concat_output_lists,
                 "next_source": next_source,
                 "termination_sources": termination_sources,
                 "internal_sources": {
@@ -172,7 +185,10 @@ class Loop(io.ComfyNode):
                     close_state["outputs"].append(output_values[0])
                 else:
                     for outputs, output in zip(close_state["outputs"], output_values):
-                        outputs.append(output)
+                        if state["concat_output_lists"] and isinstance(output, list):
+                            outputs.extend(output)
+                        else:
+                            outputs.append(output)
                 close_state["last_output"] = output_values
 
             state["carried_value"] = None
