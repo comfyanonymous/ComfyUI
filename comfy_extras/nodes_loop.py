@@ -84,13 +84,16 @@ class Loop(io.ComfyNode):
             close_inputs = dynprompt.get_node(close_id)["inputs"]
             output_value = close_inputs.get("output_value")
             output_source = tuple(output_value) if is_link(output_value) else None
-            next_source = tuple(close_inputs["next_value"])
+            next_value = close_inputs.get("next_value")
+            next_source = tuple(next_value) if is_link(next_value) else None
             termination_sources = {
                 input_name: tuple(source)
                 for input_name, source in close_inputs.items()
                 if input_name.startswith("termination") and is_link(source)
             }
-            close_sources = (next_source, *termination_sources.values())
+            close_sources = tuple(termination_sources.values())
+            if next_source is not None:
+                close_sources = (next_source, *close_sources)
             if output_source is not None:
                 close_sources = (output_source, *close_sources)
             internal_source_nodes = {
@@ -172,12 +175,14 @@ class Loop(io.ComfyNode):
                         outputs.append(output)
                 close_state["last_output"] = output_values
 
-            next_values = source_values(state["next_source"], "next_value")
-            if not next_values:
-                raise RuntimeError(
-                    f"Close Loop {state['close_id']} next_value did not produce a value"
-                )
-            state["carried_value"] = next_values[0]
+            state["carried_value"] = None
+            if state["next_source"] is not None:
+                next_values = source_values(state["next_source"], "next_value")
+                if not next_values:
+                    raise RuntimeError(
+                        f"Close Loop {state['close_id']} next_value did not produce a value"
+                    )
+                state["carried_value"] = next_values[0]
             for input_name, source in state["termination_sources"].items():
                 source_values(source, input_name)
 
@@ -243,7 +248,7 @@ class CloseLoop(io.ComfyNode):
             is_input_list=True,
             inputs=[
                 io.MatchType.Input("output_value", output_type, optional=True),
-                io.MatchType.Input("next_value", carried_type),
+                io.MatchType.Input("next_value", carried_type, optional=True),
                 io.Boolean.Input("accumulate", default=False),
                 io.Autogrow.Input("terminations", template=terminations, optional=True),
             ],
@@ -254,7 +259,7 @@ class CloseLoop(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, next_value, accumulate, output_value=None, **terminations):
+    def execute(cls, accumulate, output_value=None, next_value=None, **terminations):
         execution_list = cls.hidden.execution_list
         unique_id = cls.hidden.unique_id
         state = execution_list.get_projection_state(unique_id)

@@ -145,12 +145,11 @@ def test_nested_loops_execute_each_body_once_without_final_requeue(monkeypatch):
     assert Capture.values == [4]
 
 
-def test_loop_executes_termination_without_output_value(monkeypatch):
+def test_loop_executes_termination_without_carried_or_output_value(monkeypatch):
     Increment.calls = []
     CapturePassthrough.values = []
     monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "Loop", nodes_loop.Loop)
     monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "CloseLoop", nodes_loop.CloseLoop)
-    monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "TestConstant", Constant)
     monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "TestIncrement", Increment)
     monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "TestCapturePassthrough", CapturePassthrough)
     monkeypatch.setattr(
@@ -160,21 +159,16 @@ def test_loop_executes_termination_without_output_value(monkeypatch):
     )
 
     prompt = {
-        "constant": {
-            "class_type": "TestConstant",
-            "inputs": {"value": 0},
-        },
         "loop": {
             "class_type": "Loop",
             "inputs": {
                 "mode": "simple",
                 "mode.num_iterations": 2,
-                "initial_value": ["constant", 0],
             },
         },
         "increment": {
             "class_type": "TestIncrement",
-            "inputs": {"value": ["loop", 4]},
+            "inputs": {"value": ["loop", 0]},
         },
         "preview": {
             "class_type": "TestCapturePassthrough",
@@ -183,7 +177,6 @@ def test_loop_executes_termination_without_output_value(monkeypatch):
         "close": {
             "class_type": "CloseLoop",
             "inputs": {
-                "next_value": ["increment", 0],
                 "accumulate": False,
                 "termination0": ["preview", 0],
             },
