@@ -27,6 +27,11 @@ lint.ignore = ["E501", "E722", "E731", "E712", "E402", "E741"]
 
 exclude = ["*.ipynb", "**/generated/*.pyi"]
 
+[tool.ruff.lint.per-file-ignores]
+"tools/magic_patch/assets/*" = ["F821"]
+"tools/magic_patch/cli.py" = ["T201"]
+"tools/magic_patch/patch.py" = ["T201"]
+
 [tool.pylint]
 master.py-version = "3.10"
 master.extension-pkg-allow-list = [
