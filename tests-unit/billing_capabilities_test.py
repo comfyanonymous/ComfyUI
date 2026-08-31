@@ -97,6 +97,9 @@ async def test_relay_preserves_expected_responses(aiohttp_client, aiohttp_server
     [
         (500, b'{"internal": "detail"}', "application/json"),
         (200, b"not json", "text/plain"),
+        (200, b'{"can_manage_subscription": true}', "text/plain"),
+        (200, b"[]", "application/json"),
+        (200, b"null", "application/json"),
         (200, b'\xff\xfe{"can_manage_subscription": true}', "application/json"),
     ],
 )

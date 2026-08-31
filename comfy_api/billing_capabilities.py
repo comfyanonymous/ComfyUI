@@ -37,7 +37,8 @@ async def relay_billing_capabilities(request: web.Request, client_session: aioht
                 return _unavailable_response()
 
             body = await upstream.read()
-            json.loads(body)
+            if upstream.content_type != "application/json" or not isinstance(json.loads(body), dict):
+                return _unavailable_response()
             response_headers = {name: upstream.headers[name] for name in _RESPONSE_HEADERS if name in upstream.headers}
             return web.Response(body=body, status=upstream.status, headers=response_headers)
     except (aiohttp.ClientError, asyncio.TimeoutError, json.JSONDecodeError, UnicodeDecodeError):
