@@ -2376,6 +2376,7 @@ class SenseNovaU15(BaseModel):
             if reference_images is not None:
                 reference_images = comfy.ldm.sensenova.conditioning.preprocess_references(reference_images)
             image_only = kwargs.get("prompt_type") == "negative"
+            thinking = bool(kwargs.get("sensenova_thinking", False)) and not image_only
             indexes = None
             prefix_mask = None
             if reference_images:
@@ -2396,23 +2397,37 @@ class SenseNovaU15(BaseModel):
                     indexes, dtype=self.get_dtype_inference()
                 )
 
-            if kwargs.get("hooks") is None:
+            hooks = kwargs.get("hooks")
+            if hooks is None:
                 dtype = self.get_dtype_inference()
-                prefix_keys, prefix_values, prefix_time = (
-                    self.diffusion_model.preprocess_prefix(
-                        text_input_ids.to(device=device),
-                        [
-                            image.to(device=device, dtype=dtype)
-                            for image in reference_images
-                        ]
-                        if reference_images
-                        else None,
-                        indexes.to(device=device) if indexes is not None else None,
-                        prefix_mask.to(device=device)
-                        if prefix_mask is not None
-                        else None,
-                    )
+                prefix_args = (
+                    text_input_ids.to(device=device),
+                    [
+                        image.to(device=device, dtype=dtype)
+                        for image in reference_images
+                    ]
+                    if reference_images
+                    else None,
+                    indexes.to(device=device) if indexes is not None else None,
+                    prefix_mask.to(device=device)
+                    if prefix_mask is not None
+                    else None,
                 )
+                if thinking:
+                    prefix_keys, prefix_values, prefix_time = (
+                        self.diffusion_model.preprocess_thinking_prefix(
+                            *prefix_args,
+                            max_think_tokens=int(
+                                kwargs.get("sensenova_max_think_tokens", 1024)
+                            ),
+                        )
+                    )
+                else:
+                    prefix_keys, prefix_values, prefix_time = (
+                        self.diffusion_model.preprocess_prefix(
+                            *prefix_args,
+                        )
+                    )
                 out["prefix_keys"] = SenseNovaSharedList(prefix_keys)
                 out["prefix_values"] = SenseNovaSharedList(prefix_values)
                 out["prefix_time"] = SenseNovaSharedRegular(prefix_time)
@@ -2422,6 +2437,11 @@ class SenseNovaU15(BaseModel):
                     out["prefix_mask"] = SenseNovaSharedRegular(prefix_mask)
                     out["reference_images"] = SenseNovaSharedList(reference_images)
                 out["text_input_ids"] = SenseNovaSharedRegular(text_input_ids)
+                if thinking:
+                    out["sensenova_thinking"] = comfy.conds.CONDConstant(True)
+                    out["sensenova_max_think_tokens"] = comfy.conds.CONDConstant(
+                        int(kwargs.get("sensenova_max_think_tokens", 1024))
+                    )
         return out
 
     def extra_conds_shapes(self, **kwargs):
@@ -2452,7 +2472,13 @@ class SenseNovaU15(BaseModel):
             else:
                 length = text_input_ids.shape[1]
             out["prefix_mask"] = [1, 1, length, length]
-            if kwargs.get("hooks") is None:
+            image_only = kwargs.get("prompt_type") == "negative"
+            thinking = bool(kwargs.get("sensenova_thinking", False)) and not image_only
+            if kwargs.get("hooks") is None or thinking:
+                if thinking:
+                    length += int(kwargs.get("sensenova_max_think_tokens", 1024))
+                    length += 1
+                    length += len(comfy.ldm.sensenova.model.THINK_SUFFIX_TOKEN_IDS)
                 prefix_shape = [
                     1,
                     comfy.ldm.sensenova.model.NUM_KV_HEADS,
