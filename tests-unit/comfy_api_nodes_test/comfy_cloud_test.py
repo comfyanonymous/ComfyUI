@@ -618,6 +618,14 @@ def test_extension_registers_exactly_the_shipped_set():
     assert registered == capability_nodes | named_nodes
 
 
+def test_every_node_is_named_for_its_provider():
+    """A user searching "flux" sees our paid cloud node beside the free local one.
+    The provider prefix is the only thing on the name that tells them apart."""
+    for node in asyncio.run(nodes_comfy_cloud.ComfyCloudExtension().get_node_list()):
+        name = node.define_schema().display_name
+        assert name.startswith("Comfy Cloud "), f"{node.__name__} is named {name!r}"
+
+
 @pytest.mark.parametrize(
     "bucket",
     ["comfy-cloud", "comfy-cloud-assets-evil", "example", "comfy-cloud-assets.evil.com",

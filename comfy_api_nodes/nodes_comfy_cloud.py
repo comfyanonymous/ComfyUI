@@ -396,7 +396,7 @@ def _image_schema(node_id: str, display_name: str, inputs: list[IO.Input]) -> IO
 class ComfyCloudCapybaraTextToImageNode(_ComfyCloudWorkflowNode):
     workflow = "image.capybara-0-1-text-to-image.v1"
     node_id = "ComfyCloudCapybaraTextToImageNode"
-    display_name = "Capybara 0.1 Text to Image"
+    display_name = "Comfy Cloud Capybara 0.1"
     category = "partner/image/Comfy Cloud"
     requires_image = False
     returns_video = False
@@ -423,7 +423,7 @@ class ComfyCloudCapybaraTextToImageNode(_ComfyCloudWorkflowNode):
 class ComfyCloudIdeogram4TextToImageNode(_ComfyCloudWorkflowNode):
     workflow = "image.ideogram-4-text-to-image.v1"
     node_id = "ComfyCloudIdeogram4TextToImageNode"
-    display_name = "Ideogram 4 Text to Image"
+    display_name = "Comfy Cloud Ideogram 4"
     category = "partner/image/Comfy Cloud"
     requires_image = False
     returns_video = False
@@ -450,7 +450,7 @@ class ComfyCloudIdeogram4TextToImageNode(_ComfyCloudWorkflowNode):
 class ComfyCloudLongCatTextToImageNode(_ComfyCloudWorkflowNode):
     workflow = "image.longcat-text-to-image.v1"
     node_id = "ComfyCloudLongCatTextToImageNode"
-    display_name = "LongCat Text to Image"
+    display_name = "Comfy Cloud LongCat"
     category = "partner/image/Comfy Cloud"
     requires_image = False
     returns_video = False
@@ -477,7 +477,7 @@ class ComfyCloudLongCatTextToImageNode(_ComfyCloudWorkflowNode):
 class ComfyCloudFlux2TextToImageNode(_ComfyCloudWorkflowNode):
     workflow = "image.flux-2-text-to-image.v1"
     node_id = "ComfyCloudFlux2TextToImageNode"
-    display_name = "Flux 2 Text to Image"
+    display_name = "Comfy Cloud Flux 2"
     category = "partner/image/Comfy Cloud"
     requires_image = False
     returns_video = False
@@ -504,7 +504,7 @@ class ComfyCloudFlux2TextToImageNode(_ComfyCloudWorkflowNode):
 class ComfyCloudZImageTurboNode(_ComfyCloudWorkflowNode):
     workflow = "image.z-image-turbo.v1"
     node_id = "ComfyCloudZImageTurboNode"
-    display_name = "Z-Image Turbo"
+    display_name = "Comfy Cloud Z-Image Turbo"
     category = "partner/image/Comfy Cloud"
     requires_image = False
     returns_video = False
@@ -531,7 +531,7 @@ class ComfyCloudZImageTurboNode(_ComfyCloudWorkflowNode):
 class ComfyCloudKrea2CreativeImageNode(_ComfyCloudWorkflowNode):
     workflow = "image.krea-2-creative-image.v1"
     node_id = "ComfyCloudKrea2CreativeImageNode"
-    display_name = "Krea 2 Creative Image"
+    display_name = "Comfy Cloud Krea 2"
     category = "partner/image/Comfy Cloud"
     requires_image = False
     returns_video = False
@@ -566,7 +566,7 @@ class ComfyCloudKrea2CreativeImageNode(_ComfyCloudWorkflowNode):
 class ComfyCloudQwenImageEdit2511Node(_ComfyCloudWorkflowNode):
     workflow = "image.qwen-image-edit-2511.v1"
     node_id = "ComfyCloudQwenImageEdit2511Node"
-    display_name = "Qwen Image Edit 2511"
+    display_name = "Comfy Cloud Qwen Image Edit 2511"
     category = "partner/image/Comfy Cloud"
     requires_image = True
     returns_video = False
@@ -612,7 +612,7 @@ class ComfyCloudQwenImageEdit2511Node(_ComfyCloudWorkflowNode):
 class ComfyCloudSeedVR2ImageUpscaleNode(_ComfyCloudWorkflowNode):
     workflow = "image.seedvr2-image-upscale.v1"
     node_id = "ComfyCloudSeedVR2ImageUpscaleNode"
-    display_name = "SeedVR2 Image Upscale"
+    display_name = "Comfy Cloud SeedVR2 Upscale"
     category = "partner/image/Comfy Cloud"
     requires_image = True
     returns_video = False
@@ -680,7 +680,7 @@ class ComfyCloudMiniMaxH3TextSoundNode(IO.ComfyNode):
     def define_schema(cls) -> IO.Schema:
         return _video_schema(
             "ComfyCloudMiniMaxH3TextSoundNode",
-            "MiniMax H3 Text + Sound",
+            "Comfy Cloud MiniMax H3 Text to Video",
             [
                 _prompt_input(),
                 IO.Combo.Input("aspect_ratio", options=["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9", "21:9"], default="1:1"),
@@ -701,7 +701,7 @@ class ComfyCloudMiniMaxH3ImageSoundNode(IO.ComfyNode):
     def define_schema(cls) -> IO.Schema:
         return _video_schema(
             "ComfyCloudMiniMaxH3ImageSoundNode",
-            "MiniMax H3 Image + Sound",
+            "Comfy Cloud MiniMax H3 Image to Video",
             [
                 IO.Image.Input("image"),
                 _prompt_input(),
@@ -727,7 +727,7 @@ class ComfyCloudLTX23ImageAudioPerformanceNode(IO.ComfyNode):
     def define_schema(cls) -> IO.Schema:
         return _video_schema(
             "ComfyCloudLTX23ImageAudioPerformanceNode",
-            "LTX-2.3 Image + Audio Performance",
+            "Comfy Cloud LTX-2.3 Performance",
             [
                 IO.Image.Input("image"), IO.Audio.Input("audio"), _prompt_input(),
                 IO.Boolean.Input("enhance_prompt", default=True),
@@ -757,7 +757,7 @@ class ComfyCloudWan22FirstLastFrameNode(IO.ComfyNode):
     def define_schema(cls) -> IO.Schema:
         return _video_schema(
             "ComfyCloudWan22FirstLastFrameNode",
-            "Wan 2.2 14B First & Last Frame",
+            "Comfy Cloud Wan 2.2 First & Last Frame",
             [IO.Image.Input("first_frame"), IO.Image.Input("last_frame"), _prompt_input(), IO.String.Input("negative_prompt", multiline=True, default="graph tested Chinese quality negative"), IO.Int.Input("duration_seconds", default=5, min=2, max=8, step=1, tooltip="Graph frame count is floor(duration × 16 + 1)."), _video_seed_input(984937593540091)],
         )
 
