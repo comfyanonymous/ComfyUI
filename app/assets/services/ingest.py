@@ -440,7 +440,7 @@ def upload_from_temp_path(
             stored_hash,
             _UploadRecordSpec(
                 display_name,
-                [*(tags or []), "uploaded"],
+                normalize_tags([*(tags or []), "uploaded"]),
                 mime_type,
                 user_metadata,
                 preview_id,
@@ -477,7 +477,7 @@ def upload_from_temp_path(
                 content.id,
                 display_name,
                 dest_abs,
-                [*(tags or []), "uploaded"],
+                normalize_tags([*(tags or []), "uploaded"]),
                 content_type,
                 user_metadata,
                 preview_id,

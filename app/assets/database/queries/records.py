@@ -68,7 +68,7 @@ def create_record(session: Session, content_id: str, name: str, mime_type: str |
     record = Asset(content_id=content_id, name=name, mime_type=mime_type, job_id=job_id, loader_path=loader_path, system_metadata=system_metadata)
     session.add(record)
     session.flush()
-    for tag_name in tags or ():
+    for tag_name in dict.fromkeys(tags or ()):
         if session.get(Tag, tag_name) is None:
             session.add(Tag(name=tag_name))
             session.flush()
