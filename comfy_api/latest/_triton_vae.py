@@ -789,4 +789,3 @@ def patch_vae(
     else:
         convert_conv_layout(model, channels_last=False)
     return vae
-
