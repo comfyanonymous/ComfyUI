@@ -10,7 +10,6 @@ from sqlalchemy import select
 from app.assets.database.models import Asset, AssetContent
 from app.assets.database.queries.records import delete_record
 from app.assets.helpers import sql_path_under_prefix
-from app.assets.services.hash_mode_state import drain_transition_queue
 from app.assets.services.hash_mode_state import enqueue_transition_work
 from app.assets.services.hash_mode_state import record_transition_intent
 from app.database.db import can_create_session, create_session, init_db
@@ -35,12 +34,6 @@ def record_hash_mode_transition_intent() -> None:
 def enqueue_mode_transition_work() -> None:
     with create_session() as session:
         enqueue_transition_work(session, _hash_mode_transition)
-        session.commit()
-
-
-def drain_mode_transition_work() -> None:
-    with create_session() as session:
-        drain_transition_queue(session)
         session.commit()
 
 
@@ -118,12 +111,10 @@ def run_asset_startup() -> None:
     except Exception:
         logging.exception("Temp DB row wipe failed; skipping filesystem cleanup")
         enqueue_mode_transition_work()
-        drain_mode_transition_work()
         start_asset_seeder()
         return
     cleanup_temp_filesystem()
     enqueue_mode_transition_work()
-    drain_mode_transition_work()
     start_asset_seeder()
 
 
