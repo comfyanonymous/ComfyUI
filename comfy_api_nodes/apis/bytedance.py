@@ -18,7 +18,8 @@ class Seedream4Options(BaseModel):
 
 
 class Seedream5OptimizePromptOptions(BaseModel):
-    thinking: Literal["auto", "enabled", "disabled"] = Field(...)
+    thinking: Literal["auto", "enabled", "disabled"] | None = Field(None)
+    mode: Literal["standard", "fast"] | None = Field(None)
 
 
 class Seedream4TaskCreationRequest(BaseModel):
@@ -116,6 +117,7 @@ class Seedance2TaskCreationRequest(BaseModel):
     seed: int | None = Field(None, ge=0, le=2147483647)
     watermark: bool | None = Field(None)
     output_format: str | None = Field(None)
+    omni_reference_task_type: str | None = Field(None, description="One of: auto, reference, edit, extend.")
 
 
 class TaskCreationResponse(BaseModel):
@@ -184,35 +186,6 @@ class SeedanceVirtualLibraryCreateAssetRequest(BaseModel):
     url: str = Field(..., description="Publicly accessible URL of the asset to upload.")
     hash: str = Field(..., description="Dedup key. Re-submitting the same hash returns the existing asset id.")
     asset_type: str | None = Field(None, description="BytePlus asset type. Defaults to Image server-side when omitted.")
-
-
-# Dollars per 1K tokens, keyed by (model_id, has_video_input, resolution).
-SEEDANCE2_PRICE_PER_1K_TOKENS = {
-    ("dreamina-seedance-2-0-260128", False, "480p"): 0.007,
-    ("dreamina-seedance-2-0-260128", True, "480p"): 0.0043,
-    ("dreamina-seedance-2-0-260128", False, "720p"): 0.007,
-    ("dreamina-seedance-2-0-260128", True, "720p"): 0.0043,
-    ("dreamina-seedance-2-0-260128", False, "1080p"): 0.0077,
-    ("dreamina-seedance-2-0-260128", True, "1080p"): 0.0047,
-    ("dreamina-seedance-2-0-260128", False, "4k"): 0.004,
-    ("dreamina-seedance-2-0-260128", True, "4k"): 0.0024,
-    ("dreamina-seedance-2-0-fast-260128", False, "480p"): 0.0056,
-    ("dreamina-seedance-2-0-fast-260128", True, "480p"): 0.0033,
-    ("dreamina-seedance-2-0-fast-260128", False, "720p"): 0.0056,
-    ("dreamina-seedance-2-0-fast-260128", True, "720p"): 0.0033,
-    ("dreamina-seedance-2-0-mini", False, "480p"): 0.0035,
-    ("dreamina-seedance-2-0-mini", True, "480p"): 0.0021,
-    ("dreamina-seedance-2-0-mini", False, "720p"): 0.0035,
-    ("dreamina-seedance-2-0-mini", True, "720p"): 0.0021,
-    ("dreamina-seedance-2-5-260628", False, "480p"): 0.0107,
-    ("dreamina-seedance-2-5-260628", True, "480p"): 0.0064,
-    ("dreamina-seedance-2-5-260628", False, "720p"): 0.0107,
-    ("dreamina-seedance-2-5-260628", True, "720p"): 0.0064,
-}
-
-
-def seedance2_price_per_1k_tokens(model_id: str, has_video_input: bool, resolution: str) -> float | None:
-    return SEEDANCE2_PRICE_PER_1K_TOKENS.get((model_id, has_video_input, resolution))
 
 
 RECOMMENDED_PRESETS = [
@@ -329,6 +302,7 @@ SEEDANCE2_REF_VIDEO_PIXEL_LIMITS = {
     "dreamina-seedance-2-5-260628": {
         "480p": {"min": 409_600, "max": 8_295_044},
         "720p": {"min": 409_600, "max": 8_295_044},
+        "1080p": {"min": 409_600, "max": 8_295_044},
     },
 }
 
@@ -412,3 +386,45 @@ class SeedAudioResponse(BaseModel):
     original_duration: float | None = Field(default=None)
     code: int | None = Field(default=None)
     message: str | None = Field(default=None)
+
+
+class MediaKitVideoEnhanceRequest(BaseModel):
+    video_url: str = Field(...)
+    tool_version: str = Field(...)
+    scene: str | None = Field(None)
+    enhance_style: str | None = Field(None)
+    resolution: str | None = Field(None)
+    resolution_limit: int | None = Field(None)
+    fps: float | None = Field(None)
+    bitrate_level: str = Field(...)
+
+
+class MediaKitError(BaseModel):
+    code: str | None = Field(None)
+    type: str | None = Field(None)
+    message: str | None = Field(None)
+    param: str | None = Field(None)
+
+
+class MediaKitTaskCreateResponse(BaseModel):
+    success: bool = Field(...)
+    task_id: str | None = Field(None)
+    request_id: str | None = Field(None)
+    error: MediaKitError | None = Field(None)
+
+
+class MediaKitTaskResult(BaseModel):
+    video_url: str = Field(...)
+    duration: float | None = Field(None)
+    fps: float | None = Field(None)
+    resolution: str | None = Field(None)
+    tool_version: str | None = Field(None)
+
+
+class MediaKitTaskResponse(BaseModel):
+    success: bool = Field(...)
+    task_id: str | None = Field(None)
+    task_type: str | None = Field(None)
+    status: str | None = Field(None)
+    result: MediaKitTaskResult | None = Field(None)
+    error: MediaKitError | None = Field(None)
