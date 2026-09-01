@@ -823,7 +823,11 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         and state_dict[vision_key].shape[0] == 1024
         and state_dict[query_key].shape[0] == 4096
     ):  # SenseNova U1.5
-        return {"image_model": "sensenova_u15"}
+        return {
+            "image_model": "sensenova_u15",
+            "has_lm_head": f"{key_prefix}language_model.lm_head.weight"
+            in state_dict,
+        }
 
     if '{}caption_projection.0.linear.weight'.format(key_prefix) in state_dict_keys:  # HiDream
         dit_config = {}

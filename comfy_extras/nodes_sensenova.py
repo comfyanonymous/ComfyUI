@@ -28,10 +28,48 @@ class SenseNovaSamplingOptions(io.ComfyNode):
         return io.NodeOutput(patched)
 
 
+class SenseNovaTextEncode(io.ComfyNode):
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="SenseNovaTextEncode",
+            display_name="SenseNova 1.x Text Encode",
+            category="model/conditioning/sensenova",
+            description="Encode a SenseNova prompt with optional image-generation reasoning.",
+            inputs=[
+                io.Clip.Input(id="clip"),
+                io.String.Input(id="text", multiline=True, dynamic_prompts=True),
+                io.Boolean.Input(id="thinking", default=False),
+                io.Int.Input(
+                    id="max_think_tokens",
+                    default=1024,
+                    min=1,
+                    advanced=True,
+                ),
+            ],
+            outputs=[io.Conditioning.Output()],
+        )
+
+    @classmethod
+    def execute(
+        cls, *, clip, text: str, thinking: bool, max_think_tokens: int
+    ) -> io.NodeOutput:
+        tokens = clip.tokenize(text, thinking=thinking)
+        conditioning = clip.encode_from_tokens_scheduled(
+            tokens,
+            add_dict={
+                "sensenova_thinking": thinking,
+                "sensenova_max_think_tokens": max_think_tokens,
+            },
+        )
+        return io.NodeOutput(conditioning)
+
+
 class SenseNovaExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
+            SenseNovaTextEncode,
             SenseNovaSamplingOptions,
         ]
 
