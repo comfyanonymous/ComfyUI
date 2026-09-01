@@ -6,6 +6,7 @@ from typing import Callable, Literal, TypedDict
 
 import folder_paths
 import sqlalchemy as sa
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.assets import mode
 from app.assets.database.queries import (
@@ -315,45 +316,50 @@ def seed_asset_specs(session: Session, specs: list[SeedAssetSpec]) -> int:
         for spec in specs:
             path = os.path.abspath(spec["abs_path"])
             try:
-                stat_result = os.stat(path, follow_symlinks=True)
-            except OSError:
-                logging.warning("Skipping vanished asset during scan: %s", path)
+                with session.begin_nested():
+                    try:
+                        stat_result = os.stat(path, follow_symlinks=True)
+                    except OSError:
+                        logging.warning("Skipping vanished asset during scan: %s", path)
+                        continue
+                    try:
+                        recovery = recover_missing_content(
+                            session,
+                            path,
+                            stat_result,
+                            hashing_is_enabled=mode.hashing_enabled(),
+                        )
+                    except OSError:
+                        logging.warning("Skipping vanished asset during scan: %s", path)
+                        continue
+                    if recovery != "no_match":
+                        continue
+                    content = create_content(
+                        session,
+                        path=path,
+                        hash=None,
+                        size_bytes=spec["size_bytes"],
+                        mtime_ns=spec["mtime_ns"],
+                    )
+                    created_content_ids.append(content.id)
+                    existing_record = session.scalar(
+                        sa.select(Asset.id).where(Asset.content_id == content.id).limit(1)
+                    )
+                    if existing_record is not None:
+                        continue
+                    create_record(
+                        session,
+                        content_id=content.id,
+                        name=spec["info_name"],
+                        mime_type=spec["mime_type"],
+                        job_id=spec["job_id"],
+                        loader_path=spec["fname"],
+                        tags=spec["tags"],
+                    )
+                    created += 1
+            except IntegrityError:
+                logging.warning("Skipping asset whose row conflicts during scan: %s", path)
                 continue
-            try:
-                recovery = recover_missing_content(
-                    session,
-                    path,
-                    stat_result,
-                    hashing_is_enabled=mode.hashing_enabled(),
-                )
-            except OSError:
-                logging.warning("Skipping vanished asset during scan: %s", path)
-                continue
-            if recovery != "no_match":
-                continue
-            content = create_content(
-                session,
-                path=path,
-                hash=None,
-                size_bytes=spec["size_bytes"],
-                mtime_ns=spec["mtime_ns"],
-            )
-            created_content_ids.append(content.id)
-            existing_record = session.scalar(
-                sa.select(Asset.id).where(Asset.content_id == content.id).limit(1)
-            )
-            if existing_record is not None:
-                continue
-            create_record(
-                session,
-                content_id=content.id,
-                name=spec["info_name"],
-                mime_type=spec["mime_type"],
-                job_id=spec["job_id"],
-                loader_path=spec["fname"],
-                tags=spec["tags"],
-            )
-            created += 1
     except Exception:
         session.rollback()
         for content_id in created_content_ids:
