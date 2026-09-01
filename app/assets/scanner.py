@@ -456,7 +456,8 @@ def enrich_asset(
     digest: str | None = None
     stored_hash: str | None = None
     verified_stat: os.stat_result | None = None
-    if compute_hash and content is not None and content.hash is None:
+    hash_requested = compute_hash and content is not None and content.hash is None
+    if hash_requested:
         try:
             snapshot = snapshot_hash(file_path)
             if snapshot is None:
@@ -508,6 +509,8 @@ def enrich_asset(
 
     session.commit()
 
+    if hash_requested and stored_hash is None:
+        return False
     return stored_hash is not None or metadata is not None or mime_type is not None
 
 

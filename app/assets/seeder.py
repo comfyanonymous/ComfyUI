@@ -23,7 +23,7 @@ from app.assets.scanner import (
     drain_pending_verifications,
     tick_watch_list,
 )
-from app.assets.services.hash_mode_state import drain_transition_queue
+from app.assets.services.hash_mode_state import drain_transition_queue, pending_transition_count
 from app.database.db import create_session, dependencies_available
 
 
@@ -785,8 +785,11 @@ class _AssetSeeder:
         with create_session() as session:
             drain_pending_verifications(session)
             tick_watch_list(session)
-            drain_transition_queue(session)
-            session.commit()
+            for _ in range(3):
+                drain_transition_queue(session)
+                session.commit()
+                if pending_transition_count() == 0:
+                    break
         batch_size = 100
         last_progress_time = time.perf_counter()
         progress_interval = 1.0
