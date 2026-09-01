@@ -31,6 +31,11 @@ from comfy.ldm.bernini_v2.qwen import (
     qwen_grid_for_media,
 )
 from comfy.ldm.bernini_v2.sharded import load_sharded_state_dict
+from comfy.ldm.bernini_v2.template import (
+    BerniniTemplate,
+    build_conversation,
+    build_custom_attention_mask,
+)
 from comfy.ldm.bernini_v2.unipc import sample_flow_unipc_bh2
 from comfy.text_encoders.qwen_vl import apply_rotary_pos_emb_vision
 
@@ -205,10 +210,19 @@ def test_small_planner_modules_and_weight_layout():
 
 def test_planner_flow_scheduler_lands_at_zero():
     scheduler = FlowMatchScheduler(shift=2.0)
-    scheduler.set_timesteps(3, dtype=torch.float32)
+    scheduler.set_timesteps(3)
     sample = torch.ones(1)
     result = scheduler.step(torch.ones(1), scheduler.timesteps[-1], sample)
     torch.testing.assert_close(result, sample - scheduler.sigmas[-1])
+
+
+def test_planner_flow_scheduler_keeps_high_step_schedule_unique_and_float32():
+    scheduler = FlowMatchScheduler(shift=2.0, extra_one_step=True)
+    scheduler.set_timesteps(100)
+    assert scheduler.sigmas.dtype == torch.float32
+    assert scheduler.timesteps.dtype == torch.float32
+    assert torch.unique(scheduler.sigmas).numel() == 100
+    assert torch.unique(scheduler.timesteps).numel() == 100
 
 
 def test_qwen_patchification_and_frame_policy():
@@ -296,9 +310,82 @@ def test_manifest_and_sharded_loader(tmp_path):
     torch.testing.assert_close(load_sharded_state_dict(index)["a"], torch.arange(4))
 
 
+@pytest.mark.parametrize("schema", [None, "3", True, 3.0])
+def test_manifest_rejects_non_integer_schema_with_path(tmp_path, schema):
+    payload = {
+        "schema_version": schema,
+        "format": "bernini_v2_int8_tensorwise_convrot",
+        "storage_dtype": "bfloat16",
+        "outputs": {name: {} for name in REQUIRED_COMPONENTS},
+    }
+    manifest = tmp_path / "repack-manifest.json"
+    manifest.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(
+        ValueError, match=r"invalid .*schema_version.*repack-manifest\.json"
+    ):
+        load_repack_manifest(manifest)
+
+
 def test_maskgit_order_is_seeded_and_scatter_compatible():
     order = maskgit_order(8, 42)
+    assert torch.equal(order, maskgit_order(8, 42))
+    assert not torch.equal(order, maskgit_order(8, 43))
     assert sorted(order.tolist()) == list(range(8))
     selected = torch.zeros(8, dtype=torch.bool)
     selected.scatter_(0, order[:3], True)
     assert selected.sum() == 3
+    assert torch.equal(
+        maskgit_order(8, 0xFFFFFFFFFFFFFFFF),
+        maskgit_order(8, 0xFFFFFFFF),
+    )
+
+
+class _RecordingTokenizer:
+    def __init__(self):
+        self.texts = []
+        self.ids = {}
+
+    def convert_tokens_to_ids(self, value):
+        if isinstance(value, list):
+            return [self.convert_tokens_to_ids(item) for item in value]
+        if value not in self.ids:
+            self.ids[value] = len(self.ids) + 100
+        return self.ids[value]
+
+    def add_special_tokens(self, values):
+        for token in values["additional_special_tokens"]:
+            self.convert_tokens_to_ids(token)
+
+    def encode(self, text, add_special_tokens=False):
+        del add_special_tokens
+        self.texts.append(text)
+        return [len(self.texts)]
+
+
+def test_template_mask_dtype_negative_prompt_and_visual_limit():
+    token_type = torch.tensor([[0, 3]])
+    segment_ids = torch.tensor([[0, 1]])
+    mask = build_custom_attention_mask(token_type, segment_ids, dtype=torch.bfloat16)
+    assert mask.dtype == torch.bfloat16
+
+    tokenizer = _RecordingTokenizer()
+    template = BerniniTemplate(tokenizer)
+    conversation = build_conversation(
+        "replace the sky",
+        source_videos=0,
+        source_images=0,
+        output_is_image=True,
+    )
+    encoded = template.encode(
+        conversation,
+        num_tokens={"video": [], "image": [4]},
+        task="t2i",
+        drop_text=True,
+        negative_prompt="坏",
+        mask_dtype=torch.bfloat16,
+    )
+    assert encoded["attention_mask_4d"].dtype == torch.bfloat16
+    assert any("坏" in text for text in tokenizer.texts)
+    assert not any("replace the sky" in text for text in tokenizer.texts)
+    with pytest.raises(ValueError, match="at most 64 visual items, got 65"):
+        template._visual_pattern(1, 64, output=False)

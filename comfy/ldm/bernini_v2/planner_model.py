@@ -266,7 +266,6 @@ class FlowMatchScheduler:
         denoising_strength: float = 1.0,
         shift: float | None = None,
         device=None,
-        dtype: torch.dtype = torch.bfloat16,
     ) -> None:
         if shift is not None:
             self.shift = shift
@@ -276,7 +275,11 @@ class FlowMatchScheduler:
         )
         count = num_inference_steps + 1 if self.extra_one_step else num_inference_steps
         sigmas = torch.linspace(
-            sigma_start, self.sigma_min, count, device=device, dtype=dtype
+            sigma_start,
+            self.sigma_min,
+            count,
+            device=device,
+            dtype=torch.float32,
         )
         if self.extra_one_step:
             sigmas = sigmas[:-1]
@@ -369,7 +372,7 @@ class DiffLossFM(nn.Module):
             shift=self.scheduler_shift,
             extra_one_step=self.scheduler_extra_one_step,
         )
-        scheduler.set_timesteps(num_inference_steps, device=device, dtype=z.dtype)
+        scheduler.set_timesteps(num_inference_steps, device=device)
         for timestep in scheduler.timesteps:
             prediction = sample_fn(samples, timestep.unsqueeze(0).to(z.dtype), **kwargs)
             samples = scheduler.step(prediction, timestep, samples)

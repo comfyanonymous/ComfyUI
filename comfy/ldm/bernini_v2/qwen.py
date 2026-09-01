@@ -167,7 +167,7 @@ def plan_forward(
     if position_ids.ndim == 3 and position_ids.shape[1] == 1:
         position_ids = position_ids.squeeze(1)
     freqs_cis = model.compute_freqs_cis(position_ids, x.device)
-    mask = additive_attention_mask.unsqueeze(1).to(dtype=x.dtype, device=x.device)
+    mask = additive_attention_mask.unsqueeze(1)
     attention = optimized_attention_for_device(x.device, mask=True, small_input=True)
     target = (
         len(model.layers) + intermediate_output

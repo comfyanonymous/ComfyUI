@@ -34,7 +34,11 @@ def load_repack_manifest(path: str | Path) -> dict[str, Any]:
     model_format = payload.get("format")
     if model_format is not None and model_format not in SUPPORTED_FORMATS:
         raise ValueError(f"unsupported Bernini model package format: {model_format!r}")
-    schema = int(payload.get("schema_version", 1))
+    schema = payload.get("schema_version", 1)
+    if not isinstance(schema, int) or isinstance(schema, bool):
+        raise ValueError(
+            f"invalid Bernini model package schema_version in {manifest_path}: {schema!r}"
+        )
     if schema < 1 or schema > MAX_SCHEMA_VERSION:
         raise ValueError(f"unsupported Bernini model package schema_version: {schema}")
     storage_dtype = payload.get("storage_dtype", "preserve")

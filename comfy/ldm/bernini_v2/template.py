@@ -20,7 +20,10 @@ SYSTEM_PROMPTS = {
 
 
 def build_custom_attention_mask(
-    token_type: torch.Tensor, token_segment_ids: torch.Tensor
+    token_type: torch.Tensor,
+    token_segment_ids: torch.Tensor,
+    *,
+    dtype: torch.dtype = torch.float32,
 ) -> torch.Tensor:
     """Build Bernini's ``[B,L,L]`` additive text/source/target mask."""
 
@@ -40,7 +43,7 @@ def build_custom_attention_mask(
     visible = query_is_text_or_input & input_visible
     visible |= (query_type == 1) & (input_visible | planned_visible)
     visible |= (query_type == 3) & (input_visible | output_visible)
-    mask = torch.zeros(visible.shape, device=token_type.device, dtype=torch.float32)
+    mask = torch.zeros(visible.shape, device=token_type.device, dtype=dtype)
     return mask.masked_fill(~visible, float("-inf"))
 
 
@@ -71,6 +74,10 @@ class BerniniTemplate:
 
     def _visual_pattern(self, count: int, visual_id: int, *, output: bool) -> str:
         pads = self.visual_output_pads if output else self.visual_input_pads
+        if not 0 <= visual_id < len(pads):
+            raise ValueError(
+                f"Bernini v2 supports at most {len(pads)} visual items, got {visual_id + 1}"
+            )
         return "<|vision_start|>" + pads[visual_id] * count + "<|vision_end|>"
 
     def encode(
@@ -83,6 +90,7 @@ class BerniniTemplate:
         drop_images: bool = False,
         drop_videos: bool = False,
         negative_prompt: str = "",
+        mask_dtype: torch.dtype = torch.float32,
     ) -> dict[str, object]:
         image_counts = iter(num_tokens.get("image", []))
         video_counts = iter(num_tokens.get("video", []))
@@ -124,7 +132,7 @@ class BerniniTemplate:
                 previous_has_loss = has_loss
 
             if message_type in ("text", "cot_text"):
-                if len(negative_prompt) > 1:
+                if negative_prompt.strip():
                     text = negative_prompt
                 else:
                     text = "" if drop_text else str(message.get("text", ""))
@@ -206,7 +214,9 @@ class BerniniTemplate:
             )
 
         attention_4d = build_custom_attention_mask(
-            token_types.unsqueeze(0), token_segment_ids.unsqueeze(0)
+            token_types.unsqueeze(0),
+            token_segment_ids.unsqueeze(0),
+            dtype=mask_dtype,
         )
         return {
             "input_ids": ids,
