@@ -381,13 +381,10 @@ class ControlLoraOps:
             self.bias = None
 
         def forward(self, input):
-            weight, bias, offload_stream = comfy.ops.cast_bias_weight(self, input, offloadable=True)
-            if self.up is not None:
-                x = torch.nn.functional.linear(input, weight + (torch.mm(self.up.flatten(start_dim=1), self.down.flatten(start_dim=1))).reshape(self.weight.shape).type(input.dtype), bias)
-            else:
-                x = torch.nn.functional.linear(input, weight, bias)
-            comfy.ops.uncast_bias_weight(self, weight, bias, offload_stream)
-            return x
+            with comfy.ops.CastBiasWeightContext(self, input, offloadable=True) as (weight, bias):
+                if self.up is None:
+                    return torch.nn.functional.linear(input, weight, bias)
+                return torch.nn.functional.linear(input, weight + (torch.mm(self.up.flatten(start_dim=1), self.down.flatten(start_dim=1))).reshape(self.weight.shape).type(input.dtype), bias)
 
     class Conv2d(torch.nn.Module, comfy.ops.CastWeightBiasOp):
         def __init__(

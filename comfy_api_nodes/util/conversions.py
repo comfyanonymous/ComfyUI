@@ -16,12 +16,14 @@ from comfy_api.latest import Input, InputImpl, Types
 from ._helpers import mimetype_to_extension
 
 
-def bytesio_to_image_tensor(image_bytesio: BytesIO, mode: str = "RGBA") -> torch.Tensor:
+def bytesio_to_image_tensor(image_bytesio: BytesIO, mode: str | None = None) -> torch.Tensor:
     """Converts image data from BytesIO to a torch.Tensor.
 
     Args:
         image_bytesio: BytesIO object containing the image data.
-        mode: The PIL mode to convert the image to (e.g., "RGB", "RGBA").
+        mode: The PIL mode to convert the image to (e.g., "RGB", "RGBA"). Defaults
+            to RGBA when the decoded image carries transparency and RGB when it
+            does not, so an API that returns no alpha does not get an opaque one.
 
     Returns:
         A torch.Tensor representing the image (1, H, W, C).
@@ -31,6 +33,8 @@ def bytesio_to_image_tensor(image_bytesio: BytesIO, mode: str = "RGBA") -> torch
         ValueError: If the specified mode is invalid.
     """
     image = Image.open(image_bytesio)
+    if mode is None:
+        mode = "RGBA" if "A" in image.getbands() or "transparency" in image.info else "RGB"
     image = image.convert(mode)
     image_array = np.array(image).astype(np.float32) / 255.0
     return torch.from_numpy(image_array).unsqueeze(0)
@@ -51,6 +55,17 @@ def image_tensor_pair_to_batch(image1: torch.Tensor, image2: torch.Tensor) -> to
             "center",
         ).movedim(1, -1)
     return torch.cat((image1, image2), dim=0)
+
+
+def pad_images_to_common_channels(images: list[torch.Tensor]) -> list[torch.Tensor]:
+    """Pads [B, H, W, C] image tensors with opaque alpha so they all share the largest channel count."""
+    channels = max(image.shape[-1] for image in images)
+    return [
+        torch.nn.functional.pad(image, (0, channels - image.shape[-1]), value=1.0)
+        if image.shape[-1] < channels
+        else image
+        for image in images
+    ]
 
 
 def tensor_to_bytesio(

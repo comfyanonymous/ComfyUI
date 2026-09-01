@@ -847,6 +847,61 @@ class Load3DAnimation(Load3D):
     ...
 
 
+@comfytype(io_type="LAYERS")
+class Layers(ComfyTypeIO):
+    BlendMode = Literal[
+        "normal", "multiply", "screen", "overlay", "darken", "lighten",
+        "color-dodge", "color-burn", "hard-light", "soft-light", "difference",
+        "exclusion", "linear-dodge", "linear-burn", "vivid-light", "pin-light",
+        "linear-light", "hard-mix", "subtract", "divide", "grain-extract",
+        "grain-merge", "hue", "saturation", "color", "luminosity",
+    ]
+
+    class LayerItem(TypedDict):
+        image: torch.Tensor
+        type: Literal["raster"]
+        x: NotRequired[int]
+        y: NotRequired[int]
+        mask: NotRequired[torch.Tensor]
+        z_index: int
+        name: NotRequired[str]
+        opacity: NotRequired[float]
+        blend_mode: NotRequired["Layers.BlendMode"]
+        visible: NotRequired[bool]
+        flip_h: NotRequired[bool]
+        flip_v: NotRequired[bool]
+        rotation: NotRequired[float]
+        w: NotRequired[int]
+        h: NotRequired[int]
+
+    class Document(TypedDict):
+        version: int
+        canvas: NotRequired[tuple[int, int]]
+        layers: list["Layers.LayerItem"]
+
+    Type = Document
+
+
+@comfytype(io_type="COMPOSITOR")
+class Compositor(ComfyTypeIO):
+    class LayerState(TypedDict):
+        version: NotRequired[int]
+        canvas: dict
+        background: NotRequired[dict]
+        inputs: NotRequired[list[str]]
+        order: NotRequired[list[int]]
+        layers: list[dict]
+
+    Type = LayerState
+
+    class Input(WidgetInput):
+        def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None,
+                     socketless: bool=True, default: dict=None, advanced: bool=None):
+            super().__init__(id, display_name, optional, tooltip, None, default, socketless, None, None, None, None, advanced)
+            if default is None:
+                self.default = {}
+
+
 @comfytype(io_type="PHOTOMAKER")
 class Photomaker(ComfyTypeIO):
     Type = Any
@@ -1359,6 +1414,41 @@ class BoundingBoxes(ComfyTypeIO):
             super().__init__(id, display_name, optional, tooltip, None, default, socketless, None, None, None, None, advanced)
             if default is None:
                 self.default = []
+
+
+@comfytype(io_type="VIDEO_EDIT")
+class VideoEdit(ComfyTypeIO):
+    class VideoTrimSection(TypedDict):
+        start_time: float
+        duration: float
+
+    class VideoCropSection(TypedDict):
+        x: int
+        y: int
+        width: int
+        height: int
+
+    class VideoEditDict(TypedDict, total=False):
+        trim: 'VideoEdit.VideoTrimSection'
+        crop: 'VideoEdit.VideoCropSection'
+    Type = VideoEditDict
+
+    class Input(WidgetInput):
+        def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None,
+                     socketless: bool=True, default: dict=None, features: list[str]=None, advanced: bool=None):
+            super().__init__(id, display_name, optional, tooltip, None, default, socketless, None, None, None, None, advanced)
+            self.features = features if features is not None else ["trim", "crop"]
+            if default is None:
+                self.default = {}
+                if "trim" in self.features:
+                    self.default["trim"] = {"start_time": 0.0, "duration": 0.0}
+                if "crop" in self.features:
+                    self.default["crop"] = {"x": 0, "y": 0, "width": 0, "height": 0}
+
+        def as_dict(self):
+            return super().as_dict() | prune_dict({
+                "features": self.features,
+            })
 
 
 @comfytype(io_type="HISTOGRAM")
@@ -2403,6 +2493,8 @@ __all__ = [
     "Load3DModelInfo",
     "Load3D",
     "Load3DAnimation",
+    "Compositor",
+    "Layers",
     "Photomaker",
     "Point",
     "FaceAnalysis",
@@ -2436,5 +2528,6 @@ __all__ = [
     "Curve",
     "Histogram",
     "Range",
+    "VideoEdit",
     "NodeReplace",
 ]

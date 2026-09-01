@@ -163,6 +163,12 @@ Detailed rules referenced from [AGENTS.md](../../AGENTS.md).
 - Avoid caches that persist across different executions as much as possible.
   Persistent caches are acceptable only when they use a very minimal amount of
   memory and have a clear ownership and invalidation story.
+- When condition-dependent model work would otherwise repeat on every denoising
+  step and preprocessing it once materially improves performance, expose a
+  model preprocessing method and call it from `BaseModel.extra_conds`, following
+  patterns such as LTXAV and Anima. Pass the result through normal conditioning;
+  do not add model-owned caches, sampler-option caches, or cache-management
+  wrappers for this work.
 
 ## Initialization
 

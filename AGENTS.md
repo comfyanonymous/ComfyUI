@@ -130,12 +130,37 @@ Full rules: [docs/agents/models.md](docs/agents/models.md).
   global, module-level, class-level, singleton, or model-owned stores for
   tensors that persist across executions.
 
+## User Input Tolerance
+
+- Prefer completing a workflow with the user's supplied values over rejecting
+  them because they fall outside recommended, UI-advertised, or quality-oriented
+  limits. If the downstream implementation can consume an input, pass it
+  through unchanged even when the result may be poor. For example, do not reject
+  or truncate additional reference images merely because a node advertises a
+  smaller recommended maximum.
+- Do not add validation errors solely to prevent degraded, nonsensical, or
+  low-quality model output. A bad result is preferable to failing an otherwise
+  executable workflow.
+- Resize, pad, clamp, normalize, or otherwise adapt user input only when passing
+  it through unchanged would make the existing model or underlying operation
+  fail. Make the smallest adjustment needed to keep execution running; do not
+  add a model-level validation failure merely to justify changing the input.
+- This permissive policy does not override security boundaries such as path
+  containment, or integrity checks required to load model formats and
+  checkpoints safely.
+
 ## Nodes and User-Facing Behavior
 
 Full rules: [docs/agents/nodes.md](docs/agents/nodes.md).
 
 - Follow existing node conventions: `INPUT_TYPES`, `RETURN_TYPES`, `FUNCTION`,
   `CATEGORY`, and registration through the local mapping used by that file.
+- Treat legacy combo inputs, `io.Combo`, and `io.DynamicCombo` values as
+  untrusted when they affect filesystem access. Any value used as a file or
+  folder name, path component, format, or extension must be validated again at
+  the load/save boundary using an existing `folder_paths` resolver or
+  containment helper, or a fixed allowlist/mapping. Do not rely only on the
+  advertised combo options or prompt validation.
 - Keep node changes backward compatible by default. Add inputs with sensible
   defaults and avoid changing output types unless the request requires it.
 - Model implementations should add the minimal number of ComfyUI nodes required
