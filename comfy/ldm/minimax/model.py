@@ -731,7 +731,7 @@ class MiniMaxH3Model(nn.Module):
                                          transformer_options=args["transformer_options"])}
                 h = blocks_replace[("double_block", i)](
                     {"img": h, "t_emb": t_emb, "mod_segments": mod_segments, "rope_freqs": rope_freqs,
-                     "transformer_options": transformer_options},
+                     "layout": layout, "transformer_options": transformer_options},
                     {"original_block": block_wrap})["img"]
             else:
                 h = block(h, t_emb, mod_segments, rope_freqs, transformer_options=transformer_options)
