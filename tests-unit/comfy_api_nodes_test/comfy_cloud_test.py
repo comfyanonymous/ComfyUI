@@ -620,7 +620,8 @@ def test_extension_registers_exactly_the_shipped_set():
 
 @pytest.mark.parametrize(
     "bucket",
-    ["comfy-cloud", "comfy-cloud-assets-evil", "example", "comfy-cloud-assets.evil.com"],
+    ["comfy-cloud", "comfy-cloud-assets-evil", "example", "comfy-cloud-assets.evil.com",
+     "partner-nodes-assets-evil", "partner-nodes"],
 )
 def test_output_urls_outside_the_backend_bucket_allowlist_are_rejected(bucket):
     """The output URL is backend-supplied, so this is defence in depth -- but the host check
@@ -646,3 +647,23 @@ def test_poll_budget_covers_the_platform_run_ceiling():
     budget = nodes_comfy_cloud._POLL_MAX_ATTEMPTS * nodes_comfy_cloud._POLL_INTERVAL_SECONDS
     assert budget > nodes_comfy_cloud._RUN_TIMEOUT_SECONDS
     assert budget - nodes_comfy_cloud._RUN_TIMEOUT_SECONDS <= 300
+
+
+def test_output_buckets_match_the_server_allowlist():
+    """Pins the bucket set so a change here is deliberate and paired.
+
+    The same list lives in cloud at services/comfy-api/config/config.go
+    (comfyCloudOutputBuckets). Widening one side only is not a benign skew: the
+    job runs on the GPU, the caller is billed per GPU-second, and the output is
+    then rejected on the user's machine. The node half also ships on the ComfyUI
+    release train, so a mismatch persists until the next release.
+    """
+    assert nodes_comfy_cloud._OUTPUT_BUCKETS == frozenset(
+        {
+            "comfy-cloud-assets",
+            "comfy-cloud-assets-stg",
+            "comfy-cloud-assets-test",
+            "partner-nodes-assets",
+            "partner-nodes-assets-staging",
+        }
+    )

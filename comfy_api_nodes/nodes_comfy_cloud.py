@@ -31,7 +31,20 @@ from comfy_api_nodes.util import (
 
 
 # Mirrors comfyCloudOutputBuckets on the backend (services/comfy-api/server/middleware/comfy_cloud.go).
-_OUTPUT_BUCKETS = frozenset({"comfy-cloud-assets", "comfy-cloud-assets-stg", "comfy-cloud-assets-test"})
+# Buckets a Comfy Cloud output may be served from. MUST stay in step with
+# comfyCloudOutputBuckets in cloud's services/comfy-api/config/config.go: widen
+# one without the other and every run completes on the GPU and then has its
+# output rejected here. The partner-nodes-* entries are the buckets staging and
+# prod already point the shared partner-node asset key at.
+_OUTPUT_BUCKETS = frozenset(
+    {
+        "comfy-cloud-assets",
+        "comfy-cloud-assets-stg",
+        "comfy-cloud-assets-test",
+        "partner-nodes-assets",
+        "partner-nodes-assets-staging",
+    }
+)
 _GENERATE_ENDPOINT = ApiEndpoint(path="/proxy/comfy-cloud/workflow/generate", method="POST")
 # Three separate budgets that are easy to confuse and must not drift apart:
 #   _RUN_TIMEOUT_SECONDS      the platform's own ceiling on a Cloud job (ingest stamps
