@@ -100,7 +100,7 @@ class BerniniV2WanLoader(io.ComfyNode):
         cls,
         unet_name: str,
         flow_shift: float = 5.0,
-        weight_dtype: str = "default",
+        weight_dtype: str = "bfloat16",
     ) -> io.NodeOutput:
         model_path = folder_paths.get_full_path_or_raise(
             "diffusion_models", unet_name
@@ -656,17 +656,44 @@ class BerniniV2RendererGuider(io.ComfyNode):
                 io.Model.Input("low_noise_model"),
                 io.Vae.Input("vae"),
                 io.Float.Input(
-                    "omega_video", default=1.25, min=0.0, max=20.0, step=0.05
+                    "omega_video",
+                    default=1.25,
+                    min=0.0,
+                    max=20.0,
+                    step=0.05,
+                    advanced=True,
                 ),
                 io.Float.Input(
-                    "omega_image", default=3.0, min=0.0, max=20.0, step=0.05
+                    "omega_image",
+                    default=3.0,
+                    min=0.0,
+                    max=20.0,
+                    step=0.05,
+                    advanced=True,
                 ),
-                io.Float.Input("omega_text", default=4.0, min=0.0, max=20.0, step=0.05),
                 io.Float.Input(
-                    "omega_target", default=1.2, min=0.0, max=20.0, step=0.05
+                    "omega_text",
+                    default=4.0,
+                    min=0.0,
+                    max=20.0,
+                    step=0.05,
+                    advanced=True,
                 ),
                 io.Float.Input(
-                    "omega_scale", default=0.75, min=0.0, max=2.0, step=0.05
+                    "omega_target",
+                    default=1.2,
+                    min=0.0,
+                    max=20.0,
+                    step=0.05,
+                    advanced=True,
+                ),
+                io.Float.Input(
+                    "omega_scale",
+                    default=0.75,
+                    min=0.0,
+                    max=2.0,
+                    step=0.05,
+                    advanced=True,
                 ),
                 io.Boolean.Input("use_task_defaults", default=True, advanced=True),
                 io.Float.Input(
@@ -756,7 +783,7 @@ class BerniniV2Scheduler(io.ComfyNode):
             ),
             inputs=[
                 BerniniV2PlanType.Input("plan"),
-                io.Int.Input("steps", default=40, min=1, max=10000),
+                io.Int.Input("steps", default=40, min=1, max=10000, advanced=True),
                 io.Float.Input(
                     "flow_shift", default=5.0, min=0.01, max=100.0, step=0.01
                 ),

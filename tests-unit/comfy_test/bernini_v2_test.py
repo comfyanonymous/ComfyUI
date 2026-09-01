@@ -287,6 +287,25 @@ def test_flow_unipc_is_deterministic_and_finite():
     assert torch.isfinite(first).all()
 
 
+@pytest.mark.parametrize(
+    "sigmas",
+    [
+        torch.tensor([1.0, 0.0]),
+        torch.tensor([1.01, 0.0]),
+        torch.tensor([-0.01, 0.0]),
+        torch.tensor([0.5, torch.nan]),
+    ],
+)
+def test_flow_unipc_rejects_non_flow_sigmas(sigmas):
+    with pytest.raises(ValueError, match=r"sigmas in \[0, 1\)"):
+        sample_flow_unipc_bh2(_ToyComfyModel(), torch.ones(1), sigmas)
+
+
+def test_flow_unipc_preserves_short_schedule_early_return():
+    noise = torch.randn(2, 3)
+    assert sample_flow_unipc_bh2(_ToyComfyModel(), noise, torch.tensor([1.0])) is noise
+
+
 def test_standalone_planner_embedded_payload_contract():
     payload = b'{"hidden_size":3584}'
     state_dict = {

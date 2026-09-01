@@ -89,15 +89,28 @@ def get_rope_index(
             text_length = end - start
             chunk_start = int(chunks[-1].max()) + 1 if chunks else 0
             chunks.append(
-                torch.arange(text_length).view(1, -1).expand(3, -1) + chunk_start
+                torch.arange(text_length, device=input_ids.device)
+                .view(1, -1)
+                .expand(3, -1)
+                + chunk_start
             )
-            time = torch.arange(grid_t).view(-1, 1).expand(-1, grid_h * grid_w)
+            time = (
+                torch.arange(grid_t, device=input_ids.device)
+                .view(-1, 1)
+                .expand(-1, grid_h * grid_w)
+            )
             time = (time * seconds_per_grid * tokens_per_second).long().flatten()
             height = (
-                torch.arange(grid_h).view(1, -1, 1).expand(grid_t, -1, grid_w).flatten()
+                torch.arange(grid_h, device=input_ids.device)
+                .view(1, -1, 1)
+                .expand(grid_t, -1, grid_w)
+                .flatten()
             )
             width = (
-                torch.arange(grid_w).view(1, 1, -1).expand(grid_t, grid_h, -1).flatten()
+                torch.arange(grid_w, device=input_ids.device)
+                .view(1, 1, -1)
+                .expand(grid_t, grid_h, -1)
+                .flatten()
             )
             chunks.append(
                 torch.stack((time, height, width)) + text_length + chunk_start
@@ -107,9 +120,12 @@ def get_rope_index(
             chunk_start = int(chunks[-1].max()) + 1 if chunks else 0
             text_length = len(token_list) - start
             chunks.append(
-                torch.arange(text_length).view(1, -1).expand(3, -1) + chunk_start
+                torch.arange(text_length, device=input_ids.device)
+                .view(1, -1)
+                .expand(3, -1)
+                + chunk_start
             )
-        batch_positions = torch.cat(chunks, dim=1).reshape(3, -1).to(positions.device)
+        batch_positions = torch.cat(chunks, dim=1).reshape(3, -1)
         positions[:, batch_index, attention_mask[batch_index] == 1] = batch_positions
         deltas.append(batch_positions.max() + 1 - len(batch_ids))
     return positions, torch.tensor(deltas, device=input_ids.device).unsqueeze(1)

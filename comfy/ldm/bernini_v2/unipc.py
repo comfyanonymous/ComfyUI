@@ -174,6 +174,13 @@ def sample_flow_unipc_bh2(
     if len(sigmas) <= 1:
         return noise
 
+    if (
+        not bool(torch.isfinite(sigmas).all())
+        or bool((sigmas < 0).any())
+        or bool((sigmas >= 1).any())
+    ):
+        raise ValueError("flow UniPC requires finite sigmas in [0, 1)")
+
     first_sigma = sigmas[0].to(device=noise.device, dtype=noise.dtype)
     sample = noise / first_sigma
     model_outputs: list[torch.Tensor | None] = [None, None]
