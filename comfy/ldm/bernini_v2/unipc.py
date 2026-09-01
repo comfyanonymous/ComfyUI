@@ -180,6 +180,8 @@ def sample_flow_unipc_bh2(
         or bool((sigmas >= 1).any())
     ):
         raise ValueError("flow UniPC requires finite sigmas in [0, 1)")
+    if bool((sigmas[:-1] <= sigmas[1:]).any()):
+        raise ValueError("flow UniPC requires strictly decreasing sigmas")
 
     first_sigma = sigmas[0].to(device=noise.device, dtype=noise.dtype)
     sample = noise / first_sigma

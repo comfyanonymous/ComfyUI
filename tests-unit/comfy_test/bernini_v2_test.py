@@ -301,6 +301,15 @@ def test_flow_unipc_rejects_non_flow_sigmas(sigmas):
         sample_flow_unipc_bh2(_ToyComfyModel(), torch.ones(1), sigmas)
 
 
+@pytest.mark.parametrize(
+    "sigmas",
+    [torch.tensor([0.5, 0.5, 0.0]), torch.tensor([0.5, 0.75, 0.0])],
+)
+def test_flow_unipc_rejects_non_decreasing_sigmas(sigmas):
+    with pytest.raises(ValueError, match="strictly decreasing"):
+        sample_flow_unipc_bh2(_ToyComfyModel(), torch.ones(1), sigmas)
+
+
 def test_flow_unipc_preserves_short_schedule_early_return():
     noise = torch.randn(2, 3)
     assert sample_flow_unipc_bh2(_ToyComfyModel(), noise, torch.tensor([1.0])) is noise
