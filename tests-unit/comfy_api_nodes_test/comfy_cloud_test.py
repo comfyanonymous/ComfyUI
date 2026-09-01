@@ -372,16 +372,35 @@ def test_cloud_workflow_schemas_share_exact_estimated_rate_metadata():
     assert nodes_comfy_cloud.COMFY_CLOUD_GPU_SECOND_USD == 0.00185
     assert nodes_comfy_cloud.COMFY_CLOUD_CREDITS_PER_USD == 211
     assert nodes_comfy_cloud.COMFY_CLOUD_GPU_SECOND_CREDITS == pytest.approx(0.39035)
-    assert nodes_comfy_cloud.COMFY_CLOUD_GPU_HOUR_USD == pytest.approx(6.66)
-    assert nodes_comfy_cloud.COMFY_CLOUD_GPU_HOUR_CREDITS == pytest.approx(1405.26)
     for node in nodes:
         schema = node.define_schema()
         badge = schema.price_badge.as_dict(schema.inputs)
         assert badge["expr"] == (
             '{"type":"usd","usd":0.001850,"format":{"suffix":"/GPU-second","approximate":true}}'
         )
-        assert "Estimated compute rate" in schema.description
-        assert "Actual final cost depends on GPU runtime" in schema.description
+        assert schema.description.endswith(
+            "Runs on a Comfy Cloud GPU, billed by how long it runs at "
+            "$0.00185/GPU-second (0.39 credits). Paid in credits, no Cloud "
+            "subscription required."
+        ), node.__name__
+
+
+def test_every_node_describes_what_it_actually_does():
+    """These descriptions used to be three generic bodies shared across sixteen
+    nodes, which left the tooltip saying nothing about which model runs or why
+    you would pick this node over the one beside it."""
+    nodes = asyncio.run(nodes_comfy_cloud.ComfyCloudExtension().get_node_list())
+    summaries = {}
+
+    for node in nodes:
+        schema = node.define_schema()
+        summary = schema.description.split(" Runs on a Comfy Cloud GPU")[0]
+        assert len(summary) > 60, f"{node.__name__} says too little: {summary!r}"
+        summaries.setdefault(summary, []).append(node.__name__)
+
+    shared = {s: n for s, n in summaries.items() if len(n) > 1}
+    # The four capability nodes deliberately share wording per output type.
+    assert all(len(n) <= 2 for n in shared.values()), shared
 
 
 def test_all_linkable_widget_constraints_are_validated():

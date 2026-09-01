@@ -75,8 +75,6 @@ _MAX_DECODED_AUDIO_BYTES = 256 * 1024 * 1024
 COMFY_CLOUD_GPU_SECOND_USD = 0.00185
 COMFY_CLOUD_CREDITS_PER_USD = 211
 COMFY_CLOUD_GPU_SECOND_CREDITS = COMFY_CLOUD_GPU_SECOND_USD * COMFY_CLOUD_CREDITS_PER_USD
-COMFY_CLOUD_GPU_HOUR_USD = COMFY_CLOUD_GPU_SECOND_USD * 3600
-COMFY_CLOUD_GPU_HOUR_CREDITS = COMFY_CLOUD_GPU_SECOND_CREDITS * 3600
 _COMFY_CLOUD_PRICE_BADGE = IO.PriceBadge(
     expr=(
         f'{{"type":"usd","usd":{COMFY_CLOUD_GPU_SECOND_USD:.6f},'
@@ -84,12 +82,17 @@ _COMFY_CLOUD_PRICE_BADGE = IO.PriceBadge(
     )
 )
 _COMFY_CLOUD_RATE_DESCRIPTION = (
-    f" Estimated compute rate: ${COMFY_CLOUD_GPU_SECOND_USD:.6f}/GPU-second "
-    f"({COMFY_CLOUD_GPU_SECOND_CREDITS:.6f} credits/GPU-second using "
-    f"{COMFY_CLOUD_CREDITS_PER_USD} credits/USD; ${COMFY_CLOUD_GPU_HOUR_USD:.3f} or "
-    f"{COMFY_CLOUD_GPU_HOUR_CREDITS:.3f} credits/GPU-hour). "
-    "Actual final cost depends on GPU runtime."
+    f" Runs on a Comfy Cloud GPU, billed by how long it runs at "
+    f"${COMFY_CLOUD_GPU_SECOND_USD:.5f}/GPU-second "
+    f"({COMFY_CLOUD_GPU_SECOND_CREDITS:.2f} credits). Paid in credits, no Cloud "
+    "subscription required."
 )
+
+
+def _comfy_cloud_description(summary: str) -> str:
+    """Node descriptions carry the rate because the price badge only renders on
+    Nodes 2.0, and a plain local install still defaults to the classic canvas."""
+    return summary + _COMFY_CLOUD_RATE_DESCRIPTION
 _TEXT_LIMITS = {
     "prompt": (1, 4096),
     "instruction": (1, 4096),
@@ -238,6 +241,7 @@ class _ComfyCloudWorkflowNode(IO.ComfyNode):
     workflow: ClassVar[ComfyCloudWorkflow]
     node_id: ClassVar[str]
     display_name: ClassVar[str]
+    summary: ClassVar[str]
     category: ClassVar[str]
     requires_image: ClassVar[bool]
     returns_video: ClassVar[bool]
@@ -260,8 +264,7 @@ class _ComfyCloudWorkflowNode(IO.ComfyNode):
             node_id=cls.node_id,
             display_name=cls.display_name,
             category=cls.category,
-            description="Runs this workflow on Comfy Cloud and returns the generated media."
-            + _COMFY_CLOUD_RATE_DESCRIPTION,
+            description=_comfy_cloud_description(cls.summary),
             inputs=_with_input_sockets(inputs),
             outputs=[output],
             hidden=[
@@ -326,6 +329,10 @@ class ComfyCloudTextToImageNode(_ComfyCloudWorkflowNode):
     workflow = "text-to-image"
     node_id = "ComfyCloudTextToImageNode"
     display_name = "Comfy Cloud Text to Image"
+    summary = (
+        "Generates an image from a text prompt. Comfy Cloud chooses the model and moves it to "
+        "a better one over time, so the graph keeps improving without you editing it."
+    )
     category = "partner/image/Comfy Cloud"
     requires_image = False
     returns_video = False
@@ -335,6 +342,10 @@ class ComfyCloudTextToVideoNode(_ComfyCloudWorkflowNode):
     workflow = "text-to-video"
     node_id = "ComfyCloudTextToVideoNode"
     display_name = "Comfy Cloud Text to Video"
+    summary = (
+        "Generates a video from a text prompt. Comfy Cloud chooses the model and moves it to "
+        "a better one over time, so the graph keeps improving without you editing it."
+    )
     category = "partner/video/Comfy Cloud"
     requires_image = False
     returns_video = True
@@ -344,6 +355,10 @@ class ComfyCloudImageToVideoNode(_ComfyCloudWorkflowNode):
     workflow = "image-to-video"
     node_id = "ComfyCloudImageToVideoNode"
     display_name = "Comfy Cloud Image to Video"
+    summary = (
+        "Animates a still image into a video. Comfy Cloud chooses the model and moves it to a "
+        "better one over time, so the graph keeps improving without you editing it."
+    )
     category = "partner/video/Comfy Cloud"
     requires_image = True
     returns_video = True
@@ -353,6 +368,10 @@ class ComfyCloudImageEditNode(_ComfyCloudWorkflowNode):
     workflow = "image-edit"
     node_id = "ComfyCloudImageEditNode"
     display_name = "Comfy Cloud Image Edit"
+    summary = (
+        "Edits an image from a written instruction. Comfy Cloud chooses the model and moves "
+        "it to a better one over time, so the graph keeps improving without you editing it."
+    )
     category = "partner/image/Comfy Cloud"
     requires_image = True
     returns_video = False
@@ -374,13 +393,12 @@ def _seed_input() -> IO.Int.Input:
     return IO.Int.Input("seed", default=0, min=0, max=_UINT64_MAX, control_after_generate=True)
 
 
-def _image_schema(node_id: str, display_name: str, inputs: list[IO.Input]) -> IO.Schema:
+def _image_schema(node_id: str, display_name: str, summary: str, inputs: list[IO.Input]) -> IO.Schema:
     return IO.Schema(
         node_id=node_id,
         display_name=display_name,
         category="partner/image/Comfy Cloud",
-        description="Runs this image workflow on Comfy Cloud and returns the generated image."
-        + _COMFY_CLOUD_RATE_DESCRIPTION,
+        description=_comfy_cloud_description(summary),
         inputs=_with_input_sockets(inputs),
         outputs=[IO.Image.Output()],
         hidden=[
@@ -397,6 +415,10 @@ class ComfyCloudCapybaraTextToImageNode(_ComfyCloudWorkflowNode):
     workflow = "image.capybara-0-1-text-to-image.v1"
     node_id = "ComfyCloudCapybaraTextToImageNode"
     display_name = "Comfy Cloud Capybara 0.1"
+    summary = (
+        "Generates an image from a text prompt with Capybara 0.1, rendered at 1280x1280 "
+        "rather than upscaled from a smaller canvas."
+    )
     category = "partner/image/Comfy Cloud"
     requires_image = False
     returns_video = False
@@ -406,6 +428,7 @@ class ComfyCloudCapybaraTextToImageNode(_ComfyCloudWorkflowNode):
         return _image_schema(
             cls.node_id,
             cls.display_name,
+            cls.summary,
             [
                 _prompt_input(),
                 _seed_input(),
@@ -424,6 +447,10 @@ class ComfyCloudIdeogram4TextToImageNode(_ComfyCloudWorkflowNode):
     workflow = "image.ideogram-4-text-to-image.v1"
     node_id = "ComfyCloudIdeogram4TextToImageNode"
     display_name = "Comfy Cloud Ideogram 4"
+    summary = (
+        "Generates an image from a text prompt with Ideogram 4, a model aimed at typography "
+        "and graphic layout work."
+    )
     category = "partner/image/Comfy Cloud"
     requires_image = False
     returns_video = False
@@ -433,6 +460,7 @@ class ComfyCloudIdeogram4TextToImageNode(_ComfyCloudWorkflowNode):
         return _image_schema(
             cls.node_id,
             cls.display_name,
+            cls.summary,
             [
                 _prompt_input(),
                 _seed_input(),
@@ -451,6 +479,11 @@ class ComfyCloudLongCatTextToImageNode(_ComfyCloudWorkflowNode):
     workflow = "image.longcat-text-to-image.v1"
     node_id = "ComfyCloudLongCatTextToImageNode"
     display_name = "Comfy Cloud LongCat"
+    summary = (
+        "Generates a 1024x1024 image from a text prompt with LongCat, running a full 20-step "
+        "sampler instead of a distilled shortcut. Slower and dearer per run than the turbo "
+        "models, and steadier on fine detail."
+    )
     category = "partner/image/Comfy Cloud"
     requires_image = False
     returns_video = False
@@ -460,6 +493,7 @@ class ComfyCloudLongCatTextToImageNode(_ComfyCloudWorkflowNode):
         return _image_schema(
             cls.node_id,
             cls.display_name,
+            cls.summary,
             [
                 _prompt_input(),
                 _seed_input(),
@@ -478,6 +512,10 @@ class ComfyCloudFlux2TextToImageNode(_ComfyCloudWorkflowNode):
     workflow = "image.flux-2-text-to-image.v1"
     node_id = "ComfyCloudFlux2TextToImageNode"
     display_name = "Comfy Cloud Flux 2"
+    summary = (
+        "Generates an image from a text prompt with Flux 2 dev plus its Turbo LoRA, which "
+        "trades a little fidelity for a much shorter run."
+    )
     category = "partner/image/Comfy Cloud"
     requires_image = False
     returns_video = False
@@ -487,6 +525,7 @@ class ComfyCloudFlux2TextToImageNode(_ComfyCloudWorkflowNode):
         return _image_schema(
             cls.node_id,
             cls.display_name,
+            cls.summary,
             [
                 _prompt_input(),
                 _seed_input(),
@@ -505,6 +544,10 @@ class ComfyCloudZImageTurboNode(_ComfyCloudWorkflowNode):
     workflow = "image.z-image-turbo.v1"
     node_id = "ComfyCloudZImageTurboNode"
     display_name = "Comfy Cloud Z-Image Turbo"
+    summary = (
+        "Generates a 1024x1024 image from a text prompt with Z-Image Turbo in 8 steps. One of "
+        "the quickest and cheapest nodes here, which makes it the one to iterate on."
+    )
     category = "partner/image/Comfy Cloud"
     requires_image = False
     returns_video = False
@@ -514,6 +557,7 @@ class ComfyCloudZImageTurboNode(_ComfyCloudWorkflowNode):
         return _image_schema(
             cls.node_id,
             cls.display_name,
+            cls.summary,
             [
                 _prompt_input(),
                 _seed_input(),
@@ -532,6 +576,11 @@ class ComfyCloudKrea2CreativeImageNode(_ComfyCloudWorkflowNode):
     workflow = "image.krea-2-creative-image.v1"
     node_id = "ComfyCloudKrea2CreativeImageNode"
     display_name = "Comfy Cloud Krea 2"
+    summary = (
+        "Generates an image from a text prompt with Krea 2 Turbo in 8 steps. The Krea 2 "
+        "darkbrush style LoRA is baked into this graph, so output carries that look by "
+        "default."
+    )
     category = "partner/image/Comfy Cloud"
     requires_image = False
     returns_video = False
@@ -541,6 +590,7 @@ class ComfyCloudKrea2CreativeImageNode(_ComfyCloudWorkflowNode):
         return _image_schema(
             cls.node_id,
             cls.display_name,
+            cls.summary,
             [
                 _prompt_input(),
                 IO.Boolean.Input("prompt_enhance", default=True),
@@ -567,6 +617,10 @@ class ComfyCloudQwenImageEdit2511Node(_ComfyCloudWorkflowNode):
     workflow = "image.qwen-image-edit-2511.v1"
     node_id = "ComfyCloudQwenImageEdit2511Node"
     display_name = "Comfy Cloud Qwen Image Edit 2511"
+    summary = (
+        "Edits an image from a written instruction with Qwen Image Edit 2511, cut to 4 steps "
+        "by a Lightning LoRA. Describe the change you want, not the whole scene."
+    )
     category = "partner/image/Comfy Cloud"
     requires_image = True
     returns_video = False
@@ -576,6 +630,7 @@ class ComfyCloudQwenImageEdit2511Node(_ComfyCloudWorkflowNode):
         return _image_schema(
             cls.node_id,
             cls.display_name,
+            cls.summary,
             [
                 IO.Image.Input("image"),
                 _prompt_input("instruction"),
@@ -613,6 +668,11 @@ class ComfyCloudSeedVR2ImageUpscaleNode(_ComfyCloudWorkflowNode):
     workflow = "image.seedvr2-image-upscale.v1"
     node_id = "ComfyCloudSeedVR2ImageUpscaleNode"
     display_name = "Comfy Cloud SeedVR2 Upscale"
+    summary = (
+        "Upscales and restores an image with the SeedVR2 7B diffusion upscaler in a single "
+        "step. It rebuilds detail rather than resampling, so it suits soft or heavily "
+        "compressed sources."
+    )
     category = "partner/image/Comfy Cloud"
     requires_image = True
     returns_video = False
@@ -622,6 +682,7 @@ class ComfyCloudSeedVR2ImageUpscaleNode(_ComfyCloudWorkflowNode):
         return _image_schema(
             cls.node_id,
             cls.display_name,
+            cls.summary,
             [IO.Image.Input("image"), IO.Combo.Input("scale", options=["2x", "4x"], default="4x")],
         )
 
@@ -656,13 +717,12 @@ async def _run_video_workflow(cls: type[IO.ComfyNode], workflow: ComfyCloudWorkf
     )
 
 
-def _video_schema(node_id: str, display_name: str, inputs: list[IO.Input]) -> IO.Schema:
+def _video_schema(node_id: str, display_name: str, summary: str, inputs: list[IO.Input]) -> IO.Schema:
     return IO.Schema(
         node_id=node_id,
         display_name=display_name,
         category="partner/video/Comfy Cloud",
-        description="Runs this video workflow on Comfy Cloud and returns the generated video."
-        + _COMFY_CLOUD_RATE_DESCRIPTION,
+        description=_comfy_cloud_description(summary),
         inputs=_with_input_sockets(inputs),
         outputs=[IO.Video.Output()],
         hidden=[IO.Hidden.auth_token_comfy_org, IO.Hidden.api_key_comfy_org, IO.Hidden.unique_id],
@@ -681,6 +741,11 @@ class ComfyCloudMiniMaxH3TextSoundNode(IO.ComfyNode):
         return _video_schema(
             "ComfyCloudMiniMaxH3TextSoundNode",
             "Comfy Cloud MiniMax H3 Text to Video",
+            (
+                "Generates a video with a matching soundtrack from a text prompt, using MiniMax "
+                "H3. Picture and audio come out of the same pass rather than being dubbed on "
+                "afterwards."
+            ),
             [
                 _prompt_input(),
                 IO.Combo.Input("aspect_ratio", options=["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9", "21:9"], default="1:1"),
@@ -702,6 +767,11 @@ class ComfyCloudMiniMaxH3ImageSoundNode(IO.ComfyNode):
         return _video_schema(
             "ComfyCloudMiniMaxH3ImageSoundNode",
             "Comfy Cloud MiniMax H3 Image to Video",
+            (
+                "Animates a still image into a video with a matching soundtrack, using MiniMax "
+                "H3. Picture and audio come out of the same pass rather than being dubbed on "
+                "afterwards."
+            ),
             [
                 IO.Image.Input("image"),
                 _prompt_input(),
@@ -728,6 +798,11 @@ class ComfyCloudLTX23ImageAudioPerformanceNode(IO.ComfyNode):
         return _video_schema(
             "ComfyCloudLTX23ImageAudioPerformanceNode",
             "Comfy Cloud LTX-2.3 Performance",
+            (
+                "Drives a still image with an audio track to produce an audio-led performance "
+                "video, using LTX-2.3 22B with a 2x spatial upscaler. Duration cannot exceed the "
+                "length of the audio you supply."
+            ),
             [
                 IO.Image.Input("image"), IO.Audio.Input("audio"), _prompt_input(),
                 IO.Boolean.Input("enhance_prompt", default=True),
@@ -758,6 +833,11 @@ class ComfyCloudWan22FirstLastFrameNode(IO.ComfyNode):
         return _video_schema(
             "ComfyCloudWan22FirstLastFrameNode",
             "Comfy Cloud Wan 2.2 First & Last Frame",
+            (
+                "Generates the video between a first and a last frame with Wan 2.2 14B, inventing "
+                "the motion that connects them. Frames that differ wildly need a longer duration "
+                "to transition cleanly."
+            ),
             [IO.Image.Input("first_frame"), IO.Image.Input("last_frame"), _prompt_input(), IO.String.Input("negative_prompt", multiline=True, default="graph tested Chinese quality negative"), IO.Int.Input("duration_seconds", default=5, min=2, max=8, step=1, tooltip="Graph frame count is floor(duration × 16 + 1)."), _video_seed_input(984937593540091)],
         )
 
