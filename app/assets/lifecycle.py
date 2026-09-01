@@ -12,7 +12,7 @@ from app.assets.database.queries.records import delete_record
 from app.assets.helpers import sql_path_under_prefix
 from app.assets.services.hash_mode_state import enqueue_transition_work
 from app.assets.services.hash_mode_state import record_transition_intent
-from app.database.db import can_create_session, create_session, init_db
+from app.database.db import can_create_session, create_session, dependencies_available, init_db
 from comfy.cli_args import args
 
 _excluded_scan_roots: set[str] = set()
@@ -35,6 +35,15 @@ def enqueue_mode_transition_work() -> None:
     with create_session() as session:
         enqueue_transition_work(session, _hash_mode_transition)
         session.commit()
+
+
+def assets_dependencies_ready() -> bool:
+    from app.assets.api.routes import disable_assets_routes
+
+    if dependencies_available():
+        return True
+    disable_assets_routes()
+    return False
 
 
 def init_db_and_state() -> None:
