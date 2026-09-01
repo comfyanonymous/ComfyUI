@@ -1,3 +1,10 @@
+"""Applies and removes tags on a record and answers tag listing and histogram
+queries. Adding reports what it actually inserted, read back after the write,
+so a caller that lost a race is told the tag was already present rather than
+that it added one. Removal leaves automatically applied tags in place and
+reports them as protected instead of silently skipping them.
+"""
+
 from typing import Sequence
 
 from sqlalchemy import delete, select

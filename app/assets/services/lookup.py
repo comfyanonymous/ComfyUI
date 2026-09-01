@@ -1,3 +1,10 @@
+"""Resolves a hash to a content row that can actually be served, and claims that
+row so a concurrent writer cannot retire it mid-use. A row qualifies only if
+its file exists, sits outside the temp directory, and its recorded size and
+mtime still match the file — an unrecorded mtime excuses the mtime comparison
+but never the size comparison.
+"""
+
 from __future__ import annotations
 
 import os
