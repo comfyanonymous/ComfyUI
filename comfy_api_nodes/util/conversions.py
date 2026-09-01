@@ -165,7 +165,8 @@ def _compute_downscale_dims(src_w: int, src_h: int, total_pixels: int) -> tuple[
 def downscale_image_tensor(image: torch.Tensor, total_pixels: int = 1536 * 1024) -> torch.Tensor:
     """Downscale input image tensor to roughly the specified total pixels.
 
-    Output dimensions are even and guaranteed to fit within ``total_pixels``
+    Resized output has even dimensions and always fits within ``total_pixels``;
+    an image that already fits is returned unchanged.
     """
     samples = image.movedim(-1, 1)
     dims = _compute_downscale_dims(samples.shape[3], samples.shape[2], int(total_pixels))
