@@ -28,7 +28,7 @@ def _stat_consistent(content: AssetContent) -> bool:
         return False
     if content.mtime_ns is not None and stat.st_mtime_ns != content.mtime_ns:
         return False
-    if content.mtime_ns is not None and stat.st_size != content.size_bytes:
+    if stat.st_size != content.size_bytes:
         return False
     return True
 
