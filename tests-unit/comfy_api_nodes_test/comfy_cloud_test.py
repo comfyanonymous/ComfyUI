@@ -369,16 +369,16 @@ def test_cloud_workflow_schemas_have_descriptions():
 def test_cloud_workflow_schemas_share_exact_estimated_rate_metadata():
     nodes = asyncio.run(nodes_comfy_cloud.ComfyCloudExtension().get_node_list())
 
-    assert nodes_comfy_cloud.COMFY_CLOUD_GPU_SECOND_USD == 0.001295
+    assert nodes_comfy_cloud.COMFY_CLOUD_GPU_SECOND_USD == 0.00185
     assert nodes_comfy_cloud.COMFY_CLOUD_CREDITS_PER_USD == 211
-    assert nodes_comfy_cloud.COMFY_CLOUD_GPU_SECOND_CREDITS == pytest.approx(0.273245)
-    assert nodes_comfy_cloud.COMFY_CLOUD_GPU_HOUR_USD == pytest.approx(4.662)
-    assert nodes_comfy_cloud.COMFY_CLOUD_GPU_HOUR_CREDITS == pytest.approx(983.682)
+    assert nodes_comfy_cloud.COMFY_CLOUD_GPU_SECOND_CREDITS == pytest.approx(0.39035)
+    assert nodes_comfy_cloud.COMFY_CLOUD_GPU_HOUR_USD == pytest.approx(6.66)
+    assert nodes_comfy_cloud.COMFY_CLOUD_GPU_HOUR_CREDITS == pytest.approx(1405.26)
     for node in nodes:
         schema = node.define_schema()
         badge = schema.price_badge.as_dict(schema.inputs)
         assert badge["expr"] == (
-            '{"type":"usd","usd":0.001295,"format":{"suffix":"/GPU-second","approximate":true}}'
+            '{"type":"usd","usd":0.001850,"format":{"suffix":"/GPU-second","approximate":true}}'
         )
         assert "Estimated compute rate" in schema.description
         assert "Actual final cost depends on GPU runtime" in schema.description

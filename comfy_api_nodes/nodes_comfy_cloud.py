@@ -63,7 +63,16 @@ _OUTPUT_DOWNLOAD_TIMEOUT = 30 * 60
 _MAX_UPLOAD_IMAGE_PIXELS = 32_000_000
 _MAX_UPLOAD_IMAGE_DIMENSION = 8192
 _MAX_DECODED_AUDIO_BYTES = 256 * 1024 * 1024
-COMFY_CLOUD_GPU_SECOND_USD = 0.001295
+# The rate Metronome actually charges for a Comfy Cloud run: the "GPU Hour Usage"
+# billable metric sums gpu_seconds and prices it per gpu_type, and the rate for
+# rtx_pro_6000 is 0.185 cents per GPU-second. Confirmed against the live rate
+# card, not derived here.
+#
+# This is a HARDCODED MIRROR of that rate card and nothing links the two, so it
+# will drift the moment pricing changes. It previously read 0.001295, which
+# under-quoted every run by ~43% against the user. If the rate card moves, this
+# has to move with it, and it ships on the ComfyUI release train.
+COMFY_CLOUD_GPU_SECOND_USD = 0.00185
 COMFY_CLOUD_CREDITS_PER_USD = 211
 COMFY_CLOUD_GPU_SECOND_CREDITS = COMFY_CLOUD_GPU_SECOND_USD * COMFY_CLOUD_CREDITS_PER_USD
 COMFY_CLOUD_GPU_HOUR_USD = COMFY_CLOUD_GPU_SECOND_USD * 3600
