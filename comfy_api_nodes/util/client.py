@@ -574,6 +574,16 @@ def _merge_params(endpoint_params: dict[str, Any], method: str, data: dict[str, 
     return params
 
 
+# Error codes where a 5xx means "this is switched off", not "try again in a
+# moment". Retrying one only makes the user wait through the backoff before
+# showing them the same answer.
+_TERMINAL_SERVICE_REFUSALS = frozenset({"comfy_cloud_provider_disabled"})
+
+
+def _is_terminal_service_refusal(body: Any) -> bool:
+    return isinstance(body, dict) and body.get("error") in _TERMINAL_SERVICE_REFUSALS
+
+
 def _friendly_http_message(status: int, body: Any) -> str:
     if status == 401:
         return "Unauthorized: Please login first to use this node."
@@ -586,6 +596,13 @@ def _friendly_http_message(status: int, body: Any) -> str:
     try:
         if isinstance(body, dict):
             err = body.get("error")
+            # comfy-api's own error envelope is FLAT: {"error": "<code>",
+            # "message": "<user-facing text>"}. Without this the message is
+            # skipped and the user is shown the raw JSON of the whole body.
+            if isinstance(err, str):
+                msg = body.get("message")
+                if isinstance(msg, str) and msg:
+                    return msg
             if isinstance(err, dict):
                 msg = err.get("message")
                 typ = err.get("type")
@@ -776,7 +793,11 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                         rate_limit_delay *= cfg.retry_backoff
                         retry_label = f"rate-limit retry {rate_limit_attempts} of {cfg.max_retries_on_rate_limit}"
                         should_retry = True
-                    elif resp.status in _RETRY_STATUS and (attempt - rate_limit_attempts) <= cfg.max_retries:
+                    elif (
+                        resp.status in _RETRY_STATUS
+                        and not _is_terminal_service_refusal(body)
+                        and (attempt - rate_limit_attempts) <= cfg.max_retries
+                    ):
                         wait_time = delay
                         delay *= cfg.retry_backoff
                         retry_label = f"retry {attempt - rate_limit_attempts} of {cfg.max_retries}"

@@ -667,3 +667,36 @@ def test_output_buckets_match_the_server_allowlist():
             "partner-nodes-assets-staging",
         }
     )
+
+
+def test_disabled_provider_message_reaches_the_user_verbatim():
+    """comfy-api's error envelope is flat, and the message is what a user reads.
+
+    Before this, _friendly_http_message only unwrapped a NESTED error object, so
+    a flat {"error": code, "message": text} body fell through to the raw-JSON
+    branch and the user was shown the whole payload.
+    """
+    from comfy_api_nodes.util import client
+
+    body = {
+        "error": "comfy_cloud_provider_disabled",
+        "message": "Comfy Cloud is currently unavailable. Please try again later.",
+    }
+    assert client._friendly_http_message(503, body) == body["message"]
+
+
+def test_disabled_provider_is_not_retried():
+    """A switched-off provider is a terminal answer, not a transient blip.
+
+    503 is in _RETRY_STATUS, so without this the user waits through three
+    backoff rounds only to be told the same thing.
+    """
+    from comfy_api_nodes.util import client
+
+    assert client._is_terminal_service_refusal(
+        {"error": "comfy_cloud_provider_disabled", "message": "x"}
+    )
+    # A genuine transient 503 carries no such code and must still be retried.
+    assert not client._is_terminal_service_refusal({"error": "upstream_timeout"})
+    assert not client._is_terminal_service_refusal({})
+    assert not client._is_terminal_service_refusal("bad gateway")
