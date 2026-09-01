@@ -1,13 +1,13 @@
-import math
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 import comfy.patcher_extension
+import comfy.utils
 from comfy.ldm.common_dit import pad_to_patch_size
 from comfy.ldm.flux.math import apply_rope1
 from comfy.ldm.modules.attention import optimized_attention
+from comfy.ldm.modules.diffusionmodules.mmdit import TimestepEmbedder
 
 from .sampling import resolution_noise_scale
 
@@ -22,6 +22,19 @@ MERGED_PATCH_SIZE = 32
 VOCAB_SIZE = 151936
 
 
+def _pad_to_merged_patch_size(value):
+    height, width = value.shape[-2:]
+    height_pad = max(16 - height, 0)
+    width_pad = max(16 - width, 0)
+    if height_pad or width_pad:
+        value = F.pad(
+            value,
+            (0, width_pad, 0, height_pad),
+            mode="replicate" if height > 0 and width > 0 else "constant",
+        )
+    return pad_to_patch_size(value, (MERGED_PATCH_SIZE, MERGED_PATCH_SIZE))
+
+
 def _generation_batch_size(total_batch, prefix_batch):
     if prefix_batch < 1 or total_batch < 1 or total_batch % prefix_batch != 0:
         raise ValueError(
@@ -31,12 +44,23 @@ def _generation_batch_size(total_batch, prefix_batch):
     return total_batch // prefix_batch
 
 
+def _match_prefix_batch(total_batch, text_input_ids, prefix_indexes, prefix_mask):
+    prefix_batch = text_input_ids.shape[0]
+    if prefix_batch > 0 and total_batch % prefix_batch:
+        text_input_ids = comfy.utils.resize_to_batch_size(text_input_ids, total_batch)
+        if prefix_indexes is not None:
+            prefix_indexes = comfy.utils.resize_to_batch_size(
+                prefix_indexes, total_batch
+            )
+        if prefix_mask is not None:
+            prefix_mask = comfy.utils.resize_to_batch_size(prefix_mask, total_batch)
+    return text_input_ids, prefix_indexes, prefix_mask
+
+
 def _expand_prefix_batch(value, generation_batch):
     """Repeat each guidance branch's prefix KV for its generated variants."""
     if generation_batch == 1:
         return value
-    if generation_batch < 1:
-        raise ValueError("SenseNova generation batch multiplier must be positive")
     prefix_batch = value.shape[0]
     return (
         value.unsqueeze(1)
@@ -45,18 +69,28 @@ def _expand_prefix_batch(value, generation_batch):
     )
 
 
-def _apply_llm_rope(query, key, positions, theta):
-    dim = query.shape[-1]
+def _prepare_llm_rope(positions, dim, theta, device, dtype):
     frequencies = theta ** (
-        -torch.arange(0, dim, 2, dtype=torch.float32, device=query.device) / dim
+        -torch.arange(0, dim, 2, dtype=torch.float32, device=device) / dim
     )
-    positions = positions.to(device=query.device, dtype=torch.float32)
+    positions = positions.to(device=device, dtype=torch.float32)
     if positions.ndim == 1:
         positions = positions.unsqueeze(0)
     angles = positions.unsqueeze(-1) * frequencies
     embedding = torch.cat((angles, angles), dim=-1).unsqueeze(1)
-    cosine = embedding.cos().to(query.dtype)
-    sine = embedding.sin().to(query.dtype)
+    return embedding.cos().to(dtype), embedding.sin().to(dtype)
+
+
+def _prepare_mrope(indexes, device, dtype):
+    return (
+        _prepare_llm_rope(indexes[0], HEAD_DIM // 2, 5000000.0, device, dtype),
+        _prepare_llm_rope(indexes[1], HEAD_DIM // 4, 10000.0, device, dtype),
+        _prepare_llm_rope(indexes[2], HEAD_DIM // 4, 10000.0, device, dtype),
+    )
+
+
+def _apply_llm_rope(query, key, rope):
+    cosine, sine = rope
 
     def rotate_half(value):
         first, second = value.chunk(2, dim=-1)
@@ -91,43 +125,6 @@ def _apply_interleaved_rope(value, positions, theta):
         1, 1, *angles.shape, 2, 2
     )
     return apply_rope1(value.float().unsqueeze(1), rotation).squeeze(1)
-
-
-class TimestepEmbedder(nn.Module):
-    def __init__(
-        self,
-        hidden_size=HIDDEN_SIZE,
-        frequency_embedding_size=256,
-        device=None,
-        dtype=None,
-        operations=None,
-    ):
-        super().__init__()
-        self.frequency_embedding_size = frequency_embedding_size
-        self.mlp = nn.Sequential(
-            operations.Linear(
-                frequency_embedding_size,
-                hidden_size,
-                bias=True,
-                device=device,
-                dtype=dtype,
-            ),
-            nn.SiLU(),
-            operations.Linear(
-                hidden_size, hidden_size, bias=True, device=device, dtype=dtype
-            ),
-        )
-
-    def forward(self, timesteps, dtype):
-        half = self.frequency_embedding_size // 2
-        frequencies = torch.exp(
-            -math.log(10000.0)
-            * torch.arange(0, half, dtype=torch.float32, device=timesteps.device)
-            / half
-        )
-        angles = timesteps[:, None].float() * frequencies[None]
-        embedding = torch.cat((angles.cos(), angles.sin()), dim=-1)
-        return self.mlp(embedding.to(dtype))
 
 
 class VisionEmbeddings(nn.Module):
@@ -243,7 +240,7 @@ class Attention(nn.Module):
             HEAD_DIM // 2, eps=1e-6, device=device, dtype=dtype
         )
 
-    def _project(self, hidden_states, indexes, generation):
+    def _project(self, hidden_states, rope, generation):
         batch, length, _ = hidden_states.shape
         if generation:
             query = self.q_proj_mot_gen(hidden_states).view(
@@ -280,23 +277,23 @@ class Attention(nn.Module):
 
         query_h, query_w = query_hw.chunk(2, dim=-1)
         key_h, key_w = key_hw.chunk(2, dim=-1)
-        query_t, key_t = _apply_llm_rope(query_t, key_t, indexes[0], 5000000.0)
-        query_h, key_h = _apply_llm_rope(query_h, key_h, indexes[1], 10000.0)
-        query_w, key_w = _apply_llm_rope(query_w, key_w, indexes[2], 10000.0)
+        query_t, key_t = _apply_llm_rope(query_t, key_t, rope[0])
+        query_h, key_h = _apply_llm_rope(query_h, key_h, rope[1])
+        query_w, key_w = _apply_llm_rope(query_w, key_w, rope[2])
         query = torch.cat((query_t, query_h, query_w), dim=-1)
         key = torch.cat((key_t, key_h, key_w), dim=-1)
         return query, key, value
 
     def forward_prefix(
-        self, hidden_states, indexes, attention_mask, transformer_options
+        self, hidden_states, rope, attention_mask, transformer_options
     ):
-        query, key, value = self._project(hidden_states, indexes, False)
+        query, key, value = self._project(hidden_states, rope, False)
         output = optimized_attention(
             query,
             key,
             value,
             NUM_HEADS,
-            mask=attention_mask.to(query.dtype),
+            mask=attention_mask,
             skip_reshape=True,
             transformer_options=transformer_options,
             enable_gqa=True,
@@ -304,9 +301,9 @@ class Attention(nn.Module):
         return self.o_proj(output), key, value
 
     def forward_generation(
-        self, hidden_states, indexes, prefix_key, prefix_value, transformer_options
+        self, hidden_states, rope, prefix_key, prefix_value, transformer_options
     ):
-        query, key, value = self._project(hidden_states, indexes, True)
+        query, key, value = self._project(hidden_states, rope, True)
         key = torch.cat((prefix_key, key), dim=2)
         value = torch.cat((prefix_value, value), dim=2)
         output = optimized_attention(
@@ -341,10 +338,10 @@ class DecoderLayer(nn.Module):
             HIDDEN_SIZE, eps=1e-6, device=device, dtype=dtype
         )
 
-    def forward_prefix(self, prefix, prefix_indexes, prefix_mask, transformer_options):
+    def forward_prefix(self, prefix, prefix_rope, prefix_mask, transformer_options):
         prefix_attention, prefix_key, prefix_value = self.self_attn.forward_prefix(
             self.input_layernorm(prefix),
-            prefix_indexes,
+            prefix_rope,
             prefix_mask,
             transformer_options,
         )
@@ -353,11 +350,11 @@ class DecoderLayer(nn.Module):
         return prefix, prefix_key, prefix_value
 
     def forward_generation(
-        self, image, image_indexes, prefix_key, prefix_value, transformer_options
+        self, image, image_rope, prefix_key, prefix_value, transformer_options
     ):
         image_attention = self.self_attn.forward_generation(
             self.input_layernorm_mot_gen(image),
-            image_indexes,
+            image_rope,
             prefix_key,
             prefix_value,
             transformer_options,
@@ -428,13 +425,13 @@ class SenseNovaU15(nn.Module):
                     device=device, dtype=dtype, operations=operations
                 ),
                 "timestep_embedder": TimestepEmbedder(
-                    device=device, dtype=dtype, operations=operations
+                    HIDDEN_SIZE, device=device, dtype=dtype, operations=operations
                 ),
                 "fm_head": ConvDecoder(
                     device=device, dtype=dtype, operations=operations
                 ),
                 "noise_scale_embedder": TimestepEmbedder(
-                    device=device, dtype=dtype, operations=operations
+                    HIDDEN_SIZE, device=device, dtype=dtype, operations=operations
                 ),
             }
         )
@@ -448,6 +445,72 @@ class SenseNovaU15(nn.Module):
             ),
         ).execute(x, timesteps, context, transformer_options, **kwargs)
 
+    def _prepare_prefix(
+        self, text_input_ids, reference_images, prefix_indexes, prefix_mask
+    ):
+        prefix = self.language_model.model.embed_tokens(text_input_ids)
+        if reference_images:
+            reference_embeds = [
+                self.vision_model(_pad_to_merged_patch_size(reference))
+                for reference in reference_images
+            ]
+            selected = text_input_ids == 151669
+            prefix = prefix.clone()
+            prefix[selected] = torch.cat(reference_embeds, dim=1).reshape(
+                -1, HIDDEN_SIZE
+            )
+
+        prefix_length = text_input_ids.shape[1]
+        if prefix_indexes is None:
+            prefix_positions = torch.arange(
+                prefix_length, dtype=torch.long, device=prefix.device
+            )
+            zeros = torch.zeros_like(prefix_positions)
+            prefix_indexes = torch.stack((prefix_positions, zeros, zeros))
+            prefix_mask = torch.full(
+                (prefix_length, prefix_length),
+                float("-inf"),
+                dtype=prefix.dtype,
+                device=prefix.device,
+            ).triu(1)
+            prefix_time = torch.full(
+                (prefix.shape[0],),
+                prefix_length,
+                dtype=torch.long,
+                device=prefix.device,
+            )
+        else:
+            prefix_indexes = prefix_indexes.transpose(0, 1)
+            prefix_time = prefix_indexes[0].amax(dim=-1) + 1
+
+        return prefix, prefix_indexes, prefix_mask, prefix_time
+
+    def preprocess_prefix(
+        self,
+        text_input_ids,
+        reference_images=None,
+        prefix_indexes=None,
+        prefix_mask=None,
+    ):
+        prefix, prefix_indexes, prefix_mask, prefix_time = self._prepare_prefix(
+            text_input_ids, reference_images, prefix_indexes, prefix_mask
+        )
+        prefix_keys = []
+        prefix_values = []
+        prefix_rope = _prepare_mrope(prefix_indexes, prefix.device, prefix.dtype)
+        transformer_options = {}
+        for layer_index, layer in enumerate(self.language_model.model.layers):
+            transformer_options["block_index"] = layer_index
+            prefix, prefix_key, prefix_value = layer.forward_prefix(
+                prefix,
+                prefix_rope,
+                prefix_mask,
+                transformer_options,
+            )
+            prefix_keys.append(prefix_key)
+            prefix_values.append(prefix_value)
+        return prefix_keys, prefix_values, prefix_time
+
     def _forward(
         self,
         x,
@@ -458,143 +521,96 @@ class SenseNovaU15(nn.Module):
         reference_images=None,
         prefix_indexes=None,
         prefix_mask=None,
+        prefix_keys=None,
+        prefix_values=None,
+        prefix_time=None,
         **kwargs,
     ):
-        if text_input_ids is None:
+        if text_input_ids is None and prefix_keys is None:
             raise ValueError("SenseNova-U1.5 requires text conditioning")
 
         original_height, original_width = x.shape[-2:]
-        x = pad_to_patch_size(x, (MERGED_PATCH_SIZE, MERGED_PATCH_SIZE))
+        x = _pad_to_merged_patch_size(x)
         batch, _, height, width = x.shape
-        prefix_batch = text_input_ids.shape[0]
+        if prefix_keys is None:
+            text_input_ids, prefix_indexes, prefix_mask = _match_prefix_batch(
+                batch, text_input_ids, prefix_indexes, prefix_mask
+            )
+            prefix_batch = text_input_ids.shape[0]
+            if reference_images:
+                reference_images = [
+                    comfy.utils.resize_to_batch_size(reference, prefix_batch)
+                    for reference in reference_images
+                ]
+            else:
+                reference_images = None
+        else:
+            prefix_batch = prefix_keys[0].shape[0]
+            if prefix_batch > 0 and batch % prefix_batch:
+                prefix_keys = [
+                    comfy.utils.resize_to_batch_size(value, batch)
+                    for value in prefix_keys
+                ]
+                prefix_values = [
+                    comfy.utils.resize_to_batch_size(value, batch)
+                    for value in prefix_values
+                ]
+                prefix_time = comfy.utils.resize_to_batch_size(prefix_time, batch)
+                prefix_batch = batch
         generation_batch = _generation_batch_size(batch, prefix_batch)
-        if reference_images is not None:
-            invalid_reference_batches = [
-                tuple(reference.shape)
-                for reference in reference_images
-                if reference.shape[0] != prefix_batch
-            ]
-            if invalid_reference_batches:
-                raise ValueError(
-                    "SenseNova reference batch must match the text prefix batch; got "
-                    f"text={prefix_batch}, references={invalid_reference_batches}"
-                )
         token_height = height // MERGED_PATCH_SIZE
         token_width = width // MERGED_PATCH_SIZE
         image_length = token_height * token_width
 
         image = self.fm_modules["vision_model_mot_gen"](x)
-        expanded_timesteps = timesteps[:, None].expand(batch, image_length).reshape(-1)
-        time_embedding = self.fm_modules["timestep_embedder"](
-            expanded_timesteps, image.dtype
-        )
+        time_embedding = self.fm_modules["timestep_embedder"](timesteps, image.dtype)
         noise_scale = resolution_noise_scale(height, width) / 16.0
-        scale_timesteps = torch.full_like(expanded_timesteps, noise_scale)
+        scale_timesteps = torch.full_like(timesteps, noise_scale)
         time_embedding = time_embedding + self.fm_modules["noise_scale_embedder"](
             scale_timesteps, image.dtype
         )
-        image = image + time_embedding.view(batch, image_length, HIDDEN_SIZE)
+        image = image + time_embedding[:, None, :]
 
-        prefix_length = text_input_ids.shape[1]
-
-        cache = transformer_options.get("sensenova_prefix_cache")
-        uuids = transformer_options.get("uuids")
-        cache_key = None
-        cached_prefix = None
-        if cache is not None and uuids:
-            reference_shapes = tuple(
-                tuple(reference.shape) for reference in reference_images or ()
+        if prefix_keys is None:
+            prefix, prefix_indexes, prefix_mask, prefix_time = self._prepare_prefix(
+                text_input_ids, reference_images, prefix_indexes, prefix_mask
             )
-            cache_key = (
-                tuple(str(value) for value in uuids),
-                tuple(text_input_ids.shape),
-                reference_shapes,
-                tuple(x.shape),
-                x.dtype,
-                x.device.type,
-                x.device.index,
-            )
-            cached_prefix = cache.get(cache_key)
-
-        prefix = None
-        if cached_prefix is None:
-            prefix = self.language_model.model.embed_tokens(text_input_ids)
-            if reference_images is not None:
-                reference_embeds = []
-                for reference in reference_images:
-                    reference = pad_to_patch_size(
-                        reference, (MERGED_PATCH_SIZE, MERGED_PATCH_SIZE)
-                    )
-                    reference_embeds.append(self.vision_model(reference))
-                selected = text_input_ids == 151669
-                prefix = prefix.clone()
-                prefix[selected] = torch.cat(reference_embeds, dim=1).reshape(
-                    -1, HIDDEN_SIZE
-                )
-
-        if prefix_indexes is None:
-            prefix_positions = torch.arange(
-                prefix_length, dtype=torch.long, device=x.device
-            )
-            zeros = torch.zeros_like(prefix_positions)
-            prefix_indexes = torch.stack((prefix_positions, zeros, zeros))
-            image_time = prefix_length
-            prefix_mask = torch.full(
-                (prefix_length, prefix_length),
-                float("-inf"),
-                dtype=torch.float32,
-                device=x.device,
-            ).triu(1)
-        else:
-            prefix_indexes = prefix_indexes.transpose(0, 1)
-            image_time = prefix_indexes[0].amax(dim=-1) + 1
-            image_time = image_time.repeat_interleave(generation_batch)
+            prefix_rope = _prepare_mrope(prefix_indexes, prefix.device, prefix.dtype)
+        image_time = prefix_time.repeat_interleave(generation_batch)
 
         image_positions = torch.arange(image_length, dtype=torch.long, device=x.device)
-        if torch.is_tensor(image_time):
-            image_indexes = torch.stack(
-                (
-                    image_time[:, None].expand(batch, image_length),
-                    (image_positions // token_width)[None].expand(batch, image_length),
-                    (image_positions % token_width)[None].expand(batch, image_length),
-                )
+        image_indexes = torch.stack(
+            (
+                image_time[:, None].expand(batch, image_length),
+                (image_positions // token_width)[None].expand(batch, image_length),
+                (image_positions % token_width)[None].expand(batch, image_length),
             )
-        else:
-            image_indexes = torch.stack(
-                (
-                    torch.full_like(image_positions, image_time),
-                    image_positions // token_width,
-                    image_positions % token_width,
-                )
-            )
+        )
+        image_rope = _prepare_mrope(image_indexes, image.device, image.dtype)
 
-        prefix_cache_entries = []
         for layer_index, layer in enumerate(self.language_model.model.layers):
             transformer_options["block_index"] = layer_index
-            if cached_prefix is None:
+            if prefix_keys is None:
                 prefix, prefix_key, prefix_value = layer.forward_prefix(
                     prefix,
-                    prefix_indexes,
+                    prefix_rope,
                     prefix_mask,
                     transformer_options,
                 )
-                prefix_cache_entries.append((prefix_key, prefix_value))
             else:
-                prefix_key, prefix_value = cached_prefix[layer_index]
+                prefix_key = prefix_keys[layer_index]
+                prefix_value = prefix_values[layer_index]
             generation_prefix_key = _expand_prefix_batch(prefix_key, generation_batch)
             generation_prefix_value = _expand_prefix_batch(
                 prefix_value, generation_batch
             )
             image = layer.forward_generation(
                 image,
-                image_indexes,
+                image_rope,
                 generation_prefix_key,
                 generation_prefix_value,
                 transformer_options,
             )
-
-        if cache_key is not None and cached_prefix is None:
-            cache[cache_key] = tuple(prefix_cache_entries)
 
         image = self.language_model.model.norm_mot_gen(image)
         image = image.view(batch, token_height, token_width, HIDDEN_SIZE).permute(
