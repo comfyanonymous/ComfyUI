@@ -41,6 +41,13 @@ def recover_missing_content(
 ) -> Literal["recovered", "no_match", "unstable"]:
     if not hashing_is_enabled:
         return "no_match"
+    occupied = session.scalar(
+        sa.select(AssetContent.id)
+        .where(AssetContent.path == path, AssetContent.is_missing.is_(False))
+        .limit(1)
+    )
+    if occupied is not None:
+        return "no_match"
     snapshot = snapshot_hash(path)
     if snapshot is None:
         if path not in _pending_recovery_paths:
