@@ -466,7 +466,7 @@ HAILUO_03_CONTEXT_IR_ENDPOINT = "/proxy/minimax/v2/h3_context_ir"
 HAILUO_03_REGENERATION_ENDPOINT = "/proxy/minimax/v2/video_regeneration"
 
 HAILUO_03_MAX_MODEL = "MiniMax H3 Max"
-HAILUO_03_MAX_ENDPOINT = "/proxy/minimax/h3-max"
+HAILUO_03_MAX_ENDPOINT = "/proxy/fal/minimax/h3-max"
 HAILUO_03_MAX_PROMPT_MAX_LENGTH = 50000
 
 
