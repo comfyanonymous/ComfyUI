@@ -1132,3 +1132,93 @@ def test_off_mode_upload_calls_content_lookup(mock_create_session, hashing_off):
     finally:
         if os.path.exists(temp):
             os.unlink(temp)
+
+
+def _tag_names(session, record_id: str) -> list[str]:
+    return sorted(
+        session.scalars(select(AssetTag.tag_name).where(AssetTag.asset_id == record_id)).all()
+    )
+
+
+def test_upload_round_trips_its_own_served_tags(mock_create_session, hashing_on):
+    temp = _write_temp(b"round-trip-served-tags")
+    try:
+        result = upload_from_temp_path(
+            temp_path=temp,
+            name="served.bin",
+            tags=["output", "uploaded"],
+            client_filename="served.bin",
+        )
+
+        with mock_create_session() as session:
+            assert _tag_names(session, result.ref.id) == ["output", "uploaded"], (
+                "re-uploading a file with the tags the API served for it must succeed; "
+                "'uploaded' is appended unconditionally, so a request already carrying it "
+                "double-adds the same composite PK"
+            )
+    finally:
+        if os.path.exists(temp):
+            os.unlink(temp)
+
+
+def test_upload_accepts_a_repeated_custom_tag(mock_create_session, hashing_on):
+    temp = _write_temp(b"repeated-custom-tag")
+    try:
+        result = upload_from_temp_path(
+            temp_path=temp,
+            name="repeat.bin",
+            tags=["output", "x", "x"],
+            client_filename="repeat.bin",
+        )
+
+        with mock_create_session() as session:
+            assert _tag_names(session, result.ref.id) == ["output", "uploaded", "x"]
+    finally:
+        if os.path.exists(temp):
+            os.unlink(temp)
+
+
+def test_upload_normalizes_tags_before_they_reach_the_query_layer(
+    mock_create_session, hashing_on, monkeypatch
+):
+    captured: list[list[str]] = []
+    real_create_upload_record = ingest_module._create_upload_record
+
+    def capturing_create_upload_record(*args, **kwargs):
+        captured.append(list(args[4]))
+        return real_create_upload_record(*args, **kwargs)
+
+    monkeypatch.setattr(
+        ingest_module, "_create_upload_record", capturing_create_upload_record
+    )
+
+    payload = b"seam-assertion-bytes"
+    new_content_temp = _write_temp(payload)
+    reused_content_temp = _write_temp(payload)
+    try:
+        upload_from_temp_path(
+            temp_path=new_content_temp,
+            name="seam.bin",
+            tags=["output", "uploaded"],
+            client_filename="seam.bin",
+        )
+        upload_from_temp_path(
+            temp_path=reused_content_temp,
+            name="seam.bin",
+            tags=["output", "uploaded"],
+            client_filename="seam.bin",
+        )
+
+        assert len(captured) == 2, (
+            "expected one new-content upload and one reused-content upload"
+        )
+        for tags in captured:
+            assert len(tags) == len(set(tags)), (
+                f"{tags!r} reached the query layer with duplicates; normalization belongs "
+                "at the build site, not as a side effect of create_record's dedup"
+            )
+            assert tags.count("uploaded") == 1
+    finally:
+        for path in (new_content_temp, reused_content_temp):
+            if os.path.exists(path):
+                os.unlink(path)
