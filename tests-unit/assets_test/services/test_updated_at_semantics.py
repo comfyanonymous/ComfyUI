@@ -1,9 +1,3 @@
-"""`updated_at` tracks the last explicit user/API edit, not any row write.
-
-Each test is labelled TRUE RED (fails on the parent commit, which is the point of
-the fix) or GREEN GUARD (already passes on the parent; proves the fix did not
-break it). Labels reflect observed parent behaviour, not assumption.
-"""
 
 import os
 from datetime import datetime
@@ -30,8 +24,6 @@ from app.assets.services.asset_management import (
 )
 from app.assets.services.tagging import apply_tags, remove_tags
 
-# Any bump lands at "now", so a far-past seed makes moved/not-moved unambiguous
-# without sleeping.
 STALE = datetime(2020, 1, 1, 0, 0, 0)
 
 
@@ -44,7 +36,6 @@ def _seed_record(session: Session, path: str, name: str = "fixture", tags=None, 
 
 
 def _seed_scannable_record(session: Session, path: str, name: str) -> Asset:
-    """Seed with stat fields matching disk, which enrichment requires to commit."""
     stat_result = os.stat(path)
     content = create_content(
         session,
@@ -79,8 +70,6 @@ def _write_file(temp_dir, name: str, payload: bytes = b"payload") -> str:
     return str(file_path)
 
 
-# (i) TRUE RED on parent: both serve paths call update_record_access_time, whose
-# Core UPDATE fired the implicit onupdate hook and moved updated_at too.
 def test_download_path_moves_last_access_time_but_not_updated_at(
     session, mock_create_session, temp_dir
 ):
@@ -97,7 +86,6 @@ def test_download_path_moves_last_access_time_but_not_updated_at(
     )
 
 
-# (i) TRUE RED on parent: same coupling via the hash-serve path.
 def test_hash_serve_path_moves_last_access_time_but_not_updated_at(
     session, mock_create_session, temp_dir
 ):
@@ -115,7 +103,6 @@ def test_hash_serve_path_moves_last_access_time_but_not_updated_at(
     )
 
 
-# (ii) GREEN GUARD: rename already set updated_at explicitly in rename_record.
 def test_rename_moves_updated_at(session, mock_create_session, temp_dir):
     record = _seed_record(session, _write_file(temp_dir, "rename.bin"))
 
@@ -124,7 +111,6 @@ def test_rename_moves_updated_at(session, mock_create_session, temp_dir):
     assert _updated_at(session, record.id) > STALE, "a rename is an explicit user edit"
 
 
-# (iii) GREEN GUARD: proves the explicit sets replace the removed hook.
 @pytest.mark.parametrize(
     "field,kwargs",
     [
@@ -144,7 +130,6 @@ def test_user_field_updates_move_updated_at(
     )
 
 
-# (iii) GREEN GUARD: preview_id needs a second record to point at.
 def test_preview_id_update_moves_updated_at(session, mock_create_session, temp_dir):
     record = _seed_record(session, _write_file(temp_dir, "subject.bin"))
     preview = _seed_record(session, _write_file(temp_dir, "preview.bin"), name="preview")
@@ -156,8 +141,6 @@ def test_preview_id_update_moves_updated_at(session, mock_create_session, temp_d
     )
 
 
-# (iv) TRUE RED on parent: tag writes only ever touched asset_tags, so the Asset
-# row was never updated and the hook never fired.
 def test_manual_tag_add_moves_updated_at(session, mock_create_session, temp_dir):
     record = _seed_record(session, _write_file(temp_dir, "tag-add.bin"))
 
@@ -168,7 +151,6 @@ def test_manual_tag_add_moves_updated_at(session, mock_create_session, temp_dir)
     )
 
 
-# (iv) TRUE RED on parent: same for removal.
 def test_manual_tag_remove_moves_updated_at(session, mock_create_session, temp_dir):
     record = _seed_record(
         session, _write_file(temp_dir, "tag-remove.bin"), tags=["favourite"]
@@ -181,7 +163,6 @@ def test_manual_tag_remove_moves_updated_at(session, mock_create_session, temp_d
     )
 
 
-# (iv) TRUE RED on parent: the tag-replacement path inside update_asset_metadata.
 def test_tag_replacement_via_update_asset_metadata_moves_updated_at(
     session, mock_create_session, temp_dir
 ):
@@ -194,7 +175,6 @@ def test_tag_replacement_via_update_asset_metadata_moves_updated_at(
     )
 
 
-# (vi) GREEN GUARD: no-op tag calls must stay inert.
 def test_noop_tag_calls_do_not_move_updated_at(session, mock_create_session, temp_dir):
     record = _seed_record(
         session, _write_file(temp_dir, "tag-noop.bin"), tags=["already"]
@@ -208,7 +188,6 @@ def test_noop_tag_calls_do_not_move_updated_at(session, mock_create_session, tem
     )
 
 
-# (vi) GREEN GUARD: the same-set replacement case of update_asset_metadata.
 def test_unchanged_tag_replacement_does_not_move_updated_at(
     session, mock_create_session, temp_dir
 ):
@@ -223,8 +202,6 @@ def test_unchanged_tag_replacement_does_not_move_updated_at(
     )
 
 
-# (v) TRUE RED on parent: enrichment assigns record.system_metadata / record.mime_type
-# as ORM attributes, so the commit issued an UPDATE on assets and fired the hook.
 def test_scanner_enrichment_does_not_move_updated_at(session, temp_dir):
     path = _write_file(temp_dir, "enrich.png", payload=b"\x89PNG\r\n\x1a\n" + b"0" * 64)
     record = _seed_scannable_record(session, path, name="enrich.png")
@@ -241,7 +218,6 @@ def test_scanner_enrichment_does_not_move_updated_at(session, temp_dir):
     )
 
 
-# (vi) GREEN GUARD: the automatic missing/recovered tag projection.
 def test_automatic_missing_tag_projection_does_not_move_updated_at(session, temp_dir):
     record = _seed_record(session, _write_file(temp_dir, "missing.bin"))
 
@@ -259,8 +235,6 @@ def test_automatic_missing_tag_projection_does_not_move_updated_at(session, temp
     )
 
 
-# (vi) GREEN GUARD: content split retires the old record's content without
-# rewriting the record, so the retired record must not look edited.
 def test_content_split_does_not_move_updated_at_on_retired_record(
     session, temp_dir, monkeypatch
 ):
@@ -277,8 +251,6 @@ def test_content_split_does_not_move_updated_at_on_retired_record(
     )
 
 
-# (vi) GREEN GUARD: preview_id FK SET NULL is a database-level action that never
-# runs through the ORM/Core update path.
 def test_preview_target_delete_cascade_does_not_move_updated_at(db_engine_fk):
     with Session(db_engine_fk) as session:
         preview_content = create_content(session, "/output/preview-target.png")
@@ -304,8 +276,6 @@ def test_preview_target_delete_cascade_does_not_move_updated_at(db_engine_fk):
         )
 
 
-# Guard for the fixtures above: the seeded stale timestamp is real, not a
-# side effect of the assertions never observing a write.
 def test_seed_helper_reports_stale_before_any_edit(session, temp_dir):
     record = _seed_record(session, _write_file(temp_dir, "seed.bin"))
 

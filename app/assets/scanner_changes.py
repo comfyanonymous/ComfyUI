@@ -65,13 +65,6 @@ def recover_missing_content(
         return "recovered"
     if len(matches) > 1:
         return "no_match"
-    # No hash-matched candidate. A row created while never-hashed (`hash IS NULL`) can never
-    # equal `stored_hash` in the query above even when it is the exact same bytes restored —
-    # SQL NULL never equals anything, so it would otherwise be permanently unrecoverable. Give
-    # it its own narrower path: recover only when it is the single missing null-hash row at this
-    # path, and its recorded stat facts exactly match the verified restore. Both conditions are
-    # load-bearing — loosen either and a different file dropped at the same path, or one of two
-    # ambiguous missing candidates, recovers the wrong record.
     null_hash_matches = list(
         session.scalars(
             sa.select(AssetContent).where(

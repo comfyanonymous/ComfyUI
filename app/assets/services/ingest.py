@@ -382,30 +382,6 @@ class _UploadRecordSpec(NamedTuple):
 def _reuse_qualified_content(
     session: Session, stored_hash: str, spec: _UploadRecordSpec
 ) -> UploadResult | None:
-    """Mint a delivery record against content that already holds these bytes.
-
-    Returns ``None`` when no live content qualifies, which routes the caller
-    into the new-content path with its uploaded file still on disk.
-
-    The lookup, the claim, the filesystem re-check and the insert share one
-    transaction, and the caller deletes the upload only once this has
-    committed. All of that matters: a scanner pass or a competing writer can
-    retire the selected row - or correct its hash - between the initial lookup
-    and the insert, and the old sequencing (select, delete the upload, then
-    insert from a detached id in a fresh session) had no way back once that
-    happened - it wrote a record pointing at content that was already gone,
-    having destroyed the only remaining copy of the bytes.
-
-    ``claim_qualified_content`` is what actually closes that window: it is a
-    conditional UPDATE, not a second SELECT, so from the moment it succeeds
-    this session holds SQLite's write lock continuously through to its own
-    commit below, and its own WHERE clause (hash + liveness) is re-evaluated
-    against the row's true committed state at that instant, not a stale read.
-    That lock is database-file-wide (this app's default SQLite locking has no
-    row-level granularity) - holding it briefly serializes every writer in the
-    app, not just writers to this row, for the length of this short critical
-    section. That is the correctness mechanism, not an incidental side effect.
-    """
     content = lookup_for_view(session, stored_hash)
     if content is None:
         return None
@@ -603,19 +579,6 @@ def create_from_hash(
     mime_type: str | None = None,
     preview_id: str | None = None,
 ) -> UploadResult | None:
-    """Mint a record against content the caller identified by hash alone.
-
-    The claim/refresh sequencing is the same one ``_reuse_qualified_content``
-    documents in full: a competing retirement between the lookup and this
-    session's commit would otherwise leave a record pointing at content that is
-    already gone.
-
-    Losing that race returns ``None``, which is indistinguishable from
-    hash-not-found - and deliberately so. Unlike the upload path there are no
-    bytes here to fall back to a new-content path with, so ``None`` is the only
-    truthful answer; the route maps it to a 404, and a client that retries gets
-    the same 404 for as long as the content stays retired.
-    """
     if not mode.hashing_enabled():
         return None
 

@@ -190,12 +190,6 @@ def test_transition_drain_marks_deleted_path_missing_and_completes_transition(
 def test_transition_drain_requeues_transient_stat_error_without_marking_it_missing(
     session, temp_dir, monkeypatch
 ):
-    # A transient, non-FileNotFoundError OSError at the disambiguation stat (permission denied,
-    # EIO, a stale NFS handle) must requeue like the snapshot_hash OSError branch above it — not
-    # be misclassified as "gone" the way a bare os.path.isfile (which swallows every OSError into
-    # False) would. NotADirectoryError is deliberately included in "transient/requeue", not
-    # "gone": a vanished parent directory component says nothing about whether this file's own
-    # bytes still exist, so only FileNotFoundError itself is treated as gone.
     path = temp_dir / "transient-stat-error.bin"
     path.write_bytes(b"present the whole time")
     stat = path.stat()

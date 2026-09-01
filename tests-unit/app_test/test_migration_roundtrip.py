@@ -1,9 +1,3 @@
-"""The full migration chain must run both ways: head -> base -> head.
-
-`test_migrations.py` deliberately baselines at 0002 and never downgrades past
-it, so nothing else in the suite exercises 0001's `downgrade()` or a re-upgrade
-from an empty database.
-"""
 
 import os
 import sqlite3

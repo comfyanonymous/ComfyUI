@@ -262,9 +262,6 @@ def seeded_asset(request: pytest.FixtureRequest, http: requests.Session, api_bas
     if tags is None:
         tags = ["models", "model_type:checkpoints", "unit-tests", "alpha"]
     meta = {"purpose": "test", "epoch": 1, "flags": ["x", "y"], "nullable": None}
-    # Unique content per test so the seed also owns a fresh content row. Delete
-    # preserves content (only the record is hard-deleted), so content from a
-    # prior test survives and would otherwise be reused behind this record.
     content = uuid.uuid4().bytes + b"A" * (4096 - 16)
     files = {"file": (name, content, "application/octet-stream")}
     form_data = {

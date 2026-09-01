@@ -85,9 +85,7 @@ class Asset(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=False), nullable=False, default=get_utc_now
     )
-    # The last explicit user/API edit, set at each mutation site — deliberately not onupdate-driven,
-    # because a row write is not always a domain edit: access-time bookkeeping, background enrichment
-    # and system projections (missing/recovered, content split) touch the row without a user change.
+    # Explicit user/API edit time; never use onupdate because row writes are not always edits.
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=False), nullable=False, default=get_utc_now
     )

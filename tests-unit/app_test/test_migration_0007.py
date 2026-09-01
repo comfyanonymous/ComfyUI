@@ -143,11 +143,6 @@ def test_0007_downgrade_chain_past_0003_succeeds(db_at_0006):
 
 
 def test_0007_downgrade_restores_legacy_assets_definition(db_at_0006, tmp_path):
-    """0007's recreated legacy `assets` must match what 0001 originally built.
-
-    0001's downgrade drops `uq_assets_hash` and `ix_assets_mime_type` by name, so a
-    recreation that omits them breaks the downgrade chain at 0001.
-    """
     from sqlalchemy import create_engine, inspect
 
     cfg, db_path = db_at_0006

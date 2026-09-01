@@ -910,12 +910,6 @@ def test_upload_does_not_reuse_temp_backed_content(mock_create_session, hashing_
 def test_content_retired_after_lookup_falls_back_to_a_new_content_row(
     mock_create_session, hashing_on
 ):
-    """Same-session shape check only: proves the fallback branch is wired up
-    correctly (retired row -> reject -> new-content path), not that a genuinely
-    competing connection is blocked. That inter-connection guarantee is proven
-    by the two-session tests below, which use two real SQLite connections and
-    do not patch production code to simulate the retirement.
-    """
     payload = b"raced-retirement-upload-bytes"
     temp1 = _write_temp(payload)
     temp2 = _write_temp(payload)
@@ -930,7 +924,6 @@ def test_content_retired_after_lookup_falls_back_to_a_new_content_row(
             reused_content_id = session.get(Asset, first.ref.id).content_id
 
         def retire_then_claim(session, content_id, hash):
-            """Stand in for a scanner pass retiring the row we just selected."""
             mark_content_missing(session, content_id)
             session.commit()
             return _real_claim_qualified_content(session, content_id, hash)
@@ -967,15 +960,6 @@ def test_content_retired_after_lookup_falls_back_to_a_new_content_row(
 
 
 def _file_backed_engine(db_path):
-    """A real file-backed SQLite database reachable from independent connections.
-
-    ``:memory:`` (what ``mock_create_session`` uses) is only ever one shared
-    connection, so it cannot exhibit real inter-connection locking. A short
-    ``timeout`` makes a blocked writer fail fast (``OperationalError``) instead
-    of hanging for pysqlite's five-second default, which is what lets the
-    TOCTOU test assert on contention deterministically instead of guessing at
-    thread timing.
-    """
     engine = create_engine(
         f"sqlite:///{db_path}",
         connect_args={"check_same_thread": False, "timeout": 0.2},
@@ -993,11 +977,6 @@ def _session_factory(engine):
 def test_two_connections_hash_changed_between_lookup_and_claim_falls_back(
     tmp_path, hashing_on
 ):
-    """Reproduces Oracle blocker 1: a second, real connection commits a hash
-    change on the exact row the upload is about to reuse, in the window
-    between the upload's initial lookup and its claim. The claim's WHERE
-    clause must catch the mismatch and reject the row.
-    """
     engine = _file_backed_engine(tmp_path / "race_hash.db")
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)
@@ -1065,13 +1044,6 @@ def test_two_connections_hash_changed_between_lookup_and_claim_falls_back(
 def test_two_connections_competing_retirement_is_blocked_until_commit(
     tmp_path, hashing_on
 ):
-    """Reproduces Oracle blocker 2: a second, real connection attempts to
-    retire the exact row the upload just claimed, in the window between the
-    claim succeeding and the upload's own commit. The claim must already hold
-    SQLite's write lock at that point, so connection A's commit cannot land
-    until connection B (the upload) finishes - proven here by connection A's
-    attempt raising ``OperationalError`` rather than succeeding.
-    """
     engine = _file_backed_engine(tmp_path / "race_toctou.db")
     output_dir = folder_paths.get_output_directory()
     os.makedirs(output_dir, exist_ok=True)

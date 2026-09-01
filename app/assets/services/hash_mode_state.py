@@ -83,14 +83,7 @@ def drain_transition_queue(session: Session) -> None:
             _PENDING_QUEUE.append(path)
             continue
         if snapshot is None:
-            # snapshot_hash returns None both for a file that vanished and for one that would
-            # not hold still. `os.path.isfile` would swallow every stat failure into "not
-            # present" — a transient permission or I/O error there would mark a PRESENT file's
-            # row missing, bypassing the OSError requeue above. Classify explicitly instead:
-            # FileNotFoundError means gone; any other OSError — including NotADirectoryError,
-            # which means a path component currently isn't a directory, not that the file is
-            # gone — is transient and requeues, same as snapshot_hash's own OSError propagation;
-            # a stat that succeeds means present-but-unstable.
+            # snapshot_hash returns None for vanished and unstable files; stat distinguishes them.
             try:
                 os.stat(path)
             except FileNotFoundError:

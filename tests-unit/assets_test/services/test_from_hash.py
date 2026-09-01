@@ -71,13 +71,6 @@ def _seed_live_content(mock_create_session, path, digest):
 def test_content_retired_between_lookup_and_claim_mints_nothing(
     mock_create_session, monkeypatch, temp_dir
 ):
-    """A row retired after the lookup must not receive a record.
-
-    Same-session shape check for the from_hash port of the claim guard: it
-    proves the reject arm is wired up (retired row -> claim fails -> None), not
-    that a competing connection is blocked. The inter-connection guarantee is
-    already proven by the two-connection tests in test_upload_b.py.
-    """
     digest = "c" * 64
     path = temp_dir / "retired.bin"
     path.write_bytes(b"retired bytes")
@@ -85,7 +78,6 @@ def test_content_retired_between_lookup_and_claim_mints_nothing(
     content_id = _seed_live_content(mock_create_session, path, digest)
 
     def retire_then_claim(session, claimed_id, hash):
-        """Stand in for a scanner pass retiring the row we just selected."""
         mark_content_missing(session, claimed_id)
         session.commit()
         return _real_claim_qualified_content(session, claimed_id, hash)
@@ -105,7 +97,6 @@ def test_content_retired_between_lookup_and_claim_mints_nothing(
 def test_file_vanishing_between_claim_and_refresh_mints_nothing(
     mock_create_session, monkeypatch, temp_dir
 ):
-    """The claim proves DB facts only; a file deleted after it must still reject."""
     digest = "d" * 64
     path = temp_dir / "vanishing.bin"
     path.write_bytes(b"vanishing bytes")
@@ -113,7 +104,6 @@ def test_file_vanishing_between_claim_and_refresh_mints_nothing(
     content_id = _seed_live_content(mock_create_session, path, digest)
 
     def delete_file_then_refresh(session, refreshed_id):
-        """Stand in for the backing file disappearing under a claimed row."""
         path.unlink()
         return _real_refresh_qualified_content(session, refreshed_id)
 
