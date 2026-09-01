@@ -1,4 +1,10 @@
-"""Background asset seeder with thread management and cancellation support."""
+"""Runs the filesystem scan on a background thread so startup never waits for it,
+exposing pause, resume, cancel and progress to the API. A run seeds
+newly-observed files first, then enriches records in batches, and settles any
+pending hash-mode transition at the start of the enrich phase so a server that
+receives no prompts still completes the switch. A pass stops once batches stop
+making progress, bounding a scan over files that cannot be read.
+"""
 
 import logging
 import os

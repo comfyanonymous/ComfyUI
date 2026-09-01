@@ -1,3 +1,10 @@
+"""Reconciles catalogued content against what is actually on disk: retiring rows
+whose file is gone, splitting a row whose bytes changed, and recovering one
+whose file came back. Recovery fires only when the returning file's hash
+identifies exactly one missing row and no live row already occupies that path,
+so a restored file can never leave two live rows describing one location.
+"""
+
 from __future__ import annotations
 
 import os

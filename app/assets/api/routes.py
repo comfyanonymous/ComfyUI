@@ -1,3 +1,11 @@
+"""Serves the asset HTTP API: listing, detail, upload, tagging, hash-addressed
+creation and scan control. A feature gate wraps every handler and answers 503
+when the asset system is switched off or its database dependencies are absent,
+and failures leave as a JSON envelope carrying a stable machine-readable code
+rather than aiohttp's default text. Handlers own request parsing and error
+shaping only; the work itself belongs to the services layer.
+"""
+
 import asyncio
 import functools
 import json

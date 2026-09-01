@@ -1,3 +1,11 @@
+"""Tracks the persisted hashing mode and carries the existing catalog across an
+off-to-on switch. Turning hashing on enqueues every live content row for
+verification and the queue is drained in the background; a path that cannot be
+read is retried a bounded number of times and then has its stored hash cleared,
+so the queue can empty and the mode can flip. An unverifiable digest never
+survives into the persisted enabled state.
+"""
+
 from __future__ import annotations
 
 import logging

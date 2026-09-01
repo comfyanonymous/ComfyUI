@@ -1,3 +1,12 @@
+"""Turns incoming bytes into catalogued assets: multipart uploads moved into a
+hash-addressed destination, files registered where they already sit, and
+records created from a hash the catalog already holds. Every path persists the
+stat that hashing verified, so a row's recorded size and mtime describe the
+same observation as its hash. A live row already at the destination is
+reconciled before the write, so an upload never adopts a fresh hash onto
+records created for bytes it just replaced.
+"""
+
 import contextlib
 import logging
 import mimetypes

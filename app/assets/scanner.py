@@ -1,3 +1,12 @@
+"""Walks the asset roots and turns what it finds into catalog rows: collecting
+paths, building specs, seeding new content and records, then enriching them
+with metadata and hashes. Each spec is seeded inside its own savepoint, so one
+file whose row conflicts cannot discard the work done for the files around it.
+Enrichment counts as progress only when it produced what was asked of it — a
+requested hash that could not be computed is no progress, which is what bounds
+a pass over a file the server cannot read.
+"""
+
 import logging
 import os
 from dataclasses import dataclass
