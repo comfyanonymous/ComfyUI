@@ -255,7 +255,7 @@ class PromptServer():
         )
         logging.info(f"[Prompt Server] web root: {self.web_root}")
         self.asset_manager.register_routes(self.app, self.user_manager)
-        self.asset_manager.set_event_sink(lambda event, data: self.send_sync(event, data))
+        self.asset_manager.set_event_sink(self.send_sync)
         routes = web.RouteTableDef()
         self.routes = routes
         self.last_node_id = None
