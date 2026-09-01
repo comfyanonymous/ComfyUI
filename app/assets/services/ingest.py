@@ -128,12 +128,11 @@ def _remove_temp_path(temp_path: str | None) -> None:
             os.rmdir(parent)
 
 
-def _snapshot_hash_with_retry(path: str) -> str:
+def _snapshot_hash_with_retry(path: str) -> tuple[str, os.stat_result]:
     for _ in range(_UPLOAD_HASH_ATTEMPTS):
         snapshot = snapshot_hash(path)
         if snapshot is not None:
-            digest, _ = snapshot
-            return digest
+            return snapshot
     raise UploadUnstableError("upload file changed during hashing")
 
 
@@ -364,14 +363,18 @@ def _settle_destination_before_write(session: Session, dest_abs: str) -> None:
     ):
         return
     try:
-        incumbent_digest = _snapshot_hash_with_retry(dest_abs)
+        incumbent_digest, verified_stat = _snapshot_hash_with_retry(dest_abs)
     except (UploadUnstableError, OSError):
         mark_content_missing(session, existing.id)
         return
     _reconcile_live_content_at_path(
         session,
         dest_abs,
-        _ContentFacts(to_stored_hash(incumbent_digest), size_bytes, mtime_ns),
+        _ContentFacts(
+            to_stored_hash(incumbent_digest),
+            verified_stat.st_size,
+            verified_stat.st_mtime_ns,
+        ),
         content_written=False,
     )
 
@@ -427,7 +430,7 @@ def upload_from_temp_path(
     user_metadata = user_metadata or {}
 
     try:
-        digest = _snapshot_hash_with_retry(temp_path)
+        digest, verified_stat = _snapshot_hash_with_retry(temp_path)
     except UploadUnstableError:
         _remove_temp_path(temp_path)
         raise
@@ -465,7 +468,7 @@ def upload_from_temp_path(
         mime_type, client_filename, name, os.path.basename(dest_abs)
     )
     _move_temp_to_dest(temp_path, dest_abs)
-    size_bytes, mtime_ns = get_size_and_mtime_ns(dest_abs)
+    size_bytes, mtime_ns = verified_stat.st_size, verified_stat.st_mtime_ns
     with create_session() as session:
         _reconcile_live_content_at_path(
             session,
@@ -540,9 +543,8 @@ def register_file_in_place(
     content_type = _guess_upload_mime_type(
         mime_type, name, name, os.path.basename(locator)
     )
-    size_bytes, mtime_ns = get_size_and_mtime_ns(locator)
-
-    digest = _snapshot_hash_with_retry(locator)
+    digest, verified_stat = _snapshot_hash_with_retry(locator)
+    size_bytes, mtime_ns = verified_stat.st_size, verified_stat.st_mtime_ns
     stored_hash = to_stored_hash(digest)
     with create_session() as session:
         _reconcile_live_content_at_path(
