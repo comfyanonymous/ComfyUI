@@ -19,6 +19,14 @@ class Asset(BaseModel):
         default=None,
         description="Human-facing label for the asset. Not unique.",
     )
+    is_immutable: bool = Field(
+        default=False,
+        description=(
+            "Whether this asset is immutable (cannot be modified or deleted). "
+            "Always false here: immutability is a hosted-deployment concept and "
+            "nothing in this server can set it."
+        ),
+    )
     size: int | None = None
     mime_type: str | None = None
     tags: list[str] = Field(default_factory=list)
