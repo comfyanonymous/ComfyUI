@@ -214,6 +214,32 @@ _LEGACY_SDK_METHODS = {
 }
 
 
+class _PersistentLoopRunner:
+    """`asyncio.Runner` stand-in for Python 3.10, where Runner is unavailable.
+
+    Same contract as the executor needs: one event loop that survives across
+    `run()` calls so backend state persists between prompts.
+    """
+
+    def __init__(self) -> None:
+        self._loop = asyncio.new_event_loop()
+
+    def get_loop(self):
+        return self._loop
+
+    def run(self, coro):
+        return self._loop.run_until_complete(coro)
+
+    def close(self) -> None:
+        try:
+            self._loop.run_until_complete(self._loop.shutdown_asyncgens())
+        finally:
+            self._loop.close()
+
+
+_AsyncRunner = getattr(asyncio, "Runner", _PersistentLoopRunner)
+
+
 def _sdk_seam_engaged(type_obj) -> bool:
     """Whether this node's invocation has to go through the custom-node SDK.
 
@@ -840,7 +866,7 @@ class PromptExecutor:
         self.cache_args = cache_args
         self.cache_type = cache_type
         self.server = server
-        self._runner = asyncio.Runner()
+        self._runner = _AsyncRunner()
         self._active_loop = None
         self._active_task = None
         self._active_lock = threading.RLock()
