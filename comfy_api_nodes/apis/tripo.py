@@ -11,6 +11,11 @@ class TripoModelVersion(str, Enum):
     v1_4_20240625 = "v1.4-20240625"
 
 
+class TripoTextureModelVersion(str, Enum):
+    v3_0_20250812 = "v3.0-20250812"
+    v2_5_20250123 = "v2.5-20250123"
+
+
 class TripoGeometryQuality(str, Enum):
     standard = "standard"
     detailed = "detailed"
@@ -209,11 +214,15 @@ class TripoMultiviewToModelRequest(BaseModel):
 
 class TripoTexturePrompt(BaseModel):
     text: str | None = Field(None, description="Text guidance for texture generation")
+    style_image: TripoFileReference | None = Field(None, description="Style reference, only together with text")
+    image: TripoFileReference | None = Field(None, description="Single reference image")
+    images: list[TripoFileReference] | None = Field(None, description="Exactly 4 reference images: front, left, back, right")
 
 
 class TripoTextureModelRequest(BaseModel):
     type: TripoTaskType = Field(TripoTaskType.TEXTURE_MODEL, description="Type of task")
     original_model_task_id: str = Field(..., description="The task ID of the original model")
+    model_version: TripoTextureModelVersion | None = Field(None, description="Texture model version")
     texture: bool | None = Field(True, description="Whether to apply texture to the model")
     pbr: bool | None = Field(True, description="Whether to apply PBR to the model")
     model_seed: int | None = Field(None, description="The seed for the model")

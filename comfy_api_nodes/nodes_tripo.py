@@ -24,6 +24,7 @@ from comfy_api_nodes.apis.tripo import (
     TripoTaskType,
     TripoTextToModelRequest,
     TripoTextureModelRequest,
+    TripoTextureModelVersion,
     TripoTexturePrompt,
     TripoUrlReference,
 )
@@ -81,6 +82,11 @@ async def poll_until_finished(
     url = get_model_url_from_response(response_poll)
     file_format = Path(urlparse(url).path).suffix.lstrip(".").lower() or "glb"
     return task_id, await download_url_to_file_3d(url, file_format, task_id=task_id)
+
+
+async def upload_image_reference(node_cls: type[IO.ComfyNode], image: Input.Image) -> TripoFileReference:
+    url = (await upload_images_to_comfyapi(node_cls, image, max_images=1))[0]
+    return TripoFileReference(root=TripoUrlReference(url=url, type="jpeg"))
 
 
 def glb_output(task_id: str, model: Types.File3D) -> IO.NodeOutput:
@@ -596,13 +602,13 @@ class TripoTextureNode(IO.ComfyNode):
                     "texture",
                     default=True,
                     optional=True,
-                    tooltip="Generate texture maps. Off returns bare geometry and ignores pbr.",
+                    tooltip="Ignored: this node always generates textures. Kept for older workflows.",
                 ),
                 IO.Boolean.Input(
                     "pbr",
                     default=True,
                     optional=True,
-                    tooltip="PBR material maps (base color, metallic, roughness, normal). Requires texture.",
+                    tooltip="PBR material maps (base color, metallic, roughness, normal); off gives a plain color texture.",
                 ),
                 IO.Int.Input("texture_seed", default=42, optional=True, advanced=True),
                 IO.Combo.Input(
@@ -626,13 +632,51 @@ class TripoTextureNode(IO.ComfyNode):
                     multiline=True,
                     optional=True,
                     tooltip="Optional text guidance for texturing. Required in practice for imported "
-                    "models (Tripo: Import Model), which carry no source image to infer colors from.",
+                    "models (Tripo: Import Model), which carry no source image to infer colors from. "
+                    "Cannot be combined with reference images.",
+                ),
+                IO.Combo.Input(
+                    "model_version",
+                    options=TripoTextureModelVersion,
+                    default=TripoTextureModelVersion.v3_0_20250812,
+                    optional=True,
+                    tooltip="Texture model: v3.0 for meshes generated with v3.x, v2.5 for meshes generated with v2.5.",
+                ),
+                IO.Image.Input(
+                    "style_image",
+                    optional=True,
+                    tooltip="Reference image for the artistic style of the textures. Only used together with texture_prompt.",
+                ),
+                IO.DynamicCombo.Input(
+                    "reference",
+                    options=[
+                        IO.DynamicCombo.Option("none", []),
+                        IO.DynamicCombo.Option(
+                            "image",
+                            [IO.Image.Input("reference_image", tooltip="Single reference image the textures should follow.")],
+                        ),
+                        IO.DynamicCombo.Option(
+                            "multiview",
+                            [
+                                IO.Image.Input("image_front", tooltip="Front view (0°)."),
+                                IO.Image.Input("image_left", tooltip="Left view (90°)."),
+                                IO.Image.Input("image_back", tooltip="Back view (180°)."),
+                                IO.Image.Input("image_right", tooltip="Right view (270°)."),
+                            ],
+                        ),
+                    ],
+                    optional=True,
+                    tooltip="Reference images guiding the textures. Cannot be combined with texture_prompt or style_image.",
                 ),
             ],
             outputs=[
                 IO.String.Output(display_name="model_file"),  # for backward compatibility only
                 IO.Custom("MODEL_TASK_ID").Output(display_name="model task_id"),
-                IO.File3DGLB.Output(display_name="GLB"),
+                IO.File3DGLB.Output(display_name="GLB", tooltip="Empty when the source is a quad mesh or an FBX import."),
+                IO.File3DFBX.Output(
+                    display_name="FBX",
+                    tooltip="Tripo returns FBX for quad meshes and FBX imports; empty otherwise.",
+                ),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
@@ -662,22 +706,45 @@ class TripoTextureNode(IO.ComfyNode):
         texture_quality: str | None = None,
         texture_alignment: str | None = None,
         texture_prompt: str = "",
+        model_version: str | None = None,
+        style_image: Input.Image | None = None,
+        reference: dict | None = None,
     ) -> IO.NodeOutput:
+        text = texture_prompt.strip()
+        mode = reference["reference"] if reference else "none"
+        if mode != "none" and (text or style_image is not None):
+            raise ValueError("Reference images cannot be combined with texture_prompt or style_image.")
+        if style_image is not None and not text:
+            raise ValueError("style_image requires a texture_prompt.")
+        if mode == "image":
+            prompt = TripoTexturePrompt(image=await upload_image_reference(cls, reference["reference_image"]))
+        elif mode == "multiview":
+            views = [reference[k] for k in ("image_front", "image_left", "image_back", "image_right")]
+            urls = await upload_images_to_comfyapi(cls, views, max_images=4)
+            prompt = TripoTexturePrompt(images=[TripoFileReference(root=TripoUrlReference(url=u, type="jpeg")) for u in urls])
+        elif text:
+            prompt = TripoTexturePrompt(
+                text=text,
+                style_image=await upload_image_reference(cls, style_image) if style_image is not None else None,
+            )
+        else:
+            prompt = None
         response = await sync_op(
             cls,
             endpoint=ApiEndpoint(path="/proxy/tripo/v2/openapi/task", method="POST"),
             response_model=TripoTaskResponse,
             data=TripoTextureModelRequest(
                 original_model_task_id=model_task_id,
-                texture=texture,
-                pbr=False if texture is False else pbr,
+                model_version=model_version,
+                texture=True,
+                pbr=pbr,
                 texture_seed=texture_seed,
                 texture_quality=texture_quality,
                 texture_alignment=texture_alignment,
-                texture_prompt=TripoTexturePrompt(text=texture_prompt.strip()) if texture_prompt.strip() else None,
+                texture_prompt=prompt,
             ),
         )
-        return glb_output(*await poll_until_finished(cls, response, average_duration=80))
+        return glb_or_fbx_output(*await poll_until_finished(cls, response, average_duration=80))
 
 
 class TripoRigNode(IO.ComfyNode):
