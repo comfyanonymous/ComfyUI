@@ -23,9 +23,9 @@ from comfy.ldm.sensenova.conditioning import (
 from comfy.ldm.sensenova.interleave import (
     InterleaveResult,
     SenseNovaInterleaveSession,
-    _prefix_arguments,
     build_interleave_result,
     interleave_result_to_markdown,
+    prefix_arguments,
 )
 from comfy.ldm.sensenova.model import _match_prefix_batch, _pad_to_merged_patch_size
 from comfy.ldm.sensenova.sampling import (
@@ -1239,20 +1239,24 @@ def test_sensenova_interleave_reference_is_part_of_the_initial_prefix():
     )["sensenova_u15"][0]
     input_ids = torch.tensor([[int(pair[0]) for pair in pairs]])
 
-    conditioned, references, indexes, prefix_mask = _prefix_arguments(
+    conditioned, references, indexes, prefix_mask = prefix_arguments(
         {
             "text_input_ids": input_ids,
-            "reference_latents": [torch.ones(1, 32, 64, 3)],
+            "reference_latents": [torch.ones(1, 33, 65, 3)],
         },
         torch.device("cpu"),
         torch.float32,
         image_only=False,
     )
 
-    assert torch.count_nonzero(conditioned == 151669) == 2
+    patch_size = sensenova_model.MERGED_PATCH_SIZE
+    expected_image_tokens = ((33 + patch_size - 1) // patch_size) * (
+        (65 + patch_size - 1) // patch_size
+    )
+    assert torch.count_nonzero(conditioned == 151669) == expected_image_tokens
     assert conditioned[0, -1] == input_ids[0, -1]
     assert len(references) == 1
-    assert references[0].shape == (1, 3, 32, 64)
+    assert references[0].shape == (1, 3, 33, 65)
     assert indexes.shape == (1, 3, conditioned.shape[1])
     assert prefix_mask.shape == (1, 1, conditioned.shape[1], conditioned.shape[1])
 

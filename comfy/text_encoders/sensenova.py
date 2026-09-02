@@ -49,6 +49,8 @@ INTERLEAVE_SYSTEM_MESSAGE = (
 
 
 def build_generation_prompt(text, thinking=False):
+    """Build a SenseNova image-generation chat prompt."""
+
     assistant = "<think>\n" if thinking else "<think>\n\n</think>\n\n<img>"
     return (
         f"<|im_start|>system\n{SYSTEM_MESSAGE}<|im_end|>\n"
@@ -58,10 +60,14 @@ def build_generation_prompt(text, thinking=False):
 
 
 def build_unconditional_prompt():
+    """Build the negative image-generation prompt."""
+
     return "<|im_start|>user\n<|im_end|>\n<|im_start|>assistant\n<img>"
 
 
 def build_interleave_prompt(text, thinking=False):
+    """Build a chat prompt that allows interleaved text and image events."""
+
     assistant = "" if thinking else "<think>\n\n</think>\n\n"
     return (
         f"<|im_start|>system\n{INTERLEAVE_SYSTEM_MESSAGE}<|im_end|>\n"
@@ -71,6 +77,8 @@ def build_interleave_prompt(text, thinking=False):
 
 
 def build_interleave_unconditional_prompt():
+    """Build the negative interleave prompt."""
+
     return "<|im_start|>user\n<|im_end|>\n<|im_start|>assistant\n"
 
 

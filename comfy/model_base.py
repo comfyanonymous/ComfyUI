@@ -2353,11 +2353,13 @@ class SenseNovaSharedRegular(comfy.conds.CONDRegular):
         return self._copy_with(self.cond)
 
 class SenseNovaSharedList(comfy.conds.CONDList):
+    """Keep a list-valued SenseNova prefix at one copy per guidance branch."""
+
     def process_cond(self, batch_size, **kwargs):
         return self._copy_with(self.cond)
 
 class SenseNovaU15(BaseModel):
-    PATCH_SIZE = 32
+    """ComfyUI model wrapper for SenseNova U1.5 image generation."""
 
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.sensenova.model.SenseNovaU15)
@@ -2387,10 +2389,11 @@ class SenseNovaU15(BaseModel):
             indexes = None
             prefix_mask = None
             if reference_images:
+                patch_size = comfy.ldm.sensenova.model.MERGED_PATCH_SIZE
                 reference_grids = [
                     (
-                        max(1, math.ceil(image.shape[-2] / self.PATCH_SIZE)),
-                        max(1, math.ceil(image.shape[-1] / self.PATCH_SIZE)),
+                        max(1, math.ceil(image.shape[-2] / patch_size)),
+                        max(1, math.ceil(image.shape[-1] / patch_size)),
                     )
                     for image in reference_images
                 ]
@@ -2458,16 +2461,16 @@ class SenseNovaU15(BaseModel):
     def extra_conds_shapes(self, **kwargs):
         images = kwargs.get("reference_latents")
         images = comfy.ldm.sensenova.conditioning.split_reference_batches(images) if images is not None else []
+        patch_size = comfy.ldm.sensenova.model.MERGED_PATCH_SIZE
         reference_grids = [
             (
-                max(1, math.ceil(image.shape[-3] / self.PATCH_SIZE)),
-                max(1, math.ceil(image.shape[-2] / self.PATCH_SIZE)),
+                max(1, math.ceil(image.shape[-3] / patch_size)),
+                max(1, math.ceil(image.shape[-2] / patch_size)),
             )
             for image in images
         ]
         reference_pixels = sum(
-            height * width * self.PATCH_SIZE**2
-            for height, width in reference_grids
+            height * width * patch_size**2 for height, width in reference_grids
         )
         out = {}
         if reference_pixels:

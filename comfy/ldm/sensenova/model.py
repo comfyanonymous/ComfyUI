@@ -330,6 +330,8 @@ class Attention(nn.Module):
         transformer_options,
         attention_mask=None,
     ):
+        """Decode tokens against an existing attention KV prefix."""
+
         query, key, value = self._project(hidden_states, rope, False)
         key = torch.cat((prefix_key, key), dim=2)
         value = torch.cat((prefix_value, value), dim=2)
@@ -399,6 +401,8 @@ class DecoderLayer(nn.Module):
         transformer_options,
         attention_mask=None,
     ):
+        """Decode tokens through one transformer layer and extend its KV state."""
+
         attention, key, value = self.self_attn.forward_decode(
             self.input_layernorm(hidden_states),
             rope,
@@ -589,6 +593,8 @@ class SenseNovaU15(nn.Module):
         prefix_mask=None,
         transformer_options=None,
     ):
+        """Precompute the text and reference-image prefix KV state."""
+
         _, prefix_keys, prefix_values, prefix_time = (
             SenseNovaU15._preprocess_prefix_state(
                 self,
@@ -646,6 +652,8 @@ class SenseNovaU15(nn.Module):
         prefix_time,
         transformer_options=None,
     ):
+        """Encode one generated image and append it to an interleave KV prefix."""
+
         image = image * 0.5 + 0.5
         mean = image.new_tensor((0.485, 0.456, 0.406)).view(1, 3, 1, 1)
         std = image.new_tensor((0.229, 0.224, 0.225)).view(1, 3, 1, 1)
@@ -724,6 +732,8 @@ class SenseNovaU15(nn.Module):
         progress=None,
         interrupt=None,
     ):
+        """Autoregressively extend a prefix with the model's thinking tokens."""
+
         if not self.has_lm_head:
             raise RuntimeError(
                 "This SenseNova checkpoint does not contain language_model.lm_head.weight, "

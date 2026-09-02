@@ -16,6 +16,8 @@ COLON_ID = 25
 
 
 def preprocess_reference(image):
+    """Convert a ComfyUI reference image to normalized BCHW RGB."""
+
     if image.ndim == 3:
         image = image.unsqueeze(0)
     image = image[:, :, :, :3].movedim(-1, 1).float()
@@ -30,6 +32,8 @@ def preprocess_reference(image):
 
 
 def split_reference_batches(images):
+    """Split reference image batches into single-image tensors."""
+
     references = []
     for image in images:
         if image.ndim == 3:
@@ -39,6 +43,8 @@ def split_reference_batches(images):
 
 
 def preprocess_references(images):
+    """Normalize each reference image independently."""
+
     return [preprocess_reference(image) for image in split_reference_batches(images)]
 
 
@@ -58,6 +64,8 @@ def _image_label_tokens(index):
 def conditioned_input_length(
     input_length, reference_grids, image_only=False, append_image_start=True
 ):
+    """Return the token length after inserting reference-image blocks."""
+
     image_token_count = sum(height * width for height, width in reference_grids)
     if image_only:
         return (
@@ -77,6 +85,8 @@ def conditioned_input_length(
 def condition_input_ids(
     input_ids, reference_grids, image_only=False, append_image_start=True
 ):
+    """Insert reference-image token blocks into a SenseNova prompt."""
+
     image_blocks = [_image_tokens(height, width) for height, width in reference_grids]
     if image_only:
         values = (
@@ -107,6 +117,8 @@ def condition_input_ids(
 
 
 def thw_indexes(input_ids, reference_grids):
+    """Build temporal, height, and width positions for prefix tokens."""
+
     values = input_ids[0]
     image_start_shift = torch.cat(
         (
@@ -134,6 +146,8 @@ def thw_indexes(input_ids, reference_grids):
 
 
 def block_causal_mask(time_indexes, dtype=torch.float32):
+    """Build the block-causal attention mask used by the prefix decoder."""
+
     values = time_indexes[0, 0]
     length = values.shape[0]
     same_block = values[:, None] == values[None, :]

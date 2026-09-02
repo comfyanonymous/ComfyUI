@@ -9,6 +9,7 @@ from .conditioning import (
     preprocess_references,
     thw_indexes,
 )
+from .model import MERGED_PATCH_SIZE
 
 
 IMAGE_START_TOKEN_ID = 151670
@@ -17,6 +18,8 @@ EOS_TOKEN_ID = 151645
 
 @dataclass
 class InterleavePrefix:
+    """Autoregressive KV state for one conditioning branch."""
+
     keys: list
     values: list
     time: torch.Tensor
@@ -24,6 +27,8 @@ class InterleavePrefix:
 
 @dataclass
 class InterleaveResult:
+    """Text, images, and token metadata produced by an interleave session."""
+
     text: str
     images: list[torch.Tensor]
     token_ids: list[int]
@@ -31,6 +36,8 @@ class InterleaveResult:
 
 
 class SenseNovaInterleaveSession:
+    """Generate SenseNova text and image events while retaining both KV prefixes."""
+
     def __init__(
         self,
         model,
@@ -82,6 +89,8 @@ class SenseNovaInterleaveSession:
         progress=None,
         interrupt=None,
     ):
+        """Run autoregressive decoding and invoke ``sample_image`` on image events."""
+
         text = ""
         token_ids = []
         chunk_tokens = []
@@ -132,7 +141,9 @@ class SenseNovaInterleaveSession:
         return InterleaveResult(text, images, token_ids, stop_reason)
 
 
-def _live_conditioning(prefix):
+def live_conditioning(prefix):
+    """Convert a live interleave KV prefix into ComfyUI conditioning."""
+
     return [
         [
             None,
@@ -145,15 +156,25 @@ def _live_conditioning(prefix):
     ]
 
 
-def _prefix_arguments(metadata, device, dtype, image_only):
+def prefix_arguments(metadata, device, dtype, image_only):
+    """Prepare text and reference-image inputs for prefix preprocessing."""
+
     input_ids = metadata["text_input_ids"]
     references = metadata.get("reference_latents")
     if references:
         references = preprocess_references(references)
         reference_grids = [
             (
-                max(1, (image.shape[-2] + 31) // 32),
-                max(1, (image.shape[-1] + 31) // 32),
+                max(
+                    1,
+                    (image.shape[-2] + MERGED_PATCH_SIZE - 1)
+                    // MERGED_PATCH_SIZE,
+                ),
+                max(
+                    1,
+                    (image.shape[-1] + MERGED_PATCH_SIZE - 1)
+                    // MERGED_PATCH_SIZE,
+                ),
             )
             for image in references
         ]
@@ -222,6 +243,8 @@ def _parse_interleave_parts(text, num_images):
 
 
 def build_interleave_result(result):
+    """Serialize an interleave result into ordered frontend-friendly parts."""
+
     parts = _parse_interleave_parts(result.text, len(result.images))
     think_text = "\n\n".join(
         part["text"] for part in parts if part["type"] == "think"
@@ -238,6 +261,8 @@ def build_interleave_result(result):
 
 
 def interleave_result_to_markdown(result, include_think=True):
+    """Render serialized interleave parts as markdown with optional thinking."""
+
     blocks = []
     for part in result.get("parts", []):
         part_type = part.get("type")

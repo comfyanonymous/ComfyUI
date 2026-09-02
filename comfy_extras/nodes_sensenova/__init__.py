@@ -7,10 +7,10 @@ import comfy.utils
 import latent_preview
 from comfy.ldm.sensenova.interleave import (
     SenseNovaInterleaveSession,
-    _live_conditioning,
-    _prefix_arguments,
     build_interleave_result,
     interleave_result_to_markdown,
+    live_conditioning,
+    prefix_arguments,
 )
 from comfy.ldm.sensenova.sampling import SenseNovaModelSampling
 from comfy_api.latest import ComfyExtension, io, ui
@@ -21,6 +21,8 @@ WEB_DIRECTORY = "./web"
 
 
 def interleave_output_samples(result, latent_samples):
+    """Return generated interleave images as a ComfyUI latent batch."""
+
     if not result.images:
         return latent_samples
     return torch.cat(result.images).to(
@@ -42,6 +44,8 @@ def run_interleave(
     max_text_tokens,
     max_images=1,
 ):
+    """Run one SenseNova interleave session using standard ComfyUI sampling."""
+
     latent = latent.copy()
     latent_samples = comfy.sample.fix_empty_latent_channels(
         model,
@@ -71,10 +75,10 @@ def run_interleave(
         diffusion_model = model.model.diffusion_model
         session = SenseNovaInterleaveSession(
             diffusion_model,
-            positive_prefix=_prefix_arguments(
+            positive_prefix=prefix_arguments(
                 positive_data, device, diffusion_model.dtype, image_only=False
             ),
-            negative_prefix=_prefix_arguments(
+            negative_prefix=prefix_arguments(
                 negative_data, device, diffusion_model.dtype, image_only=True
             ),
             decode_tokens=lambda values: clip.tokenizer.sensenova_u15.tokenizer.decode(
@@ -98,8 +102,8 @@ def run_interleave(
                 cfg,
                 sampler,
                 sigmas,
-                _live_conditioning(positive_prefix),
-                _live_conditioning(negative_prefix),
+                live_conditioning(positive_prefix),
+                live_conditioning(negative_prefix),
                 latent_samples,
                 noise_mask=latent.get("noise_mask"),
                 callback=callback,
@@ -129,6 +133,8 @@ def run_interleave(
 
 
 class SenseNovaSamplingOptions(io.ComfyNode):
+    """Configure SenseNova flow sampling parameters on a model patcher."""
+
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
@@ -153,6 +159,8 @@ class SenseNovaSamplingOptions(io.ComfyNode):
 
 
 class SenseNovaTextEncode(io.ComfyNode):
+    """Encode SenseNova image or interleave prompts with optional thinking."""
+
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
@@ -207,6 +215,8 @@ class SenseNovaTextEncode(io.ComfyNode):
 
 
 class SenseNovaInterleave(io.ComfyNode):
+    """Generate interleaved SenseNova text and image output."""
+
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
@@ -283,6 +293,8 @@ def _save_preview_images(images):
 
 
 class SenseNovaInterleavePreview(io.ComfyNode):
+    """Display interleaved text, thinking, and images in generation order."""
+
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
@@ -336,6 +348,8 @@ class SenseNovaInterleavePreview(io.ComfyNode):
         )
 
 class SenseNovaExtension(ComfyExtension):
+    """Register the native SenseNova node collection."""
+
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
@@ -347,4 +361,6 @@ class SenseNovaExtension(ComfyExtension):
 
 
 async def comfy_entrypoint() -> SenseNovaExtension:
+    """Create the native SenseNova node extension."""
+
     return SenseNovaExtension()
