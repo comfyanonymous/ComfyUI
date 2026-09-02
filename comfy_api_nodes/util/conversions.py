@@ -176,6 +176,23 @@ def downscale_image_tensor(image: torch.Tensor, total_pixels: int = 1536 * 1024)
     return common_upscale(samples, new_w, new_h, "lanczos", "disabled").movedim(1, -1)
 
 
+def downscale_image_tensor_by_max_sides(
+    image: torch.Tensor, *, max_long_side: int, max_short_side: int
+) -> torch.Tensor:
+    """Downscale input image tensor so the long side is at most max_long_side and the short side at most max_short_side."""
+    samples = image.movedim(-1, 1)
+    height, width = samples.shape[2], samples.shape[3]
+    long_side, short_side = max(width, height), min(width, height)
+    scale_by = min(1.0, max_long_side / long_side, max_short_side / short_side)
+    if scale_by >= 1.0:
+        return image
+    long_new = max(1, math.floor(long_side * scale_by))
+    short_new = max(1, min(long_new, math.ceil(short_side * scale_by)))
+    new_width, new_height = (long_new, short_new) if width >= height else (short_new, long_new)
+    s = common_upscale(samples, new_width, new_height, "lanczos", "disabled")
+    return s.movedim(1, -1)
+
+
 def downscale_image_tensor_by_max_side(image: torch.Tensor, *, max_side: int) -> torch.Tensor:
     """Downscale input image tensor so the largest dimension is at most max_side pixels."""
     samples = image.movedim(-1, 1)
