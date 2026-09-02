@@ -1,6 +1,6 @@
 # Assets
 
-The asset system is only active when explicitly enabled at startup; it is off by default. When it is not enabled, asset API routes return a disabled-service error and no background filesystem scanning occurs. Routes answer that same disabled-service error when the system is enabled but its database dependencies are unavailable.
+The asset system is only active when explicitly enabled at startup; it is off by default. When it is not enabled, asset API routes return a disabled-service error and no background filesystem scanning occurs. Enabling the asset system without its database dependencies is a startup failure with an actionable error; without the flag those dependencies are not imported at all.
 
 ## Data model
 

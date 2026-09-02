@@ -1,21 +1,33 @@
+from __future__ import annotations
+
 import logging
+import sys
 from typing import Any, Callable, Protocol
 
 from aiohttp import web
 
 from app.assets import mode
-from app.assets.api.routes import register_assets_routes
-from app.assets.lifecycle import record_hash_mode_transition_intent, run_shutdown, run_startup
-from app.assets.seeder import asset_seeder
-from app.assets.services.ingest import (
-    register_cached_output as ingest_register_cached_output,
-    register_executed_output as ingest_register_executed_output,
-    register_file_in_place,
-)
-from app.assets.services.path_utils import get_known_subfolder_tags
-from app.assets.services.schemas import RegisteredAsset, UploadAssetView
+from app.database.db import dependencies_available
 from app.user_manager import UserManager
 from comfy.cli_args import args
+from utils.install_util import get_missing_requirements_message
+
+
+try:
+    from app.assets.api.routes import register_assets_routes
+    from app.assets.lifecycle import record_hash_mode_transition_intent, run_shutdown, run_startup
+    from app.assets.seeder import asset_seeder
+    from app.assets.services.ingest import (
+        register_cached_output as ingest_register_cached_output,
+        register_executed_output as ingest_register_executed_output,
+        register_file_in_place,
+    )
+    from app.assets.services.path_utils import get_known_subfolder_tags
+    from app.assets.services.schemas import RegisteredAsset, UploadAssetView
+except ImportError as error:
+    _IMPORT_ERROR = error
+else:
+    _IMPORT_ERROR = None
 
 
 class AssetManager(Protocol):
@@ -88,6 +100,9 @@ class NoAssets:
     def register_routes(
         self, app: web.Application, user_manager: UserManager | None
     ) -> None:
+        if _IMPORT_ERROR is not None:
+            logging.warning("Asset routes unavailable because dependencies are missing: %s", _IMPORT_ERROR)
+            return
         register_assets_routes(app)
         asset_seeder.disable()
 
@@ -214,4 +229,22 @@ class AssetsEnabled:
 
 
 def default_asset_manager() -> AssetManager:
-    return AssetsEnabled(args) if args.enable_assets else NoAssets(args)
+    if not args.enable_assets:
+        return NoAssets(args)
+    if _IMPORT_ERROR is not None or not dependencies_available():
+        import_error_message = f"\nImport error: {_IMPORT_ERROR}" if _IMPORT_ERROR is not None else ""
+        logging.error(
+            "The --enable-assets flag requires the asset system's database dependencies.\n"
+            f"{get_missing_requirements_message()}{import_error_message}"
+        )
+        sys.exit(1)
+    if args.enable_asset_hashing:
+        try:
+            import blake3
+        except ImportError:
+            logging.error(
+                "The --enable-assets and --enable-asset-hashing flags require blake3.\n"
+                f"{get_missing_requirements_message()}"
+            )
+            sys.exit(1)
+    return AssetsEnabled(args)

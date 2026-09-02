@@ -136,7 +136,7 @@ def _writer_lands_mid_hash(path: Path, replacement: bytes):
         def hexdigest(self) -> str:
             return self._inner.hexdigest()
 
-    with patch("app.assets.services.snapshot_hash.blake3", _WriterHasher):
+    with patch("blake3.blake3", _WriterHasher):
         yield _WriterHasher
 
 

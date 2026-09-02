@@ -11,9 +11,6 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-from blake3 import blake3
-
-
 @dataclass(frozen=True, slots=True)
 class _Snapshot:
     dev: int
@@ -34,6 +31,8 @@ def _snapshot(stat_result: os.stat_result) -> _Snapshot:
 def snapshot_hash(
     path: str, chunk_size: int = 8 * 1024 * 1024
 ) -> tuple[str, os.stat_result] | None:
+    from blake3 import blake3
+
     try:
         pre_stat = _snapshot(os.stat(path))
         hasher = blake3()

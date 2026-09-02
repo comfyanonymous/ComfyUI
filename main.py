@@ -22,7 +22,10 @@ console_log_level = get_console_log_level(args.verbose)
 file_log_outputs = get_file_log_outputs(args.verbose)
 setup_logger(log_level=console_log_level, file_outputs=file_log_outputs, use_stdout=args.log_stdout)
 
-from app.assets.lifecycle import cleanup_temp_filesystem
+try:
+    from app.assets.lifecycle import cleanup_temp_filesystem
+except ImportError:
+    cleanup_temp_filesystem = None
 from app.assets.manager import AssetManager, default_asset_manager
 import itertools
 import utils.extra_config
@@ -515,8 +518,11 @@ def start_comfyui(asyncio_loop=None):
         folder_paths.set_temp_directory(temp_dir)
 
     asset_manager: AssetManager = default_asset_manager()
-    if not (asset_manager.enabled and dependencies_available()):
-        cleanup_temp_filesystem()
+    if not asset_manager.enabled:
+        if cleanup_temp_filesystem is None:
+            logging.warning("Skipping temporary filesystem cleanup because asset dependencies are missing")
+        else:
+            cleanup_temp_filesystem()
 
     if not asyncio_loop:
         asyncio_loop = asyncio.new_event_loop()
