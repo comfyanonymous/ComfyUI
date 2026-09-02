@@ -21,6 +21,15 @@ def shape_norm(shape_latent, coords):
     return SparseTensor(feats=feats, coords=coords)
 
 
+def _move_sparse_tensor_uncached(tensor, device):
+    return SparseTensor(
+        feats=tensor.feats.to(device),
+        coords=tensor.coords.to(device),
+        shape=tensor.shape,
+        scale=tensor._scale,
+    )
+
+
 def infer_batched_coord_layout(coords):
     if coords.ndim != 2 or coords.shape[1] != 4:
         raise ValueError(f"Expected Trellis2 coords with shape [N, 4], got {tuple(coords.shape)}")
@@ -166,6 +175,8 @@ class VaeDecodeShapeTrellis(IO.ComfyNode):
             mesh = Types.MESH(vertices=torch.stack(vert_list), faces=torch.stack(face_list))
         else:
             mesh = pack_variable_mesh_batch(vert_list, face_list)
+        output_device = comfy.model_management.intermediate_device()
+        subs = [_move_sparse_tensor_uncached(sub, output_device) for sub in subs]
         return IO.NodeOutput(mesh, subs)
 
 class VaeDecodeTextureTrellis(IO.ComfyNode):
@@ -204,6 +215,7 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
         samples = samples.to(device)
         feats = tex_slat_format.process_out(samples)
         samples = SparseTensor(feats=feats, coords=coords.to(device))
+        shape_subdivides = [_move_sparse_tensor_uncached(sub, device) for sub in shape_subdivides]
 
         voxel = trellis_vae.decode_tex_slat(samples.to(vae.vae_dtype), shape_subdivides)
         # Keep all decoded channels. The texture VAE emits 6: base_color (0:3),
@@ -239,7 +251,8 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
                     dim=-1,
                 )
 
-        voxel = Types.VOXEL(voxel_coords, color_feats, tex_resolution)
+        output_device = comfy.model_management.intermediate_device()
+        voxel = Types.VOXEL(voxel_coords.to(output_device), color_feats.to(output_device), tex_resolution)
         return IO.NodeOutput(voxel)
 
 class VaeDecodeStructureTrellis2(IO.ComfyNode):
