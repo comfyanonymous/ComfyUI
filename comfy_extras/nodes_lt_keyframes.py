@@ -171,10 +171,7 @@ def _as_int_set(value) -> set[int]:
         value = value.cpu()
     if hasattr(value, "tolist"):
         return _as_int_set(value.tolist())
-    try:
-        return {int(round(float(value)))}
-    except (TypeError, ValueError):
-        return set()
+    return {int(round(float(value)))}
 
 
 def pixel_frames_from_keyframe_idxs(keyframe_idxs) -> set[int]:
@@ -186,14 +183,10 @@ def pixel_frames_from_keyframe_idxs(keyframe_idxs) -> set[int]:
     """
     if keyframe_idxs is None:
         return set()
-    ndim = getattr(keyframe_idxs, "ndim", None)
-    try:
-        if ndim is not None and ndim >= 4:
-            starts = keyframe_idxs[:, 0, :, 0]
-        else:
-            starts = keyframe_idxs[:, 0]
-    except (IndexError, TypeError):
-        return _as_int_set(keyframe_idxs)
+    if keyframe_idxs.ndim >= 4:
+        starts = keyframe_idxs[:, 0, :, 0]
+    else:
+        starts = keyframe_idxs[:, 0]
     return _as_int_set(starts)
 
 
@@ -620,8 +613,6 @@ class LTXVAddGeneratedKeyframes(io.ComfyNode):
         out["noise_mask"] = torch.cat([noise_mask, keyframe_noise_mask], dim=2)
         return io.NodeOutput(positive, negative, out)
 
-    generate = execute  # TODO: remove
-
 
 class LTXVSeparateGeneratedKeyframes(io.ComfyNode):
     @classmethod
@@ -695,8 +686,13 @@ class LTXVSeparateGeneratedKeyframes(io.ComfyNode):
     @classmethod
     def strip_guide_entry(cls, cond, entry_index):
         entries = conditioning_get_any_value(cond, "guide_attention_entries", None)
-        if not entries or entry_index >= len(entries):
+        if not entries:
             return None
+        if entry_index >= len(entries):
+            raise ValueError(
+                f"The generated keyframes recorded guide entry {entry_index} but the conditioning only has "
+                f"{len(entries)}. The conditioning was rebuilt after they were added."
+            )
         remaining = entries[:entry_index] + entries[entry_index + 1 :]
         return remaining or None
 
@@ -778,8 +774,6 @@ class LTXVSeparateGeneratedKeyframes(io.ComfyNode):
             "generated_keyframe_num_frames": int(num_pixel_frames),
         }
         return io.NodeOutput(outputs[0], outputs[1], out, keyframes_out)
-
-    generate = execute  # TODO: remove
 
 
 class LTXVGeneratedKeyframesToGuides(io.ComfyNode):
@@ -986,8 +980,6 @@ class LTXVGeneratedKeyframesToGuides(io.ComfyNode):
         out["noise_mask"] = noise_mask
         return positive, negative, out
 
-    generate = execute  # TODO: remove
-
 
 class LTXVFreezeLatent(io.ComfyNode):
     @classmethod
@@ -1042,8 +1034,6 @@ class LTXVFreezeLatent(io.ComfyNode):
                 f"Expected a 4D audio or 5D video latent, got shape {list(samples.shape)}."
             )
         return io.NodeOutput(out)
-
-    generate = execute  # TODO: remove
 
 
 class LTXVKeyframesExtension(ComfyExtension):

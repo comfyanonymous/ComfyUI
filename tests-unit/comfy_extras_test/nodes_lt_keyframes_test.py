@@ -1,6 +1,6 @@
 """Unit tests for native LTXV generated-keyframe nodes and Freeze Latent.
 
-These tests are local-only; they are not part of the nodes commit.
+They cover keyframe placement, conditioning metadata, guide conversion, and freeze-mask behavior.
 """
 
 from __future__ import annotations
@@ -351,6 +351,12 @@ class TestPlacementHelpers:
         assert idxs[0, 0, :, 1].tolist() == [25.0]
         assert keyframes.pixel_frames_from_keyframe_idxs(idxs) == {24}
         assert keyframes.pixel_frames_from_keyframe_idxs(None) == set()
+
+    def test_pixel_frames_from_keyframe_idxs_rejects_malformed(self):
+        with pytest.raises((TypeError, AttributeError, IndexError, ValueError)):
+            keyframes.pixel_frames_from_keyframe_idxs("not-a-tensor")
+        with pytest.raises((TypeError, ValueError)):
+            keyframes._as_int_set(object())
 
 
 class TestNativeSchemas:
@@ -719,6 +725,10 @@ class TestSeparateGeneratedKeyframes:
             [({}, {"guide_attention_entries": [{"a": 1}]})], 0
         )
         assert empty is None
+        with pytest.raises(ValueError, match="recorded guide entry"):
+            keyframes.LTXVSeparateGeneratedKeyframes.strip_guide_entry(
+                [({}, {"guide_attention_entries": [{"a": 1}]})], 5
+            )
 
     def test_rejects_non_video_latent(self):
         record = {
