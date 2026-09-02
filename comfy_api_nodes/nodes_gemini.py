@@ -16,6 +16,7 @@ import folder_paths
 from comfy_api.latest import IO, ComfyExtension, Input, InputImpl, Types
 from comfy_api_nodes.apis.gemini import (
     GeminiContent,
+    GeminiFile,
     GeminiFileData,
     GeminiGenerateContentRequest,
     GeminiGenerationConfig,
@@ -24,13 +25,19 @@ from comfy_api_nodes.apis.gemini import (
     GeminiImageGenerateContentRequest,
     GeminiImageGenerationConfig,
     GeminiInlineData,
+    GeminiInteraction,
+    GeminiInteractionGenerationConfig,
+    GeminiInteractionMediaPart,
+    GeminiInteractionRequest,
+    GeminiInteractionResponseFormat,
+    GeminiInteractionTextPart,
+    GeminiInteractionVideoConfig,
     GeminiMimeType,
     GeminiPart,
     GeminiRole,
     GeminiSystemInstructionContent,
     GeminiTextPart,
     GeminiThinkingConfig,
-    Modality,
 )
 from comfy_api_nodes.util import (
     ApiEndpoint,
@@ -39,7 +46,10 @@ from comfy_api_nodes.util import (
     download_url_to_image_tensor,
     download_url_to_video_output,
     get_number_of_images,
+    pad_images_to_common_channels,
+    poll_op,
     sync_op,
+    sync_op_raw,
     tensor_to_base64_string,
     upload_audio_to_comfyapi,
     upload_image_to_comfyapi,
@@ -51,9 +61,11 @@ from comfy_api_nodes.util import (
 )
 
 GEMINI_BASE_ENDPOINT = "/proxy/vertexai/gemini"
+GEMINI_INTERACTIONS_ENDPOINT = "/proxy/gemini-interactions"
 GEMINI_MAX_INPUT_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 GEMINI_URL_INPUT_BUDGET = 10
 GEMINI_MAX_INLINE_BYTES = 18 * 1024 * 1024
+GEMINI_INTERACTIONS_MAX_INLINE_BYTES = 90 * 1024 * 1024  # the Interactions API rejects requests over ~100MiB
 GEMINI_IMAGE_SYS_PROMPT = (
     "You are an expert image-generation engine. You must ALWAYS produce an image.\n"
     "Interpret all user input—regardless of "
@@ -70,8 +82,8 @@ GEMINI_IMAGE_2_PRICE_BADGE = IO.PriceBadge(
       $m := widgets.model;
       $r := widgets.resolution;
       $isFlash := $contains($m, "nano banana 2");
-      $flashPrices := {"1k": 0.0696, "2k": 0.1014, "4k": 0.154};
-      $proPrices := {"1k": 0.134, "2k": 0.134, "4k": 0.24};
+      $flashPrices := {"1k": 0.0835, "2k": 0.1217, "4k": 0.1848};
+      $proPrices := {"1k": 0.1608, "2k": 0.1608, "4k": 0.288};
       $prices := $isFlash ? $flashPrices : $proPrices;
       {"type":"usd","usd": $lookup($prices, $r), "format":{"suffix":"/Image","approximate":true}}
     )
@@ -227,20 +239,36 @@ async def get_image_from_response(response: GeminiGenerateContentResponse, thoug
                 "Try rephrasing your prompt or changing the response modality to 'IMAGE+TEXT' "
                 "to see the model's reasoning."
             )
-        return torch.zeros((1, 1024, 1024, 4))
-    return torch.cat(image_tensors, dim=0)
+        return torch.zeros((1, 1024, 1024, 3))
+    return torch.cat(pad_images_to_common_channels(image_tensors), dim=0)
 
 
-async def get_video_from_response(
-    response: GeminiGenerateContentResponse, cls: type[IO.ComfyNode] | None = None
+def get_text_from_interaction(interaction: GeminiInteraction) -> str:
+    """Extract and concatenate all model output text from an Interactions API response."""
+    texts = []
+    for step in interaction.steps or []:
+        if step.type != "model_output":
+            continue
+        for content in step.content or []:
+            if content.type == "text" and content.text:
+                texts.append(content.text)
+    return "\n".join(texts)
+
+
+async def get_video_from_interaction(
+    interaction: GeminiInteraction, cls: type[IO.ComfyNode] | None = None
 ) -> InputImpl.VideoFromFile:
-    parts = get_parts_by_type(response, "video/*")
-    for part in parts:
-        if part.inlineData and part.inlineData.data:
-            return InputImpl.VideoFromFile(BytesIO(base64.b64decode(part.inlineData.data)))
-        if part.fileData and part.fileData.fileUri:
-            return await download_url_to_video_output(part.fileData.fileUri, cls=cls)
-    model_message = get_text_from_response(response).strip()
+    for step in interaction.steps or []:
+        if step.type != "model_output":
+            continue
+        for content in step.content or []:
+            if content.type != "video":
+                continue
+            if content.data:
+                return InputImpl.VideoFromFile(BytesIO(base64.b64decode(content.data)))
+            if content.uri:
+                return await download_interaction_video(content.uri, cls=cls)
+    model_message = get_text_from_interaction(interaction).strip()
     if model_message:
         raise ValueError(f"Gemini did not generate a video. Model response: {model_message}")
     raise ValueError(
@@ -249,66 +277,28 @@ async def get_video_from_response(
     )
 
 
-def calculate_tokens_price(response: GeminiGenerateContentResponse) -> float | None:
-    if not response.modelVersion:
-        return None
-    # Define prices (Cost per 1,000,000 tokens), see https://cloud.google.com/vertex-ai/generative-ai/pricing
-    output_video_tokens_price = 0.0
-    if response.modelVersion == "gemini-2.5-pro":
-        input_tokens_price = 1.25
-        output_text_tokens_price = 10.0
-        output_image_tokens_price = 0.0
-    elif response.modelVersion == "gemini-2.5-flash":
-        input_tokens_price = 0.30
-        output_text_tokens_price = 2.50
-        output_image_tokens_price = 0.0
-    elif response.modelVersion == "gemini-2.5-flash-image":
-        input_tokens_price = 0.30
-        output_text_tokens_price = 2.50
-        output_image_tokens_price = 30.0
-    elif response.modelVersion in ("gemini-3-pro-preview", "gemini-3.1-pro-preview"):
-        input_tokens_price = 2
-        output_text_tokens_price = 12.0
-        output_image_tokens_price = 0.0
-    elif response.modelVersion in ("gemini-3.1-flash-lite-preview", "gemini-3.1-flash-lite"):
-        input_tokens_price = 0.25
-        output_text_tokens_price = 1.50
-        output_image_tokens_price = 0.0
-    elif response.modelVersion == "gemini-3.5-flash":
-        input_tokens_price = 1.50
-        output_text_tokens_price = 9.0
-        output_image_tokens_price = 0.0
-    elif response.modelVersion in ("gemini-3-pro-image-preview", "gemini-3-pro-image"):
-        input_tokens_price = 2
-        output_text_tokens_price = 12.0
-        output_image_tokens_price = 120.0
-    elif response.modelVersion in ("gemini-3.1-flash-image-preview", "gemini-3.1-flash-image"):
-        input_tokens_price = 0.5
-        output_text_tokens_price = 3.0
-        output_image_tokens_price = 60.0
-    elif response.modelVersion == "gemini-3.1-flash-lite-image":
-        input_tokens_price = 0.25
-        output_text_tokens_price = 1.50
-        output_image_tokens_price = 30.0
-    elif response.modelVersion == "gemini-omni-flash-preview":
-        input_tokens_price = 2.145
-        output_text_tokens_price = 12.87
-        output_image_tokens_price = 0.0
-        output_video_tokens_price = 25.025
-    else:
-        return None
-    final_price = response.usageMetadata.promptTokenCount * input_tokens_price
-    if response.usageMetadata.candidatesTokensDetails:
-        for i in response.usageMetadata.candidatesTokensDetails:
-            if i.modality == Modality.IMAGE:
-                final_price += output_image_tokens_price * i.tokenCount  # for Nano Banana models
-            elif i.modality == Modality.VIDEO:
-                final_price += output_video_tokens_price * i.tokenCount  # for Omni Flash
-            else:
-                final_price += output_text_tokens_price * i.tokenCount
-    if response.usageMetadata.thoughtsTokenCount:
-        final_price += output_text_tokens_price * response.usageMetadata.thoughtsTokenCount
-    return final_price / 1_000_000.0
+async def download_interaction_video(uri: str, cls: type[IO.ComfyNode] | None = None) -> InputImpl.VideoFromFile:
+    if "/files/" not in uri:
+        return await download_url_to_video_output(uri, cls=cls)
+    name = uri.split("?", 1)[0].rsplit("/files/", 1)[-1].split(":", 1)[0]
+    await poll_op(
+        cls,
+        ApiEndpoint(path=f"{GEMINI_INTERACTIONS_ENDPOINT}/files/{name}"),
+        response_model=GeminiFile,
+        status_extractor=lambda file: file.state,
+        completed_statuses=["ACTIVE"],
+        failed_statuses=["FAILED"],
+        queued_statuses=["PROCESSING"],
+        poll_interval=3.0,
+        max_poll_attempts=200,
+    )
+    video_bytes = await sync_op_raw(
+        cls,
+        ApiEndpoint(path=f"{GEMINI_INTERACTIONS_ENDPOINT}/files/{name}:download", query_params={"alt": "media"}),
+        as_binary=True,
+        wait_label="Downloading video",
+    )
+    return InputImpl.VideoFromFile(BytesIO(video_bytes))
 
 
 def create_video_parts(video_input: Input.Video) -> list[GeminiPart]:
@@ -437,12 +427,22 @@ async def build_gemini_media_parts(
         part, nbytes = _media_inline_part(kind, payload)
         inline_bytes += nbytes
         if inline_bytes > max_inline_bytes:
+            detail = f" after the first {url_budget} inputs are uploaded as URLs" if url_budget else ""
             raise ValueError(
-                f"Too much media to send inline (over {max_inline_bytes // (1024 * 1024)}MB after the first "
-                f"{url_budget} inputs are uploaded as URLs). Reduce the number or size of attached media."
+                f"Too much media to send inline (over {max_inline_bytes // (1024 * 1024)}MB{detail}). "
+                "Reduce the number or size of attached media."
             )
         parts.append(part)
     return parts
+
+
+def to_interaction_media_part(part: GeminiPart) -> GeminiInteractionMediaPart:
+    """Convert a fileData/inlineData GeminiPart into an Interactions API media part."""
+    if part.fileData:
+        mime = part.fileData.mimeType.value
+        return GeminiInteractionMediaPart(type=mime.split("/")[0], uri=part.fileData.fileUri, mime_type=mime)
+    mime = part.inlineData.mimeType.value
+    return GeminiInteractionMediaPart(type=mime.split("/")[0], data=part.inlineData.data, mime_type=mime)
 
 
 class GeminiNode(IO.ComfyNode):
@@ -614,7 +614,6 @@ class GeminiNode(IO.ComfyNode):
                 systemInstruction=gemini_system_prompt,
             ),
             response_model=GeminiGenerateContentResponse,
-            price_extractor=calculate_tokens_price,
         )
 
         output_text = get_text_from_response(response)
@@ -622,6 +621,7 @@ class GeminiNode(IO.ComfyNode):
 
 
 GEMINI_V2_MODELS: dict[str, str] = {
+    "Gemini 3.7 Flash": "gemini-3.7-flash",
     "Gemini 3.1 Pro": "gemini-3.1-pro-preview",
     "Gemini 3.5 Flash": "gemini-3.5-flash",
     "Gemini 3.1 Flash-Lite": "gemini-3.1-flash-lite-preview",
@@ -725,6 +725,10 @@ class GeminiNodeV2(IO.ComfyNode):
                     "model",
                     options=[
                         IO.DynamicCombo.Option(
+                            "Gemini 3.7 Flash",
+                            _gemini_text_model_inputs("MEDIUM", ["LOW", "MEDIUM", "HIGH"]),
+                        ),
+                        IO.DynamicCombo.Option(
                             "Gemini 3.5 Flash",
                             _gemini_text_model_inputs("MEDIUM", ["MINIMAL", "LOW", "MEDIUM", "HIGH"]),
                         ),
@@ -767,6 +771,11 @@ class GeminiNodeV2(IO.ComfyNode):
                   $contains($m, "lite") ? {
                     "type": "list_usd",
                     "usd": [0.00025, 0.0015],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "3.7 flash") ? {
+                    "type": "list_usd",
+                    "usd": [0.00215, 0.01073],
                     "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
                   }
                   : $contains($m, "3.5 flash") ? {
@@ -829,7 +838,6 @@ class GeminiNodeV2(IO.ComfyNode):
                 systemInstruction=gemini_system_prompt,
             ),
             response_model=GeminiGenerateContentResponse,
-            price_extractor=calculate_tokens_price,
         )
 
         output_text = get_text_from_response(response)
@@ -1042,7 +1050,6 @@ class GeminiImage(IO.ComfyNode):
                 systemInstruction=gemini_system_prompt,
             ),
             response_model=GeminiGenerateContentResponse,
-            price_extractor=calculate_tokens_price,
         )
         return IO.NodeOutput(await get_image_from_response(response), get_text_from_response(response))
 
@@ -1182,7 +1189,6 @@ class GeminiImage2(IO.ComfyNode):
                 systemInstruction=gemini_system_prompt,
             ),
             response_model=GeminiGenerateContentResponse,
-            price_extractor=calculate_tokens_price,
         )
         return IO.NodeOutput(await get_image_from_response(response), get_text_from_response(response))
 
@@ -1342,7 +1348,6 @@ class GeminiNanoBanana2(IO.ComfyNode):
                 systemInstruction=gemini_system_prompt,
             ),
             response_model=GeminiGenerateContentResponse,
-            price_extractor=calculate_tokens_price,
         )
         return IO.NodeOutput(
             await get_image_from_response(response),
@@ -1499,10 +1504,10 @@ class GeminiNanoBanana2V2(IO.ComfyNode):
                 expr="""
                 (
                   $contains(widgets.model, "lite")
-                    ? {"type":"usd","usd": 0.034, "format":{"suffix":"/Image","approximate":true}}
+                    ? {"type":"usd","usd": 0.0408, "format":{"suffix":"/Image","approximate":true}}
                     : (
                         $r := $lookup(widgets, "model.resolution");
-                        $prices := {"1k": 0.0696, "2k": 0.1014, "4k": 0.154};
+                        $prices := {"1k": 0.0835, "2k": 0.1217, "4k": 0.1848};
                         {"type":"usd","usd": $lookup($prices, $r), "format":{"suffix":"/Image","approximate":true}}
                       )
                 )
@@ -1567,7 +1572,6 @@ class GeminiNanoBanana2V2(IO.ComfyNode):
                 systemInstruction=gemini_system_prompt,
             ),
             response_model=GeminiGenerateContentResponse,
-            price_extractor=calculate_tokens_price,
         )
         return IO.NodeOutput(
             await get_image_from_response(response),
@@ -1578,9 +1582,11 @@ class GeminiNanoBanana2V2(IO.ComfyNode):
 
 OMNI_MAX_IMAGES = 14
 OMNI_MAX_VIDEOS = 3
+OMNI_URI_DELIVERY_RESOLUTIONS = ("1080p", "4k")
 
 OMNI_MODELS: dict[str, str] = {
     "Omni Flash": "gemini-omni-flash-preview",
+    "Omni Flash 1.1": "gemini-omni-1.1-flash",
 }
 
 
@@ -1675,8 +1681,9 @@ class GeminiVideoOmni(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            is_deprecated=True,
             price_badge=IO.PriceBadge(
-                expr='{"type":"usd","usd":0.146,"format":{"suffix":"/second","approximate":true}}'
+                expr='{"type":"usd","usd":0.1449,"format":{"suffix":"/second","approximate":true}}'
             ),
         )
 
@@ -1695,27 +1702,300 @@ class GeminiVideoOmni(IO.ComfyNode):
         for video in videos:
             validate_video_duration(video, max_duration=10)
 
-        parts: list[GeminiPart] = []
+        parts: list[GeminiInteractionTextPart | GeminiInteractionMediaPart] = []
         if images or videos:
-            parts.extend(await build_gemini_media_parts(cls, images, [], videos))
-        parts.append(GeminiPart(text=prompt))
-        response = await sync_op(
+            # The Interactions API accepts video only inline or as a Files API URI, not as an HTTP URL.
+            media_parts = await build_gemini_media_parts(
+                cls, [], [], videos, url_budget=0, max_inline_bytes=GEMINI_INTERACTIONS_MAX_INLINE_BYTES
+            )
+            video_inline_bytes = sum(len(p.inlineData.data) for p in media_parts)
+            media_parts += await build_gemini_media_parts(
+                cls, images, [], [], max_inline_bytes=GEMINI_INTERACTIONS_MAX_INLINE_BYTES - video_inline_bytes
+            )
+            parts.extend(to_interaction_media_part(p) for p in media_parts)
+        parts.append(GeminiInteractionTextPart(text=prompt))
+        interaction = await sync_op(
             cls,
-            ApiEndpoint(path=f"{GEMINI_BASE_ENDPOINT}/{model_id}", method="POST"),
-            data=GeminiGenerateContentRequest(
-                contents=[GeminiContent(role=GeminiRole.user, parts=parts)],
-                generationConfig=GeminiGenerationConfig(
-                    responseModalities=["TEXT", "VIDEO"],
+            ApiEndpoint(path=GEMINI_INTERACTIONS_ENDPOINT, method="POST"),
+            data=GeminiInteractionRequest(
+                model=model_id,
+                input=parts,
+                generation_config=GeminiInteractionGenerationConfig(
                     temperature=model.get("temperature", 1.0),
-                    topP=model.get("top_p", 0.95),
+                    top_p=model.get("top_p", 0.95),
                 ),
             ),
-            response_model=GeminiGenerateContentResponse,
-            price_extractor=calculate_tokens_price,
+            response_model=GeminiInteraction,
         )
+        if interaction.status != "completed":
+            model_message = get_text_from_interaction(interaction).strip()
+            raise ValueError(
+                f"Gemini interaction did not complete (status: {interaction.status})."
+                + (f" Model response: {model_message}" if model_message else "")
+            )
         return IO.NodeOutput(
-            await get_video_from_response(response, cls=cls),
-            get_text_from_response(response),
+            await get_video_from_interaction(interaction, cls=cls),
+            get_text_from_interaction(interaction),
+        )
+
+
+def _omni_task_input(with_extend: bool) -> Input:
+    return IO.Combo.Input(
+        "task_type",
+        options=["auto", "text_to_video", "image_to_video", "reference_to_video", "edit"]
+        + (["extend"] if with_extend else []),
+        default="auto",
+        tooltip="What to do with the prompt and the attached media. With 'auto' the model decides. "
+        "'text_to_video' generates from the prompt alone and rejects attached media. 'image_to_video' "
+        "animates one image, or interpolates from a starting frame to an ending frame when two are "
+        "attached. 'reference_to_video' treats the attached media as subject references. "
+        "'edit' rewrites exactly one attached video"
+        + (", and 'extend' appends new footage to it, so the output starts with the input video." if with_extend else "."),
+    )
+
+
+def _omni_seed_input() -> Input:
+    return IO.Int.Input(
+        "seed",
+        default=42,
+        min=0,
+        max=2147483647,
+        control_after_generate=True,
+        tooltip="Seed controls whether the node should re-run; results are non-deterministic regardless of seed.",
+    )
+
+
+def _omni_v2_flash_inputs() -> list[Input]:
+    return [
+        IO.String.Input(
+            "prompt",
+            multiline=True,
+            default="",
+            tooltip="Describe the video to generate, or the edit to apply to an attached video. Specify the "
+            'length directly in the prompt, e.g. "a 6-second clip"; length may be 3-10 seconds. '
+            "The output is 720p, 24 FPS, with audio.",
+        ),
+        IO.Combo.Input(
+            "aspect_ratio",
+            options=["16:9", "9:16"],
+            default="16:9",
+            tooltip="Output aspect ratio: 16:9 (landscape) or 9:16 (portrait). "
+            "The 'edit' task keeps the aspect ratio of the input video instead.",
+        ),
+        _omni_task_input(with_extend=False),
+        IO.Autogrow.Input(
+            "images",
+            template=IO.Autogrow.TemplateNames(
+                IO.Image.Input("image"),
+                names=[f"image_{i}" for i in range(1, OMNI_MAX_IMAGES + 1)],
+                min=0,
+            ),
+            tooltip=f"Optional reference image(s) to guide or animate the video. Up to {OMNI_MAX_IMAGES} images.",
+        ),
+        IO.Autogrow.Input(
+            "videos",
+            template=IO.Autogrow.TemplateNames(
+                IO.Video.Input("video"),
+                names=[f"video_{i}" for i in range(1, OMNI_MAX_VIDEOS + 1)],
+                min=0,
+            ),
+            tooltip=f"Optional reference video(s) to guide or edit. Up to {OMNI_MAX_VIDEOS} videos, "
+            f"each up to 10 seconds long.",
+        ),
+        IO.Float.Input(
+            "temperature",
+            default=1.0,
+            min=0.0,
+            max=2.0,
+            step=0.01,
+            tooltip="Controls randomness. Lower is more focused/deterministic, higher is more varied.",
+            advanced=True,
+        ),
+        IO.Float.Input(
+            "top_p",
+            default=0.95,
+            min=0.0,
+            max=1.0,
+            step=0.01,
+            tooltip="Nucleus sampling: sample from the smallest token set whose cumulative probability reaches top_p.",
+            advanced=True,
+        ),
+        _omni_seed_input(),
+    ]
+
+
+def _omni_v2_flash_1_1_inputs() -> list[Input]:
+    return [
+        IO.String.Input(
+            "prompt",
+            multiline=True,
+            default="",
+            tooltip="Describe the video to generate, or the edit to apply to an attached video. Specify the "
+            'length directly in the prompt, e.g. "a 6-second clip" or, for the \'extend\' task, "extend by 5 seconds"; '
+            "the generated length may be 3-10 seconds and defaults to 10. The output has audio.",
+        ),
+        IO.Combo.Input(
+            "resolution",
+            options=["360p", "720p", "1080p", "4k"],
+            default="720p",
+            tooltip="Output resolution.",
+        ),
+        IO.Combo.Input(
+            "aspect_ratio",
+            options=["16:9", "9:16"],
+            default="16:9",
+            tooltip="Output aspect ratio: 16:9 (landscape) or 9:16 (portrait). "
+            "The 'edit' and 'extend' tasks keep the aspect ratio of the input video instead.",
+        ),
+        _omni_task_input(with_extend=True),
+        IO.Autogrow.Input(
+            "images",
+            template=IO.Autogrow.TemplateNames(
+                IO.Image.Input("image"),
+                names=[f"image_{i}" for i in range(1, OMNI_MAX_IMAGES + 1)],
+                min=0,
+            ),
+            tooltip=f"Optional reference image(s) to guide or animate the video. Up to {OMNI_MAX_IMAGES} images; "
+            "with the 'image_to_video' task the first one is the starting frame and an optional second one "
+            "is the ending frame.",
+        ),
+        IO.Autogrow.Input(
+            "videos",
+            template=IO.Autogrow.TemplateNames(
+                IO.Video.Input("video"),
+                names=[f"video_{i}" for i in range(1, OMNI_MAX_VIDEOS + 1)],
+                min=0,
+            ),
+            tooltip=f"Optional reference video(s) to guide or edit. Up to {OMNI_MAX_VIDEOS} videos, "
+            f"each up to 10 seconds long.",
+        ),
+        _omni_seed_input(),
+    ]
+
+
+
+class GeminiVideoOmniV2(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="GeminiVideoOmniV2",
+            display_name="Google Gemini Omni (Video)",
+            category="partner/video/Gemini",
+            essentials_category="Video Generation",
+            description="Generate a video with audio from a text prompt using Google's Gemini Omni Flash models. "
+            "Optionally provide reference images and/or videos to guide or edit the result. Describe the desired "
+            "length (3-10s) directly in the prompt.",
+            inputs=[
+                IO.DynamicCombo.Input(
+                    "model",
+                    options=[
+                        IO.DynamicCombo.Option("Omni Flash 1.1", _omni_v2_flash_1_1_inputs()),
+                        IO.DynamicCombo.Option("Omni Flash", _omni_v2_flash_inputs()),
+                    ],
+                    tooltip="The Gemini video model used to generate the video.",
+                ),
+            ],
+            outputs=[
+                IO.Video.Output(),
+                IO.String.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model", "model.resolution"]),
+                expr="""
+                (
+                  $prices := {"360p": 0.0483, "720p": 0.1449, "1080p": 0.2174, "4k": 0.4349};
+                  $r := $lookup(widgets, "model.resolution");
+                  {"type":"usd","usd": $r ? $lookup($prices, $r) : 0.1449,
+                   "format":{"suffix":"/second","approximate":true}}
+                )
+                """,
+            ),
+        )
+
+    @classmethod
+    async def execute(cls, model: dict) -> IO.NodeOutput:
+        prompt = model.get("prompt") or ""
+        validate_string(prompt, strip_whitespace=True, min_length=1)
+        model_id = OMNI_MODELS[model["model"]]
+        task = model["task_type"]
+
+        images = [t for t in (model.get("images") or {}).values() if t is not None]
+        videos = [v for v in (model.get("videos") or {}).values() if v is not None]
+        total_images = sum(get_number_of_images(t) for t in images)
+        if total_images > OMNI_MAX_IMAGES:
+            raise ValueError(f"The current maximum number of supported images is {OMNI_MAX_IMAGES}.")
+        if len(videos) > OMNI_MAX_VIDEOS:
+            raise ValueError(f"The current maximum number of supported videos is {OMNI_MAX_VIDEOS}.")
+        for video in videos:
+            validate_video_duration(video, max_duration=10.1)
+        if task == "text_to_video" and (images or videos):
+            raise ValueError("The 'text_to_video' task generates from the prompt alone; detach the reference media.")
+        if task == "image_to_video" and videos:
+            raise ValueError(
+                "The 'image_to_video' task takes images only; detach the video(s) or use 'reference_to_video'."
+            )
+        if task == "image_to_video" and not 1 <= total_images <= 2:
+            raise ValueError(
+                "The 'image_to_video' task takes one image as the starting frame, "
+                "and an optional second one as the ending frame."
+            )
+        if task in ("edit", "extend") and len(videos) != 1:
+            raise ValueError(f"The '{task}' task requires exactly one input video.")
+
+        parts: list[GeminiInteractionTextPart | GeminiInteractionMediaPart] = []
+        if images or videos:
+            # The Interactions API accepts video only inline or as a Files API URI, not as an HTTP URL.
+            media_parts = await build_gemini_media_parts(
+                cls, [], [], videos, url_budget=0, max_inline_bytes=GEMINI_INTERACTIONS_MAX_INLINE_BYTES
+            )
+            video_inline_bytes = sum(len(p.inlineData.data) for p in media_parts)
+            media_parts += await build_gemini_media_parts(
+                cls, images, [], [], max_inline_bytes=GEMINI_INTERACTIONS_MAX_INLINE_BYTES - video_inline_bytes
+            )
+            parts.extend(to_interaction_media_part(p) for p in media_parts)
+        parts.append(GeminiInteractionTextPart(text=prompt))
+
+        resolution = model.get("resolution")
+        response_format = GeminiInteractionResponseFormat(
+            resolution=resolution,
+            aspect_ratio=None if task in ("edit", "extend") else model["aspect_ratio"],
+            delivery="uri" if resolution in OMNI_URI_DELIVERY_RESOLUTIONS else None,
+        )
+        generation_config = None
+        if task != "auto" or "temperature" in model:
+            generation_config = GeminiInteractionGenerationConfig(
+                temperature=model.get("temperature"),
+                top_p=model.get("top_p"),
+                video_config=GeminiInteractionVideoConfig(task=task) if task != "auto" else None,
+            )
+
+        interaction = await sync_op(
+            cls,
+            ApiEndpoint(path=GEMINI_INTERACTIONS_ENDPOINT, method="POST"),
+            data=GeminiInteractionRequest(
+                model=model_id,
+                input=parts,
+                generation_config=generation_config,
+                response_format=response_format,
+            ),
+            response_model=GeminiInteraction,
+        )
+        if interaction.status != "completed":
+            model_message = get_text_from_interaction(interaction).strip()
+            raise ValueError(
+                f"Gemini interaction did not complete (status: {interaction.status})."
+                + (f" Model response: {model_message}" if model_message else "")
+            )
+        return IO.NodeOutput(
+            await get_video_from_interaction(interaction, cls=cls),
+            get_text_from_interaction(interaction),
         )
 
 
@@ -1730,6 +2010,7 @@ class GeminiExtension(ComfyExtension):
             GeminiNanoBanana2,
             GeminiNanoBanana2V2,
             GeminiVideoOmni,
+            GeminiVideoOmniV2,
             GeminiInputFiles,
         ]
 

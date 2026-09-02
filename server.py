@@ -696,8 +696,9 @@ class PromptServer():
                         # For security, force renderable/active types (HTML, JS,
                         # CSS, SVG, XML — anything that can carry inline <script>
                         # and execute in the page origin) to download instead of
-                        # displaying inline, preventing stored XSS. The
-                        # attachment disposition is the load-bearing guard: a
+                        # displaying inline, preventing stored XSS. SVG loaded
+                        # into an <img> is exempt, see renders_safely_as_image.
+                        # The attachment disposition is the load-bearing guard: a
                         # bare filename= hint does not force a download per
                         # RFC 6266, so we only attach it on the dangerous branch
                         # to avoid breaking inline display of legitimate images.
@@ -707,18 +708,27 @@ class PromptServer():
                         # header's quoted-string and malform the disposition.
                         safe_filename = filename.replace("\\", "\\\\").replace('"', '\\"')
                         disposition = f"filename=\"{safe_filename}\""
+                        headers = {"X-Content-Type-Options": "nosniff"}
+                        sec_fetch_dest = request.headers.get('Sec-Fetch-Dest')
                         if folder_paths.is_dangerous_content_type(content_type):
-                            content_type = 'application/octet-stream'
-                            disposition = f"attachment; filename=\"{safe_filename}\""
+                            # This response now depends on a request header, so
+                            # it must not be reused across destinations.
+                            # FileResponse emits Last-Modified/ETag and nothing
+                            # sets Cache-Control on /view, which makes it
+                            # heuristically cacheable: without these headers a
+                            # cache could replay the inline SVG served to an
+                            # <img> to a later document navigation of the same
+                            # URL and re-enable the stored XSS, or replay the
+                            # attachment to an <img> and re-break the preview.
+                            headers["Vary"] = "Sec-Fetch-Dest"
+                            headers["Cache-Control"] = "no-store"
+                            if not folder_paths.renders_safely_as_image(content_type, sec_fetch_dest):
+                                content_type = 'application/octet-stream'
+                                disposition = f"attachment; filename=\"{safe_filename}\""
 
-                        return web.FileResponse(
-                            file,
-                            headers={
-                                "Content-Disposition": disposition,
-                                "Content-Type": content_type,
-                                "X-Content-Type-Options": "nosniff"
-                            }
-                        )
+                        headers["Content-Disposition"] = disposition
+                        headers["Content-Type"] = content_type
+                        return web.FileResponse(file, headers=headers)
 
             return web.Response(status=404)
 

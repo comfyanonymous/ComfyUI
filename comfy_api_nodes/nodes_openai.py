@@ -364,19 +364,6 @@ class OpenAIDalle3(IO.ComfyNode):
         return IO.NodeOutput(await validate_and_cast_response(response))
 
 
-def calculate_tokens_price_image_1(response: OpenAIImageGenerationResponse) -> float | None:
-    # https://platform.openai.com/docs/pricing
-    return ((response.usage.input_tokens * 10.0) + (response.usage.output_tokens * 40.0)) / 1_000_000.0
-
-
-def calculate_tokens_price_image_1_5(response: OpenAIImageGenerationResponse) -> float | None:
-    return ((response.usage.input_tokens * 8.0) + (response.usage.output_tokens * 32.0)) / 1_000_000.0
-
-
-def calculate_tokens_price_image_2_0(response: OpenAIImageGenerationResponse) -> float | None:
-    return ((response.usage.input_tokens * 8.0) + (response.usage.output_tokens * 30.0)) / 1_000_000.0
-
-
 class OpenAIGPTImage1(IO.ComfyNode):
 
     @classmethod
@@ -507,9 +494,9 @@ class OpenAIGPTImage1(IO.ComfyNode):
                       "high":   [0.133, 0.22]
                     },
                     "gpt-image-2": {
-                      "low":    [0.0048, 0.019],
-                      "medium": [0.041, 0.168],
-                      "high":   [0.165, 0.67]
+                      "low":    [0.0058, 0.0228],
+                      "medium": [0.0492, 0.2016],
+                      "high":   [0.198, 0.804]
                     }
                   };
                   $range := $lookup($lookup($ranges, widgets.model), widgets.quality);
@@ -570,15 +557,10 @@ class OpenAIGPTImage1(IO.ComfyNode):
             if size not in ("auto", "1024x1024", "1024x1536", "1536x1024"):
                 raise ValueError(f"Resolution {size} is only supported by GPT Image 2 model")
 
-        if model == "gpt-image-1":
-            price_extractor = calculate_tokens_price_image_1
-        elif model == "gpt-image-1.5":
-            price_extractor = calculate_tokens_price_image_1_5
-        elif model == "gpt-image-2":
-            price_extractor = calculate_tokens_price_image_2_0
+        if model == "gpt-image-2":
             if background == "transparent":
                 raise ValueError("Transparent background is not supported for GPT Image 2 model")
-        else:
+        elif model not in ("gpt-image-1", "gpt-image-1.5"):
             raise ValueError(f"Unknown model: {model}")
 
         if image is not None:
@@ -633,7 +615,6 @@ class OpenAIGPTImage1(IO.ComfyNode):
                 ),
                 content_type="multipart/form-data",
                 files=files,
-                price_extractor=price_extractor,
             )
         else:
             response = await sync_op(
@@ -650,7 +631,6 @@ class OpenAIGPTImage1(IO.ComfyNode):
                     size=size,
                     moderation="low",
                 ),
-                price_extractor=price_extractor,
             )
         return IO.NodeOutput(await validate_and_cast_response(response))
 
@@ -812,9 +792,9 @@ class OpenAIGPTImageNodeV2(IO.ComfyNode):
                       "high":   [0.133, 0.22]
                     },
                     "gpt-image-2": {
-                      "low":    [0.0048, 0.019],
-                      "medium": [0.041, 0.168],
-                      "high":   [0.165, 0.67]
+                      "low":    [0.0058, 0.0228],
+                      "medium": [0.0492, 0.2016],
+                      "high":   [0.198, 0.804]
                     }
                   };
                   $range := $lookup($lookup($ranges, widgets.model), $lookup(widgets, "model.quality"));
@@ -879,13 +859,7 @@ class OpenAIGPTImageNodeV2(IO.ComfyNode):
                 )
             size = f"{custom_width}x{custom_height}"
 
-        if model_id == "gpt-image-1":
-            price_extractor = calculate_tokens_price_image_1
-        elif model_id == "gpt-image-1.5":
-            price_extractor = calculate_tokens_price_image_1_5
-        elif model_id == "gpt-image-2":
-            price_extractor = calculate_tokens_price_image_2_0
-        else:
+        if model_id not in ("gpt-image-1", "gpt-image-1.5", "gpt-image-2"):
             raise ValueError(f"Unknown model: {model_id}")
 
         if image_tensors:
@@ -944,7 +918,6 @@ class OpenAIGPTImageNodeV2(IO.ComfyNode):
                 ),
                 content_type="multipart/form-data",
                 files=files,
-                price_extractor=price_extractor,
             )
         else:
             response = await sync_op(
@@ -960,7 +933,6 @@ class OpenAIGPTImageNodeV2(IO.ComfyNode):
                     size=size,
                     moderation="low",
                 ),
-                price_extractor=price_extractor,
             )
         return IO.NodeOutput(await validate_and_cast_response(response))
 

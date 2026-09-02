@@ -2,8 +2,10 @@ import asyncio
 import contextlib
 import json
 import logging
+import math
 import time
 import uuid
+import weakref
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from enum import Enum
@@ -84,9 +86,35 @@ class _PollUIState:
 
 _RETRY_STATUS = {408, 500, 502, 503, 504}  # status 429 is handled separately
 _MAX_RETRY_AFTER_WAIT = 150.0  # Cap a server Retry-After at this many seconds so a large hint can't block execution
+
+PRICE_CREDITS_HEADER = "X-Comfy-Credits-Used"
+"""Proxy response header with the actual cost in Comfy credits. When present on any successful proxied response,
+it takes precedence over ``price_extractor``."""
+
+_credits_used_by_execution: "weakref.WeakKeyDictionary[type, float]" = weakref.WeakKeyDictionary()
+"""Last PRICE_CREDITS_HEADER value per node execution, keyed by the node's per-execution class clone."""
 COMPLETED_STATUSES = ["succeeded", "succeed", "success", "completed", "finished", "done", "complete"]
 FAILED_STATUSES = ["cancelled", "canceled", "canceling", "fail", "failed", "error"]
 QUEUED_STATUSES = ["created", "queued", "queueing", "submitted", "initializing", "wait", "in_queue"]
+
+
+def _maybe_remember_credits_used(node_cls: type[IO.ComfyNode], header_value: str | None) -> None:
+    """Remember a PRICE_CREDITS_HEADER value from a successful proxied response."""
+    if not header_value:
+        return
+    try:
+        credits_used = float(header_value)
+    except (TypeError, ValueError):
+        logging.debug("Ignoring malformed %s header: %r", PRICE_CREDITS_HEADER, header_value)
+        return
+    if not math.isfinite(credits_used) or credits_used < 0:
+        logging.debug("Ignoring out-of-range %s header: %r", PRICE_CREDITS_HEADER, header_value)
+        return
+    _credits_used_by_execution[node_cls] = credits_used + 0.0  # normalize -0.0
+
+
+def _get_remembered_credits_used(node_cls: type[IO.ComfyNode]) -> float | None:
+    return _credits_used_by_execution.get(node_cls)
 
 
 async def sync_op(
@@ -450,10 +478,15 @@ def _display_text(
     display_lines: list[str] = []
     if status:
         display_lines.append(f"Status: {status.capitalize() if isinstance(status, str) else status}")
-    if price is not None:
+    server_credits = _get_remembered_credits_used(node_cls)
+    if server_credits is not None:
+        p = f"{server_credits:,.2f}".rstrip("0").rstrip(".")
+    elif price is not None:
         p = f"{float(price) * 211:,.1f}".rstrip("0").rstrip(".")
-        if p != "0":
-            display_lines.append(f"Price: {p} credits")
+    else:
+        p = None
+    if p is not None and p != "0":
+        display_lines.append(f"Price: {p} credits")
     if text is not None:
         display_lines.append(text)
     if display_lines:
@@ -606,7 +639,8 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
     """Core request with retries, per-second interruption monitoring, true cancellation, and friendly errors."""
     url = cfg.endpoint.path
     parsed_url = urlparse(url)
-    if not parsed_url.scheme and not parsed_url.netloc:  # is URL relative?
+    is_comfy_api_request = not parsed_url.scheme and not parsed_url.netloc  # is URL relative?
+    if is_comfy_api_request:
         url = urljoin(default_base_url().rstrip("/") + "/", url.lstrip("/"))
 
     method = cfg.endpoint.method
@@ -644,7 +678,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
         logging.debug("[DEBUG] HTTP %s %s (attempt %d)", method, url, attempt)
 
         payload_headers = {"Accept": "*/*"} if expect_binary else {"Accept": "application/json"}
-        if not parsed_url.scheme and not parsed_url.netloc:  # is URL relative?
+        if is_comfy_api_request:
             payload_headers.update(get_comfy_api_headers(cfg.node_cls))
         if cfg.endpoint.headers:
             payload_headers.update(cfg.endpoint.headers)
@@ -804,6 +838,8 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                                 )
                     bytes_payload = bytes(buff)
                     resp_headers = {k.lower(): v for k, v in resp.headers.items()}
+                    if is_comfy_api_request:
+                        _maybe_remember_credits_used(cfg.node_cls, resp.headers.get(PRICE_CREDITS_HEADER))
                     if cfg.price_extractor:
                         with contextlib.suppress(Exception):
                             extracted_price = cfg.price_extractor(resp_headers)
@@ -831,6 +867,8 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                         except json.JSONDecodeError:
                             payload = {"_raw": text}
                         response_content_to_log = payload if isinstance(payload, dict) else text
+                    if is_comfy_api_request:
+                        _maybe_remember_credits_used(cfg.node_cls, resp.headers.get(PRICE_CREDITS_HEADER))
                     with contextlib.suppress(Exception):
                         extracted_price = cfg.price_extractor(payload) if cfg.price_extractor else None
                     operation_succeeded = True
