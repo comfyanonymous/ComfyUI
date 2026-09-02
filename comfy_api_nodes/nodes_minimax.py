@@ -944,7 +944,7 @@ class MinimaxHailuo03ReferenceNode(IO.ComfyNode):
                                 IO.Combo.Input(
                                     "reference_detail",
                                     options=["high", "standard"],
-                                    default="high",
+                                    default="standard",
                                     tooltip="Detail level at which reference images are sent. 'high' sends them at "
                                     "the largest size the model uses (up to a 2048 pixel short side); "
                                     "'standard' downsizes them to at most 2048x1024 to reduce the reference cost.",
