@@ -52,6 +52,8 @@ class TripoTaskType(str, Enum):
     MESH_SEGMENTATION = "mesh_segmentation"
     MESH_COMPLETION = "mesh_completion"
     HIGHPOLY_TO_LOWPOLY = "highpoly_to_lowpoly"
+    GENERATE_MULTIVIEW_IMAGE = "generate_multiview_image"
+    EDIT_MULTIVIEW_IMAGE = "edit_multiview_image"
 
 
 class TripoTextureAlignment(str, Enum):
@@ -404,6 +406,22 @@ class TripoHighpolyToLowpolyRequest(BaseModel):
     part_names: list[str] | None = Field(None, description="Parts to retopologize; whole model when omitted")
 
 
+class TripoGenerateMultiviewImageRequest(BaseModel):
+    type: TripoTaskType = Field(TripoTaskType.GENERATE_MULTIVIEW_IMAGE, description="Type of task")
+    file: TripoFileReference = Field(..., description="The source image")
+
+
+class TripoMultiviewEditPrompt(BaseModel):
+    view: str = Field(..., description="front, left, back or right")
+    prompt: str = Field(..., description="Edit instruction for the view", max_length=1024)
+
+
+class TripoEditMultiviewImageRequest(BaseModel):
+    type: TripoTaskType = Field(TripoTaskType.EDIT_MULTIVIEW_IMAGE, description="Type of task")
+    original_task_id: str = Field(..., description="The task ID of the multiview images to edit")
+    prompts: list[TripoMultiviewEditPrompt] = Field(..., description="Per-view edit instructions")
+
+
 class TripoConvertModelRequest(BaseModel):
     type: TripoTaskType = Field(TripoTaskType.CONVERT_MODEL, description="Type of task")
     format: TripoConvertFormat = Field(..., description="The format to convert to")
@@ -489,6 +507,7 @@ class TripoTaskOutput(BaseModel):
     riggable: bool | None = Field(None, description="Whether the model is riggable")
     rig_type: str | None = Field(None, description="Recommended rig type")
     topology: str | None = Field(None, description="Legacy name of rig_type")
+    generate_multiview_image: dict[str, str] | None = Field(None, description="View name to image URL")
 
 
 class TripoTask(BaseModel):

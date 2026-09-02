@@ -12,14 +12,17 @@ from comfy_api_nodes.apis.tripo import (
     TripoAnimation,
     TripoAnimateRigRequest,
     TripoConvertModelRequest,
+    TripoEditMultiviewImageRequest,
     TripoFileEmptyReference,
     TripoFileReference,
+    TripoGenerateMultiviewImageRequest,
     TripoHighpolyToLowpolyRequest,
     TripoImageToModelRequest,
     TripoImportModelRequest,
     TripoMeshCompletionRequest,
     TripoMeshSegmentationRequest,
     TripoModelVersion,
+    TripoMultiviewEditPrompt,
     TripoMultiviewToModelRequest,
     TripoOrientation,
     TripoOutFormat,
@@ -42,11 +45,14 @@ from comfy_api_nodes.apis.tripo import (
 from comfy_api_nodes.util import (
     ApiEndpoint,
     download_url_to_file_3d,
+    download_url_to_image_tensor,
     poll_op,
     sync_op,
     upload_3d_model_to_comfyapi,
     upload_images_to_comfyapi,
 )
+
+MULTIVIEW_KEYS = ("front_view_url", "left_view_url", "back_view_url", "right_view_url")
 
 
 FACE_LIMIT_TOOLTIP = (
@@ -119,6 +125,15 @@ async def check_riggable(node_cls: type[IO.ComfyNode], model_task_id: str) -> tu
 async def upload_image_reference(node_cls: type[IO.ComfyNode], image: Input.Image) -> TripoFileReference:
     url = (await upload_images_to_comfyapi(node_cls, image, max_images=1))[0]
     return TripoFileReference(root=TripoUrlReference(url=url, type="jpeg"))
+
+
+async def multiview_output(node_cls: type[IO.ComfyNode], response: TripoTaskResponse, with_task_id: bool) -> IO.NodeOutput:
+    response_poll = await poll_task(node_cls, response, average_duration=25)
+    views = response_poll.data.output.generate_multiview_image or {}
+    if any(not views.get(key) for key in MULTIVIEW_KEYS):
+        raise RuntimeError(f"Tripo returned incomplete multiview images: {response_poll}")
+    images = [await download_url_to_image_tensor(views[key], cls=node_cls) for key in MULTIVIEW_KEYS]
+    return IO.NodeOutput(response_poll.data.task_id, *images) if with_task_id else IO.NodeOutput(*images)
 
 
 def part_names_from_glb(model: Types.File3D) -> list[str]:
@@ -631,6 +646,110 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
             ),
         )
         return glb_output(*await poll_until_finished(cls, response, average_duration=80))
+
+
+class TripoImageToMultiviewNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="TripoImageToMultiviewNode",
+            display_name="Tripo: Image to Multiview",
+            category="partner/3d/Tripo",
+            description="Generates front, left, back and right views of the subject. Feed them into "
+            "Tripo: Multiview to Model, or refine them first with Tripo: Edit Multiview.",
+            inputs=[IO.Image.Input("image")],
+            outputs=[
+                IO.Custom("MULTIVIEW_TASK_ID").Output(display_name="multiview task_id"),
+                IO.Image.Output(display_name="front"),
+                IO.Image.Output(display_name="left"),
+                IO.Image.Output(display_name="back"),
+                IO.Image.Output(display_name="right"),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.1, "format": {"approximate": true}}""",
+            ),
+        )
+
+    @classmethod
+    async def execute(cls, image: Input.Image) -> IO.NodeOutput:
+        response = await sync_op(
+            cls,
+            endpoint=ApiEndpoint(path="/proxy/tripo/v2/openapi/task", method="POST"),
+            response_model=TripoTaskResponse,
+            data=TripoGenerateMultiviewImageRequest(file=await upload_image_reference(cls, image)),
+        )
+        return await multiview_output(cls, response, with_task_id=True)
+
+
+class TripoEditMultiviewNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="TripoEditMultiviewNode",
+            display_name="Tripo: Edit Multiview",
+            category="partner/3d/Tripo",
+            description="Edits the views of a Tripo: Image to Multiview result with per-view text instructions. "
+            "Views without an instruction stay unchanged. Feed the images into Tripo: Multiview to Model; "
+            "an edited set cannot be edited again.",
+            inputs=[
+                IO.Custom("MULTIVIEW_TASK_ID").Input("multiview_task_id"),
+                IO.String.Input("front_prompt", default="", multiline=True, optional=True),
+                IO.String.Input("left_prompt", default="", multiline=True, optional=True),
+                IO.String.Input("back_prompt", default="", multiline=True, optional=True),
+                IO.String.Input("right_prompt", default="", multiline=True, optional=True),
+            ],
+            outputs=[
+                IO.Image.Output(display_name="front"),
+                IO.Image.Output(display_name="left"),
+                IO.Image.Output(display_name="back"),
+                IO.Image.Output(display_name="right"),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["front_prompt", "left_prompt", "back_prompt", "right_prompt"]),
+                expr="""
+                (
+                  $prompts := [widgets.front_prompt, widgets.left_prompt, widgets.back_prompt, widgets.right_prompt];
+                  $edited := $count($filter($prompts, function($p) { $length($trim($p)) > 0 }));
+                  {"type":"usd","usd": $edited * 0.05, "format": {"approximate": true}}
+                )
+                """,
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        multiview_task_id,
+        front_prompt: str = "",
+        left_prompt: str = "",
+        back_prompt: str = "",
+        right_prompt: str = "",
+    ) -> IO.NodeOutput:
+        views = zip(("front", "left", "back", "right"), (front_prompt, left_prompt, back_prompt, right_prompt))
+        prompts = [TripoMultiviewEditPrompt(view=view, prompt=prompt.strip()) for view, prompt in views if prompt.strip()]
+        if not prompts:
+            raise ValueError("Provide an edit instruction for at least one view.")
+        response = await sync_op(
+            cls,
+            endpoint=ApiEndpoint(path="/proxy/tripo/v2/openapi/task", method="POST"),
+            response_model=TripoTaskResponse,
+            data=TripoEditMultiviewImageRequest(original_task_id=multiview_task_id, prompts=prompts),
+        )
+        return await multiview_output(cls, response, with_task_id=False)
 
 
 class TripoTextureNode(IO.ComfyNode):
@@ -1829,6 +1948,8 @@ class TripoExtension(ComfyExtension):
             TripoP1ImageToModelNode,
             TripoP1MultiviewToModelNode,
             TripoImportModelNode,
+            TripoImageToMultiviewNode,
+            TripoEditMultiviewNode,
             TripoTextureNode,
             TripoRigCheckNode,
             TripoRigNode,
