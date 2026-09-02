@@ -11,6 +11,27 @@ import torch.nn.functional as F
 from comfy.ldm.modules.attention import optimized_attention_for_device
 
 
+def _explicit_gqa_attention(attention):
+    def wrapped(query, key, value, heads, **kwargs):
+        if kwargs.pop("enable_gqa", False) and key.shape[1] != query.shape[1]:
+            if query.shape[1] % key.shape[1]:
+                raise ValueError(
+                    "Qwen query heads must be divisible by key/value heads"
+                )
+            repeats = query.shape[1] // key.shape[1]
+            key = (
+                key[:, :, None, :, :].expand(-1, -1, repeats, -1, -1).reshape_as(query)
+            )
+            value = (
+                value[:, :, None, :, :]
+                .expand(-1, -1, repeats, -1, -1)
+                .reshape_as(query)
+            )
+        return attention(query, key, value, heads, **kwargs)
+
+    return wrapped
+
+
 def smart_resize_qwen(
     height: int,
     width: int,
@@ -166,9 +187,13 @@ def plan_forward(
     x = inputs_embeds.clone()
     if position_ids.ndim == 3 and position_ids.shape[1] == 1:
         position_ids = position_ids.squeeze(1)
-    freqs_cis = model.compute_freqs_cis(position_ids, x.device)
+    freqs_cis = tuple(
+        value.to(x.dtype) for value in model.compute_freqs_cis(position_ids, x.device)
+    )
     mask = additive_attention_mask.unsqueeze(1)
-    attention = optimized_attention_for_device(x.device, mask=True, small_input=True)
+    attention = _explicit_gqa_attention(
+        optimized_attention_for_device(x.device, mask=True, small_input=True)
+    )
     target = (
         len(model.layers) + intermediate_output
         if intermediate_output < 0

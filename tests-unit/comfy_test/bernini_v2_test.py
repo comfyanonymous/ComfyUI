@@ -2,6 +2,7 @@ import pytest
 import torch
 
 import comfy.ops
+import comfy.ldm.bernini_v2.qwen as bernini_qwen
 from comfy.ldm.bernini_v2.guidance import (
     apg_delta,
     compose_denoised_guidance,
@@ -22,6 +23,7 @@ from comfy.ldm.bernini_v2.planner_model import (
 )
 from comfy.ldm.bernini_v2.presets import task_preset
 from comfy.ldm.bernini_v2.qwen import (
+    _explicit_gqa_attention,
     planner_video_frame_indices,
     process_qwen2vl_video,
     qwen_grid_for_media,
@@ -235,6 +237,88 @@ def test_qwen_patchification_and_frame_policy():
     assert len(indices) == 10
     assert indices[0] == 0
     assert indices[-1] == 80
+
+
+def test_qwen_gqa_expands_kv_heads_in_official_order():
+    captured = {}
+
+    def attention(query, key, value, heads, **kwargs):
+        captured.update(key=key, value=value, heads=heads, kwargs=kwargs)
+        return query
+
+    query = torch.zeros(1, 4, 2, 3)
+    key = torch.arange(12).reshape(1, 2, 2, 3)
+    value = key + 100
+    result = _explicit_gqa_attention(attention)(
+        query,
+        key,
+        value,
+        4,
+        enable_gqa=True,
+        mask="mask",
+    )
+
+    assert result is query
+    assert captured["key"].shape == query.shape
+    assert captured["key"][0, :, 0, 0].tolist() == [0, 0, 6, 6]
+    assert captured["value"][0, :, 0, 0].tolist() == [100, 100, 106, 106]
+    assert captured["kwargs"] == {"mask": "mask"}
+
+
+def test_plan_forward_uses_input_dtype_rope_and_explicit_gqa(monkeypatch):
+    captured = {}
+
+    def attention(query, key, value, heads, **kwargs):
+        captured.update(key=key, value=value, heads=heads, kwargs=kwargs)
+        return query.transpose(1, 2).flatten(2)
+
+    monkeypatch.setattr(
+        bernini_qwen,
+        "optimized_attention_for_device",
+        lambda *args, **kwargs: attention,
+    )
+
+    class Layer:
+        def __call__(self, x, freqs_cis, optimized_attention, **kwargs):
+            captured["rope_dtypes"] = tuple(value.dtype for value in freqs_cis)
+            query = torch.zeros(1, 4, 1, 2, dtype=x.dtype)
+            key = torch.zeros(1, 2, 1, 2, dtype=x.dtype)
+            optimized_attention(
+                query,
+                key,
+                key,
+                4,
+                enable_gqa=True,
+                mask=kwargs["attention_mask"],
+                skip_reshape=True,
+            )
+            return x, None
+
+    class Model:
+        layers = [Layer()]
+
+        @staticmethod
+        def compute_freqs_cis(position_ids, device):
+            del position_ids
+            return tuple(torch.ones(1, device=device) for _ in range(3))
+
+    inputs = torch.ones(1, 1, 4, dtype=torch.bfloat16)
+    result = bernini_qwen.plan_forward(
+        Model(),
+        inputs,
+        torch.zeros(3, 1, 1, dtype=torch.long),
+        torch.zeros(1, 1, 1, dtype=torch.bfloat16),
+        intermediate_output=0,
+    )
+
+    assert torch.equal(result, inputs)
+    assert captured["rope_dtypes"] == (torch.bfloat16,) * 3
+    assert captured["key"].shape == (1, 4, 1, 2)
+    assert captured["kwargs"]["skip_reshape"] is True
+    assert torch.equal(
+        captured["kwargs"]["mask"],
+        torch.zeros(1, 1, 1, 1, dtype=torch.bfloat16),
+    )
 
 
 @pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16])
