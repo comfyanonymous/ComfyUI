@@ -192,7 +192,7 @@ def test_model_attention_backend_derives_memory_efficient_from_flash_capability(
     # comfy_extras/nodes_model_advanced.py:398 hardcoded memory_efficient=True for every
     # choice, including "pytorch attention" when its flash kernel isn't actually usable
     # (e.g. no aotriton on this AMD build) - the exact case this whole estimate exists for.
-    import comfy_extras.nodes_model_advanced as nodes_model_advanced
+import comfy_extras.nodes_model_advanced as nodes_model_advanced
 
     monkeypatch.setattr(comfy.model_management, "pytorch_attention_flash_attention", lambda: False)
 
