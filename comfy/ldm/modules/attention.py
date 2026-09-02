@@ -22,6 +22,7 @@ if model_management.xformers_enabled():
     import xformers.ops
 
 SAGE_ATTENTION_IS_AVAILABLE = False
+SAGE_SMOOTH_K_MIN_SEQ = 1024  # smooth keys only for long sequences (the diffusion model), not the text encoder
 SAGE_ATTENTION_SUPPORTS_MASK = False
 try:
     from sageattention import sageattn
@@ -671,7 +672,15 @@ def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=
         if mask.ndim == 3:
             mask = mask.unsqueeze(1)
 
-    sage_kwargs = {"is_causal": False, "tensor_layout": tensor_layout, "sm_scale": kwargs.get("scale", None), "smooth_k": False}
+    # Key smoothing subtracts the per-head key mean before SageAttention quantizes K to int8. It is
+    # exact (softmax ignores a per-row constant) and recovers most of the int8 accuracy loss on
+    # diffusion transformers, but it hurts on short key sequences such as the text encoder's, where
+    # the mean is the signal. sageattention 1.x subtracts the mean in place, so pass a copy of k.
+    seq_len = k.shape[2] if tensor_layout == "HND" else k.shape[1]
+    smooth_k = seq_len >= SAGE_SMOOTH_K_MIN_SEQ
+    if smooth_k:
+        k = k.clone()
+    sage_kwargs = {"is_causal": False, "tensor_layout": tensor_layout, "sm_scale": kwargs.get("scale", None), "smooth_k": smooth_k}
     if mask is not None:
         sage_kwargs["attn_mask"] = mask
 
