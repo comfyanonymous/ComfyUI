@@ -1391,6 +1391,141 @@ def test_sensenova_interleave_preview_builds_inline_ui_parts(monkeypatch):
     ]
 
 
+def _mock_interleave_preview_images(monkeypatch, count=1):
+    monkeypatch.setattr(
+        "comfy_extras.nodes_sensenova._save_preview_images",
+        lambda images: [
+            {"filename": f"preview_{index}.png", "subfolder": "", "type": "temp"}
+            for index in range(count)
+        ],
+    )
+
+
+def test_sensenova_interleave_preview_places_thinking_images_at_final_references(
+    monkeypatch,
+):
+    _mock_interleave_preview_images(monkeypatch, count=3)
+    result = {
+        "parts": [
+            {"type": "think", "text": "plan first image"},
+            {"type": "image", "index": 0},
+            {"type": "think", "text": "plan second image"},
+            {"type": "image", "index": 1},
+            {"type": "think", "text": "plan third image"},
+            {"type": "image", "index": 2},
+            {
+                "type": "text",
+                "text": (
+                    "First description\n<image1>\n"
+                    "Second description\n<image2>\n"
+                    "Third description\n<image3>"
+                ),
+            },
+        ]
+    }
+
+    output = SenseNovaInterleavePreview.execute(
+        interleave_result=result,
+        include_think=False,
+        images=torch.empty(3, 8, 8, 3),
+    )
+
+    assert output.args == (
+        "First description\n\n[image:0]\n\n"
+        "Second description\n\n[image:1]\n\n"
+        "Third description\n\n[image:2]",
+    )
+    assert [part["type"] for part in output.ui["parts"]] == [
+        "text",
+        "image",
+        "text",
+        "image",
+        "text",
+        "image",
+    ]
+    assert [
+        part["index"] for part in output.ui["parts"] if part["type"] == "image"
+    ] == [0, 1, 2]
+
+
+def test_sensenova_interleave_preview_removes_unresolved_numbered_references(
+    monkeypatch,
+):
+    _mock_interleave_preview_images(monkeypatch)
+    result = {
+        "parts": [
+            {"type": "image", "index": 0},
+            {"type": "text", "text": "Before<image99>After"},
+        ]
+    }
+
+    output = SenseNovaInterleavePreview.execute(
+        interleave_result=result,
+        include_think=False,
+        images=torch.empty(1, 8, 8, 3),
+    )
+
+    assert output.args == ("[image:0]\n\nBefore\n\nAfter",)
+    assert [part["type"] for part in output.ui["parts"]] == [
+        "image",
+        "text",
+        "text",
+    ]
+
+
+def test_sensenova_interleave_preview_hides_references_when_showing_thinking(
+    monkeypatch,
+):
+    _mock_interleave_preview_images(monkeypatch)
+    result = {
+        "parts": [
+            {"type": "think", "text": "plan"},
+            {"type": "image", "index": 0},
+            {"type": "text", "text": "Answer<image1>Done"},
+        ]
+    }
+
+    output = SenseNovaInterleavePreview.execute(
+        interleave_result=result,
+        include_think=True,
+        images=torch.empty(1, 8, 8, 3),
+    )
+
+    assert "<image1>" not in output.args[0]
+    assert [part["type"] for part in output.ui["parts"]] == [
+        "think",
+        "image",
+        "text",
+        "text",
+    ]
+    assert [
+        part["index"] for part in output.ui["parts"] if part["type"] == "image"
+    ] == [0]
+
+
+def test_sensenova_interleave_preview_removes_non_positive_image_references(
+    monkeypatch,
+):
+    _mock_interleave_preview_images(monkeypatch)
+    result = {
+        "parts": [
+            {"type": "image", "index": 0},
+            {"type": "text", "text": "Before<image0>Middle<image00>After"},
+        ]
+    }
+
+    output = SenseNovaInterleavePreview.execute(
+        interleave_result=result,
+        include_think=False,
+        images=torch.empty(1, 8, 8, 3),
+    )
+
+    assert output.args == ("[image:0]\n\nBefore\n\nMiddle\n\nAfter",)
+    assert [
+        part["index"] for part in output.ui["parts"] if part["type"] == "image"
+    ] == [0]
+
+
 def test_sensenova_interleave_frontend_extension_is_packaged_with_the_node():
     web_directory = Path(sensenova_nodes.__file__).parent / sensenova_nodes.WEB_DIRECTORY
     script = web_directory / "sensenova_interleave_preview.js"

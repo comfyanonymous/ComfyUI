@@ -1,3 +1,5 @@
+import re
+
 import torch
 from typing_extensions import override
 
@@ -347,8 +349,61 @@ def _save_preview_images(images):
     return [dict(value) for value in ui.PreviewImage(images).as_dict()["images"]]
 
 
+_IMAGE_REFERENCE_PATTERN = re.compile(r"<image(\d+)>")
+
+
+def _interleave_preview_parts(interleave_result, include_think):
+    """Resolve or hide final-answer image references for preview rendering."""
+
+    parts = interleave_result.get("parts", [])
+    image_parts = {
+        int(part.get("index", 0)): part
+        for part in parts
+        if part.get("type") == "image"
+    }
+    referenced_images = set()
+    resolved_text_parts = {}
+    for part_index, part in enumerate(parts):
+        if part.get("type") != "text":
+            continue
+        text = str(part.get("text", ""))
+        cursor = 0
+        resolved_parts = []
+        for match in _IMAGE_REFERENCE_PATTERN.finditer(text):
+            text_before_reference = text[cursor : match.start()].strip()
+            if text_before_reference:
+                resolved_parts.append(
+                    {"type": "text", "text": text_before_reference}
+                )
+            image_index = int(match.group(1)) - 1
+            if not include_think and image_index in image_parts:
+                resolved_parts.append(image_parts[image_index])
+                referenced_images.add(image_index)
+            cursor = match.end()
+        remaining_text = text[cursor:].strip()
+        if remaining_text:
+            resolved_parts.append({"type": "text", "text": remaining_text})
+        resolved_text_parts[part_index] = resolved_parts
+
+    display_parts = []
+    for part_index, part in enumerate(parts):
+        part_type = part.get("type")
+        if part_type == "think":
+            if include_think:
+                display_parts.append(part)
+            continue
+        if part_type == "image":
+            if int(part.get("index", 0)) not in referenced_images:
+                display_parts.append(part)
+            continue
+        if part_type != "text":
+            continue
+        display_parts.extend(resolved_text_parts[part_index])
+    return display_parts
+
+
 class SenseNovaInterleavePreview(io.ComfyNode):
-    """Display interleaved text, thinking, and images in generation order."""
+    """Display interleaved text and images with optional thinking details."""
 
     @classmethod
     def define_schema(cls) -> io.Schema:
@@ -367,15 +422,14 @@ class SenseNovaInterleavePreview(io.ComfyNode):
 
     @classmethod
     def execute(cls, *, interleave_result, include_think, images=None) -> io.NodeOutput:
+        display_parts = _interleave_preview_parts(interleave_result, include_think)
         markdown = interleave_result_to_markdown(
-            interleave_result, include_think=include_think
+            {"parts": display_parts}, include_think=include_think
         )
         saved_images = _save_preview_images(images)
         parts_payload = []
-        for part in interleave_result.get("parts", []):
+        for part in display_parts:
             part_type = part.get("type")
-            if part_type == "think" and not include_think:
-                continue
             if part_type in ("text", "think"):
                 text = str(part.get("text", "")).strip()
                 if text:
