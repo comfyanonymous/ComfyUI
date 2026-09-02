@@ -10,6 +10,10 @@ from comfy_api_nodes.apis.minimax import (
     Hailuo03ContextIRRequest,
     Hailuo03ImageContent,
     Hailuo03ImageContentUrl,
+    Hailuo03MaxTaskCreationResponse,
+    Hailuo03MaxTaskStatusResponse,
+    Hailuo03MaxVideoRequest,
+    Hailuo03MaxVideoResult,
     Hailuo03RegenerationRequest,
     Hailuo03TaskCreationRequest,
     Hailuo03TaskCreationResponse,
@@ -461,6 +465,10 @@ HAILUO_03_FAILED_STATUSES = ["failed", "cancelled", "expired"]
 HAILUO_03_CONTEXT_IR_ENDPOINT = "/proxy/minimax/v2/h3_context_ir"
 HAILUO_03_REGENERATION_ENDPOINT = "/proxy/minimax/v2/video_regeneration"
 
+HAILUO_03_MAX_MODEL = "MiniMax H3 Max"
+HAILUO_03_MAX_ENDPOINT = "/proxy/fal/minimax/h3-max"
+HAILUO_03_MAX_PROMPT_MAX_LENGTH = 50000
+
 
 def _hailuo03_model_inputs(include_ratio: bool = True, allow_adaptive: bool = True):
     inputs = [
@@ -541,6 +549,81 @@ async def _hailuo03_run_task(
     return IO.NodeOutput(await download_url_to_video_output(video_url))
 
 
+def _hailuo03_max_model_inputs(include_ratio: bool = True):
+    inputs = [
+        IO.String.Input(
+            "prompt",
+            multiline=True,
+            default="",
+            tooltip="Text prompt for video generation.",
+        ),
+        IO.Combo.Input(
+            "resolution",
+            options=["480P", "768P"],
+            default="768P",
+            tooltip="Resolution of the output video.",
+        ),
+    ]
+    if include_ratio:
+        inputs.append(
+            IO.Combo.Input(
+                "ratio",
+                options=["16:9", "4:3", "1:1", "3:4", "9:16", "21:9"],
+                default="16:9",
+                tooltip="Aspect ratio of the output video.",
+            )
+        )
+    inputs.extend(
+        [
+            IO.Int.Input(
+                "duration",
+                default=5,
+                min=5,
+                max=15,
+                step=1,
+                tooltip="Duration of the output video in seconds (5-15).",
+                display_mode=IO.NumberDisplay.slider,
+            ),
+            IO.Combo.Input(
+                "prompt_expansion_mode",
+                options=["balanced", "quality"],
+                default="balanced",
+                tooltip="How much effort is spent rewriting the prompt before generation.",
+            ),
+        ]
+    )
+    return inputs
+
+
+async def _hailuo03_max_run_task(
+    cls: type[IO.ComfyNode],
+    *,
+    endpoint: str,
+    request: Hailuo03MaxVideoRequest,
+) -> IO.NodeOutput:
+    submit = await sync_op(
+        cls,
+        ApiEndpoint(path=f"{HAILUO_03_MAX_ENDPOINT}/{endpoint}", method="POST"),
+        response_model=Hailuo03MaxTaskCreationResponse,
+        data=request,
+    )
+    await poll_op(
+        cls,
+        ApiEndpoint(path=f"{HAILUO_03_MAX_ENDPOINT}/requests/{submit.request_id}/status"),
+        response_model=Hailuo03MaxTaskStatusResponse,
+        status_extractor=lambda r: r.status,
+        completed_statuses=["COMPLETED"],
+        queued_statuses=["IN_QUEUE"],
+        poll_interval=5,
+    )
+    result = await sync_op(
+        cls,
+        ApiEndpoint(path=f"{HAILUO_03_MAX_ENDPOINT}/requests/{submit.request_id}"),
+        response_model=Hailuo03MaxVideoResult,
+    )
+    return IO.NodeOutput(await download_url_to_video_output(result.video.url))
+
+
 class MinimaxHailuo03TextToVideoNode(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -548,11 +631,14 @@ class MinimaxHailuo03TextToVideoNode(IO.ComfyNode):
             node_id="MinimaxHailuo03TextToVideoNode",
             display_name="MiniMax H3 Text to Video",
             category="partner/video/MiniMax",
-            description="Generate video from a text prompt using the MiniMax H3 model.",
+            description="Generate video from a text prompt using the MiniMax H3 models.",
             inputs=[
                 IO.DynamicCombo.Input(
                     "model",
-                    options=[IO.DynamicCombo.Option("MiniMax H3", _hailuo03_model_inputs(allow_adaptive=False))],
+                    options=[
+                        IO.DynamicCombo.Option("MiniMax H3", _hailuo03_model_inputs(allow_adaptive=False)),
+                        IO.DynamicCombo.Option(HAILUO_03_MAX_MODEL, _hailuo03_max_model_inputs()),
+                    ],
                     tooltip="Model to use for video generation.",
                 ),
                 IO.Int.Input(
@@ -583,11 +669,14 @@ class MinimaxHailuo03TextToVideoNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model.resolution", "model.duration"]),
+                depends_on=IO.PriceBadgeDepends(widgets=["model", "model.resolution", "model.duration"]),
                 expr="""
                 (
                   $dur := $lookup(widgets, "model.duration");
-                  $rate := $lookup(widgets, "model.resolution") = "768p" ? 0.1287 : 0.1859;
+                  $res := $lookup(widgets, "model.resolution");
+                  $rate := $lookup(widgets, "model") = "minimax h3 max"
+                    ? ($res = "480p" ? 0.0715 : 0.1144)
+                    : ($res = "768p" ? 0.1287 : 0.1859);
                   {"type": "usd", "usd": $dur * $rate}
                 )
                 """,
@@ -602,6 +691,22 @@ class MinimaxHailuo03TextToVideoNode(IO.ComfyNode):
         watermark: bool,
     ) -> IO.NodeOutput:
         validate_string(model["prompt"], strip_whitespace=True, min_length=1)
+        if model["model"] == HAILUO_03_MAX_MODEL:
+            if watermark:
+                raise ValueError("Watermark is only supported by MiniMax H3.")
+            validate_string(model["prompt"], strip_whitespace=False, max_length=HAILUO_03_MAX_PROMPT_MAX_LENGTH)
+            return await _hailuo03_max_run_task(
+                cls,
+                endpoint="text-to-video",
+                request=Hailuo03MaxVideoRequest(
+                    prompt=model["prompt"],
+                    duration=model["duration"],
+                    resolution=model["resolution"],
+                    prompt_expansion_mode=model["prompt_expansion_mode"],
+                    seed=seed,
+                    aspect_ratio=model["ratio"],
+                ),
+            )
         return await _hailuo03_run_task(
             cls,
             model_id=HAILUO_03_MODELS[model["model"]],
@@ -622,11 +727,14 @@ class MinimaxHailuo03FirstLastFrameNode(IO.ComfyNode):
             display_name="MiniMax H3 First-Last-Frame to Video",
             category="partner/video/MiniMax",
             description="Generate video from a first frame image and an optional last frame image "
-            "using the MiniMax H3 model. The aspect ratio of the video follows the supplied images.",
+            "using the MiniMax H3 models. The aspect ratio of the video follows the supplied images.",
             inputs=[
                 IO.DynamicCombo.Input(
                     "model",
-                    options=[IO.DynamicCombo.Option("MiniMax H3", _hailuo03_model_inputs(include_ratio=False))],
+                    options=[
+                        IO.DynamicCombo.Option("MiniMax H3", _hailuo03_model_inputs(include_ratio=False)),
+                        IO.DynamicCombo.Option(HAILUO_03_MAX_MODEL, _hailuo03_max_model_inputs(include_ratio=False)),
+                    ],
                     tooltip="Model to use for video generation.",
                 ),
                 IO.Image.Input(
@@ -666,11 +774,14 @@ class MinimaxHailuo03FirstLastFrameNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model.resolution", "model.duration"]),
+                depends_on=IO.PriceBadgeDepends(widgets=["model", "model.resolution", "model.duration"]),
                 expr="""
                 (
                   $dur := $lookup(widgets, "model.duration");
-                  $rate := $lookup(widgets, "model.resolution") = "768p" ? 0.1287 : 0.1859;
+                  $res := $lookup(widgets, "model.resolution");
+                  $rate := $lookup(widgets, "model") = "minimax h3 max"
+                    ? ($res = "480p" ? 0.0715 : 0.1144)
+                    : ($res = "768p" ? 0.1287 : 0.1859);
                   {"type": "usd", "usd": $dur * $rate}
                 )
                 """,
@@ -691,6 +802,31 @@ class MinimaxHailuo03FirstLastFrameNode(IO.ComfyNode):
             if frame is not None:
                 validate_image_aspect_ratio(frame, (2, 5), (5, 2), strict=False)  # 0.4 to 2.5
                 validate_image_dimensions(frame, min_width=256, min_height=256)
+        if model["model"] == HAILUO_03_MAX_MODEL:
+            if watermark:
+                raise ValueError("Watermark is only supported by MiniMax H3.")
+            validate_string(model["prompt"], strip_whitespace=False, max_length=HAILUO_03_MAX_PROMPT_MAX_LENGTH)
+            image_url = (
+                await upload_images_to_comfyapi(cls, first_frame, max_images=1, wait_label="Uploading first frame")
+            )[0]
+            end_image_url = None
+            if last_frame is not None:
+                end_image_url = (
+                    await upload_images_to_comfyapi(cls, last_frame, max_images=1, wait_label="Uploading last frame")
+                )[0]
+            return await _hailuo03_max_run_task(
+                cls,
+                endpoint="image-to-video",
+                request=Hailuo03MaxVideoRequest(
+                    prompt=model["prompt"],
+                    duration=model["duration"],
+                    resolution=model["resolution"],
+                    prompt_expansion_mode=model["prompt_expansion_mode"],
+                    seed=seed,
+                    image_url=image_url,
+                    end_image_url=end_image_url,
+                ),
+            )
 
         content: list = [
             Hailuo03TextContent(text=model["prompt"]),

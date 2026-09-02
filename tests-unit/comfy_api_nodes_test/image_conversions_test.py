@@ -9,7 +9,11 @@ from comfy.cli_args import args
 if not torch.cuda.is_available():
     args.cpu = True
 
-from comfy_api_nodes.util.conversions import bytesio_to_image_tensor, pad_images_to_common_channels  # noqa: E402
+from comfy_api_nodes.util.conversions import (  # noqa: E402
+    bytesio_to_image_tensor,
+    downscale_image_tensor,
+    pad_images_to_common_channels,
+)
 
 
 def encode(image: Image.Image, image_format: str = "PNG") -> BytesIO:
@@ -78,3 +82,47 @@ def test_pad_leaves_homogeneous_channels_unchanged():
     images = [torch.rand(1, 4, 4, 3), torch.rand(2, 4, 4, 3)]
     padded = pad_images_to_common_channels(images)
     assert all(p is i for p, i in zip(padded, images))
+
+
+DOWNSCALE_CASES = [
+    (5000, 2000, 2048 * 2048),
+    (2000, 5000, 2048 * 2048),
+    (4096, 1638, 2048 * 2048),
+    (1000, 400, 128 * 128),
+    (400, 1000, 128 * 128),
+    (999, 333, 100 * 100),
+    (333, 999, 100 * 100),
+    (3000, 3000, 256 * 256),
+]
+
+
+def downscaled_size(width, height, total_pixels):
+    out = downscale_image_tensor(torch.zeros(1, height, width, 3), total_pixels=total_pixels)
+    return out.shape[2], out.shape[1]
+
+
+@pytest.mark.parametrize("width, height, total_pixels", DOWNSCALE_CASES)
+def test_downscale_dims_are_even(width, height, total_pixels):
+    new_w, new_h = downscaled_size(width, height, total_pixels)
+    assert new_w % 2 == 0 and new_h % 2 == 0
+
+
+@pytest.mark.parametrize("width, height, total_pixels", DOWNSCALE_CASES)
+def test_downscale_fits_total_pixels(width, height, total_pixels):
+    new_w, new_h = downscaled_size(width, height, total_pixels)
+    assert new_w * new_h <= total_pixels
+
+
+@pytest.mark.parametrize("width, height, total_pixels", DOWNSCALE_CASES)
+def test_downscale_never_makes_aspect_more_elongated(width, height, total_pixels):
+    new_w, new_h = downscaled_size(width, height, total_pixels)
+    src_ratio, new_ratio = width / height, new_w / new_h
+    if src_ratio >= 1:
+        assert 1 <= new_ratio <= src_ratio
+    else:
+        assert src_ratio <= new_ratio <= 1
+
+
+def test_downscale_leaves_fitting_images_untouched():
+    image = torch.zeros(1, 300, 700, 3)
+    assert downscale_image_tensor(image, total_pixels=700 * 300) is image
