@@ -283,3 +283,71 @@ def test_completion_hook_failure_propagates(worker_setup):
     assert raised.value is completion_error
     worker_setup.executor.execute.assert_called_once()
     worker_setup.queue.task_done.assert_not_called()
+
+
+def test_refused_start_hook_fails_the_prompt_and_keeps_the_worker_alive(worker_setup):
+    completed = Mock()
+    start_error = RuntimeError("image bundle validation failed")
+
+    async def start_hook(context):
+        raise start_error
+
+    async def complete_hook(context):
+        completed(context)
+
+    worker_setup.server.prompt_execution_start_hook = start_hook
+    worker_setup.server.prompt_execution_complete_hook = complete_hook
+
+    run_one_prompt(worker_setup)
+
+    worker_setup.pause.assert_not_called()
+    worker_setup.executor.execute.assert_not_called()
+    completed.assert_not_called()
+    status = worker_setup.queue.task_done.call_args.kwargs["status"]
+    assert status.status_str == "error"
+    assert status.completed is False
+    assert worker_setup.queue.task_done.call_args.kwargs["process_item"] is not None
+
+
+def test_worker_survives_refused_leases_and_executes_the_next_prompt(worker_setup):
+    executed = []
+    refused = True
+
+    async def start_hook(context):
+        if refused:
+            raise RuntimeError("refused once")
+        executed.append(context["prompt_id"])
+
+    worker_setup.server.prompt_execution_start_hook = start_hook
+    worker_setup.executor.execute.side_effect = (
+        lambda prompt, prompt_id, *args: executed.append(f"executed-{prompt_id}")
+    )
+
+    class TwoItemQueue(SingleItemQueue):
+        def __init__(self, first, second):
+            self.items = [(first, 1), (second, 2)]
+            self.index = 0
+
+        def get(self, timeout):
+            self.index += 1
+            if self.index == 1:
+                return self.items[0]
+            if self.index == 2:
+                return self.items[1]
+            raise StopWorker
+
+    second_id = "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff"
+    queue = TwoItemQueue(
+        (0, PROMPT_ID, {"1": {}}, {}, ["1"], {}),
+        (0, second_id := second_prompt_id(), {"1": {}}, {}, ["1"], {}),
+    )
+    worker_setup.queue = queue
+
+    run_one_prompt(worker_setup)
+
+    assert executed == [second_id]
+    assert queue.task_done.call_count == 2
+
+
+def second_prompt_id():
+    return "cccccccc-dddd-4eee-8fff-000000000001"

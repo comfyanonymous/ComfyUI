@@ -392,11 +392,24 @@ def prompt_worker(q, server_instance):
             lease_acquired = False
             start_hook = server_instance.prompt_execution_start_hook
             if start_hook is not None:
-                asyncio.run_coroutine_threadsafe(
-                    start_hook({"prompt_id": prompt_id, "sensitive": sensitive}),
-                    server_instance.loop,
-                ).result()
-                lease_acquired = True
+                try:
+                    asyncio.run_coroutine_threadsafe(
+                        start_hook({"prompt_id": prompt_id, "sensitive": sensitive}),
+                        server_instance.loop,
+                    ).result()
+                    lease_acquired = True
+                except Exception:
+                    # A refused execution lease must record a failed prompt and keep
+                    # the worker alive; dying here would strand every queued item.
+                    logging.exception("Prompt execution lease was refused", extra={'color': 'red'})
+                    q.task_done(item_id,
+                                None,
+                                status=execution.PromptQueue.ExecutionStatus(
+                                    status_str='error',
+                                    completed=False,
+                                    messages=['lease_refused']),
+                                process_item=lambda prompt: prompt[:5] + prompt[6:])
+                    continue
 
             try:
                 asset_seeder.pause()
