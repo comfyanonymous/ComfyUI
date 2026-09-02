@@ -1539,12 +1539,15 @@ def test_sensenova_interleave_preview_removes_non_positive_image_references(
     ] == [0]
 
 
-def test_sensenova_interleave_frontend_extension_is_packaged_with_the_node():
+def test_sensenova_frontend_extension_is_packaged_with_preview_nodes():
     web_directory = Path(sensenova_nodes.__file__).parent / sensenova_nodes.WEB_DIRECTORY
     script = web_directory / "sensenova_interleave_preview.js"
 
     assert script.is_file()
-    assert "SenseNovaInterleavePreview" in script.read_text(encoding="utf-8")
+    script_text = script.read_text(encoding="utf-8")
+    assert "SenseNovaThinkingPreview" in script_text
+    assert "SenseNovaInterleavePreview" in script_text
+    assert "previewText" in script_text
 
 
 def test_sensenova_text_encode_adds_reasoning_policy():
