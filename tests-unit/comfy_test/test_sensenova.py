@@ -1270,6 +1270,10 @@ def test_sensenova_nodes_use_family_capability_names():
     assert SenseNovaInterleave.define_schema().display_name == "SenseNova Interleave"
 
 
+def test_sensenova_model_base_preserves_patch_size_compatibility_alias():
+    assert model_base.SenseNovaU15.PATCH_SIZE == sensenova_model.MERGED_PATCH_SIZE
+
+
 def test_sensenova_interleave_result_preserves_article_order_and_thinking():
     result = InterleaveResult(
         text="<think>plan</think>Hello<image>After",

@@ -2361,6 +2361,8 @@ class SenseNovaSharedList(comfy.conds.CONDList):
 class SenseNovaU15(BaseModel):
     """ComfyUI model wrapper for SenseNova U1.5 image generation."""
 
+    PATCH_SIZE = comfy.ldm.sensenova.model.MERGED_PATCH_SIZE
+
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.sensenova.model.SenseNovaU15)
         self.model_sampling = SenseNovaModelSampling(model_config)
