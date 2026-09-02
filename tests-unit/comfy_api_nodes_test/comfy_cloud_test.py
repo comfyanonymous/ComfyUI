@@ -463,6 +463,27 @@ def test_upload_inputs_have_decoded_resource_limits():
         nodes_comfy_cloud._validate_audio_upload(oversized_audio)
 
 
+@pytest.mark.parametrize(
+    ("typed", "sent"),
+    [("", None), ("   ", None), ("blurry, low quality", "blurry, low quality")],
+)
+def test_wan_negative_prompt_defers_to_the_graph_when_left_empty(monkeypatch, typed, sent):
+    """The backend substitutes the frozen graph's own negative prompt only when the caller
+    sends none, so an untouched widget must omit the field rather than send an empty one."""
+    run = AsyncMock(return_value=("video-output",))
+    monkeypatch.setattr(nodes_comfy_cloud, "_run_video_workflow", run)
+    monkeypatch.setattr(nodes_comfy_cloud, "upload_image_to_comfyapi", AsyncMock(return_value="u"))
+    monkeypatch.setattr(nodes_comfy_cloud, "get_number_of_images", lambda image: 1)
+
+    node = nodes_comfy_cloud.ComfyCloudWan22FirstLastFrameNode
+    default = next(i for i in node.define_schema().inputs if i.id == "negative_prompt").default
+    assert default == ""
+
+    asyncio.run(node.execute(object(), object(), "a cat", typed, 5, 3))
+
+    assert run.call_args.args[2].negative_prompt == sent
+
+
 def test_ltx_performance_stages_image_and_audio(monkeypatch):
     run = AsyncMock(return_value=("video-output",))
     image_upload = AsyncMock(return_value="https://example.com/image.png")

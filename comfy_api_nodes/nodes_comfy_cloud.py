@@ -806,7 +806,11 @@ class ComfyCloudWan22FirstLastFrameNode(IO.ComfyNode):
                 IO.String.Input(
                     "negative_prompt",
                     multiline=True,
-                    default="graph tested Chinese quality negative",
+                    default="",
+                    tooltip=(
+                        "Leave empty to use the negative prompt the frozen Wan 2.2 graph was "
+                        "tested with."
+                    ),
                 ),
                 IO.Int.Input(
                     "duration_seconds",
@@ -839,8 +843,10 @@ class ComfyCloudWan22FirstLastFrameNode(IO.ComfyNode):
         _validate_image_upload(last_frame)
         first_url = await upload_image_to_comfyapi(cls, first_frame, wait_label="Uploading first frame")
         last_url = await upload_image_to_comfyapi(cls, last_frame, wait_label="Uploading last frame")
+        # Omit the field rather than sending "" so the backend applies the graph's own
+        # negative prompt, which it substitutes only when the caller supplies none.
         inputs = ComfyCloudWorkflowInputs(
-            prompt=prompt, negative_prompt=negative_prompt, first_frame_url=first_url,
+            prompt=prompt, negative_prompt=negative_prompt or None, first_frame_url=first_url,
             last_frame_url=last_url, duration_seconds=duration_seconds, seed=seed,
         )
         return await _run_video_workflow(cls, "video.wan-2-2-14b-first-last-frame.v1", inputs)
