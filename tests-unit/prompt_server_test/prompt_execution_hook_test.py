@@ -306,7 +306,7 @@ def test_refused_start_hook_fails_the_prompt_and_keeps_the_worker_alive(worker_s
     status = worker_setup.queue.task_done.call_args.kwargs["status"]
     assert status.status_str == "error"
     assert status.completed is False
-    assert worker_setup.queue.task_done.call_args.kwargs["process_item"] is not None
+    assert worker_setup.queue.task_done.call_args.kwargs["history_result"] == {}
 
 
 def test_worker_survives_refused_leases_and_executes_the_next_prompt(worker_setup):

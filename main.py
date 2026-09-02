@@ -403,7 +403,7 @@ def prompt_worker(q, server_instance):
                     # the worker alive; dying here would strand every queued item.
                     logging.exception("Prompt execution lease was refused", extra={'color': 'red'})
                     q.task_done(item_id,
-                                None,
+                                {},
                                 status=execution.PromptQueue.ExecutionStatus(
                                     status_str='error',
                                     completed=False,
