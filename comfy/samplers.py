@@ -279,7 +279,7 @@ def _calc_cond_batch(model: BaseModel, conds: list[list[dict]], x_in: torch.Tens
                     for k, v in to_run[tt][0].conditioning.items():
                         cond_shapes[k].append(v.size())
 
-                if model.memory_required(input_shape, cond_shapes=cond_shapes) * 1.5 < free_memory:
+                if comfy.model_patcher.call_memory_required(model, input_shape, cond_shapes=cond_shapes, model_options=model_options) * 1.5 < free_memory:
                     to_batch = batch_amount
                     break
 
@@ -444,7 +444,7 @@ def _calc_cond_batch_multigpu(model: BaseModel, conds: list[list[dict]], x_in: t
                 for tt in batch_amount:
                     for k, v in to_run[tt][0].conditioning.items():
                         cond_shapes[k].append(v.size())
-                if model.memory_required(input_shape, cond_shapes=cond_shapes) * 1.5 < free_memory:
+                if comfy.model_patcher.call_memory_required(model, input_shape, cond_shapes=cond_shapes, model_options=model_options) * 1.5 < free_memory:
                     to_batch = batch_amount
                     break
 

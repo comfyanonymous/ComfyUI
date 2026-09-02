@@ -47,6 +47,46 @@ import comfy_aimdo.model_vbar
 def is_model_patcher_output(output):
     return isinstance(output, ModelPatcher) or isinstance(getattr(output, "patcher", None), ModelPatcher)
 
+def call_memory_required(model, input_shape, cond_shapes={}, model_options=None):
+    # Preserve out-of-tree BaseModel overrides on older signatures. Try positional first
+    # (name-agnostic, so it also covers a renamed or positional-only first parameter), then
+    # keyword. Bind-check before calling so a real TypeError from inside memory_required
+    # propagates instead of being swallowed.
+    model_options = model_options or {}
+    transformer_options = model_options.get("transformer_options") or {}
+    if "optimized_attention_override" in transformer_options:
+        # memory_efficient is stamped on the override by set_model_optimized_attention.
+        attention_override_efficient = getattr(transformer_options["optimized_attention_override"], "memory_efficient", False)
+    else:
+        attention_override_efficient = None
+
+    memory_required_fn = model.memory_required
+    sig = inspect.signature(memory_required_fn)
+    for extra in ({"cond_shapes": cond_shapes, "attention_override_efficient": attention_override_efficient},
+                  {"cond_shapes": cond_shapes},
+                  {}):
+        try:
+            sig.bind(input_shape, **extra)
+        except TypeError:
+            pass
+        else:
+            return memory_required_fn(input_shape, **extra)
+        try:
+            sig.bind(input_shape=input_shape, **extra)
+        except TypeError:
+            continue
+        return memory_required_fn(input_shape=input_shape, **extra)
+    return memory_required_fn(input_shape)
+
+def call_set_model_optimized_attention(patcher, optimized_attention, memory_efficient=False):
+    # Preserve out-of-tree ModelPatcher subclasses on the pre-memory_efficient signature.
+    set_fn = patcher.set_model_optimized_attention
+    try:
+        inspect.signature(set_fn).bind(optimized_attention, memory_efficient=memory_efficient)
+    except TypeError:
+        return set_fn(optimized_attention)
+    return set_fn(optimized_attention, memory_efficient=memory_efficient)
+
 class PromptModelTracker:
     def __init__(self):
         self.models = {}
@@ -630,7 +670,7 @@ class ModelPatcher:
                 return True
 
     def memory_required(self, input_shape):
-        return self.model.memory_required(input_shape=input_shape)
+        return call_memory_required(self.model, input_shape, model_options=self.model_options)
 
     def disable_model_cfg1_optimization(self):
         self.model_options["disable_cfg1_optimization"] = True
@@ -685,12 +725,13 @@ class ModelPatcher:
     def set_model_attn2_output_patch(self, patch):
         self.set_model_patch(patch, "attn2_output_patch")
 
-    def set_model_optimized_attention(self, optimized_attention):
+    def set_model_optimized_attention(self, optimized_attention, memory_efficient=False):
         def optimized_attention_override(_, *args, **kwargs):
             return optimized_attention(*args, **kwargs)
 
         if hasattr(optimized_attention, "container_function") and optimized_attention.container_function is not None:
             optimized_attention_override.container_function = optimized_attention.container_function
+        optimized_attention_override.memory_efficient = memory_efficient
         self.model_options["transformer_options"]["optimized_attention_override"] = optimized_attention_override
 
     def set_model_input_block_patch(self, patch):

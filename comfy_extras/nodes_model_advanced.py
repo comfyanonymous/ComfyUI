@@ -4,6 +4,8 @@ import comfy.sd
 import comfy.model_sampling
 import comfy.latent_formats
 import comfy.ldm.modules.attention
+import comfy.model_management
+import comfy.model_patcher
 import nodes
 import torch
 import node_helpers
@@ -393,9 +395,13 @@ class ModelAttentionBackend:
         attention_function = comfy.ldm.modules.attention.get_attention_function(attention_name, None)
         if attention_function is None:
             logging.warning("Attention backend '%s' is unavailable; using PyTorch attention.", attention)
+            attention_name = "pytorch"
             attention_function = comfy.ldm.modules.attention.get_attention_function("pytorch")
+        # Comfy Kitchen's int8 kernel is efficient whenever it's available at all; PyTorch
+        # attention is only efficient when its flash kernel is actually usable on this build.
+        memory_efficient = attention_name != "pytorch" or comfy.model_management.pytorch_attention_flash_attention()
         m = model.clone()
-        m.set_model_optimized_attention(attention_function)
+        comfy.model_patcher.call_set_model_optimized_attention(m, attention_function, memory_efficient=memory_efficient)
         return (m, )
 
 
