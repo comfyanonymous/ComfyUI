@@ -165,7 +165,7 @@ class SenseNovaTextEncode(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="SenseNovaTextEncode",
-            display_name="SenseNova 1.x Text Encode",
+            display_name="SenseNova Text Encode",
             category="model/conditioning/sensenova",
             description="Encode a SenseNova prompt with optional image-generation reasoning.",
             inputs=[
@@ -276,7 +276,7 @@ class SenseNovaInterleave(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="SenseNovaInterleave",
-            display_name="SenseNova 1.x Interleave",
+            display_name="SenseNova Interleave",
             category="model/sampling/sensenova",
             inputs=[
                 io.Model.Input("model"),

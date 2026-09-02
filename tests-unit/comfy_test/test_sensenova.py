@@ -51,13 +51,16 @@ from comfy_extras.nodes_sensenova import (
 )
 
 
-def _minimal_state_dict(has_lm_head=False):
+def _minimal_u15_state_dict(has_lm_head=False):
     state_dict = {
         "fm_modules.vision_model_mot_gen.embeddings.patch_embedding.weight": torch.empty(
             1024, 3, 16, 16, device="meta"
         ),
         "language_model.model.layers.0.self_attn.q_proj_mot_gen.weight": torch.empty(
             4096, 4096, device="meta"
+        ),
+        "fm_modules.fm_head.conv1.weight": torch.empty(
+            1024, 1024, 3, 3, device="meta"
         ),
     }
     if has_lm_head:
@@ -100,7 +103,7 @@ def _tokenize_generation_prompt(text):
 
 
 def test_sensenova_top_level_checkpoint_detection():
-    state_dict = _minimal_state_dict()
+    state_dict = _minimal_u15_state_dict()
 
     assert model_detection.unet_prefix_from_state_dict(state_dict) == ""
     assert model_detection.detect_unet_config(state_dict, "") == {
@@ -115,7 +118,7 @@ def test_sensenova_top_level_checkpoint_detection():
 
 def test_sensenova_checkpoint_detection_preserves_thinking_capability():
     config = model_detection.detect_unet_config(
-        _minimal_state_dict(has_lm_head=True), ""
+        _minimal_u15_state_dict(has_lm_head=True), ""
     )
 
     assert config == {
@@ -125,7 +128,7 @@ def test_sensenova_checkpoint_detection_preserves_thinking_capability():
 
 
 def test_sensenova_detection_rejects_incompatible_dimensions():
-    state_dict = _minimal_state_dict()
+    state_dict = _minimal_u15_state_dict()
     state_dict["language_model.model.layers.0.self_attn.q_proj_mot_gen.weight"] = (
         torch.empty(2048, 2048, device="meta")
     )
@@ -133,8 +136,18 @@ def test_sensenova_detection_rejects_incompatible_dimensions():
     assert model_detection.detect_unet_config(state_dict, "") is None
 
 
+def test_sensenova_detection_does_not_treat_u1_mlp_head_as_u15():
+    state_dict = _minimal_u15_state_dict()
+    state_dict.pop("fm_modules.fm_head.conv1.weight")
+    state_dict["fm_modules.fm_head.0.weight"] = torch.empty(
+        4096, 1024, device="meta"
+    )
+
+    assert model_detection.detect_unet_config(state_dict, "") is None
+
+
 def test_sensenova_model_config_builds_pixel_space_outputs():
-    model_config = model_detection.model_config_from_unet(_minimal_state_dict(), "")
+    model_config = model_detection.model_config_from_unet(_minimal_u15_state_dict(), "")
     state_dict = {
         "language_model.lm_head.weight": torch.empty(1),
         "kept": torch.empty(1),
@@ -1241,6 +1254,11 @@ def test_sensenova_interleave_node_uses_standard_sampling_inputs():
         "text",
         "interleave_result",
     ]
+
+
+def test_sensenova_nodes_use_family_capability_names():
+    assert SenseNovaTextEncode.define_schema().display_name == "SenseNova Text Encode"
+    assert SenseNovaInterleave.define_schema().display_name == "SenseNova Interleave"
 
 
 def test_sensenova_interleave_result_preserves_article_order_and_thinking():
