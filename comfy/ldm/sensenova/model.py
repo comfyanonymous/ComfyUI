@@ -841,6 +841,7 @@ class SenseNovaU15(nn.Module):
         sensenova_thinking=False,
         sensenova_max_think_tokens=1024,
         sensenova_thinking_result=None,
+        sensenova_thinking_interrupt=None,
         **kwargs,
     ):
         if text_input_ids is None and prefix_keys is None:
@@ -899,6 +900,7 @@ class SenseNovaU15(nn.Module):
                             prefix_mask,
                             max_think_tokens=sensenova_max_think_tokens,
                             transformer_options=transformer_options,
+                            interrupt=sensenova_thinking_interrupt,
                         )
                     )
                     sensenova_thinking_result["token_ids"] = token_ids
@@ -911,6 +913,7 @@ class SenseNovaU15(nn.Module):
                             prefix_mask,
                             max_think_tokens=sensenova_max_think_tokens,
                             transformer_options=transformer_options,
+                            interrupt=sensenova_thinking_interrupt,
                         )
                     )
             else:

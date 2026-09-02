@@ -146,7 +146,7 @@ class SenseNovaSamplingOptions(io.ComfyNode):
             description="Set the SenseNova flow shift.",
             inputs=[
                 io.Model.Input(id="model"),
-                io.Float.Input(id="shift", default=3.0, step=0.01),
+                io.Float.Input(id="shift", default=3.0, min=0.01, step=0.01),
             ],
             outputs=[io.Model.Output()],
         )

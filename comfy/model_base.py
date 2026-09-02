@@ -2468,6 +2468,9 @@ class SenseNovaU15(BaseModel):
                     out["sensenova_max_think_tokens"] = comfy.conds.CONDConstant(
                         int(kwargs.get("sensenova_max_think_tokens", 1024))
                     )
+                    out["sensenova_thinking_interrupt"] = comfy.conds.CONDConstant(
+                        comfy.model_management.throw_exception_if_processing_interrupted
+                    )
                     if isinstance(thinking_result, dict):
                         out["sensenova_thinking_result"] = comfy.conds.CONDConstant(
                             thinking_result

@@ -371,7 +371,7 @@ def test_reference_node_and_sensenova_sampling_do_not_add_quality_limits():
     sampling_inputs = {
         input.id: input for input in SenseNovaSamplingOptions.define_schema().inputs
     }
-    assert sampling_inputs["shift"].min is None
+    assert sampling_inputs["shift"].min == 0.01
     assert sampling_inputs["shift"].max is None
 
     reference_inputs = {
@@ -580,6 +580,10 @@ def test_sensenova_model_base_preprocesses_thinking_only_for_positive():
     assert hooked["text_input_ids"].cond.tolist() == input_ids.tolist()
     assert hooked["sensenova_thinking"].cond is True
     assert hooked["sensenova_max_think_tokens"].cond == 23
+    assert (
+        hooked["sensenova_thinking_interrupt"].cond
+        is comfy.model_management.throw_exception_if_processing_interrupted
+    )
     assert hooked["sensenova_thinking_result"].cond is thinking_result
 
 
@@ -1013,6 +1017,7 @@ def test_sensenova_preprocessed_prefix_matches_raw_forward():
 
     model.preprocess_thinking_prefix = preprocess_thinking_prefix
     thinking_options = {}
+    thinking_interrupt = object()
     thinking = sensenova_model.SenseNovaU15._forward(
         model,
         image,
@@ -1020,6 +1025,7 @@ def test_sensenova_preprocessed_prefix_matches_raw_forward():
         text_input_ids=input_ids,
         sensenova_thinking=True,
         sensenova_max_think_tokens=7,
+        sensenova_thinking_interrupt=thinking_interrupt,
         transformer_options=thinking_options,
     )
     thinking_result = {"enabled": True, "token_ids": None}
@@ -1040,6 +1046,7 @@ def test_sensenova_preprocessed_prefix_matches_raw_forward():
         sensenova_thinking=True,
         sensenova_max_think_tokens=7,
         sensenova_thinking_result=thinking_result,
+        sensenova_thinking_interrupt=thinking_interrupt,
         transformer_options=thinking_options,
     )
 
@@ -1048,8 +1055,10 @@ def test_sensenova_preprocessed_prefix_matches_raw_forward():
     assert torch.equal(thinking_with_result, preprocessed)
     assert thinking_calls[0][0][:4] == (input_ids, None, None, None)
     assert thinking_calls[0][1]["max_think_tokens"] == 7
+    assert thinking_calls[0][1]["interrupt"] is thinking_interrupt
     assert thinking_calls[0][1]["transformer_options"] is thinking_options
     assert thinking_token_calls[0][1]["max_think_tokens"] == 7
+    assert thinking_token_calls[0][1]["interrupt"] is thinking_interrupt
     assert thinking_result["token_ids"] == [41, 42]
     assert timestep_embedder.shapes == [torch.Size([1])] * 4
     assert noise_scale_embedder.shapes == [torch.Size([1])] * 4
