@@ -11,7 +11,7 @@ import torch
 from aiohttp.client_exceptions import ClientError, ContentTypeError
 
 from comfy_api.latest import IO as COMFY_IO
-from comfy_api.latest import Input, InputImpl, Types
+from comfy_api.latest import InputImpl, Types
 from folder_paths import get_output_directory
 
 from . import request_logger
@@ -24,10 +24,9 @@ from ._helpers import (
 )
 from .client import _diagnose_connectivity
 from .common_exceptions import ApiServerError, LocalNetworkError, ProcessingInterrupted
-from .conversions import audio_bytes_to_audio_input, bytesio_to_image_tensor
+from .conversions import bytesio_to_image_tensor
 
 _RETRY_STATUS = {408, 429, 500, 502, 503, 504}
-_MAX_IN_MEMORY_DOWNLOAD_BYTES = 512 * 1024 * 1024
 
 
 async def download_url_to_bytesio(
@@ -51,6 +50,10 @@ async def download_url_to_bytesio(
     If `url` starts with `/proxy/`, `cls` must be provided so the URL can be expanded
     to an absolute URL and authentication headers can be applied.
 
+    Pass `allow_redirects=False` when the caller has already vetted `url` and a
+    redirect would move the download somewhere it did not vet. The default keeps
+    aiohttp's redirect following.
+
     Raises:
         ProcessingInterrupted, LocalNetworkError, ApiServerError, Exception (HTTP and other errors)
     """
@@ -60,8 +63,6 @@ async def download_url_to_bytesio(
     attempt = 0
     delay = retry_delay
     headers: dict[str, str] = {}
-    is_path_sink = isinstance(dest, (str, Path))
-    can_reset_sink = is_path_sink or (callable(getattr(dest, "seek", None)) and callable(getattr(dest, "truncate", None)))
 
     parsed_url = urlparse(url)
     if not parsed_url.scheme and not parsed_url.netloc:  # is URL relative?
@@ -72,12 +73,15 @@ async def download_url_to_bytesio(
 
     while True:
         attempt += 1
-        if not is_path_sink and can_reset_sink:
+        # A retry re-reads the body from byte zero, so a BytesIO a previous attempt
+        # part-filled has to be emptied first or the two bodies concatenate.
+        if isinstance(dest, BytesIO):
             dest.seek(0)
             dest.truncate(0)
         op_id = _generate_operation_id("GET", url, attempt)
         timeout_cfg = aiohttp.ClientTimeout(total=timeout)
 
+        is_path_sink = isinstance(dest, (str, Path))
         fhandle = None
         session: aiohttp.ClientSession | None = None
         stop_evt: asyncio.Event | None = None
@@ -119,6 +123,9 @@ async def download_url_to_bytesio(
                 raise ProcessingInterrupted("Task cancelled") from None
 
             async with resp:
+                # 3xx and not 4xx: under allow_redirects=False a redirect arrives here
+                # instead of being followed, and its body is not the file that was asked
+                # for. With the default True, aiohttp has already resolved these.
                 if resp.status >= 300:
                     with contextlib.suppress(Exception):
                         try:
@@ -137,16 +144,10 @@ async def download_url_to_bytesio(
                         )
 
                     if resp.status in _RETRY_STATUS and attempt <= max_retries:
-                        if not can_reset_sink:
-                            raise Exception(f"Failed to download (HTTP {resp.status}); destination cannot be reset for retry.")
                         await sleep_with_interrupt(delay, cls, None, None, None)
                         delay *= retry_backoff
                         continue
                     raise Exception(f"Failed to download (HTTP {resp.status}).")
-
-                max_bytes = None if is_path_sink else _MAX_IN_MEMORY_DOWNLOAD_BYTES
-                if max_bytes is not None and resp.content_length is not None and resp.content_length > max_bytes:
-                    raise ValueError(f"Download exceeds the {max_bytes}-byte in-memory limit.")
 
                 if is_path_sink:
                     p = Path(str(dest))
@@ -174,12 +175,10 @@ async def download_url_to_bytesio(
                             break
                         continue
 
-                    written += len(chunk)
-                    if max_bytes is not None and written > max_bytes:
-                        raise ValueError(f"Download exceeds the {max_bytes}-byte in-memory limit.")
                     sink.write(chunk)
+                    written += len(chunk)
 
-                if not is_path_sink and hasattr(dest, "seek"):
+                if isinstance(dest, BytesIO):
                     with contextlib.suppress(Exception):
                         dest.seek(0)
 
@@ -196,8 +195,6 @@ async def download_url_to_bytesio(
             raise ProcessingInterrupted("Task cancelled") from None
         except (ClientError, OSError) as e:
             if attempt <= max_retries:
-                if not can_reset_sink:
-                    raise ApiServerError("The download failed and its destination cannot be reset for retry.") from e
                 request_logger.log_request_response(
                     operation_id=op_id,
                     request_method="GET",
@@ -268,27 +265,6 @@ async def download_url_to_video_output(
     return InputImpl.VideoFromFile(result)
 
 
-async def download_url_to_audio_input(
-    audio_url: str,
-    *,
-    timeout: float = None,
-    max_retries: int = 5,
-    cls: type[COMFY_IO.ComfyNode] = None,
-    allow_redirects: bool = True,
-) -> Input.Audio:
-    """Downloads audio from a URL and decodes it into a Comfy AUDIO input."""
-    result = BytesIO()
-    await download_url_to_bytesio(
-        audio_url,
-        result,
-        timeout=timeout,
-        max_retries=max_retries,
-        cls=cls,
-        allow_redirects=allow_redirects,
-    )
-    return audio_bytes_to_audio_input(result)
-
-
 async def download_url_as_bytesio(
     url: str,
     *,
@@ -318,7 +294,6 @@ async def download_url_to_file_3d(
     timeout: float | None = None,
     max_retries: int = 5,
     cls: type[COMFY_IO.ComfyNode] = None,
-    allow_redirects: bool = True,
 ) -> Types.File3D:
     """Downloads a 3D model file from a URL into memory as BytesIO.
 
@@ -333,7 +308,6 @@ async def download_url_to_file_3d(
         timeout=timeout,
         max_retries=max_retries,
         cls=cls,
-        allow_redirects=allow_redirects,
     )
 
     if task_id is not None:

@@ -1,3 +1,4 @@
+import contextlib
 import math
 import posixpath
 from typing import ClassVar
@@ -30,12 +31,11 @@ from comfy_api_nodes.util import (
 )
 
 
-# Mirrors comfyCloudOutputBuckets on the backend (services/comfy-api/server/middleware/comfy_cloud.go).
 # Buckets a Comfy Cloud output may be served from. MUST stay in step with
-# comfyCloudOutputBuckets in cloud's services/comfy-api/config/config.go: widen
-# one without the other and every run completes on the GPU and then has its
-# output rejected here. The partner-nodes-* entries are the buckets staging and
-# prod already point the shared partner-node asset key at.
+# comfyCloudOutputBuckets in cloud's services/comfy-api/config/config.go, which is
+# where that set is declared: widen one without the other and every run completes on
+# the GPU and then has its output rejected here. The partner-nodes-* entries are the
+# buckets staging and prod already point the shared partner-node asset key at.
 _OUTPUT_BUCKETS = frozenset(
     {
         "comfy-cloud-assets",
@@ -93,17 +93,13 @@ def _comfy_cloud_description(summary: str) -> str:
     """Node descriptions carry the rate because the price badge only renders on
     Nodes 2.0, and a plain local install still defaults to the classic canvas."""
     return summary + _COMFY_CLOUD_RATE_DESCRIPTION
+
+
+# Per-widget (min, max) length, keyed by input id. Anything not listed gets (0, None).
 _TEXT_LIMITS = {
     "prompt": (1, 4096),
     "instruction": (1, 4096),
     "negative_prompt": (0, 2048),
-    "scene_prompt": (1, 4096),
-    "driving_subject": (1, 256),
-    "reference_subject": (1, 256),
-    "style_prompt": (1, 4096),
-    "lyrics": (0, 20000),
-    "text": (1, 5000),
-    "script": (1, 10000),
 }
 
 
@@ -119,6 +115,33 @@ def _with_input_sockets(inputs: list[IO.Input]) -> list[IO.Input]:
         if isinstance(input_spec, IO.WidgetInput):
             input_spec.socketless = False
     return inputs
+
+
+def _cloud_schema(
+    node_id: str,
+    display_name: str,
+    summary: str,
+    category: str,
+    inputs: list[IO.Input],
+    output: IO.Output,
+) -> IO.Schema:
+    """Every Comfy Cloud node is the same schema but for its id, name, blurb, category,
+    inputs and output type, so they are all built here."""
+    return IO.Schema(
+        node_id=node_id,
+        display_name=display_name,
+        category=category,
+        description=_comfy_cloud_description(summary),
+        inputs=_with_input_sockets(inputs),
+        outputs=[output],
+        hidden=[
+            IO.Hidden.auth_token_comfy_org,
+            IO.Hidden.api_key_comfy_org,
+            IO.Hidden.unique_id,
+        ],
+        is_api_node=True,
+        price_badge=_COMFY_CLOUD_PRICE_BADGE,
+    )
 
 
 def _validated_output_url(url: str) -> str:
@@ -191,10 +214,10 @@ async def _poll_task(cls: type[IO.ComfyNode], task_id: str) -> ComfyCloudStatusR
             max_poll_attempts=_POLL_MAX_ATTEMPTS,
         )
     except Exception:
-        try:
+        # Best-effort: the job is billed per GPU-second, so stop it before surfacing the
+        # failure. A cancel that itself fails must not replace the error the user needs.
+        with contextlib.suppress(Exception):
             await sync_op_raw(cls, cancel_endpoint, max_retries=0)
-        except Exception:
-            pass
         raise
 
 
@@ -268,21 +291,13 @@ class _ComfyCloudWorkflowNode(IO.ComfyNode):
         if cls.requires_image:
             inputs.append(IO.Image.Input("image"))
 
-        output = IO.Video.Output() if cls.returns_video else IO.Image.Output()
-        return IO.Schema(
-            node_id=cls.node_id,
-            display_name=cls.display_name,
-            category=cls.category,
-            description=_comfy_cloud_description(cls.summary),
-            inputs=_with_input_sockets(inputs),
-            outputs=[output],
-            hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
-                IO.Hidden.unique_id,
-            ],
-            is_api_node=True,
-            price_badge=_COMFY_CLOUD_PRICE_BADGE,
+        return _cloud_schema(
+            cls.node_id,
+            cls.display_name,
+            cls.summary,
+            cls.category,
+            inputs,
+            IO.Video.Output() if cls.returns_video else IO.Image.Output(),
         )
 
     @classmethod
@@ -402,25 +417,36 @@ def _seed_input() -> IO.Int.Input:
     return IO.Int.Input("seed", default=0, min=0, max=_UINT64_MAX, control_after_generate=True)
 
 
-def _image_schema(node_id: str, display_name: str, summary: str, inputs: list[IO.Input]) -> IO.Schema:
-    return IO.Schema(
-        node_id=node_id,
-        display_name=display_name,
-        category="partner/image/Comfy Cloud",
-        description=_comfy_cloud_description(summary),
-        inputs=_with_input_sockets(inputs),
-        outputs=[IO.Image.Output()],
-        hidden=[
-            IO.Hidden.auth_token_comfy_org,
-            IO.Hidden.api_key_comfy_org,
-            IO.Hidden.unique_id,
-        ],
-        is_api_node=True,
-        price_badge=_COMFY_CLOUD_PRICE_BADGE,
-    )
+class _ComfyCloudPromptSeedImageNode(_ComfyCloudWorkflowNode):
+    """A named image workflow whose whole surface is a prompt and a seed.
+
+    Five of the shipped nodes differ only in workflow id, name and blurb, so they
+    subclass this and declare nothing else.
+    """
+
+    category = "partner/image/Comfy Cloud"
+    requires_image = False
+    returns_video = False
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return _cloud_schema(
+            cls.node_id,
+            cls.display_name,
+            cls.summary,
+            cls.category,
+            [_prompt_input(), _seed_input()],
+            IO.Image.Output(),
+        )
+
+    @classmethod
+    # pylint: disable=arguments-renamed
+    async def execute(cls, prompt: str, seed: int = 0) -> IO.NodeOutput:
+        prompt = _validate_node_inputs(cls, locals())["prompt"]
+        return await cls._run(ComfyCloudWorkflowInputs(prompt=prompt, seed=seed))
 
 
-class ComfyCloudCapybaraTextToImageNode(_ComfyCloudWorkflowNode):
+class ComfyCloudCapybaraTextToImageNode(_ComfyCloudPromptSeedImageNode):
     workflow = "image.capybara-0-1-text-to-image.v1"
     node_id = "ComfyCloudCapybaraTextToImageNode"
     display_name = "Comfy Cloud Capybara 0.1"
@@ -428,31 +454,9 @@ class ComfyCloudCapybaraTextToImageNode(_ComfyCloudWorkflowNode):
         "Generates an image from a text prompt with Capybara 0.1, rendered at 1280x1280 "
         "rather than upscaled from a smaller canvas."
     )
-    category = "partner/image/Comfy Cloud"
-    requires_image = False
-    returns_video = False
-
-    @classmethod
-    def define_schema(cls) -> IO.Schema:
-        return _image_schema(
-            cls.node_id,
-            cls.display_name,
-            cls.summary,
-            [
-                _prompt_input(),
-                _seed_input(),
-            ],
-        )
-
-    @classmethod
-    # pylint: disable=arguments-renamed
-    async def execute(cls, prompt: str, seed: int = 0) -> IO.NodeOutput:
-        values = _validate_node_inputs(cls, locals())
-        prompt = values["prompt"]
-        return await cls._run(ComfyCloudWorkflowInputs(prompt=prompt, seed=seed))
 
 
-class ComfyCloudIdeogram4TextToImageNode(_ComfyCloudWorkflowNode):
+class ComfyCloudIdeogram4TextToImageNode(_ComfyCloudPromptSeedImageNode):
     workflow = "image.ideogram-4-text-to-image.v1"
     node_id = "ComfyCloudIdeogram4TextToImageNode"
     display_name = "Comfy Cloud Ideogram 4"
@@ -460,31 +464,9 @@ class ComfyCloudIdeogram4TextToImageNode(_ComfyCloudWorkflowNode):
         "Generates an image from a text prompt with Ideogram 4, a model aimed at typography "
         "and graphic layout work."
     )
-    category = "partner/image/Comfy Cloud"
-    requires_image = False
-    returns_video = False
-
-    @classmethod
-    def define_schema(cls) -> IO.Schema:
-        return _image_schema(
-            cls.node_id,
-            cls.display_name,
-            cls.summary,
-            [
-                _prompt_input(),
-                _seed_input(),
-            ],
-        )
-
-    @classmethod
-    # pylint: disable=arguments-renamed
-    async def execute(cls, prompt: str, seed: int = 0) -> IO.NodeOutput:
-        values = _validate_node_inputs(cls, locals())
-        prompt = values["prompt"]
-        return await cls._run(ComfyCloudWorkflowInputs(prompt=prompt, seed=seed))
 
 
-class ComfyCloudLongCatTextToImageNode(_ComfyCloudWorkflowNode):
+class ComfyCloudLongCatTextToImageNode(_ComfyCloudPromptSeedImageNode):
     workflow = "image.longcat-text-to-image.v1"
     node_id = "ComfyCloudLongCatTextToImageNode"
     display_name = "Comfy Cloud LongCat"
@@ -493,31 +475,9 @@ class ComfyCloudLongCatTextToImageNode(_ComfyCloudWorkflowNode):
         "sampler instead of a distilled shortcut. Slower and dearer per run than the turbo "
         "models, and steadier on fine detail."
     )
-    category = "partner/image/Comfy Cloud"
-    requires_image = False
-    returns_video = False
-
-    @classmethod
-    def define_schema(cls) -> IO.Schema:
-        return _image_schema(
-            cls.node_id,
-            cls.display_name,
-            cls.summary,
-            [
-                _prompt_input(),
-                _seed_input(),
-            ],
-        )
-
-    @classmethod
-    # pylint: disable=arguments-renamed
-    async def execute(cls, prompt: str, seed: int = 0) -> IO.NodeOutput:
-        values = _validate_node_inputs(cls, locals())
-        prompt = values["prompt"]
-        return await cls._run(ComfyCloudWorkflowInputs(prompt=prompt, seed=seed))
 
 
-class ComfyCloudFlux2TextToImageNode(_ComfyCloudWorkflowNode):
+class ComfyCloudFlux2TextToImageNode(_ComfyCloudPromptSeedImageNode):
     workflow = "image.flux-2-text-to-image.v1"
     node_id = "ComfyCloudFlux2TextToImageNode"
     display_name = "Comfy Cloud Flux 2"
@@ -525,31 +485,9 @@ class ComfyCloudFlux2TextToImageNode(_ComfyCloudWorkflowNode):
         "Generates an image from a text prompt with Flux 2 dev plus its Turbo LoRA, which "
         "trades a little fidelity for a much shorter run."
     )
-    category = "partner/image/Comfy Cloud"
-    requires_image = False
-    returns_video = False
-
-    @classmethod
-    def define_schema(cls) -> IO.Schema:
-        return _image_schema(
-            cls.node_id,
-            cls.display_name,
-            cls.summary,
-            [
-                _prompt_input(),
-                _seed_input(),
-            ],
-        )
-
-    @classmethod
-    # pylint: disable=arguments-renamed
-    async def execute(cls, prompt: str, seed: int = 0) -> IO.NodeOutput:
-        values = _validate_node_inputs(cls, locals())
-        prompt = values["prompt"]
-        return await cls._run(ComfyCloudWorkflowInputs(prompt=prompt, seed=seed))
 
 
-class ComfyCloudZImageTurboNode(_ComfyCloudWorkflowNode):
+class ComfyCloudZImageTurboNode(_ComfyCloudPromptSeedImageNode):
     workflow = "image.z-image-turbo.v1"
     node_id = "ComfyCloudZImageTurboNode"
     display_name = "Comfy Cloud Z-Image Turbo"
@@ -557,28 +495,6 @@ class ComfyCloudZImageTurboNode(_ComfyCloudWorkflowNode):
         "Generates a 1024x1024 image from a text prompt with Z-Image Turbo in 8 steps. One of "
         "the quickest and cheapest nodes here, which makes it the one to iterate on."
     )
-    category = "partner/image/Comfy Cloud"
-    requires_image = False
-    returns_video = False
-
-    @classmethod
-    def define_schema(cls) -> IO.Schema:
-        return _image_schema(
-            cls.node_id,
-            cls.display_name,
-            cls.summary,
-            [
-                _prompt_input(),
-                _seed_input(),
-            ],
-        )
-
-    @classmethod
-    # pylint: disable=arguments-renamed
-    async def execute(cls, prompt: str, seed: int = 0) -> IO.NodeOutput:
-        values = _validate_node_inputs(cls, locals())
-        prompt = values["prompt"]
-        return await cls._run(ComfyCloudWorkflowInputs(prompt=prompt, seed=seed))
 
 
 class ComfyCloudKrea2CreativeImageNode(_ComfyCloudWorkflowNode):
@@ -596,16 +512,18 @@ class ComfyCloudKrea2CreativeImageNode(_ComfyCloudWorkflowNode):
 
     @classmethod
     def define_schema(cls) -> IO.Schema:
-        return _image_schema(
+        return _cloud_schema(
             cls.node_id,
             cls.display_name,
             cls.summary,
+            cls.category,
             [
                 _prompt_input(),
                 IO.Boolean.Input("prompt_enhance", default=True),
                 _aspect_ratio_input(),
                 _seed_input(),
             ],
+            IO.Image.Output(),
         )
 
     @classmethod
@@ -636,16 +554,18 @@ class ComfyCloudQwenImageEdit2511Node(_ComfyCloudWorkflowNode):
 
     @classmethod
     def define_schema(cls) -> IO.Schema:
-        return _image_schema(
+        return _cloud_schema(
             cls.node_id,
             cls.display_name,
             cls.summary,
+            cls.category,
             [
                 IO.Image.Input("image"),
                 _prompt_input("instruction"),
                 IO.Combo.Input("quality_mode", options=["quality", "fast"], default="quality"),
                 _seed_input(),
             ],
+            IO.Image.Output(),
         )
 
     @classmethod
@@ -688,11 +608,13 @@ class ComfyCloudSeedVR2ImageUpscaleNode(_ComfyCloudWorkflowNode):
 
     @classmethod
     def define_schema(cls) -> IO.Schema:
-        return _image_schema(
+        return _cloud_schema(
             cls.node_id,
             cls.display_name,
             cls.summary,
+            cls.category,
             [IO.Image.Input("image"), IO.Combo.Input("scale", options=["2x", "4x"], default="4x")],
+            IO.Image.Output(),
         )
 
     @classmethod
@@ -711,8 +633,17 @@ class ComfyCloudSeedVR2ImageUpscaleNode(_ComfyCloudWorkflowNode):
         )
 
 
-async def _run_video_workflow(cls: type[IO.ComfyNode], workflow: ComfyCloudWorkflow, inputs: ComfyCloudWorkflowInputs) -> IO.NodeOutput:
-    task = await sync_op(cls, _GENERATE_ENDPOINT, response_model=ComfyCloudGenerateResponse, data=ComfyCloudGenerateRequest(workflow=workflow, inputs=inputs))
+async def _run_video_workflow(
+    cls: type[IO.ComfyNode],
+    workflow: ComfyCloudWorkflow,
+    inputs: ComfyCloudWorkflowInputs,
+) -> IO.NodeOutput:
+    task = await sync_op(
+        cls,
+        _GENERATE_ENDPOINT,
+        response_model=ComfyCloudGenerateResponse,
+        data=ComfyCloudGenerateRequest(workflow=workflow, inputs=inputs),
+    )
     result = await _poll_task(cls, task.task_id)
     if not result.output_url:
         raise RuntimeError("Comfy Cloud task completed without an output URL.")
@@ -727,16 +658,8 @@ async def _run_video_workflow(cls: type[IO.ComfyNode], workflow: ComfyCloudWorkf
 
 
 def _video_schema(node_id: str, display_name: str, summary: str, inputs: list[IO.Input]) -> IO.Schema:
-    return IO.Schema(
-        node_id=node_id,
-        display_name=display_name,
-        category="partner/video/Comfy Cloud",
-        description=_comfy_cloud_description(summary),
-        inputs=_with_input_sockets(inputs),
-        outputs=[IO.Video.Output()],
-        hidden=[IO.Hidden.auth_token_comfy_org, IO.Hidden.api_key_comfy_org, IO.Hidden.unique_id],
-        is_api_node=True,
-        price_badge=_COMFY_CLOUD_PRICE_BADGE,
+    return _cloud_schema(
+        node_id, display_name, summary, "partner/video/Comfy Cloud", inputs, IO.Video.Output()
     )
 
 
@@ -757,7 +680,7 @@ class ComfyCloudMiniMaxH3TextSoundNode(IO.ComfyNode):
             ),
             [
                 _prompt_input(),
-                IO.Combo.Input("aspect_ratio", options=["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9", "21:9"], default="1:1"),
+                _aspect_ratio_input(),
                 IO.Float.Input("duration_seconds", default=5, min=5, max=15, step=0.01),
                 _video_seed_input(168866841893410),
             ],
@@ -765,9 +688,11 @@ class ComfyCloudMiniMaxH3TextSoundNode(IO.ComfyNode):
 
     @classmethod
     async def execute(cls, prompt: str, aspect_ratio: str, duration_seconds: float, seed: int) -> IO.NodeOutput:
-        values = _validate_node_inputs(cls, locals())
-        prompt = values["prompt"]
-        return await _run_video_workflow(cls, "video.minimax-h3-text-sound.v1", ComfyCloudWorkflowInputs(prompt=prompt, aspect_ratio=aspect_ratio, duration_seconds=duration_seconds, seed=seed))
+        prompt = _validate_node_inputs(cls, locals())["prompt"]
+        inputs = ComfyCloudWorkflowInputs(
+            prompt=prompt, aspect_ratio=aspect_ratio, duration_seconds=duration_seconds, seed=seed
+        )
+        return await _run_video_workflow(cls, "video.minimax-h3-text-sound.v1", inputs)
 
 
 class ComfyCloudMiniMaxH3ImageSoundNode(IO.ComfyNode):
@@ -784,21 +709,26 @@ class ComfyCloudMiniMaxH3ImageSoundNode(IO.ComfyNode):
             [
                 IO.Image.Input("image"),
                 _prompt_input(),
-                IO.Combo.Input("aspect_ratio", options=["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9", "21:9"], default="1:1"),
+                _aspect_ratio_input(),
                 IO.Float.Input("duration_seconds", default=5, min=5, max=15, step=0.01),
                 _video_seed_input(168866841893410),
             ],
         )
 
     @classmethod
-    async def execute(cls, image: Input.Image, prompt: str, aspect_ratio: str, duration_seconds: float, seed: int) -> IO.NodeOutput:
-        values = _validate_node_inputs(cls, locals())
-        prompt = values["prompt"]
+    async def execute(
+        cls, image: Input.Image, prompt: str, aspect_ratio: str, duration_seconds: float, seed: int
+    ) -> IO.NodeOutput:
+        prompt = _validate_node_inputs(cls, locals())["prompt"]
         if get_number_of_images(image) != 1:
             raise ValueError("Exactly one input image is required.")
         _validate_image_upload(image)
         image_url = await upload_image_to_comfyapi(cls, image)
-        return await _run_video_workflow(cls, "video.minimax-h3-image-sound.v1", ComfyCloudWorkflowInputs(prompt=prompt, image_url=image_url, aspect_ratio=aspect_ratio, duration_seconds=duration_seconds, seed=seed))
+        inputs = ComfyCloudWorkflowInputs(
+            prompt=prompt, image_url=image_url, aspect_ratio=aspect_ratio,
+            duration_seconds=duration_seconds, seed=seed,
+        )
+        return await _run_video_workflow(cls, "video.minimax-h3-image-sound.v1", inputs)
 
 
 class ComfyCloudLTX23ImageAudioPerformanceNode(IO.ComfyNode):
@@ -813,27 +743,49 @@ class ComfyCloudLTX23ImageAudioPerformanceNode(IO.ComfyNode):
                 "length of the audio you supply."
             ),
             [
-                IO.Image.Input("image"), IO.Audio.Input("audio"), _prompt_input(),
+                IO.Image.Input("image"),
+                IO.Audio.Input("audio"),
+                _prompt_input(),
                 IO.Boolean.Input("enhance_prompt", default=True),
-                IO.Float.Input("duration_seconds", default=9, min=1, max=15, step=0.01, tooltip="Must not exceed the input audio duration."),
+                IO.Float.Input(
+                    "duration_seconds",
+                    default=9,
+                    min=1,
+                    max=15,
+                    step=0.01,
+                    tooltip="Must not exceed the input audio duration.",
+                ),
                 _video_seed_input(225158785956033),
             ],
         )
 
     @classmethod
-    async def execute(cls, image: Input.Image, audio: Input.Audio, prompt: str, enhance_prompt: bool, duration_seconds: float, seed: int) -> IO.NodeOutput:
-        values = _validate_node_inputs(cls, locals())
-        prompt = values["prompt"]
+    async def execute(
+        cls,
+        image: Input.Image,
+        audio: Input.Audio,
+        prompt: str,
+        enhance_prompt: bool,
+        duration_seconds: float,
+        seed: int,
+    ) -> IO.NodeOutput:
+        prompt = _validate_node_inputs(cls, locals())["prompt"]
         if get_number_of_images(image) != 1:
             raise ValueError("Exactly one input image is required.")
         _validate_image_upload(image)
         _validate_audio_upload(audio)
         audio_duration = _audio_duration(audio)
         if duration_seconds - min(1 / float(audio["sample_rate"]), 1e-3) > audio_duration:
-            raise ValueError(f"Duration ({duration_seconds:g}s) exceeds input audio duration ({audio_duration:.2f}s).")
+            raise ValueError(
+                f"Duration ({duration_seconds:g}s) exceeds input audio duration ({audio_duration:.2f}s)."
+            )
         image_url = await upload_image_to_comfyapi(cls, image)
         audio_url = await upload_audio_to_comfyapi(cls, audio)
-        return await _run_video_workflow(cls, "video.ltx-2-3-image-audio-performance.v1", ComfyCloudWorkflowInputs(prompt=prompt, image_url=image_url, audio_url=audio_url, enhance_prompt=enhance_prompt, duration_seconds=duration_seconds, seed=seed))
+        inputs = ComfyCloudWorkflowInputs(
+            prompt=prompt, image_url=image_url, audio_url=audio_url, enhance_prompt=enhance_prompt,
+            duration_seconds=duration_seconds, seed=seed,
+        )
+        return await _run_video_workflow(cls, "video.ltx-2-3-image-audio-performance.v1", inputs)
 
 
 class ComfyCloudWan22FirstLastFrameNode(IO.ComfyNode):
@@ -847,11 +799,37 @@ class ComfyCloudWan22FirstLastFrameNode(IO.ComfyNode):
                 "the motion that connects them. Frames that differ wildly need a longer duration "
                 "to transition cleanly."
             ),
-            [IO.Image.Input("first_frame"), IO.Image.Input("last_frame"), _prompt_input(), IO.String.Input("negative_prompt", multiline=True, default="graph tested Chinese quality negative"), IO.Int.Input("duration_seconds", default=5, min=2, max=8, step=1, tooltip="Graph frame count is floor(duration × 16 + 1)."), _video_seed_input(984937593540091)],
+            [
+                IO.Image.Input("first_frame"),
+                IO.Image.Input("last_frame"),
+                _prompt_input(),
+                IO.String.Input(
+                    "negative_prompt",
+                    multiline=True,
+                    default="graph tested Chinese quality negative",
+                ),
+                IO.Int.Input(
+                    "duration_seconds",
+                    default=5,
+                    min=2,
+                    max=8,
+                    step=1,
+                    tooltip="Graph frame count is floor(duration × 16 + 1).",
+                ),
+                _video_seed_input(984937593540091),
+            ],
         )
 
     @classmethod
-    async def execute(cls, first_frame: Input.Image, last_frame: Input.Image, prompt: str, negative_prompt: str, duration_seconds: int, seed: int) -> IO.NodeOutput:
+    async def execute(
+        cls,
+        first_frame: Input.Image,
+        last_frame: Input.Image,
+        prompt: str,
+        negative_prompt: str,
+        duration_seconds: int,
+        seed: int,
+    ) -> IO.NodeOutput:
         values = _validate_node_inputs(cls, locals())
         prompt = values["prompt"]
         negative_prompt = values["negative_prompt"]
@@ -861,7 +839,11 @@ class ComfyCloudWan22FirstLastFrameNode(IO.ComfyNode):
         _validate_image_upload(last_frame)
         first_url = await upload_image_to_comfyapi(cls, first_frame, wait_label="Uploading first frame")
         last_url = await upload_image_to_comfyapi(cls, last_frame, wait_label="Uploading last frame")
-        return await _run_video_workflow(cls, "video.wan-2-2-14b-first-last-frame.v1", ComfyCloudWorkflowInputs(prompt=prompt, negative_prompt=negative_prompt, first_frame_url=first_url, last_frame_url=last_url, duration_seconds=duration_seconds, seed=seed))
+        inputs = ComfyCloudWorkflowInputs(
+            prompt=prompt, negative_prompt=negative_prompt, first_frame_url=first_url,
+            last_frame_url=last_url, duration_seconds=duration_seconds, seed=seed,
+        )
+        return await _run_video_workflow(cls, "video.wan-2-2-14b-first-last-frame.v1", inputs)
 
 
 def _audio_duration(audio: Input.Audio) -> float:

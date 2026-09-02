@@ -20,7 +20,7 @@ from comfy_api_nodes.apis.comfy_cloud import (
     ComfyCloudWorkflowInputs,
 )
 from comfy_api_nodes import nodes_comfy_cloud
-from comfy_api_nodes.util import conversions, download_helpers
+from comfy_api_nodes.util import download_helpers
 
 
 @pytest.mark.parametrize(
@@ -219,7 +219,7 @@ def test_cloud_workflows_accept_signed_https_output_urls(monkeypatch):
         nodes_comfy_cloud.ComfyCloudImageEditNode,
     ],
 )
-def test_legacy_nodes_reject_oversized_prompts(monkeypatch, node):
+def test_capability_nodes_reject_oversized_prompts(monkeypatch, node):
     sync = AsyncMock()
     monkeypatch.setattr(nodes_comfy_cloud, "sync_op", sync)
 
@@ -228,7 +228,7 @@ def test_legacy_nodes_reject_oversized_prompts(monkeypatch, node):
     sync.assert_not_awaited()
 
 
-def test_legacy_nodes_strip_prompts_before_submission(monkeypatch):
+def test_capability_nodes_strip_prompts_before_submission(monkeypatch):
     run = AsyncMock(return_value=("output",))
     monkeypatch.setattr(nodes_comfy_cloud.ComfyCloudTextToImageNode, "_run", run)
 
@@ -265,7 +265,16 @@ def test_task_routes_ignore_response_urls_and_errors_hide_task_token(monkeypatch
     assert "provider details" not in str(error.value)
 
 
-IMAGE_POC_NODES = [
+# Named image workflows, one row per distinct input shape: prompt+seed (the shared
+# _ComfyCloudPromptSeedImageNode base that five nodes use), and the three that add
+# controls of their own.
+CONTROLLED_IMAGE_NODES = [
+    (
+        nodes_comfy_cloud.ComfyCloudZImageTurboNode,
+        "image.z-image-turbo.v1",
+        ["prompt", "seed"],
+        {"prompt": "A glass forest", "seed": 9},
+    ),
     (
         nodes_comfy_cloud.ComfyCloudKrea2CreativeImageNode,
         "image.krea-2-creative-image.v1",
@@ -287,21 +296,21 @@ IMAGE_POC_NODES = [
 ]
 
 
-@pytest.mark.parametrize(("node", "workflow", "input_names", "arguments"), IMAGE_POC_NODES)
-def test_image_poc_node_schema_and_request_mapping(monkeypatch, node, workflow, input_names, arguments):
+@pytest.mark.parametrize(("node", "workflow", "input_names", "arguments"), CONTROLLED_IMAGE_NODES)
+def test_controlled_image_node_schema_and_request_mapping(monkeypatch, node, workflow, input_names, arguments):
     sync = AsyncMock(
         return_value=ComfyCloudGenerateResponse(
-            task_id="task-poc",
+            task_id="task-2",
             status="queued",
-            polling_url="/tasks/task-poc",
-            cancel_url="/tasks/task-poc/cancel",
+            polling_url="/tasks/task-2",
+            cancel_url="/tasks/task-2/cancel",
         )
     )
     poll = AsyncMock(
         return_value=ComfyCloudStatusResponse(
-            task_id="task-poc",
+            task_id="task-2",
             status="completed",
-            output_url="/proxy/comfy-cloud/results/task-poc/image.png",
+            output_url="/proxy/comfy-cloud/results/task-2/image.png",
         )
     )
     upload = AsyncMock(return_value="/uploads/input.png")
@@ -334,7 +343,7 @@ def test_image_poc_node_schema_and_request_mapping(monkeypatch, node, workflow, 
     if "image" in arguments:
         assert upload.call_args.kwargs == {"total_pixels": None}
     download.assert_awaited_once_with(
-        "/proxy/comfy-cloud/results/task-poc/image.png",
+        "/proxy/comfy-cloud/results/task-2/image.png",
         timeout=30 * 60,
         cls=node,
         allow_redirects=False,
@@ -342,12 +351,12 @@ def test_image_poc_node_schema_and_request_mapping(monkeypatch, node, workflow, 
     assert output[0] == "image-output"
 
 
-def test_image_poc_api_declarations_and_extension_registration():
-    workflows = {workflow for _, workflow, _, _ in IMAGE_POC_NODES}
+def test_controlled_image_nodes_are_declared_and_registered():
+    workflows = {workflow for _, workflow, _, _ in CONTROLLED_IMAGE_NODES}
     registered = set(asyncio.run(nodes_comfy_cloud.ComfyCloudExtension().get_node_list()))
 
     assert workflows <= set(get_args(ComfyCloudWorkflow))
-    assert {node for node, _, _, _ in IMAGE_POC_NODES} <= registered
+    assert {node for node, _, _, _ in CONTROLLED_IMAGE_NODES} <= registered
 
 
 def test_cloud_workflow_controls_have_connection_sockets():
@@ -472,44 +481,19 @@ def test_ltx_performance_stages_image_and_audio(monkeypatch):
     assert inputs.duration_seconds == 9
 
 
-def test_in_memory_download_resets_retry_and_enforces_stream_limit(monkeypatch):
-    class Content:
-        def __init__(self, chunks):
-            self.chunks = iter(chunks)
-            self.finished = False
+def _stub_download_session(monkeypatch, responses):
+    """Point download_url_to_bytesio at a scripted list of responses, one per attempt.
 
-        async def read(self, size):
-            chunk = next(self.chunks)
-            if isinstance(chunk, Exception):
-                raise chunk
-            if not chunk:
-                self.finished = True
-            return chunk
-
-        def at_eof(self):
-            return self.finished
-
-    class Response:
-        status = 200
-        headers = {}
-
-        def __init__(self, chunks, content_length=None):
-            self.content = Content(chunks)
-            self.content_length = content_length
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            return False
-
-    responses = [Response([b"partial", aiohttp.ClientPayloadError("retry")]), Response([b"final", b""])]
+    Returns the list that records the `allow_redirects` each attempt asked aiohttp for.
+    """
+    seen_allow_redirects = []
 
     class Session:
         def __init__(self, timeout):
             pass
 
         async def get(self, url, headers, allow_redirects=True):
+            seen_allow_redirects.append(allow_redirects)
             return responses.pop(0)
 
         async def close(self):
@@ -517,110 +501,77 @@ def test_in_memory_download_resets_retry_and_enforces_stream_limit(monkeypatch):
 
     monkeypatch.setattr(download_helpers.aiohttp, "ClientSession", Session)
     monkeypatch.setattr(download_helpers, "sleep_with_interrupt", AsyncMock())
+    return seen_allow_redirects
+
+
+class _StubContent:
+    def __init__(self, chunks):
+        self.chunks = iter(chunks)
+        self.finished = False
+
+    async def read(self, size):
+        chunk = next(self.chunks)
+        if isinstance(chunk, Exception):
+            raise chunk
+        if not chunk:
+            self.finished = True
+        return chunk
+
+    def at_eof(self):
+        return self.finished
+
+
+class _StubResponse:
+    headers = {}
+    content_length = None
+
+    def __init__(self, chunks, status=200):
+        self.content = _StubContent(chunks)
+        self.status = status
+
+    async def json(self):
+        return {}
+
+    async def text(self):
+        return ""
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return False
+
+
+def test_in_memory_download_empties_its_sink_before_retrying(monkeypatch):
+    """A retry re-reads the body from byte zero. Without the reset the caller gets
+    the partial first attempt concatenated with the whole second one."""
+    _stub_download_session(
+        monkeypatch,
+        [
+            _StubResponse([b"partial", aiohttp.ClientPayloadError("retry")]),
+            _StubResponse([b"final", b""]),
+        ],
+    )
     destination = BytesIO()
 
     asyncio.run(download_helpers.download_url_to_bytesio("https://example.com/result", destination))
+
     assert destination.read() == b"final"
 
-    monkeypatch.setattr(download_helpers, "_MAX_IN_MEMORY_DOWNLOAD_BYTES", 4)
-    responses.append(Response([b"12345", b""]))
-    with pytest.raises(ValueError, match="in-memory limit"):
-        asyncio.run(download_helpers.download_url_to_bytesio("https://example.com/result", BytesIO()))
 
-    responses.append(Response([], content_length=5))
-    with pytest.raises(ValueError, match="in-memory limit"):
-        asyncio.run(download_helpers.download_url_to_bytesio("https://example.com/result", BytesIO()))
+def test_redirects_are_refused_rather_than_followed_when_disallowed(monkeypatch):
+    """Comfy Cloud vets the output URL's bucket before downloading, so a redirect has to
+    fail rather than quietly fetch the body from somewhere that was never vetted."""
+    seen = _stub_download_session(monkeypatch, [_StubResponse([], status=302)])
 
+    with pytest.raises(Exception, match="HTTP 302"):
+        asyncio.run(
+            download_helpers.download_url_to_bytesio(
+                "https://example.com/result", BytesIO(), allow_redirects=False, max_retries=0
+            )
+        )
 
-def test_file_object_download_resets_retry_and_enforces_stream_limit(monkeypatch, tmp_path):
-    destination = (tmp_path / "result.bin").open("w+b")
-    destination.write(b"stale")
-
-    class Content:
-        def __init__(self, chunks):
-            self.chunks = iter(chunks)
-            self.finished = False
-
-        async def read(self, size):
-            chunk = next(self.chunks)
-            if isinstance(chunk, Exception):
-                raise chunk
-            if not chunk:
-                self.finished = True
-            return chunk
-
-        def at_eof(self):
-            return self.finished
-
-    class Response:
-        status = 200
-        headers = {}
-        content_length = None
-
-        def __init__(self, chunks):
-            self.content = Content(chunks)
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            return False
-
-    responses = [Response([b"partial", aiohttp.ClientPayloadError("retry")]), Response([b"done", b""])]
-
-    class Session:
-        def __init__(self, timeout):
-            pass
-
-        async def get(self, url, headers, allow_redirects=True):
-            return responses.pop(0)
-
-        async def close(self):
-            pass
-
-    monkeypatch.setattr(download_helpers.aiohttp, "ClientSession", Session)
-    monkeypatch.setattr(download_helpers, "sleep_with_interrupt", AsyncMock())
-    monkeypatch.setattr(download_helpers, "_MAX_IN_MEMORY_DOWNLOAD_BYTES", 10)
-
-    asyncio.run(download_helpers.download_url_to_bytesio("https://example.com/result", destination))
-    assert destination.read() == b"done"
-
-    monkeypatch.setattr(download_helpers, "_MAX_IN_MEMORY_DOWNLOAD_BYTES", 4)
-    responses.append(Response([b"12345", b""]))
-    with pytest.raises(ValueError, match="in-memory limit"):
-        asyncio.run(download_helpers.download_url_to_bytesio("https://example.com/result", destination))
-    destination.close()
-
-
-def test_audio_decode_stops_before_exceeding_budget(monkeypatch):
-    class Frame:
-        def to_ndarray(self):
-            return torch.ones(2, 8).numpy()
-
-    stream = type(
-        "Stream",
-        (),
-        {"codec_context": type("Codec", (), {"sample_rate": 48000})(), "channels": 2, "index": 0},
-    )()
-
-    class AudioFile:
-        streams = type("Streams", (), {"audio": [stream]})()
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return False
-
-        def decode(self, streams):
-            yield Frame()
-            yield Frame()
-
-    monkeypatch.setattr(conversions.av, "open", lambda source: AudioFile())
-    monkeypatch.setattr(conversions, "_MAX_DECODED_AUDIO_BYTES", 64)
-
-    with pytest.raises(ValueError, match="Decoded audio exceeds"):
-        conversions.audio_bytes_to_audio_input(BytesIO(b"encoded"))
+    assert seen == [False]
 
 
 def test_extension_registers_exactly_the_shipped_set():

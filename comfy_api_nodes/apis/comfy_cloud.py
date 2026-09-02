@@ -25,6 +25,9 @@ ComfyCloudWorkflow = Literal[
 ]
 
 
+# Only the inputs the shipped nodes actually send, for the same reason
+# ComfyCloudWorkflow is narrowed above: the frozen manifests accept more, but a field
+# no node sets is surface this build cannot exercise or test.
 class ComfyCloudWorkflowInputs(BaseModel):
     prompt: str | None = Field(None)
     image_url: str | None = Field(None)
@@ -32,43 +35,15 @@ class ComfyCloudWorkflowInputs(BaseModel):
     audio_url: str | None = Field(None)
     first_frame_url: str | None = Field(None)
     last_frame_url: str | None = Field(None)
-    reference_character_url: str | None = Field(None)
-    driving_video_url: str | None = Field(None)
     instruction: str | None = Field(None)
     prompt_enhance: bool | None = Field(None)
     enhance_prompt: bool | None = Field(None)
     negative_prompt: str | None = Field(None)
     aspect_ratio: str | None = Field(None)
     duration_seconds: float | None = Field(None)
-    guidance: float | None = Field(None)
     quality_mode: str | None = Field(None)
     seed: int | None = Field(None, ge=0, le=0xFFFFFFFFFFFFFFFF)
     scale: str | None = Field(None)
-    scene_prompt: str | None = Field(None)
-    driving_subject: str | None = Field(None)
-    reference_subject: str | None = Field(None)
-    style_prompt: str | None = Field(None)
-    lyrics: str | None = Field(None)
-    bpm: int | None = Field(None)
-    time_signature: str | None = Field(None)
-    language: str | None = Field(None)
-    key: str | None = Field(None)
-    expand_prompt: bool | None = Field(None)
-    category: str | None = Field(None)
-    text: str | None = Field(None)
-    exaggeration: float | None = Field(None)
-    cfg_weight: float | None = Field(None)
-    temperature: float | None = Field(None)
-    script: str | None = Field(None)
-    remove_background: bool | None = Field(None)
-    gaussian_count: int | None = Field(None)
-    fov_degrees: float | None = Field(None)
-    detail: int | None = Field(None)
-    mesh_decimation: int | None = Field(None)
-    gap_threshold: float | None = Field(None)
-    texture: bool | None = Field(None)
-    split_resolution: int | None = Field(None)
-    merge_resolution: int | None = Field(None)
 
 
 class ComfyCloudAssetInput(BaseModel):
