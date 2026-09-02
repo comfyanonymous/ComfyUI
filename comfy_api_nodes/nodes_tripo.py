@@ -5,8 +5,10 @@ from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension, Input, Types
 from comfy_api_nodes.apis.tripo import (
+    TRIPO_BIPED_ANIMATIONS,
     TripoAnimatePrerigcheckRequest,
     TripoAnimateRetargetRequest,
+    TripoAnimation,
     TripoAnimateRigRequest,
     TripoConvertModelRequest,
     TripoFileEmptyReference,
@@ -803,7 +805,8 @@ class TripoRigNode(IO.ComfyNode):
                     options=TripoSpec,
                     default=TripoSpec.TRIPO,
                     optional=True,
-                    tooltip="Bone naming: Tripo native or Mixamo-compatible.",
+                    tooltip="Bone naming: Tripo native or Mixamo-compatible. Tripo cannot retarget its animation presets "
+                    "onto a v1.0 rig made with the mixamo spec; use tripo for Tripo: Retarget rigged model.",
                 ),
                 IO.Combo.Input(
                     "out_format",
@@ -873,30 +876,37 @@ class TripoRetargetNode(IO.ComfyNode):
                 IO.Custom("RIG_TASK_ID").Input("original_model_task_id"),
                 IO.Combo.Input(
                     "animation",
-                    options=[
-                        "preset:idle",
-                        "preset:walk",
-                        "preset:run",
-                        "preset:dive",
-                        "preset:climb",
-                        "preset:jump",
-                        "preset:slash",
-                        "preset:shoot",
-                        "preset:hurt",
-                        "preset:fall",
-                        "preset:turn",
-                        "preset:quadruped:walk",
-                        "preset:hexapod:walk",
-                        "preset:octopod:walk",
-                        "preset:serpentine:march",
-                        "preset:aquatic:march",
-                    ],
+                    options=[*[a.value for a in TripoAnimation], *TRIPO_BIPED_ANIMATIONS],
+                    tooltip="preset:* animations work with both rig models; "
+                    "preset:biped:* animations require a rig made with model v1.0-20240301.",
+                ),
+                IO.Combo.Input(
+                    "out_format",
+                    options=TripoOutFormat,
+                    default=TripoOutFormat.GLB,
+                    optional=True,
+                    tooltip="Output file format; the result arrives on the matching output.",
+                ),
+                IO.Boolean.Input(
+                    "export_with_geometry",
+                    default=True,
+                    optional=True,
+                    advanced=True,
+                    tooltip="Include the mesh in the export; off exports the animated skeleton only.",
+                ),
+                IO.Boolean.Input(
+                    "animate_in_place",
+                    default=False,
+                    optional=True,
+                    advanced=True,
+                    tooltip="Play the animation in place, without root displacement.",
                 ),
             ],
             outputs=[
                 IO.String.Output(display_name="model_file"),  # for backward compatibility only
                 IO.Custom("RETARGET_TASK_ID").Output(display_name="retarget task_id"),
-                IO.File3DGLB.Output(display_name="GLB"),
+                IO.File3DGLB.Output(display_name="GLB", tooltip="Populated when out_format is glb."),
+                IO.File3DFBX.Output(display_name="FBX", tooltip="Populated when out_format is fbx."),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
@@ -911,7 +921,22 @@ class TripoRetargetNode(IO.ComfyNode):
         )
 
     @classmethod
-    async def execute(cls, original_model_task_id, animation: str) -> IO.NodeOutput:
+    async def execute(
+        cls,
+        original_model_task_id,
+        animation: str,
+        out_format: str = "glb",
+        export_with_geometry: bool = True,
+        animate_in_place: bool = False,
+    ) -> IO.NodeOutput:
+        rig = await sync_op(
+            cls,
+            endpoint=ApiEndpoint(path=f"/proxy/tripo/v2/openapi/task/{original_model_task_id}"),
+            response_model=TripoTaskResponse,
+        )
+        rig_input = rig.data.input or {}
+        if rig_input.get("spec") == "mixamo" and str(rig_input.get("model_version", "")).startswith("v1.0"):
+            raise ValueError("Tripo cannot retarget animation presets onto a v1.0 rig made with the mixamo spec.")
         response = await sync_op(
             cls,
             endpoint=ApiEndpoint(path="/proxy/tripo/v2/openapi/task", method="POST"),
@@ -919,11 +944,12 @@ class TripoRetargetNode(IO.ComfyNode):
             data=TripoAnimateRetargetRequest(
                 original_model_task_id=original_model_task_id,
                 animation=animation,
-                out_format="glb",
-                bake_animation=True,
+                out_format=out_format,
+                export_with_geometry=export_with_geometry,
+                animate_in_place=animate_in_place,
             ),
         )
-        return glb_output(*await poll_until_finished(cls, response, average_duration=30))
+        return glb_or_fbx_output(*await poll_until_finished(cls, response, average_duration=30))
 
 
 class TripoConversionNode(IO.ComfyNode):
