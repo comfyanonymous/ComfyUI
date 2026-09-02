@@ -19,6 +19,7 @@ class TripoGeometryQuality(str, Enum):
 class TripoTextureQuality(str, Enum):
     standard = "standard"
     detailed = "detailed"
+    extreme = "extreme"
 
 
 class TripoStyle(str, Enum):

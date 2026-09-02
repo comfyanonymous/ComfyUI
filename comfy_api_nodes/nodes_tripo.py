@@ -134,9 +134,10 @@ class TripoTextToModelNode(IO.ComfyNode):
                 IO.Combo.Input(
                     "texture_quality",
                     default="standard",
-                    options=["standard", "detailed"],
+                    options=["standard", "detailed", "extreme"],
                     optional=True,
                     advanced=True,
+                    tooltip="detailed = HD textures, extreme = 8K Ultra textures.",
                 ),
                 IO.Int.Input("face_limit", default=-1, min=-1, max=2000000, optional=True, advanced=True, tooltip=FACE_LIMIT_TOOLTIP),
                 IO.Boolean.Input(
@@ -173,7 +174,6 @@ class TripoTextToModelNode(IO.ComfyNode):
                     widgets=[
                         "model_version",
                         "texture",
-                        "pbr",
                         "quad",
                         "texture_quality",
                         "geometry_quality",
@@ -183,16 +183,16 @@ class TripoTextToModelNode(IO.ComfyNode):
                 (
                   $isV14 := $contains(widgets.model_version,"v1.4");
                   $isV3OrLater := $contains(widgets.model_version,"v3.");
-                  $withTexture := widgets.texture or widgets.pbr;
-                  $isHdTexture := (widgets.texture_quality = "detailed");
-                  $isDetailedGeometry := (widgets.geometry_quality = "detailed");
+                  $tq := widgets.texture_quality;
+                  $textureAddon := widgets.texture ? ($tq = "extreme" ? 20 : ($tq = "detailed" ? 10 : 0)) : 0;
+                  $geometryAddon := (widgets.geometry_quality = "detailed" and $isV3OrLater) ? 20 : 0;
                   $credits := $isV14 ? 20 : (
-                    ($withTexture ? 20 : 10)
+                    (widgets.texture ? 20 : 10)
                     + (widgets.quad ? 5 : 0)
-                    + ($isHdTexture ? 10 : 0)
-                    + (($isDetailedGeometry and $isV3OrLater) ? 20 : 0)
+                    + $textureAddon
+                    + $geometryAddon
                   );
-                  {"type":"usd","usd": $round($credits * 0.01, 2), "format": {"approximate": true}}
+                  {"type":"usd","usd": $credits * 0.01, "format": {"approximate": true}}
                 )
                 """,
             ),
@@ -287,9 +287,10 @@ class TripoImageToModelNode(IO.ComfyNode):
                 IO.Combo.Input(
                     "texture_quality",
                     default="standard",
-                    options=["standard", "detailed"],
+                    options=["standard", "detailed", "extreme"],
                     optional=True,
                     advanced=True,
+                    tooltip="detailed = HD textures, extreme = 8K Ultra textures.",
                 ),
                 IO.Combo.Input(
                     "texture_alignment",
@@ -333,7 +334,6 @@ class TripoImageToModelNode(IO.ComfyNode):
                     widgets=[
                         "model_version",
                         "texture",
-                        "pbr",
                         "quad",
                         "texture_quality",
                         "geometry_quality",
@@ -343,16 +343,16 @@ class TripoImageToModelNode(IO.ComfyNode):
                 (
                   $isV14 := $contains(widgets.model_version,"v1.4");
                   $isV3OrLater := $contains(widgets.model_version,"v3.");
-                  $withTexture := widgets.texture or widgets.pbr;
-                  $isHdTexture := (widgets.texture_quality = "detailed");
-                  $isDetailedGeometry := (widgets.geometry_quality = "detailed");
+                  $tq := widgets.texture_quality;
+                  $textureAddon := widgets.texture ? ($tq = "extreme" ? 20 : ($tq = "detailed" ? 10 : 0)) : 0;
+                  $geometryAddon := (widgets.geometry_quality = "detailed" and $isV3OrLater) ? 20 : 0;
                   $credits := $isV14 ? 30 : (
-                    ($withTexture ? 30 : 20)
+                    (widgets.texture ? 30 : 20)
                     + (widgets.quad ? 5 : 0)
-                    + ($isHdTexture ? 10 : 0)
-                    + (($isDetailedGeometry and $isV3OrLater) ? 20 : 0)
+                    + $textureAddon
+                    + $geometryAddon
                   );
-                  {"type":"usd","usd": $round($credits * 0.01, 2), "format": {"approximate": true}}
+                  {"type":"usd","usd": $credits * 0.01, "format": {"approximate": true}}
                 )
                 """,
             ),
@@ -455,9 +455,10 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                 IO.Combo.Input(
                     "texture_quality",
                     default="standard",
-                    options=["standard", "detailed"],
+                    options=["standard", "detailed", "extreme"],
                     optional=True,
                     advanced=True,
+                    tooltip="detailed = HD textures, extreme = 8K Ultra textures.",
                 ),
                 IO.Combo.Input(
                     "texture_alignment",
@@ -499,7 +500,6 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                     widgets=[
                         "model_version",
                         "texture",
-                        "pbr",
                         "texture_quality",
                         "geometry_quality",
                     ],
@@ -508,15 +508,15 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                 (
                   $isV14 := $contains(widgets.model_version,"v1.4");
                   $isV3OrLater := $contains(widgets.model_version,"v3.");
-                  $withTexture := widgets.texture or widgets.pbr;
-                  $isHdTexture := (widgets.texture_quality = "detailed");
-                  $isDetailedGeometry := (widgets.geometry_quality = "detailed");
+                  $tq := widgets.texture_quality;
+                  $textureAddon := widgets.texture ? ($tq = "extreme" ? 20 : ($tq = "detailed" ? 10 : 0)) : 0;
+                  $geometryAddon := (widgets.geometry_quality = "detailed" and $isV3OrLater) ? 20 : 0;
                   $credits := $isV14 ? 30 : (
-                    ($withTexture ? 30 : 20)
-                    + ($isHdTexture ? 10 : 0)
-                    + (($isDetailedGeometry and $isV3OrLater) ? 20 : 0)
+                    (widgets.texture ? 30 : 20)
+                    + $textureAddon
+                    + $geometryAddon
                   );
-                  {"type":"usd","usd": $round($credits * 0.01, 2), "format": {"approximate": true}}
+                  {"type":"usd","usd": $credits * 0.01, "format": {"approximate": true}}
                 )
                 """,
             ),
@@ -608,9 +608,10 @@ class TripoTextureNode(IO.ComfyNode):
                 IO.Combo.Input(
                     "texture_quality",
                     default="standard",
-                    options=["standard", "detailed"],
+                    options=["standard", "detailed", "extreme"],
                     optional=True,
                     advanced=True,
+                    tooltip="detailed = HD textures, extreme = 8K Ultra textures.",
                 ),
                 IO.Combo.Input(
                     "texture_alignment",
@@ -645,7 +646,7 @@ class TripoTextureNode(IO.ComfyNode):
                 expr="""
                 (
                   $tq := widgets.texture_quality;
-                  {"type":"usd","usd": ($contains($tq,"detailed") ? 0.2 : 0.1), "format": {"approximate": true}}
+                  {"type":"usd","usd": ($tq = "extreme" ? 0.3 : ($tq = "detailed" ? 0.2 : 0.1)), "format": {"approximate": true}}
                 )
                 """,
             ),
