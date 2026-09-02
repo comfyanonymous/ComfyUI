@@ -515,7 +515,7 @@ def start_comfyui(asyncio_loop=None):
         folder_paths.set_temp_directory(temp_dir)
 
     asset_manager: AssetManager = default_asset_manager()
-    if not (asset_manager.enabled and dependencies_available()):
+    if not asset_manager.enabled:
         cleanup_temp_filesystem()
 
     if not asyncio_loop:
