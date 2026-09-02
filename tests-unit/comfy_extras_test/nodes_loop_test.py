@@ -65,21 +65,21 @@ class ExecutionList:
         return None, None, None
 
 
-def run_loop(monkeypatch, mode, initial_value=None, include_output=True, include_next=True):
+def run_loop(monkeypatch, mode, initial_iteration_value=None, include_output=True, include_next=True):
     execution_list = ExecutionList()
     close_inputs = {"accumulate": False}
     if include_output:
         close_inputs["output_value"] = ["loop", 0]
     if include_next:
-        close_inputs["next_value"] = ["loop", 0]
+        close_inputs["next_iteration_value"] = ["loop", 0]
     dynprompt = DynPrompt({
-        "loop": {"class_type": "Loop", "inputs": {}},
+        "loop": {"class_type": "StartLoop", "inputs": {}},
         "close": {
-            "class_type": "CloseLoop",
+            "class_type": "EndLoop",
             "inputs": close_inputs,
         },
     })
-    nodes_loop.Loop.hidden = SimpleNamespace(
+    nodes_loop.StartLoop.hidden = SimpleNamespace(
         dynprompt=dynprompt,
         execution_list=execution_list,
         unique_id="loop",
@@ -93,7 +93,7 @@ def run_loop(monkeypatch, mode, initial_value=None, include_output=True, include
 
     outputs = []
     while True:
-        output = nodes_loop.Loop.execute(mode, initial_value=initial_value)
+        output = nodes_loop.StartLoop.execute(mode, initial_iteration_value=initial_iteration_value)
         outputs.append(output.result)
         if output[0] is None:
             return outputs, execution_list
@@ -135,14 +135,14 @@ def test_loop_count_modes_remain_list_aware(monkeypatch):
 
 def test_close_loop_selects_final_or_accumulated_output(monkeypatch):
     _, execution_list = run_loop(monkeypatch, {"mode": ["simple"], "num_iterations": [2]})
-    nodes_loop.CloseLoop.hidden = SimpleNamespace(execution_list=execution_list, unique_id="close")
+    nodes_loop.EndLoop.hidden = SimpleNamespace(execution_list=execution_list, unique_id="close")
 
-    assert nodes_loop.CloseLoop.execute(accumulate=[False]).result == ([1],)
+    assert nodes_loop.EndLoop.execute(accumulate=[False]).result == ([1],)
 
     _, execution_list = run_loop(monkeypatch, {"mode": ["simple"], "num_iterations": [2]})
-    nodes_loop.CloseLoop.hidden = SimpleNamespace(execution_list=execution_list, unique_id="close")
+    nodes_loop.EndLoop.hidden = SimpleNamespace(execution_list=execution_list, unique_id="close")
 
-    assert nodes_loop.CloseLoop.execute(accumulate=[True]).result == ([0, 1],)
+    assert nodes_loop.EndLoop.execute(accumulate=[True]).result == ([0, 1],)
 
 
 def test_close_loop_allows_no_carried_or_output_value(monkeypatch):
@@ -152,32 +152,32 @@ def test_close_loop_allows_no_carried_or_output_value(monkeypatch):
         include_output=False,
         include_next=False,
     )
-    nodes_loop.CloseLoop.hidden = SimpleNamespace(execution_list=execution_list, unique_id="close")
+    nodes_loop.EndLoop.hidden = SimpleNamespace(execution_list=execution_list, unique_id="close")
 
-    assert nodes_loop.CloseLoop.execute(accumulate=[True]).result == ([],)
+    assert nodes_loop.EndLoop.execute(accumulate=[True]).result == ([],)
 
 
 def test_loop_schema_has_integrated_carried_value():
-    inputs = nodes_loop.Loop.INPUT_TYPES()
+    inputs = nodes_loop.StartLoop.INPUT_TYPES()
 
-    assert list(inputs["optional"]) == ["iteration_outer", "initial_value"]
-    assert nodes_loop.Loop.RETURN_NAMES == [
-        "iteration",
+    assert list(inputs["optional"]) == ["iteration_outer", "initial_iteration_value"]
+    assert nodes_loop.StartLoop.RETURN_NAMES == [
+        "iteration_index",
         "is_first",
         "is_last",
         "list_item",
-        "current_value",
+        "current_iteration_value",
     ]
     assert "LoopVariable" not in nodes_loop.NODE_CLASS_MAPPINGS
 
 
 def test_close_loop_schema_has_one_list_output_and_dynamic_terminations():
-    inputs = nodes_loop.CloseLoop.INPUT_TYPES()
+    inputs = nodes_loop.EndLoop.INPUT_TYPES()
 
     assert list(inputs["required"]) == ["accumulate"]
-    assert list(inputs["optional"]) == ["output_value", "next_value", "terminations"]
-    assert nodes_loop.CloseLoop.RETURN_NAMES == ["output"]
-    assert nodes_loop.CloseLoop.OUTPUT_IS_LIST == [True]
+    assert list(inputs["optional"]) == ["output_value", "next_iteration_value", "terminations"]
+    assert nodes_loop.EndLoop.RETURN_NAMES == ["outputs"]
+    assert nodes_loop.EndLoop.OUTPUT_IS_LIST == [True]
 
 
 def test_loop_step_must_not_be_zero(monkeypatch):
@@ -196,27 +196,27 @@ def test_outer_loop_orders_nested_close_after_nested_opener(monkeypatch):
         "inner_close": True,
     }
     dynprompt = DynPrompt({
-        "outer": {"class_type": "Loop", "inputs": {}},
-        "inner": {"class_type": "Loop", "inputs": {"iteration_outer": ["outer", 0]}},
+        "outer": {"class_type": "StartLoop", "inputs": {}},
+        "inner": {"class_type": "StartLoop", "inputs": {"iteration_outer": ["outer", 0]}},
         "inner_body": {"class_type": "Body", "inputs": {"value": ["inner", 0]}},
         "inner_close": {
-            "class_type": "CloseLoop",
+            "class_type": "EndLoop",
             "inputs": {
                 "output_value": ["inner_body", 0],
-                "next_value": ["inner_body", 0],
+                "next_iteration_value": ["inner_body", 0],
                 "accumulate": False,
             },
         },
         "outer_close": {
-            "class_type": "CloseLoop",
+            "class_type": "EndLoop",
             "inputs": {
                 "output_value": ["inner_close", 0],
-                "next_value": ["inner_close", 0],
+                "next_iteration_value": ["inner_close", 0],
                 "accumulate": False,
             },
         },
     })
-    nodes_loop.Loop.hidden = SimpleNamespace(
+    nodes_loop.StartLoop.hidden = SimpleNamespace(
         dynprompt=dynprompt,
         execution_list=execution_list,
         unique_id="outer",
@@ -235,7 +235,7 @@ def test_outer_loop_orders_nested_close_after_nested_opener(monkeypatch):
         SimpleNamespace(instance=SimpleNamespace(send_progress_text=lambda *args: None)),
     )
 
-    nodes_loop.Loop.execute({"mode": ["simple"], "num_iterations": [1]})
+    nodes_loop.StartLoop.execute({"mode": ["simple"], "num_iterations": [1]})
 
     assert execution_list.ordering_links == [("inner", "inner_close")]
 
@@ -249,27 +249,27 @@ def test_outer_loop_ignores_nested_link_whose_target_has_finished(monkeypatch):
         "inner_close": True,
     }
     dynprompt = DynPrompt({
-        "outer": {"class_type": "Loop", "inputs": {}},
-        "inner": {"class_type": "Loop", "inputs": {"iteration_outer": ["outer", 0]}},
+        "outer": {"class_type": "StartLoop", "inputs": {}},
+        "inner": {"class_type": "StartLoop", "inputs": {"iteration_outer": ["outer", 0]}},
         "inner_body": {"class_type": "Body", "inputs": {"value": ["inner", 0]}},
         "inner_close": {
-            "class_type": "CloseLoop",
+            "class_type": "EndLoop",
             "inputs": {
                 "output_value": ["inner_body", 0],
-                "next_value": ["inner_body", 0],
+                "next_iteration_value": ["inner_body", 0],
                 "accumulate": False,
             },
         },
         "outer_close": {
-            "class_type": "CloseLoop",
+            "class_type": "EndLoop",
             "inputs": {
                 "output_value": ["inner_close", 0],
-                "next_value": ["inner_close", 0],
+                "next_iteration_value": ["inner_close", 0],
                 "accumulate": False,
             },
         },
     })
-    nodes_loop.Loop.hidden = SimpleNamespace(
+    nodes_loop.StartLoop.hidden = SimpleNamespace(
         dynprompt=dynprompt,
         execution_list=execution_list,
         unique_id="outer",
@@ -287,9 +287,9 @@ def test_outer_loop_ignores_nested_link_whose_target_has_finished(monkeypatch):
         SimpleNamespace(instance=SimpleNamespace(send_progress_text=lambda *args: None)),
     )
 
-    nodes_loop.Loop.execute({"mode": ["simple"], "num_iterations": [2]})
+    nodes_loop.StartLoop.execute({"mode": ["simple"], "num_iterations": [2]})
     execution_list.pendingNodes.pop("inner_body")
     execution_list.strong_links.clear()
-    nodes_loop.Loop.execute({"mode": ["simple"], "num_iterations": [2]})
+    nodes_loop.StartLoop.execute({"mode": ["simple"], "num_iterations": [2]})
 
     assert ("inner", 0, "inner_body") not in execution_list.strong_links

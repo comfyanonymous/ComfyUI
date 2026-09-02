@@ -99,8 +99,8 @@ class Server:
 def test_nested_loops_execute_each_body_once_without_final_requeue(monkeypatch):
     Increment.calls = []
     Capture.values = []
-    monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "Loop", nodes_loop.Loop)
-    monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "CloseLoop", nodes_loop.CloseLoop)
+    monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "StartLoop", nodes_loop.StartLoop)
+    monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "EndLoop", nodes_loop.EndLoop)
     monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "TestConstant", Constant)
     monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "TestIncrement", Increment)
     monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "TestCapture", Capture)
@@ -116,20 +116,20 @@ def test_nested_loops_execute_each_body_once_without_final_requeue(monkeypatch):
             "inputs": {"value": 0},
         },
         "outer": {
-            "class_type": "Loop",
+            "class_type": "StartLoop",
             "inputs": {
                 "mode": "simple",
                 "mode.num_iterations": 2,
-                "initial_value": ["constant", 0],
+                "initial_iteration_value": ["constant", 0],
             },
         },
         "inner": {
-            "class_type": "Loop",
+            "class_type": "StartLoop",
             "inputs": {
                 "mode": "simple",
                 "mode.num_iterations": 2,
                 "iteration_outer": ["outer", 0],
-                "initial_value": ["outer", 4],
+                "initial_iteration_value": ["outer", 4],
             },
         },
         "increment": {
@@ -137,18 +137,18 @@ def test_nested_loops_execute_each_body_once_without_final_requeue(monkeypatch):
             "inputs": {"value": ["inner", 4]},
         },
         "inner_close": {
-            "class_type": "CloseLoop",
+            "class_type": "EndLoop",
             "inputs": {
                 "output_value": ["increment", 0],
-                "next_value": ["increment", 0],
+                "next_iteration_value": ["increment", 0],
                 "accumulate": False,
             },
         },
         "outer_close": {
-            "class_type": "CloseLoop",
+            "class_type": "EndLoop",
             "inputs": {
                 "output_value": ["inner_close", 0],
-                "next_value": ["inner_close", 0],
+                "next_iteration_value": ["inner_close", 0],
                 "accumulate": False,
             },
         },
@@ -173,8 +173,8 @@ def test_nested_loops_execute_each_body_once_without_final_requeue(monkeypatch):
 def test_loop_executes_termination_without_carried_or_output_value(monkeypatch):
     Increment.calls = []
     CapturePassthrough.values = []
-    monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "Loop", nodes_loop.Loop)
-    monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "CloseLoop", nodes_loop.CloseLoop)
+    monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "StartLoop", nodes_loop.StartLoop)
+    monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "EndLoop", nodes_loop.EndLoop)
     monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "TestIncrement", Increment)
     monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "TestCapturePassthrough", CapturePassthrough)
     monkeypatch.setattr(
@@ -185,7 +185,7 @@ def test_loop_executes_termination_without_carried_or_output_value(monkeypatch):
 
     prompt = {
         "loop": {
-            "class_type": "Loop",
+            "class_type": "StartLoop",
             "inputs": {
                 "mode": "simple",
                 "mode.num_iterations": 2,
@@ -200,7 +200,7 @@ def test_loop_executes_termination_without_carried_or_output_value(monkeypatch):
             "inputs": {"value": ["increment", 0]},
         },
         "close": {
-            "class_type": "CloseLoop",
+            "class_type": "EndLoop",
             "inputs": {
                 "accumulate": False,
                 "termination0": ["preview", 0],
@@ -222,8 +222,8 @@ def test_loop_executes_termination_without_carried_or_output_value(monkeypatch):
 
 def run_nested_accumulation(monkeypatch, producer_name, producer_class):
     Capture.values = []
-    monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "Loop", nodes_loop.Loop)
-    monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "CloseLoop", nodes_loop.CloseLoop)
+    monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "StartLoop", nodes_loop.StartLoop)
+    monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "EndLoop", nodes_loop.EndLoop)
     monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, producer_name, producer_class)
     monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, "TestCapture", Capture)
     monkeypatch.setattr(
@@ -234,11 +234,11 @@ def run_nested_accumulation(monkeypatch, producer_name, producer_class):
 
     prompt = {
         "outer": {
-            "class_type": "Loop",
+            "class_type": "StartLoop",
             "inputs": {"mode": "simple", "mode.num_iterations": 2},
         },
         "inner": {
-            "class_type": "Loop",
+            "class_type": "StartLoop",
             "inputs": {
                 "mode": "simple",
                 "mode.num_iterations": 2,
@@ -250,14 +250,14 @@ def run_nested_accumulation(monkeypatch, producer_name, producer_class):
             "inputs": {"value": ["inner", 0]},
         },
         "inner_close": {
-            "class_type": "CloseLoop",
+            "class_type": "EndLoop",
             "inputs": {
                 "output_value": ["producer", 0],
                 "accumulate": True,
             },
         },
         "outer_close": {
-            "class_type": "CloseLoop",
+            "class_type": "EndLoop",
             "inputs": {
                 "output_value": ["inner_close", 0],
                 "accumulate": True,

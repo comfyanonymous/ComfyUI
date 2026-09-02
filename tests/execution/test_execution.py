@@ -510,7 +510,7 @@ class TestExecution:
     def test_looped_save_image_accumulates_history_and_streams_previews(self, client: ComfyClient, builder: GraphBuilder):
         g = builder
         iterations = 3
-        loop = g.node("Loop", mode="simple", **{"mode.num_iterations": iterations})
+        loop = g.node("StartLoop", mode="simple", **{"mode.num_iterations": iterations})
         width = g.node("TestIntMathOperation", a=loop.out(0), b=32, operation="add")
         image = g.node("StubImage", content="BLACK", height=32, width=width.out(0), batch_size=1)
         output = g.node("SaveImage", images=image.out(0))

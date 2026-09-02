@@ -61,7 +61,7 @@ def loop_projection(dynprompt, opener_id):
             raise ValueError(f"Node {node_id} belongs to incompatible nested loop scopes")
         if set(scopes).intersection(closed_scopes):
             raise ValueError(
-                f"Node {node_id} routes around a Close Loop; all of its looped inputs must pass through the close"
+                f"Node {node_id} routes around an End Loop; all of its looped inputs must pass through the end"
             )
 
         if opener_id in scopes:
@@ -70,9 +70,9 @@ def loop_projection(dynprompt, opener_id):
         class_type = dynprompt.get_node(node_id)["class_type"]
         next_scopes = scopes
         next_closed_scopes = closed_scopes
-        if class_type == "Loop":
+        if class_type == "StartLoop":
             next_scopes = (*scopes, node_id)
-        elif class_type == "CloseLoop" and scopes:
+        elif class_type == "EndLoop" and scopes:
             owner_id = scopes[-1]
             next_scopes = scopes[:-1]
             next_closed_scopes = closed_scopes.union((owner_id,))
@@ -88,11 +88,11 @@ def loop_projection(dynprompt, opener_id):
                 ready.append(child_id)
 
     if processed != len(reachable):
-        raise ValueError(f"Loop {opener_id} contains a dependency cycle")
+        raise ValueError(f"Start Loop {opener_id} contains a dependency cycle")
 
     if len(close_nodes) != 1:
         raise ValueError(
-            f"Loop {opener_id} must have exactly one Close Loop, found {len(close_nodes)}"
+            f"Start Loop {opener_id} must have exactly one End Loop, found {len(close_nodes)}"
         )
 
     close_id = next(iter(close_nodes))
@@ -105,7 +105,7 @@ def loop_projection(dynprompt, opener_id):
     if outside_close:
         nodes = ", ".join(sorted(outside_close))
         raise ValueError(
-            f"Loop {opener_id} has downstream nodes that do not terminate at Close Loop {close_id}: {nodes}"
+            f"Start Loop {opener_id} has downstream nodes that do not terminate at End Loop {close_id}: {nodes}"
         )
 
     projected.discard(close_id)
