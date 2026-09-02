@@ -37,6 +37,12 @@ from comfy_api_nodes.util import (
 )
 
 
+FACE_LIMIT_TOOLTIP = (
+    "Maximum face count. -1 lets Tripo pick adaptively (about 1.4M faces on v3.x standard, 2M on detailed). "
+    "Tripo clamps silently: v2.5 at 500,000, quad meshes at 150,000."
+)
+
+
 def get_model_url_from_response(response: TripoTaskResponse) -> str:
     if response.data is not None:
         for key in ["pbr_model", "model", "base_model"]:
@@ -122,7 +128,7 @@ class TripoTextToModelNode(IO.ComfyNode):
                     optional=True,
                     advanced=True,
                 ),
-                IO.Int.Input("face_limit", default=-1, min=-1, max=2000000, optional=True, advanced=True),
+                IO.Int.Input("face_limit", default=-1, min=-1, max=2000000, optional=True, advanced=True, tooltip=FACE_LIMIT_TOOLTIP),
                 IO.Boolean.Input(
                     "quad",
                     default=False,
@@ -272,7 +278,7 @@ class TripoImageToModelNode(IO.ComfyNode):
                     optional=True,
                     advanced=True,
                 ),
-                IO.Int.Input("face_limit", default=-1, min=-1, max=500000, optional=True, advanced=True),
+                IO.Int.Input("face_limit", default=-1, min=-1, max=2000000, optional=True, advanced=True, tooltip=FACE_LIMIT_TOOLTIP),
                 IO.Boolean.Input(
                     "quad",
                     default=False,
@@ -430,7 +436,7 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                     optional=True,
                     advanced=True,
                 ),
-                IO.Int.Input("face_limit", default=-1, min=-1, max=500000, optional=True, advanced=True),
+                IO.Int.Input("face_limit", default=-1, min=-1, max=2000000, optional=True, advanced=True, tooltip=FACE_LIMIT_TOOLTIP),
                 IO.Boolean.Input(
                     "quad",
                     default=False,
