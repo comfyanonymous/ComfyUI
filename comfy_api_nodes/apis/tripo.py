@@ -49,6 +49,9 @@ class TripoTaskType(str, Enum):
     ANIMATE_RETARGET = "animate_retarget"
     STYLIZE_MODEL = "stylize_model"
     CONVERT_MODEL = "convert_model"
+    MESH_SEGMENTATION = "mesh_segmentation"
+    MESH_COMPLETION = "mesh_completion"
+    HIGHPOLY_TO_LOWPOLY = "highpoly_to_lowpoly"
 
 
 class TripoTextureAlignment(str, Enum):
@@ -381,6 +384,26 @@ class TripoAnimateRetargetRequest(BaseModel):
     animate_in_place: bool | None = Field(None, description="Whether to play the animation in place")
 
 
+class TripoMeshSegmentationRequest(BaseModel):
+    type: TripoTaskType = Field(TripoTaskType.MESH_SEGMENTATION, description="Type of task")
+    original_model_task_id: str = Field(..., description="The task ID of the original model")
+
+
+class TripoMeshCompletionRequest(BaseModel):
+    type: TripoTaskType = Field(TripoTaskType.MESH_COMPLETION, description="Type of task")
+    original_model_task_id: str = Field(..., description="The task ID of a mesh segmentation task")
+    part_names: list[str] | None = Field(None, description="Parts to complete; all parts when omitted")
+
+
+class TripoHighpolyToLowpolyRequest(BaseModel):
+    type: TripoTaskType = Field(TripoTaskType.HIGHPOLY_TO_LOWPOLY, description="Type of task")
+    original_model_task_id: str = Field(..., description="The task ID of the original model")
+    face_limit: int | None = Field(None, description="Target face count; adaptive when omitted")
+    quad: bool | None = Field(None, description="Whether to output a quad mesh")
+    bake: bool | None = Field(None, description="Whether to bake textures onto the low-poly mesh")
+    part_names: list[str] | None = Field(None, description="Parts to retopologize; whole model when omitted")
+
+
 class TripoConvertModelRequest(BaseModel):
     type: TripoTaskType = Field(TripoTaskType.CONVERT_MODEL, description="Type of task")
     format: TripoConvertFormat = Field(..., description="The format to convert to")
@@ -478,7 +501,7 @@ class TripoTask(BaseModel):
     create_time: int | None = Field(None, description="The creation time of the task")
     running_left_time: int | None = Field(None, description="The estimated time left for the task")
     queue_position: int | None = Field(None, description="The position in the queue")
-    consumed_credit: int | None = Field(None)
+    consumed_credit: float | None = Field(None)
 
 
 class TripoTaskResponse(BaseModel):

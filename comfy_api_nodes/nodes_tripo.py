@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -13,8 +14,11 @@ from comfy_api_nodes.apis.tripo import (
     TripoConvertModelRequest,
     TripoFileEmptyReference,
     TripoFileReference,
+    TripoHighpolyToLowpolyRequest,
     TripoImageToModelRequest,
     TripoImportModelRequest,
+    TripoMeshCompletionRequest,
+    TripoMeshSegmentationRequest,
     TripoModelVersion,
     TripoMultiviewToModelRequest,
     TripoOrientation,
@@ -115,6 +119,19 @@ async def check_riggable(node_cls: type[IO.ComfyNode], model_task_id: str) -> tu
 async def upload_image_reference(node_cls: type[IO.ComfyNode], image: Input.Image) -> TripoFileReference:
     url = (await upload_images_to_comfyapi(node_cls, image, max_images=1))[0]
     return TripoFileReference(root=TripoUrlReference(url=url, type="jpeg"))
+
+
+def part_names_from_glb(model: Types.File3D) -> list[str]:
+    data = model.get_bytes()
+    if data[:4] != b"glTF":
+        return []
+    chunk_length = int.from_bytes(data[12:16], "little")
+    document = json.loads(data[20 : 20 + chunk_length])
+    return [node["name"] for node in document.get("nodes", []) if node.get("name")]
+
+
+def split_part_names(part_names: str) -> list[str] | None:
+    return list(dict.fromkeys(name.strip() for name in part_names.split(",") if name.strip())) or None
 
 
 def glb_output(task_id: str, model: Types.File3D) -> IO.NodeOutput:
@@ -952,6 +969,214 @@ class TripoRetargetNode(IO.ComfyNode):
         return glb_or_fbx_output(*await poll_until_finished(cls, response, average_duration=30))
 
 
+class TripoRigCheckNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="TripoRigCheckNode",
+            display_name="Tripo: Rig Check",
+            category="partner/3d/Tripo",
+            description="Checks whether a model can be rigged and which skeleton type Tripo recommends.",
+            inputs=[IO.Custom("MODEL_TASK_ID").Input("model_task_id")],
+            outputs=[
+                IO.Boolean.Output(display_name="riggable"),
+                IO.String.Output(
+                    display_name="rig_type",
+                    tooltip="Recommended skeleton: biped, quadruped, hexapod, octopod, avian, serpentine or aquatic; "
+                    "'others' when the model is not riggable.",
+                ),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"text","text":"Free"}""",
+            ),
+        )
+
+    @classmethod
+    async def execute(cls, model_task_id) -> IO.NodeOutput:
+        riggable, rig_type = await check_riggable(cls, model_task_id)
+        return IO.NodeOutput(riggable, rig_type)
+
+
+class TripoSegmentNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="TripoSegmentNode",
+            display_name="Tripo: Segment Model",
+            category="partner/3d/Tripo",
+            description="Splits a model into parts. The part names feed Tripo: Complete Mesh Parts, "
+            "Tripo: Retopology and Tripo: Convert model.",
+            inputs=[IO.Custom("MODEL_TASK_ID").Input("model_task_id")],
+            outputs=[
+                IO.String.Output(display_name="model_file"),  # for backward compatibility only
+                IO.Custom("SEGMENT_TASK_ID").Output(display_name="segment task_id"),
+                IO.File3DGLB.Output(display_name="GLB"),
+                IO.String.Output(display_name="part_names", tooltip="Comma-separated names of the parts."),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            is_output_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.4, "format": {"approximate": true}}""",
+            ),
+        )
+
+    @classmethod
+    async def execute(cls, model_task_id) -> IO.NodeOutput:
+        response = await sync_op(
+            cls,
+            endpoint=ApiEndpoint(path="/proxy/tripo/v2/openapi/task", method="POST"),
+            response_model=TripoTaskResponse,
+            data=TripoMeshSegmentationRequest(original_model_task_id=model_task_id),
+        )
+        task_id, model = await poll_until_finished(cls, response, average_duration=160)
+        return IO.NodeOutput(f"{task_id}.glb", task_id, model, ",".join(part_names_from_glb(model)))
+
+
+class TripoMeshCompleteNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="TripoMeshCompleteNode",
+            display_name="Tripo: Complete Mesh Parts",
+            category="partner/3d/Tripo",
+            description="Completes the parts of a segmented model and repairs missing regions.",
+            inputs=[
+                IO.Custom("SEGMENT_TASK_ID").Input("segment_task_id"),
+                IO.String.Input(
+                    "part_names",
+                    default="",
+                    optional=True,
+                    tooltip="Comma-separated part names to complete. Empty completes every part.",
+                ),
+            ],
+            outputs=[
+                IO.String.Output(display_name="model_file"),  # for backward compatibility only
+                IO.Custom("MODEL_TASK_ID").Output(display_name="model task_id"),
+                IO.File3DGLB.Output(display_name="GLB"),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            is_output_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.5, "format": {"approximate": true}}""",
+            ),
+        )
+
+    @classmethod
+    async def execute(cls, segment_task_id, part_names: str = "") -> IO.NodeOutput:
+        response = await sync_op(
+            cls,
+            endpoint=ApiEndpoint(path="/proxy/tripo/v2/openapi/task", method="POST"),
+            response_model=TripoTaskResponse,
+            data=TripoMeshCompletionRequest(
+                original_model_task_id=segment_task_id,
+                part_names=split_part_names(part_names),
+            ),
+        )
+        return glb_output(*await poll_until_finished(cls, response, average_duration=240))
+
+
+class TripoRetopologyNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="TripoRetopologyNode",
+            display_name="Tripo: Retopology",
+            category="partner/3d/Tripo",
+            description="Rebuilds a low-poly mesh with clean topology from a high-poly model.",
+            inputs=[
+                IO.Custom("MODEL_TASK_ID,SEGMENT_TASK_ID").Input("model_task_id"),
+                IO.Int.Input(
+                    "face_limit",
+                    default=-1,
+                    min=-1,
+                    max=20000,
+                    tooltip="Target face count: 500-20,000 triangles or 500-10,000 quads. -1 lets Tripo choose.",
+                ),
+                IO.Boolean.Input(
+                    "quad",
+                    default=False,
+                    tooltip="Quad mesh output. Tripo delivers quad meshes as FBX, so the result "
+                    "arrives on the FBX output and the GLB output stays empty.",
+                ),
+                IO.Boolean.Input(
+                    "bake",
+                    default=True,
+                    optional=True,
+                    advanced=True,
+                    tooltip="Bake the source textures onto the low-poly mesh.",
+                ),
+                IO.String.Input(
+                    "part_names",
+                    default="",
+                    optional=True,
+                    advanced=True,
+                    tooltip="Comma-separated part names from Tripo: Segment Model. Empty processes the whole model.",
+                ),
+            ],
+            outputs=[
+                IO.String.Output(display_name="model_file"),  # for backward compatibility only
+                IO.Custom("MODEL_TASK_ID").Output(display_name="model task_id"),
+                IO.File3DGLB.Output(display_name="GLB", tooltip="Empty when quad is enabled."),
+                IO.File3DFBX.Output(display_name="FBX", tooltip="Only populated when quad is enabled."),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            is_output_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.3, "format": {"approximate": true}}""",
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model_task_id,
+        face_limit: int = -1,
+        quad: bool = False,
+        bake: bool = True,
+        part_names: str = "",
+    ) -> IO.NodeOutput:
+        if face_limit != -1 and not 500 <= face_limit <= (10000 if quad else 20000):
+            raise ValueError("face_limit must be between 500 and 20,000 for triangles or 500 and 10,000 for quads.")
+        response = await sync_op(
+            cls,
+            endpoint=ApiEndpoint(path="/proxy/tripo/v2/openapi/task", method="POST"),
+            response_model=TripoTaskResponse,
+            data=TripoHighpolyToLowpolyRequest(
+                original_model_task_id=model_task_id,
+                face_limit=face_limit if face_limit != -1 else None,
+                quad=quad,
+                bake=bake,
+                part_names=split_part_names(part_names),
+            ),
+        )
+        return glb_or_fbx_output(*await poll_until_finished(cls, response, average_duration=200))
+
+
 class TripoConversionNode(IO.ComfyNode):
 
     @classmethod
@@ -961,7 +1186,7 @@ class TripoConversionNode(IO.ComfyNode):
             display_name="Tripo: Convert model",
             category="partner/3d/Tripo",
             inputs=[
-                IO.Custom("MODEL_TASK_ID,RIG_TASK_ID,RETARGET_TASK_ID").Input("original_model_task_id"),
+                IO.Custom("MODEL_TASK_ID,RIG_TASK_ID,RETARGET_TASK_ID,SEGMENT_TASK_ID").Input("original_model_task_id"),
                 IO.Combo.Input("format", options=["GLTF", "USDZ", "FBX", "OBJ", "STL", "3MF"]),
                 IO.Boolean.Input("quad", default=False, optional=True, advanced=True),
                 IO.Int.Input(
@@ -1079,8 +1304,8 @@ class TripoConversionNode(IO.ComfyNode):
     def validate_inputs(cls, input_types):
         # The min and max of input1 and input2 are still validated because
         # we didn't take `input1` or `input2` as arguments
-        if input_types["original_model_task_id"] not in ("MODEL_TASK_ID", "RIG_TASK_ID", "RETARGET_TASK_ID"):
-            return "original_model_task_id must be MODEL_TASK_ID, RIG_TASK_ID or RETARGET_TASK_ID type"
+        if input_types["original_model_task_id"] not in ("MODEL_TASK_ID", "RIG_TASK_ID", "RETARGET_TASK_ID", "SEGMENT_TASK_ID"):
+            return "original_model_task_id must be MODEL_TASK_ID, RIG_TASK_ID, RETARGET_TASK_ID or SEGMENT_TASK_ID type"
         return True
 
     @classmethod
@@ -1110,9 +1335,7 @@ class TripoConversionNode(IO.ComfyNode):
             raise RuntimeError("original_model_task_id is required")
 
         # Parse part_names from comma-separated string to list
-        part_names_list = None
-        if part_names and part_names.strip():
-            part_names_list = [name.strip() for name in part_names.split(",") if name.strip()]
+        part_names_list = split_part_names(part_names)
 
         response = await sync_op(
             cls,
@@ -1607,8 +1830,12 @@ class TripoExtension(ComfyExtension):
             TripoP1MultiviewToModelNode,
             TripoImportModelNode,
             TripoTextureNode,
+            TripoRigCheckNode,
             TripoRigNode,
             TripoRetargetNode,
+            TripoSegmentNode,
+            TripoMeshCompleteNode,
+            TripoRetopologyNode,
             TripoConversionNode,
         ]
 
