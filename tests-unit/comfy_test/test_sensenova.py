@@ -46,6 +46,7 @@ from comfy_extras.nodes_sensenova import (
     SenseNovaInterleavePreview,
     SenseNovaSamplingOptions,
     SenseNovaTextEncode,
+    SenseNovaThinkingPreview,
     interleave_output_samples,
 )
 
@@ -501,7 +502,7 @@ def test_sensenova_model_base_preprocesses_thinking_only_for_positive():
     thinking_calls = []
     regular_calls = []
 
-    def preprocess_thinking_prefix(
+    def preprocess_thinking_prefix_with_tokens(
         *args, max_think_tokens, progress=None, interrupt=None
     ):
         thinking_calls.append((args, max_think_tokens, progress, interrupt))
@@ -509,6 +510,7 @@ def test_sensenova_model_base_preprocesses_thinking_only_for_positive():
             [torch.zeros(1, 1, 5, 1, dtype=torch.bfloat16)],
             [torch.ones(1, 1, 5, 1, dtype=torch.bfloat16)],
             torch.tensor([5]),
+            [41, 42],
         )
 
     def preprocess_prefix(*args):
@@ -526,14 +528,16 @@ def test_sensenova_model_base_preprocesses_thinking_only_for_positive():
     model.diffusion_model = SimpleNamespace(
         dtype=torch.bfloat16,
         preprocess_prefix=preprocess_prefix,
-        preprocess_thinking_prefix=preprocess_thinking_prefix,
+        preprocess_thinking_prefix_with_tokens=preprocess_thinking_prefix_with_tokens,
     )
     input_ids = torch.tensor([[1, 2, 3]])
+    thinking_result = {"enabled": True, "token_ids": None}
 
     positive = model.extra_conds(
         text_input_ids=input_ids,
         sensenova_thinking=True,
         sensenova_max_think_tokens=17,
+        sensenova_thinking_result=thinking_result,
         prompt_type="positive",
         device=torch.device("cpu"),
     )
@@ -547,6 +551,7 @@ def test_sensenova_model_base_preprocesses_thinking_only_for_positive():
         text_input_ids=input_ids,
         sensenova_thinking=True,
         sensenova_max_think_tokens=23,
+        sensenova_thinking_result=thinking_result,
         prompt_type="positive",
         hooks=object(),
         device=torch.device("cpu"),
@@ -556,11 +561,13 @@ def test_sensenova_model_base_preprocesses_thinking_only_for_positive():
     assert thinking_calls[0][1] == 17
     assert callable(thinking_calls[0][2])
     assert callable(thinking_calls[0][3])
+    assert thinking_result["token_ids"] == [41, 42]
     assert len(regular_calls) == 1
     assert positive["prefix_time"].cond.tolist() == [5]
     assert hooked["text_input_ids"].cond.tolist() == input_ids.tolist()
     assert hooked["sensenova_thinking"].cond is True
     assert hooked["sensenova_max_think_tokens"].cond == 23
+    assert hooked["sensenova_thinking_result"].cond is thinking_result
 
 
 def test_sensenova_thinking_decode_appends_stop_and_image_suffix():
@@ -601,6 +608,32 @@ def test_sensenova_thinking_decode_appends_stop_and_image_suffix():
     assert prefix_time.tolist() == [7]
     assert progress_updates == [1, 2]
     assert interrupt_calls == [True, True]
+
+
+def test_sensenova_thinking_decode_returns_generated_token_ids():
+    model = object.__new__(sensenova_model.SenseNovaU15)
+    torch.nn.Module.__init__(model)
+    model.has_lm_head = True
+    tokens = iter((42, sensenova_model.THINK_END_TOKEN_ID))
+
+    model._preprocess_prefix_state = lambda *args: (
+        torch.zeros(1, 1, 1),
+        [torch.zeros(1, 1, 1, 1)],
+        [torch.zeros(1, 1, 1, 1)],
+        torch.tensor([3]),
+    )
+    model._next_text_token = lambda hidden: torch.tensor([next(tokens)])
+
+    def decode(token, keys, values, prefix_time, transformer_options=None):
+        return torch.zeros(1, 1, 1), keys, values, prefix_time + 1
+
+    model._decode_text_token = decode
+
+    _, _, _, token_ids = model.preprocess_thinking_prefix_with_tokens(
+        torch.tensor([[1, 2, 3]]), max_think_tokens=4
+    )
+
+    assert token_ids == [42, sensenova_model.THINK_END_TOKEN_ID]
 
 
 @pytest.mark.parametrize(
@@ -976,14 +1009,37 @@ def test_sensenova_preprocessed_prefix_matches_raw_forward():
         sensenova_max_think_tokens=7,
         transformer_options=thinking_options,
     )
+    thinking_result = {"enabled": True, "token_ids": None}
+    thinking_token_calls = []
+
+    def preprocess_thinking_prefix_with_tokens(*args, **kwargs):
+        thinking_token_calls.append((args, kwargs))
+        return prefix_keys, prefix_values, prefix_time, [41, 42]
+
+    model.preprocess_thinking_prefix_with_tokens = (
+        preprocess_thinking_prefix_with_tokens
+    )
+    thinking_with_result = sensenova_model.SenseNovaU15._forward(
+        model,
+        image,
+        timesteps,
+        text_input_ids=input_ids,
+        sensenova_thinking=True,
+        sensenova_max_think_tokens=7,
+        sensenova_thinking_result=thinking_result,
+        transformer_options=thinking_options,
+    )
 
     assert torch.equal(raw, preprocessed)
     assert torch.equal(thinking, preprocessed)
+    assert torch.equal(thinking_with_result, preprocessed)
     assert thinking_calls[0][0][:4] == (input_ids, None, None, None)
     assert thinking_calls[0][1]["max_think_tokens"] == 7
     assert thinking_calls[0][1]["transformer_options"] is thinking_options
-    assert timestep_embedder.shapes == [torch.Size([1])] * 3
-    assert noise_scale_embedder.shapes == [torch.Size([1])] * 3
+    assert thinking_token_calls[0][1]["max_think_tokens"] == 7
+    assert thinking_result["token_ids"] == [41, 42]
+    assert timestep_embedder.shapes == [torch.Size([1])] * 4
+    assert noise_scale_embedder.shapes == [torch.Size([1])] * 4
 
 
 def test_sensenova_reference_tokens_and_indexes():
@@ -1348,8 +1404,77 @@ def test_sensenova_text_encode_adds_reasoning_policy():
     assert calls[1][2] == {
         "sensenova_thinking": True,
         "sensenova_max_think_tokens": 64,
+        "sensenova_thinking_result": {
+            "enabled": True,
+            "token_ids": None,
+        },
     }
     assert output[0][1]["sensenova_thinking"] is True
+
+
+def test_sensenova_thinking_preview_decodes_tokens_after_sampling():
+    decode_calls = []
+
+    class Clip:
+        def decode(self, token_ids, skip_special_tokens=True):
+            decode_calls.append((token_ids, skip_special_tokens))
+            return "  inspect the layout  "
+
+    conditioning = [
+        [
+            torch.empty(1),
+            {
+                "sensenova_thinking_result": {
+                    "enabled": True,
+                    "token_ids": [41, 42],
+                }
+            },
+        ]
+    ]
+    output = SenseNovaThinkingPreview.execute(
+        clip=Clip(),
+        conditioning=conditioning,
+        samples={"samples": torch.empty(1, 3, 8, 8)},
+    )
+
+    assert output.args == ("inspect the layout",)
+    assert output.ui.as_dict() == {"text": ("inspect the layout",)}
+    assert decode_calls == [([41, 42], True)]
+
+
+@pytest.mark.parametrize(
+    ("conditioning", "expected"),
+    [
+        (
+            [[torch.empty(1), {}]],
+            "SenseNova thinking is disabled for this conditioning.",
+        ),
+        (
+            [
+                [
+                    torch.empty(1),
+                    {
+                        "sensenova_thinking_result": {
+                            "enabled": True,
+                            "token_ids": None,
+                        }
+                    },
+                ]
+            ],
+            "SenseNova thinking has not run. Connect samples from the KSampler that uses this conditioning.",
+        ),
+    ],
+)
+def test_sensenova_thinking_preview_explains_unavailable_results(
+    conditioning, expected
+):
+    output = SenseNovaThinkingPreview.execute(
+        clip=SimpleNamespace(decode=lambda *args, **kwargs: "unused"),
+        conditioning=conditioning,
+        samples={"samples": torch.empty(1, 3, 8, 8)},
+    )
+
+    assert output.args == (expected,)
 
 
 def test_sensenova_thinking_memory_estimate_includes_decode_limit():

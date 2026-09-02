@@ -2386,6 +2386,7 @@ class SenseNovaU15(BaseModel):
                 reference_images = comfy.ldm.sensenova.conditioning.preprocess_references(reference_images)
             image_only = kwargs.get("prompt_type") == "negative"
             thinking = bool(kwargs.get("sensenova_thinking", False)) and not image_only
+            thinking_result = kwargs.get("sensenova_thinking_result")
             indexes = None
             prefix_mask = None
             if reference_images:
@@ -2428,14 +2429,25 @@ class SenseNovaU15(BaseModel):
                         kwargs.get("sensenova_max_think_tokens", 1024)
                     )
                     progress = comfy.utils.ProgressBar(max_think_tokens)
-                    prefix_keys, prefix_values, prefix_time = (
-                        self.diffusion_model.preprocess_thinking_prefix(
-                            *prefix_args,
-                            max_think_tokens=max_think_tokens,
-                            progress=progress.update_absolute,
-                            interrupt=comfy.model_management.throw_exception_if_processing_interrupted,
+                    if isinstance(thinking_result, dict):
+                        prefix_keys, prefix_values, prefix_time, token_ids = (
+                            self.diffusion_model.preprocess_thinking_prefix_with_tokens(
+                                *prefix_args,
+                                max_think_tokens=max_think_tokens,
+                                progress=progress.update_absolute,
+                                interrupt=comfy.model_management.throw_exception_if_processing_interrupted,
+                            )
                         )
-                    )
+                        thinking_result["token_ids"] = token_ids
+                    else:
+                        prefix_keys, prefix_values, prefix_time = (
+                            self.diffusion_model.preprocess_thinking_prefix(
+                                *prefix_args,
+                                max_think_tokens=max_think_tokens,
+                                progress=progress.update_absolute,
+                                interrupt=comfy.model_management.throw_exception_if_processing_interrupted,
+                            )
+                        )
                 else:
                     prefix_keys, prefix_values, prefix_time = (
                         self.diffusion_model.preprocess_prefix(
@@ -2456,6 +2468,10 @@ class SenseNovaU15(BaseModel):
                     out["sensenova_max_think_tokens"] = comfy.conds.CONDConstant(
                         int(kwargs.get("sensenova_max_think_tokens", 1024))
                     )
+                    if isinstance(thinking_result, dict):
+                        out["sensenova_thinking_result"] = comfy.conds.CONDConstant(
+                            thinking_result
+                        )
         return out
 
     def extra_conds_shapes(self, **kwargs):

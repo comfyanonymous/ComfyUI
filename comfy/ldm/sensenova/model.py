@@ -734,6 +734,33 @@ class SenseNovaU15(nn.Module):
     ):
         """Autoregressively extend a prefix with the model's thinking tokens."""
 
+        prefix_keys, prefix_values, prefix_time, _ = (
+            self.preprocess_thinking_prefix_with_tokens(
+                text_input_ids,
+                reference_images,
+                prefix_indexes,
+                prefix_mask,
+                max_think_tokens=max_think_tokens,
+                transformer_options=transformer_options,
+                progress=progress,
+                interrupt=interrupt,
+            )
+        )
+        return prefix_keys, prefix_values, prefix_time
+
+    def preprocess_thinking_prefix_with_tokens(
+        self,
+        text_input_ids,
+        reference_images=None,
+        prefix_indexes=None,
+        prefix_mask=None,
+        max_think_tokens=1024,
+        transformer_options=None,
+        progress=None,
+        interrupt=None,
+    ):
+        """Extend a thinking prefix and return its generated token IDs."""
+
         if not self.has_lm_head:
             raise RuntimeError(
                 "This SenseNova checkpoint does not contain language_model.lm_head.weight, "
@@ -752,6 +779,7 @@ class SenseNovaU15(nn.Module):
             )
         )
         next_token = self._next_text_token(hidden_states)
+        thinking_token_ids = []
         closed_thinking = False
         for step in range(max_think_tokens):
             if interrupt is not None:
@@ -759,6 +787,7 @@ class SenseNovaU15(nn.Module):
             token_id = int(next_token.item())
             if token_id == EOS_TOKEN_ID:
                 break
+            thinking_token_ids.append(token_id)
             hidden_states, prefix_keys, prefix_values, prefix_time = (
                 self._decode_text_token(
                     next_token,
@@ -777,6 +806,7 @@ class SenseNovaU15(nn.Module):
 
         if not closed_thinking:
             closing_token = torch.full_like(next_token, THINK_END_TOKEN_ID)
+            thinking_token_ids.append(THINK_END_TOKEN_ID)
             _, prefix_keys, prefix_values, prefix_time = self._decode_text_token(
                 closing_token,
                 prefix_keys,
@@ -793,7 +823,7 @@ class SenseNovaU15(nn.Module):
                 prefix_time,
                 transformer_options,
             )
-        return prefix_keys, prefix_values, prefix_time
+        return prefix_keys, prefix_values, prefix_time, thinking_token_ids
 
     def _forward(
         self,
@@ -810,6 +840,7 @@ class SenseNovaU15(nn.Module):
         prefix_time=None,
         sensenova_thinking=False,
         sensenova_max_think_tokens=1024,
+        sensenova_thinking_result=None,
         **kwargs,
     ):
         if text_input_ids is None and prefix_keys is None:
@@ -859,16 +890,29 @@ class SenseNovaU15(nn.Module):
 
         if prefix_keys is None:
             if sensenova_thinking:
-                prefix_keys, prefix_values, prefix_time = (
-                    self.preprocess_thinking_prefix(
-                        text_input_ids,
-                        reference_images,
-                        prefix_indexes,
-                        prefix_mask,
-                        max_think_tokens=sensenova_max_think_tokens,
-                        transformer_options=transformer_options,
+                if isinstance(sensenova_thinking_result, dict):
+                    prefix_keys, prefix_values, prefix_time, token_ids = (
+                        self.preprocess_thinking_prefix_with_tokens(
+                            text_input_ids,
+                            reference_images,
+                            prefix_indexes,
+                            prefix_mask,
+                            max_think_tokens=sensenova_max_think_tokens,
+                            transformer_options=transformer_options,
+                        )
                     )
-                )
+                    sensenova_thinking_result["token_ids"] = token_ids
+                else:
+                    prefix_keys, prefix_values, prefix_time = (
+                        self.preprocess_thinking_prefix(
+                            text_input_ids,
+                            reference_images,
+                            prefix_indexes,
+                            prefix_mask,
+                            max_think_tokens=sensenova_max_think_tokens,
+                            transformer_options=transformer_options,
+                        )
+                    )
             else:
                 prefix, prefix_indexes, prefix_mask, prefix_time = self._prepare_prefix(
                     text_input_ids, reference_images, prefix_indexes, prefix_mask

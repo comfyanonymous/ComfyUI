@@ -204,6 +204,10 @@ class SenseNovaTextEncode(io.ComfyNode):
         metadata = {
             "sensenova_thinking": thinking,
             "sensenova_max_think_tokens": max_think_tokens,
+            "sensenova_thinking_result": {
+                "enabled": thinking,
+                "token_ids": None,
+            },
         }
         if mode == "interleave":
             metadata["sensenova_interleave"] = True
@@ -212,6 +216,57 @@ class SenseNovaTextEncode(io.ComfyNode):
             add_dict=metadata,
         )
         return io.NodeOutput(conditioning)
+
+
+class SenseNovaThinkingPreview(io.ComfyNode):
+    """Display the reasoning tokens produced by SenseNova image sampling."""
+
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="SenseNovaThinkingPreview",
+            display_name="SenseNova Thinking Preview",
+            category="model/sampling/sensenova",
+            description=(
+                "Decode the thinking tokens generated while sampling. Connect the "
+                "samples output from the KSampler that uses this conditioning."
+            ),
+            is_output_node=True,
+            inputs=[
+                io.Clip.Input("clip"),
+                io.Conditioning.Input("conditioning"),
+                io.Latent.Input(
+                    "samples",
+                    tooltip="Ensures this preview runs after the connected KSampler.",
+                ),
+            ],
+            outputs=[io.String.Output(display_name="thinking")],
+        )
+
+    @classmethod
+    def execute(cls, *, clip, conditioning, samples) -> io.NodeOutput:
+        sampled_latent = samples.get("samples") if isinstance(samples, dict) else None
+        thinking_result = None
+        for conditioning_entry in conditioning:
+            metadata = conditioning_entry[1]
+            thinking_result = metadata.get("sensenova_thinking_result")
+            if thinking_result is not None:
+                break
+
+        if thinking_result is None or not thinking_result.get("enabled", False):
+            text = "SenseNova thinking is disabled for this conditioning."
+        elif sampled_latent is None or thinking_result.get("token_ids") is None:
+            text = (
+                "SenseNova thinking has not run. Connect samples from the KSampler "
+                "that uses this conditioning."
+            )
+        else:
+            text = clip.decode(
+                thinking_result["token_ids"], skip_special_tokens=True
+            ).strip()
+            if not text:
+                text = "SenseNova thinking completed without visible text."
+        return io.NodeOutput(text, ui=ui.PreviewText(text))
 
 
 class SenseNovaInterleave(io.ComfyNode):
@@ -354,6 +409,7 @@ class SenseNovaExtension(ComfyExtension):
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             SenseNovaTextEncode,
+            SenseNovaThinkingPreview,
             SenseNovaSamplingOptions,
             SenseNovaInterleave,
             SenseNovaInterleavePreview,
