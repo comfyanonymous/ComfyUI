@@ -1,3 +1,6 @@
+from pathlib import Path
+from urllib.parse import urlparse
+
 from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension, Input, Types
@@ -46,8 +49,8 @@ async def poll_until_finished(
     node_cls: type[IO.ComfyNode],
     response: TripoTaskResponse,
     average_duration: int | None = None,
-) -> IO.NodeOutput:
-    """Polls the Tripo API endpoint until the task reaches a terminal state, then returns the response."""
+) -> tuple[str, Types.File3D]:
+    """Polls the Tripo API endpoint until the task reaches a terminal state, then downloads the model."""
     if response.code != 0:
         raise RuntimeError(f"Failed to generate mesh: {response.error}")
     task_id = response.data.task_id
@@ -67,11 +70,26 @@ async def poll_until_finished(
         progress_extractor=lambda x: x.data.progress,
         estimated_duration=average_duration,
     )
-    if response_poll.data.status == TripoTaskStatus.SUCCESS:
-        url = get_model_url_from_response(response_poll)
-        file_glb = await download_url_to_file_3d(url, "glb", task_id=task_id)
-        return IO.NodeOutput(f"{task_id}.glb", task_id, file_glb)
-    raise RuntimeError(f"Failed to generate mesh: {response_poll}")
+    if response_poll.data.status != TripoTaskStatus.SUCCESS:
+        raise RuntimeError(f"Failed to generate mesh: {response_poll}")
+    url = get_model_url_from_response(response_poll)
+    file_format = Path(urlparse(url).path).suffix.lstrip(".").lower() or "glb"
+    return task_id, await download_url_to_file_3d(url, file_format, task_id=task_id)
+
+
+def glb_output(task_id: str, model: Types.File3D) -> IO.NodeOutput:
+    if model.format != "glb":
+        raise RuntimeError(f"Tripo returned a {model.format.upper()} file where GLB was expected")
+    return IO.NodeOutput(f"{task_id}.glb", task_id, model)
+
+
+def glb_or_fbx_output(task_id: str, model: Types.File3D) -> IO.NodeOutput:
+    return IO.NodeOutput(
+        f"{task_id}.{model.format}",
+        task_id,
+        model if model.format == "glb" else None,
+        model if model.format == "fbx" else None,
+    )
 
 
 class TripoTextToModelNode(IO.ComfyNode):
@@ -105,7 +123,14 @@ class TripoTextToModelNode(IO.ComfyNode):
                     advanced=True,
                 ),
                 IO.Int.Input("face_limit", default=-1, min=-1, max=2000000, optional=True, advanced=True),
-                IO.Boolean.Input("quad", default=False, optional=True, advanced=True),
+                IO.Boolean.Input(
+                    "quad",
+                    default=False,
+                    optional=True,
+                    advanced=True,
+                    tooltip="Quad mesh output. Tripo delivers quad meshes as FBX, so the result "
+                    "arrives on the FBX output and the GLB output stays empty.",
+                ),
                 IO.Combo.Input(
                     "geometry_quality",
                     default="standard",
@@ -117,7 +142,8 @@ class TripoTextToModelNode(IO.ComfyNode):
             outputs=[
                 IO.String.Output(display_name="model_file"),  # for backward compatibility only
                 IO.Custom("MODEL_TASK_ID").Output(display_name="model task_id"),
-                IO.File3DGLB.Output(display_name="GLB"),
+                IO.File3DGLB.Output(display_name="GLB", tooltip="Empty when quad is enabled."),
+                IO.File3DFBX.Output(display_name="FBX", tooltip="Only populated when quad is enabled."),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
@@ -198,7 +224,7 @@ class TripoTextToModelNode(IO.ComfyNode):
                 quad=quad,
             ),
         )
-        return await poll_until_finished(cls, response, average_duration=80)
+        return glb_or_fbx_output(*await poll_until_finished(cls, response, average_duration=80))
 
 
 class TripoImageToModelNode(IO.ComfyNode):
@@ -247,7 +273,14 @@ class TripoImageToModelNode(IO.ComfyNode):
                     advanced=True,
                 ),
                 IO.Int.Input("face_limit", default=-1, min=-1, max=500000, optional=True, advanced=True),
-                IO.Boolean.Input("quad", default=False, optional=True, advanced=True),
+                IO.Boolean.Input(
+                    "quad",
+                    default=False,
+                    optional=True,
+                    advanced=True,
+                    tooltip="Quad mesh output. Tripo delivers quad meshes as FBX, so the result "
+                    "arrives on the FBX output and the GLB output stays empty.",
+                ),
                 IO.Combo.Input(
                     "geometry_quality",
                     default="standard",
@@ -259,7 +292,8 @@ class TripoImageToModelNode(IO.ComfyNode):
             outputs=[
                 IO.String.Output(display_name="model_file"),  # for backward compatibility only
                 IO.Custom("MODEL_TASK_ID").Output(display_name="model task_id"),
-                IO.File3DGLB.Output(display_name="GLB"),
+                IO.File3DGLB.Output(display_name="GLB", tooltip="Empty when quad is enabled."),
+                IO.File3DFBX.Output(display_name="FBX", tooltip="Only populated when quad is enabled."),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
@@ -346,7 +380,7 @@ class TripoImageToModelNode(IO.ComfyNode):
                 quad=quad,
             ),
         )
-        return await poll_until_finished(cls, response, average_duration=80)
+        return glb_or_fbx_output(*await poll_until_finished(cls, response, average_duration=80))
 
 
 class TripoMultiviewToModelNode(IO.ComfyNode):
@@ -509,7 +543,7 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                 quad=None,
             ),
         )
-        return await poll_until_finished(cls, response, average_duration=80)
+        return glb_output(*await poll_until_finished(cls, response, average_duration=80))
 
 
 class TripoTextureNode(IO.ComfyNode):
@@ -596,7 +630,7 @@ class TripoTextureNode(IO.ComfyNode):
                 texture_prompt=TripoTexturePrompt(text=texture_prompt.strip()) if texture_prompt.strip() else None,
             ),
         )
-        return await poll_until_finished(cls, response, average_duration=80)
+        return glb_output(*await poll_until_finished(cls, response, average_duration=80))
 
 
 class TripoRigNode(IO.ComfyNode):
@@ -633,7 +667,7 @@ class TripoRigNode(IO.ComfyNode):
             response_model=TripoTaskResponse,
             data=TripoAnimateRigRequest(original_model_task_id=original_model_task_id, out_format="glb", spec="tripo"),
         )
-        return await poll_until_finished(cls, response, average_duration=180)
+        return glb_output(*await poll_until_finished(cls, response, average_duration=180))
 
 
 class TripoRetargetNode(IO.ComfyNode):
@@ -698,7 +732,7 @@ class TripoRetargetNode(IO.ComfyNode):
                 bake_animation=True,
             ),
         )
-        return await poll_until_finished(cls, response, average_duration=30)
+        return glb_output(*await poll_until_finished(cls, response, average_duration=30))
 
 
 class TripoConversionNode(IO.ComfyNode):
@@ -775,7 +809,13 @@ class TripoConversionNode(IO.ComfyNode):
                 ),
                 IO.Boolean.Input("animate_in_place", default=False, optional=True, advanced=True),
             ],
-            outputs=[],
+            outputs=[
+                IO.File3DAny.Output(
+                    display_name="model_3d",
+                    tooltip="Converted model in the requested format. OBJ is delivered by Tripo as a ZIP archive "
+                    "(mesh, material and textures).",
+                ),
+            ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
                 IO.Hidden.api_key_comfy_org,
@@ -883,7 +923,8 @@ class TripoConversionNode(IO.ComfyNode):
                 animate_in_place=animate_in_place if animate_in_place else None,
             ),
         )
-        return await poll_until_finished(cls, response, average_duration=30)
+        _, model = await poll_until_finished(cls, response, average_duration=30)
+        return IO.NodeOutput(model)
 
 
 class TripoImportModelNode(IO.ComfyNode):
@@ -1167,7 +1208,7 @@ class TripoP1TextToModelNode(IO.ComfyNode):
             response_model=TripoTaskResponse,
             data=request,
         )
-        return await poll_until_finished(cls, response, average_duration=60)
+        return glb_output(*await poll_until_finished(cls, response, average_duration=60))
 
 
 class TripoP1ImageToModelNode(IO.ComfyNode):
@@ -1247,7 +1288,7 @@ class TripoP1ImageToModelNode(IO.ComfyNode):
             response_model=TripoTaskResponse,
             data=request,
         )
-        return await poll_until_finished(cls, response, average_duration=60)
+        return glb_output(*await poll_until_finished(cls, response, average_duration=60))
 
 
 class TripoP1MultiviewToModelNode(IO.ComfyNode):
@@ -1334,7 +1375,7 @@ class TripoP1MultiviewToModelNode(IO.ComfyNode):
             response_model=TripoTaskResponse,
             data=request,
         )
-        return await poll_until_finished(cls, response, average_duration=80)
+        return glb_output(*await poll_until_finished(cls, response, average_duration=80))
 
 
 class TripoExtension(ComfyExtension):
