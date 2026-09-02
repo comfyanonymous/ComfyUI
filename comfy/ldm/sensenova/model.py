@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import comfy.model_management
 import comfy.patcher_extension
 import comfy.utils
 from comfy.ldm.common_dit import pad_to_patch_size
@@ -323,7 +322,13 @@ class Attention(nn.Module):
         return self.o_proj_mot_gen(output)
 
     def forward_decode(
-        self, hidden_states, rope, prefix_key, prefix_value, transformer_options
+        self,
+        hidden_states,
+        rope,
+        prefix_key,
+        prefix_value,
+        transformer_options,
+        attention_mask=None,
     ):
         query, key, value = self._project(hidden_states, rope, False)
         key = torch.cat((prefix_key, key), dim=2)
@@ -333,7 +338,7 @@ class Attention(nn.Module):
             key,
             value,
             NUM_HEADS,
-            mask=None,
+            mask=attention_mask,
             skip_reshape=True,
             transformer_options=transformer_options,
             enable_gqa=True,
@@ -386,7 +391,13 @@ class DecoderLayer(nn.Module):
         return image
 
     def forward_decode(
-        self, hidden_states, rope, prefix_key, prefix_value, transformer_options
+        self,
+        hidden_states,
+        rope,
+        prefix_key,
+        prefix_value,
+        transformer_options,
+        attention_mask=None,
     ):
         attention, key, value = self.self_attn.forward_decode(
             self.input_layernorm(hidden_states),
@@ -394,6 +405,7 @@ class DecoderLayer(nn.Module):
             prefix_key,
             prefix_value,
             transformer_options,
+            attention_mask,
         )
         hidden_states = hidden_states + attention
         hidden_states = hidden_states + self.mlp(
@@ -626,6 +638,81 @@ class SenseNovaU15(nn.Module):
             next_values.append(value)
         return hidden_states, next_keys, next_values, prefix_time + 1
 
+    def append_interleave_image(
+        self,
+        image,
+        prefix_keys,
+        prefix_values,
+        prefix_time,
+        transformer_options=None,
+    ):
+        image = image * 0.5 + 0.5
+        mean = image.new_tensor((0.485, 0.456, 0.406)).view(1, 3, 1, 1)
+        std = image.new_tensor((0.229, 0.224, 0.225)).view(1, 3, 1, 1)
+        image = _pad_to_merged_patch_size((image - mean) / std)
+        image_embeds = self.vision_model(image)
+        batch, image_length, _ = image_embeds.shape
+        image_end = torch.full(
+            (batch, 1), 151671, dtype=torch.long, device=image.device
+        )
+        hidden_states = torch.cat(
+            (image_embeds, self.language_model.model.embed_tokens(image_end)), dim=1
+        )
+
+        token_width = image.shape[-1] // MERGED_PATCH_SIZE
+        positions = torch.arange(image_length, device=image.device)
+        image_time = prefix_time[:, None].expand(batch, image_length)
+        end_time = prefix_time[:, None] + 1
+        zeros = torch.zeros((batch, 1), dtype=torch.long, device=image.device)
+        indexes = torch.stack(
+            (
+                torch.cat((image_time, end_time), dim=1),
+                torch.cat(
+                    (
+                        (positions // token_width)[None].expand(batch, image_length),
+                        zeros,
+                    ),
+                    dim=1,
+                ),
+                torch.cat(
+                    (
+                        (positions % token_width)[None].expand(batch, image_length),
+                        zeros,
+                    ),
+                    dim=1,
+                ),
+            )
+        )
+        rope = _prepare_mrope(indexes, hidden_states.device, hidden_states.dtype)
+        target_length = image_length + 1
+        past_length = prefix_keys[0].shape[2]
+        attention_mask = torch.zeros(
+            (batch, 1, target_length, past_length + target_length),
+            dtype=hidden_states.dtype,
+            device=hidden_states.device,
+        )
+        attention_mask[:, :, :image_length, past_length + image_length] = float(
+            "-inf"
+        )
+
+        if transformer_options is None:
+            transformer_options = {}
+        next_keys = []
+        next_values = []
+        for layer_index, layer in enumerate(self.language_model.model.layers):
+            transformer_options["block_index"] = layer_index
+            hidden_states, key, value = layer.forward_decode(
+                hidden_states,
+                rope,
+                prefix_keys[layer_index],
+                prefix_values[layer_index],
+                transformer_options,
+                attention_mask,
+            )
+            next_keys.append(key)
+            next_values.append(value)
+        return hidden_states, next_keys, next_values, prefix_time + 2
+
     def preprocess_thinking_prefix(
         self,
         text_input_ids,
@@ -634,6 +721,8 @@ class SenseNovaU15(nn.Module):
         prefix_mask=None,
         max_think_tokens=1024,
         transformer_options=None,
+        progress=None,
+        interrupt=None,
     ):
         if not self.has_lm_head:
             raise RuntimeError(
@@ -654,11 +743,9 @@ class SenseNovaU15(nn.Module):
         )
         next_token = self._next_text_token(hidden_states)
         closed_thinking = False
-        progress = comfy.utils.ProgressBar(max_think_tokens)
-        for step in comfy.utils.model_trange(
-            max_think_tokens, desc="SenseNova thinking"
-        ):
-            comfy.model_management.throw_exception_if_processing_interrupted()
+        for step in range(max_think_tokens):
+            if interrupt is not None:
+                interrupt()
             token_id = int(next_token.item())
             if token_id == EOS_TOKEN_ID:
                 break
@@ -671,7 +758,8 @@ class SenseNovaU15(nn.Module):
                     transformer_options,
                 )
             )
-            progress.update_absolute(step + 1)
+            if progress is not None:
+                progress(step + 1)
             if token_id == THINK_END_TOKEN_ID:
                 closed_thinking = True
                 break

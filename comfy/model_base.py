@@ -82,6 +82,7 @@ from comfy.ldm.sensenova.sampling import SenseNovaModelSampling, time_snr_shift
 import comfy.ldm.depth_anything_3.model
 
 import comfy.model_management
+import comfy.utils
 import comfy.patcher_extension
 import comfy.conds
 import comfy.ops
@@ -2369,6 +2370,12 @@ class SenseNovaU15(BaseModel):
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
+        prefix_keys = kwargs.get("prefix_keys")
+        if prefix_keys is not None:
+            out["prefix_keys"] = SenseNovaSharedList(prefix_keys)
+            out["prefix_values"] = SenseNovaSharedList(kwargs["prefix_values"])
+            out["prefix_time"] = SenseNovaSharedRegular(kwargs["prefix_time"])
+            return out
         text_input_ids = kwargs.get("text_input_ids")
         if text_input_ids is not None:
             device = kwargs["device"]
@@ -2414,12 +2421,16 @@ class SenseNovaU15(BaseModel):
                     else None,
                 )
                 if thinking:
+                    max_think_tokens = int(
+                        kwargs.get("sensenova_max_think_tokens", 1024)
+                    )
+                    progress = comfy.utils.ProgressBar(max_think_tokens)
                     prefix_keys, prefix_values, prefix_time = (
                         self.diffusion_model.preprocess_thinking_prefix(
                             *prefix_args,
-                            max_think_tokens=int(
-                                kwargs.get("sensenova_max_think_tokens", 1024)
-                            ),
+                            max_think_tokens=max_think_tokens,
+                            progress=progress.update_absolute,
+                            interrupt=comfy.model_management.throw_exception_if_processing_interrupted,
                         )
                     )
                 else:
