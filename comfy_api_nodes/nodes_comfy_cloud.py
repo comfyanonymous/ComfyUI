@@ -135,6 +135,9 @@ def _validated_output_url(url: str) -> str:
     # the URL is backend-supplied, so this is defence in depth, but the asymmetry with the Go
     # side is free to close and an unpinned host check is the kind of thing that quietly stops
     # being true.
+    # normpath before trusting that segment: a client resolves dot segments before it
+    # sends the request, so ".../comfy-cloud-assets/../other/x.png" advertises an allowed
+    # bucket here and fetches from another one on the wire.
     bucket = decoded_path.lstrip("/").split("/", 1)[0]
     is_signed_https_url = (
         parsed.scheme == "https"
@@ -142,6 +145,7 @@ def _validated_output_url(url: str) -> str:
         and parsed.port is None
         and parsed.username is None
         and parsed.password is None
+        and posixpath.normpath(decoded_path) == decoded_path
         and bucket in _OUTPUT_BUCKETS
     )
     if not is_proxy_path and not is_signed_https_url:
@@ -202,6 +206,11 @@ def _validate_node_inputs(cls: type[IO.ComfyNode], values: dict) -> dict:
         value = values[input_spec.id]
         io_type = input_spec.get_io_type()
         if io_type == "STRING":
+            # Every widget here has socketless=False, so a graph can link any output into
+            # a text input. Name the field like the branches below rather than letting
+            # .strip() raise AttributeError.
+            if not isinstance(value, str):
+                raise ValueError(f"{input_spec.id} must be a string.")
             value = value.strip()
             minimum, maximum = _TEXT_LIMITS.get(input_spec.id, (0, None))
             validate_string(
@@ -853,9 +862,6 @@ class ComfyCloudWan22FirstLastFrameNode(IO.ComfyNode):
         first_url = await upload_image_to_comfyapi(cls, first_frame, wait_label="Uploading first frame")
         last_url = await upload_image_to_comfyapi(cls, last_frame, wait_label="Uploading last frame")
         return await _run_video_workflow(cls, "video.wan-2-2-14b-first-last-frame.v1", ComfyCloudWorkflowInputs(prompt=prompt, negative_prompt=negative_prompt, first_frame_url=first_url, last_frame_url=last_url, duration_seconds=duration_seconds, seed=seed))
-
-
-_UINT32_MAX = 0xFFFFFFFF
 
 
 def _audio_duration(audio: Input.Audio) -> float:

@@ -427,8 +427,20 @@ def test_all_linkable_widget_constraints_are_validated():
                 nodes_comfy_cloud._validate_node_inputs(node, {input_spec.id: invalid})
 
 
+def test_text_inputs_name_the_field_when_a_linked_value_is_not_a_string():
+    """_with_input_sockets clears socketless on every widget, so a graph can link an INT
+    output into a text input. That must name the field, not raise AttributeError."""
+    with pytest.raises(ValueError, match="prompt"):
+        nodes_comfy_cloud._validate_node_inputs(
+            nodes_comfy_cloud.ComfyCloudTextToImageNode, {"prompt": 7}
+        )
+
+
 def test_upload_inputs_have_decoded_resource_limits():
     oversized_image = torch.empty((1, 8193, 1, 3), device="meta")
+    # Under 8192 per side, so this is the only case that reaches the pixel-count branch;
+    # the error text names both limits, so oversized_image alone would match either way.
+    oversized_pixels = torch.empty((1, 8000, 5000, 3), device="meta")
     oversized_audio = {
         "waveform": torch.empty((1, 2, nodes_comfy_cloud._MAX_DECODED_AUDIO_BYTES // 8 + 1), device="meta"),
         "sample_rate": 48000,
@@ -436,6 +448,8 @@ def test_upload_inputs_have_decoded_resource_limits():
 
     with pytest.raises(ValueError, match="32-megapixel"):
         nodes_comfy_cloud._validate_image_upload(oversized_image)
+    with pytest.raises(ValueError, match="32-megapixel"):
+        nodes_comfy_cloud._validate_image_upload(oversized_pixels)
     with pytest.raises(ValueError, match="256 MiB"):
         nodes_comfy_cloud._validate_audio_upload(oversized_audio)
 
@@ -648,7 +662,11 @@ def test_every_node_is_named_for_its_provider():
 @pytest.mark.parametrize(
     "bucket",
     ["comfy-cloud", "comfy-cloud-assets-evil", "example", "comfy-cloud-assets.evil.com",
-     "partner-nodes-assets-evil", "partner-nodes"],
+     "partner-nodes-assets-evil", "partner-nodes",
+     # Advertises an allowed bucket in the first segment and resolves to another one.
+     # A client resolves dot segments before it sends the request, so the allowlist has
+     # to be applied to the normalized path, not to the segment as written.
+     "comfy-cloud-assets/../other-bucket", "comfy-cloud-assets/%2e%2e/other-bucket"],
 )
 def test_output_urls_outside_the_backend_bucket_allowlist_are_rejected(bucket):
     """The output URL is backend-supplied, so this is defence in depth -- but the host check
