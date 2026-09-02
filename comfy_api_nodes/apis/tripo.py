@@ -71,6 +71,21 @@ class TripoSpec(str, Enum):
     TRIPO = "tripo"
 
 
+class TripoRigModelVersion(str, Enum):
+    v1_0_20240301 = "v1.0-20240301"
+    v2_5_20260210 = "v2.5-20260210"
+
+
+class TripoRigType(str, Enum):
+    BIPED = "biped"
+    QUADRUPED = "quadruped"
+    HEXAPOD = "hexapod"
+    OCTOPOD = "octopod"
+    AVIAN = "avian"
+    SERPENTINE = "serpentine"
+    AQUATIC = "aquatic"
+
+
 class TripoAnimation(str, Enum):
     IDLE = "preset:idle"
     WALK = "preset:walk"
@@ -238,9 +253,16 @@ class TripoTextureModelRequest(BaseModel):
     )
 
 
+class TripoAnimatePrerigcheckRequest(BaseModel):
+    type: TripoTaskType = Field(TripoTaskType.ANIMATE_PRERIGCHECK, description="Type of task")
+    original_model_task_id: str = Field(..., description="The task ID of the original model")
+
+
 class TripoAnimateRigRequest(BaseModel):
     type: TripoTaskType = Field(TripoTaskType.ANIMATE_RIG, description="Type of task")
     original_model_task_id: str = Field(..., description="The task ID of the original model")
+    model_version: TripoRigModelVersion | None = Field(None, description="Rigging model version")
+    rig_type: TripoRigType | None = Field(None, description="Skeleton type")
     out_format: TripoOutFormat | None = Field(TripoOutFormat.GLB, description="The output format")
     spec: TripoSpec | None = Field(TripoSpec.TRIPO, description="The specification for rigging")
 
@@ -336,6 +358,8 @@ class TripoTaskOutput(BaseModel):
     pbr_model: str | None = Field(None, description="URL to the PBR model")
     rendered_image: str | None = Field(None, description="URL to the rendered image")
     riggable: bool | None = Field(None, description="Whether the model is riggable")
+    rig_type: str | None = Field(None, description="Recommended rig type")
+    topology: str | None = Field(None, description="Legacy name of rig_type")
 
 
 class TripoTask(BaseModel):

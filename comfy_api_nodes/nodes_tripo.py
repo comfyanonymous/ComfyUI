@@ -5,6 +5,7 @@ from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension, Input, Types
 from comfy_api_nodes.apis.tripo import (
+    TripoAnimatePrerigcheckRequest,
     TripoAnimateRetargetRequest,
     TripoAnimateRigRequest,
     TripoConvertModelRequest,
@@ -15,9 +16,13 @@ from comfy_api_nodes.apis.tripo import (
     TripoModelVersion,
     TripoMultiviewToModelRequest,
     TripoOrientation,
+    TripoOutFormat,
     TripoP1ImageToModelRequest,
     TripoP1MultiviewToModelRequest,
     TripoP1TextToModelRequest,
+    TripoRigModelVersion,
+    TripoRigType,
+    TripoSpec,
     TripoStyle,
     TripoTaskResponse,
     TripoTaskStatus,
@@ -52,18 +57,17 @@ def get_model_url_from_response(response: TripoTaskResponse) -> str:
     raise RuntimeError(f"Failed to get model url from response: {response}")
 
 
-async def poll_until_finished(
+async def poll_task(
     node_cls: type[IO.ComfyNode],
     response: TripoTaskResponse,
     average_duration: int | None = None,
-) -> tuple[str, Types.File3D]:
-    """Polls the Tripo API endpoint until the task reaches a terminal state, then downloads the model."""
+) -> TripoTaskResponse:
+    """Polls the Tripo API endpoint until the task reaches a terminal state, then returns the response."""
     if response.code != 0:
-        raise RuntimeError(f"Failed to generate mesh: {response.error}")
-    task_id = response.data.task_id
+        raise RuntimeError(f"Failed to create Tripo task: {response}")
     response_poll = await poll_op(
         node_cls,
-        poll_endpoint=ApiEndpoint(path=f"/proxy/tripo/v2/openapi/task/{task_id}"),
+        poll_endpoint=ApiEndpoint(path=f"/proxy/tripo/v2/openapi/task/{response.data.task_id}"),
         response_model=TripoTaskResponse,
         completed_statuses=[TripoTaskStatus.SUCCESS],
         failed_statuses=[
@@ -78,10 +82,32 @@ async def poll_until_finished(
         estimated_duration=average_duration,
     )
     if response_poll.data.status != TripoTaskStatus.SUCCESS:
-        raise RuntimeError(f"Failed to generate mesh: {response_poll}")
+        raise RuntimeError(f"Tripo task failed: {response_poll}")
+    return response_poll
+
+
+async def poll_until_finished(
+    node_cls: type[IO.ComfyNode],
+    response: TripoTaskResponse,
+    average_duration: int | None = None,
+) -> tuple[str, Types.File3D]:
+    """Polls the Tripo API endpoint until the task reaches a terminal state, then downloads the model."""
+    response_poll = await poll_task(node_cls, response, average_duration)
+    task_id = response_poll.data.task_id
     url = get_model_url_from_response(response_poll)
     file_format = Path(urlparse(url).path).suffix.lstrip(".").lower() or "glb"
     return task_id, await download_url_to_file_3d(url, file_format, task_id=task_id)
+
+
+async def check_riggable(node_cls: type[IO.ComfyNode], model_task_id: str) -> tuple[bool, str]:
+    response = await sync_op(
+        node_cls,
+        endpoint=ApiEndpoint(path="/proxy/tripo/v2/openapi/task", method="POST"),
+        response_model=TripoTaskResponse,
+        data=TripoAnimatePrerigcheckRequest(original_model_task_id=model_task_id),
+    )
+    output = (await poll_task(node_cls, response, average_duration=5)).data.output
+    return bool(output.riggable), output.rig_type or output.topology or ""
 
 
 async def upload_image_reference(node_cls: type[IO.ComfyNode], image: Input.Image) -> TripoFileReference:
@@ -755,11 +781,43 @@ class TripoRigNode(IO.ComfyNode):
             node_id="TripoRigNode",
             display_name="Tripo: Rig model",
             category="partner/3d/Tripo",
-            inputs=[IO.Custom("MODEL_TASK_ID").Input("original_model_task_id")],
+            inputs=[
+                IO.Custom("MODEL_TASK_ID").Input("original_model_task_id"),
+                IO.Combo.Input(
+                    "model_version",
+                    options=TripoRigModelVersion,
+                    default=TripoRigModelVersion.v1_0_20240301,
+                    optional=True,
+                    tooltip="v1.0: humanoid (biped) characters only, 90+ animation presets. "
+                    "v2.5: non-humanoid creatures (quadruped, hexapod, octopod, avian, serpentine, aquatic).",
+                ),
+                IO.Combo.Input(
+                    "rig_type",
+                    options=["auto", *[t.value for t in TripoRigType]],
+                    default="auto",
+                    optional=True,
+                    tooltip="Skeleton type. 'auto' runs Tripo's free rig check first and uses the recommended type.",
+                ),
+                IO.Combo.Input(
+                    "spec",
+                    options=TripoSpec,
+                    default=TripoSpec.TRIPO,
+                    optional=True,
+                    tooltip="Bone naming: Tripo native or Mixamo-compatible.",
+                ),
+                IO.Combo.Input(
+                    "out_format",
+                    options=TripoOutFormat,
+                    default=TripoOutFormat.GLB,
+                    optional=True,
+                    tooltip="Output file format; the result arrives on the matching output.",
+                ),
+            ],
             outputs=[
                 IO.String.Output(display_name="model_file"),  # for backward compatibility only
                 IO.Custom("RIG_TASK_ID").Output(display_name="rig task_id"),
-                IO.File3DGLB.Output(display_name="GLB"),
+                IO.File3DGLB.Output(display_name="GLB", tooltip="Populated when out_format is glb."),
+                IO.File3DFBX.Output(display_name="FBX", tooltip="Populated when out_format is fbx."),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
@@ -774,14 +832,33 @@ class TripoRigNode(IO.ComfyNode):
         )
 
     @classmethod
-    async def execute(cls, original_model_task_id) -> IO.NodeOutput:
+    async def execute(
+        cls,
+        original_model_task_id,
+        model_version: str = "v1.0-20240301",
+        rig_type: str = "auto",
+        spec: str = "tripo",
+        out_format: str = "glb",
+    ) -> IO.NodeOutput:
+        if rig_type == "auto":
+            riggable, rig_type = await check_riggable(cls, original_model_task_id)
+            if not riggable:
+                raise ValueError("Tripo reports that this model cannot be rigged.")
+        if rig_type != "biped" and model_version == "v1.0-20240301":
+            raise ValueError(f"Rig model v1.0-20240301 only supports biped skeletons; use v2.5-20260210 for {rig_type}.")
         response = await sync_op(
             cls,
             endpoint=ApiEndpoint(path="/proxy/tripo/v2/openapi/task", method="POST"),
             response_model=TripoTaskResponse,
-            data=TripoAnimateRigRequest(original_model_task_id=original_model_task_id, out_format="glb", spec="tripo"),
+            data=TripoAnimateRigRequest(
+                original_model_task_id=original_model_task_id,
+                model_version=model_version,
+                rig_type=rig_type,
+                out_format=out_format,
+                spec=spec,
+            ),
         )
-        return glb_output(*await poll_until_finished(cls, response, average_duration=180))
+        return glb_or_fbx_output(*await poll_until_finished(cls, response, average_duration=180))
 
 
 class TripoRetargetNode(IO.ComfyNode):
