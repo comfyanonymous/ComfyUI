@@ -392,6 +392,11 @@ def prompt_worker(q, server_instance):
             lease_acquired = False
             start_hook = server_instance.prompt_execution_start_hook
             if start_hook is not None:
+                # This prompt is now the running item. An interrupt raised while it
+                # waits for its execution lease belongs to it: reset the flag here so
+                # a late interrupt of the previous prompt cannot leak onto this one,
+                # then honour any interrupt observed once the lease is granted.
+                nodes.interrupt_processing(False)
                 try:
                     asyncio.run_coroutine_threadsafe(
                         start_hook({"prompt_id": prompt_id, "sensitive": sensitive}),
@@ -408,6 +413,25 @@ def prompt_worker(q, server_instance):
                                     status_str='error',
                                     completed=False,
                                     messages=['lease_refused']),
+                                process_item=lambda prompt: prompt[:5] + prompt[6:])
+                    continue
+                if comfy.model_management.processing_interrupted():
+                    # Interrupted before execution: release the lease without running
+                    # the graph and record the prompt as interrupted.
+                    nodes.interrupt_processing(False)
+                    logging.info("Prompt %s interrupted while waiting for its execution lease", prompt_id)
+                    complete_hook = server_instance.prompt_execution_complete_hook
+                    if complete_hook is not None:
+                        asyncio.run_coroutine_threadsafe(
+                            complete_hook({"prompt_id": prompt_id, "sensitive": sensitive}),
+                            server_instance.loop,
+                        ).result()
+                    q.task_done(item_id,
+                                {},
+                                status=execution.PromptQueue.ExecutionStatus(
+                                    status_str='error',
+                                    completed=False,
+                                    messages=['interrupted_before_execution']),
                                 process_item=lambda prompt: prompt[:5] + prompt[6:])
                     continue
 
