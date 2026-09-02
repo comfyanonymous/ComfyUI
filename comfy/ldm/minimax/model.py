@@ -167,6 +167,7 @@ class Attention(nn.Module):
         self.out_proj = operations.Linear(inner, hidden, bias=False, dtype=dtype, device=device)
 
     def forward(self, x, rope_freqs=None, transformer_options={}):
+        patches = transformer_options.get("patches", {})
         s = x.shape[0]
         q, k, v = self.qkv_proj(x).split(self.heads * self.head_dim, dim=-1)
         v = v.view(s, self.heads, self.head_dim)
@@ -188,11 +189,43 @@ class Attention(nn.Module):
         else:
             q = self.q_norm(q.view(s, self.heads, self.head_dim))
             k = self.k_norm(k.view(s, self.heads, self.head_dim))
+        extra_options = None
+        if "attn1_patch" in patches or "attn1_output_patch" in patches:
+            extra_options = {
+                key: value
+                for key, value in transformer_options.items()
+                if key not in ("patches", "patches_replace")
+            }
+            extra_options["n_heads"] = self.heads
+            extra_options["dim_head"] = self.head_dim
+
         v = v.clone()
-        q = AttentionTensorContainer(q.transpose(0, 1).unsqueeze(0))
-        k = AttentionTensorContainer(k.transpose(0, 1).unsqueeze(0))
-        v = AttentionTensorContainer(v.transpose(0, 1).unsqueeze(0))
+        if "attn1_patch" in patches:
+            q = q.reshape(1, s, -1)
+            k = k.reshape(1, s, -1)
+            v = v.reshape(1, s, -1)
+            for p in patches["attn1_patch"]:
+                out = p(q, k, v, extra_options=extra_options)
+                if isinstance(out, dict):
+                    q, k, v = out.get("q", q), out.get("k", k), out.get("v", v)
+                else:
+                    q, k, v = out
+            q = q.view(q.shape[0], q.shape[1], self.heads, self.head_dim).transpose(1, 2)
+            k = k.view(k.shape[0], k.shape[1], self.heads, self.head_dim).transpose(1, 2)
+            v = v.view(v.shape[0], v.shape[1], self.heads, self.head_dim).transpose(1, 2)
+        else:
+            q = q.transpose(0, 1).unsqueeze(0)
+            k = k.transpose(0, 1).unsqueeze(0)
+            v = v.transpose(0, 1).unsqueeze(0)
+        q = AttentionTensorContainer(q)
+        k = AttentionTensorContainer(k)
+        v = AttentionTensorContainer(v)
         out = optimized_attention(q, k, v, self.heads, mask=None, skip_reshape=True, transformer_options=transformer_options)
+
+        if "attn1_output_patch" in patches:
+            for p in patches["attn1_output_patch"]:
+                out = p(out, extra_options)
+
         return self.out_proj(out.squeeze(0))
 
 
@@ -723,7 +756,10 @@ class MiniMaxH3Model(nn.Module):
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
         prefetch_queue = comfy.model_prefetch.make_prefetch_queue(list(self.blocks), device, transformer_options)
+        transformer_options["total_blocks"] = len(self.blocks)
+        transformer_options["block_type"] = "double"
         for i, block in enumerate(self.blocks):
+            transformer_options["block_index"] = i
             comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, device, block)
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
