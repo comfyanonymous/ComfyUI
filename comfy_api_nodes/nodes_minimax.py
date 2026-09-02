@@ -469,8 +469,7 @@ HAILUO_03_REGENERATION_ENDPOINT = "/proxy/minimax/v2/video_regeneration"
 HAILUO_03_MAX_MODEL = "MiniMax H3 Max"
 HAILUO_03_MAX_ENDPOINT = "/proxy/fal/minimax/h3-max"
 HAILUO_03_MAX_PROMPT_MAX_LENGTH = 50000
-HAILUO_03_MAX_REFERENCE_IMAGE_MAX_LONG_SIDE = 2048
-HAILUO_03_MAX_REFERENCE_IMAGE_MAX_SHORT_SIDE = 1024
+HAILUO_03_MAX_REFERENCE_IMAGE_MAX_SIDES = {"high": (5120, 2048), "standard": (2048, 1024)}
 
 
 def _hailuo03_model_inputs(include_ratio: bool = True, allow_adaptive: bool = True):
@@ -946,10 +945,9 @@ class MinimaxHailuo03ReferenceNode(IO.ComfyNode):
                                     "reference_detail",
                                     options=["high", "standard"],
                                     default="high",
-                                    tooltip="Detail level at which reference images are sent. 'high' keeps them at "
-                                    "full size for the closest adherence at a higher reference cost; 'standard' "
-                                    "downsizes them to at most 2048x1024, which is cheaper but may follow the "
-                                    "references less closely.",
+                                    tooltip="Detail level at which reference images are sent. 'high' sends them at "
+                                    "the largest size the model uses (up to a 2048 pixel short side); "
+                                    "'standard' downsizes them to at most 2048x1024 to reduce the reference cost.",
                                 ),
                                 *_hailuo03_reference_inputs(),
                             ],
@@ -1090,17 +1088,19 @@ class MinimaxHailuo03ReferenceNode(IO.ComfyNode):
             validate_string(model["prompt"], strip_whitespace=False, max_length=HAILUO_03_MAX_PROMPT_MAX_LENGTH)
             if len(reference_images) + len(reference_videos) + len(reference_audios) > 12:
                 raise ValueError("MiniMax H3 Max accepts at most 12 reference files in total.")
-            if model["reference_detail"] == "standard":
-                reference_images = {
-                    key: downscale_image_tensor_by_max_sides(
-                        image,
-                        max_long_side=HAILUO_03_MAX_REFERENCE_IMAGE_MAX_LONG_SIDE,
-                        max_short_side=HAILUO_03_MAX_REFERENCE_IMAGE_MAX_SHORT_SIDE,
-                    )
-                    for key, image in reference_images.items()
-                }
+            max_long_side, max_short_side = HAILUO_03_MAX_REFERENCE_IMAGE_MAX_SIDES[model["reference_detail"]]
             reference_image_urls = [
-                (await upload_images_to_comfyapi(cls, image, max_images=1, wait_label=f"Uploading image {i}"))[0]
+                (
+                    await upload_images_to_comfyapi(
+                        cls,
+                        downscale_image_tensor_by_max_sides(
+                            image, max_long_side=max_long_side, max_short_side=max_short_side
+                        ),
+                        max_images=1,
+                        total_pixels=None,
+                        wait_label=f"Uploading image {i}",
+                    )
+                )[0]
                 for i, image in enumerate(reference_images.values(), 1)
             ]
             reference_video_urls = [
