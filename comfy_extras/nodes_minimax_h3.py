@@ -312,6 +312,7 @@ class MiniMaxH3ReferenceToVideo(io.ComfyNode):
 
         ref_items = []   # for the tokenizer presentation, in request order
         ref_blocks = []  # VAE-enabled subset for the DiT payload, in request order
+        picture_index = 0
 
         for ref_image in (ref_images or {}).values():
             if ref_image is None:
@@ -330,7 +331,9 @@ class MiniMaxH3ReferenceToVideo(io.ComfyNode):
             ref_items.append({"type": "image", "data": resized})
             if vae is not None and not text_encoder_only:
                 z = vae.encode(resized)
-                ref_blocks.append({"kind": "image", "latent_h": th // 16, "latent_w": tw // 16, "latent": z})
+                ref_blocks.append({"kind": "image", "picture_index": picture_index,
+                                   "latent_h": th // 16, "latent_w": tw // 16, "latent": z})
+            picture_index += 1
 
         ref_video_audios = ref_video_audios or {}
         for name, video_frames in (ref_videos or {}).items():

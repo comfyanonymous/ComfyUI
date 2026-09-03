@@ -4,6 +4,7 @@ from comfy.cli_args import args
 
 args.cpu = True
 
+from comfy.ldm.minimax.model import PackedLayout
 from comfy_extras import nodes_minimax_h3
 
 
@@ -61,18 +62,28 @@ def test_marked_reference_skips_vae_but_still_reaches_text_encoder(monkeypatch):
         width=32,
         height=32,
         length=5,
-        ref_images={"ref_image_0": plain_image, "ref_image_1": marked_reference},
+        ref_images={"ref_image_0": marked_reference, "ref_image_1": plain_image},
     )
 
     assert clip.prompt == "test"
     assert len(clip.ref_items) == 2
-    assert torch.equal(clip.ref_items[0]["data"], plain_image)
-    assert torch.equal(clip.ref_items[1]["data"], marked_image)
+    assert torch.equal(clip.ref_items[0]["data"], marked_image)
+    assert torch.equal(clip.ref_items[1]["data"], plain_image)
     assert len(vae.images) == 1
     assert torch.equal(vae.images[0], plain_image)
     refs = output.result[0][0][1]["minimax_refs"]
     assert len(refs) == 1
     assert refs[0]["kind"] == "image"
+    assert refs[0]["picture_index"] == 1
+
+
+def test_vae_reference_keeps_position_after_marked_reference():
+    refs = [{"kind": "image", "picture_index": 1, "latent_h": 2, "latent_w": 2}]
+
+    layout = PackedLayout(text_len=8, latent_t=1, latent_h=2, latent_w=2, audio_t=1, refs=refs)
+
+    ref_start = next(start for start, _, kind in layout.segments if kind == "ref_img")
+    assert layout.position_ids[ref_start, 0] == 9
 
 
 def test_no_vae_keeps_all_references_text_encoder_only(monkeypatch):
