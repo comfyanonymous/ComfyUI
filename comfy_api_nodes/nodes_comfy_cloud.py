@@ -251,6 +251,14 @@ _ASPECT_DIMENSIONS = {
 }
 _VIDEO_RESOLUTIONS = ["480p", "720p"]
 _LTX_RESOLUTIONS = ["1280x720", "960x960", "720x1280"]
+# Weight pickers. Keys, not filenames: cloud holds the file each key maps to.
+_Z_IMAGE_MODELS = ["bf16", "int8", "nvfp4"]
+_FLUX2_MODELS = ["dev-fp8", "dev-bf16"]
+_FLUX2_LORAS = [
+    "turbo", "turbo-v2", "analog-film", "berthe-morisot", "boring-reality",
+    "chatgpt-4o", "detailed-portraits", "manga-posters", "neo-victorian",
+    "soares", "spy-world-50s", "ultrareal",
+]
 _UINT64_MAX = 0xFFFFFFFFFFFFFFFF
 _NEGATIVE_PROMPT_TOOLTIP = "Leave empty to keep the negative prompt this pipeline was tuned with."
 
@@ -288,6 +296,10 @@ def _tuning_input(
     return IO.Float.Input(
         name, default=default, min=0.0, max=maximum, step=step, advanced=True, tooltip=tooltip
     )
+
+
+def _weights_input(name: str, options: list[str], tooltip: str) -> IO.Combo.Input:
+    return IO.Combo.Input(name, options=options, default=options[0], advanced=True, tooltip=tooltip)
 
 
 def _video_resolution_input() -> IO.Combo.Input:
@@ -458,9 +470,9 @@ class ComfyCloudFlux2TextToImageNode(IO.ComfyNode):
     node_id = "ComfyCloudFlux2TextToImageNode"
     display_name = "Comfy Cloud Flux 2 Text to Image"
     summary = (
-        "Generates an image from a text prompt with Flux 2 dev. Turbo swaps in the Flux 2 Turbo "
-        "LoRA and a short schedule, trading a little fidelity for a much quicker run; switch it "
-        "off for the full-length dev pass."
+        "Generates an image from a text prompt with Flux 2 dev. Turbo swaps in the chosen LoRA "
+        "and a short schedule, trading a little fidelity for a much quicker run; switch it off "
+        "for the full-length dev pass with no LoRA."
     )
 
     @classmethod
@@ -473,9 +485,21 @@ class ComfyCloudFlux2TextToImageNode(IO.ComfyNode):
                 IO.Boolean.Input(
                     "turbo",
                     default=True,
-                    tooltip="Run the Turbo LoRA at turbo_steps instead of the full dev pass.",
+                    tooltip="Run the chosen LoRA at turbo_steps instead of the full dev pass.",
                 ),
                 _seed_input(),
+                _weights_input(
+                    "model",
+                    _FLUX2_MODELS,
+                    "Flux 2 dev precision. fp8 loads quicker; bf16 is the full-range weights.",
+                ),
+                _weights_input(
+                    "lora",
+                    _FLUX2_LORAS,
+                    "LoRA to apply, loaded only while turbo is on; switch turbo off to run dev "
+                    "with no LoRA at all. The two turbo entries are trained for the short "
+                    "turbo_steps schedule, so a style entry wants turbo_steps raised toward steps.",
+                ),
                 _steps_input(20, 100, tooltip="Steps for the full dev pass, used when turbo is off."),
                 _steps_input(8, 50, name="turbo_steps", tooltip="Steps for the Turbo LoRA pass."),
                 _tuning_input("turbo_strength", 1.0, 2.0, step=0.05),
@@ -490,6 +514,8 @@ class ComfyCloudFlux2TextToImageNode(IO.ComfyNode):
         aspect_ratio: str = "1:1",
         turbo: bool = True,
         seed: int = 42,
+        model: str = "dev-fp8",
+        lora: str = "turbo",
         steps: int = 20,
         turbo_steps: int = 8,
         turbo_strength: float = 1.0,
@@ -501,8 +527,9 @@ class ComfyCloudFlux2TextToImageNode(IO.ComfyNode):
             cls,
             "flux-2/text-to-image",
             ComfyCloudWorkflowInputs(
-                prompt=prompt, width=width, height=height, turbo=turbo, seed=seed, steps=steps,
-                turbo_steps=turbo_steps, turbo_strength=turbo_strength, guidance=guidance,
+                prompt=prompt, width=width, height=height, turbo=turbo, seed=seed, model=model,
+                lora=lora, steps=steps, turbo_steps=turbo_steps, turbo_strength=turbo_strength,
+                guidance=guidance,
             ),
         )
 
@@ -523,6 +550,12 @@ class ComfyCloudZImageTurboNode(IO.ComfyNode):
                 _prompt_input(),
                 _aspect_ratio_input(),
                 _seed_input(),
+                _weights_input(
+                    "model",
+                    _Z_IMAGE_MODELS,
+                    "Checkpoint precision. int8 and nvfp4 are quantised and load quicker; bf16 "
+                    "is the reference weights.",
+                ),
                 _steps_input(8, 50),
                 _tuning_input("shift", 3.0, 20.0),
             ],
@@ -534,6 +567,7 @@ class ComfyCloudZImageTurboNode(IO.ComfyNode):
         prompt: str,
         aspect_ratio: str = "1:1",
         seed: int = 42,
+        model: str = "bf16",
         steps: int = 8,
         shift: float = 3.0,
     ) -> IO.NodeOutput:
@@ -543,7 +577,8 @@ class ComfyCloudZImageTurboNode(IO.ComfyNode):
             cls,
             "z-image-turbo/text-to-image",
             ComfyCloudWorkflowInputs(
-                prompt=prompt, width=width, height=height, seed=seed, steps=steps, shift=shift
+                prompt=prompt, width=width, height=height, seed=seed, model=model, steps=steps,
+                shift=shift,
             ),
         )
 

@@ -39,6 +39,8 @@ class ComfyCloudWorkflowInputs(BaseModel):
     color_correction: str | None = Field(None)
     turbo: bool | None = Field(None)
     style_lora: bool | None = Field(None)
+    model: str | None = Field(None)
+    lora: str | None = Field(None)
     steps: int | None = Field(None, ge=1)
     turbo_steps: int | None = Field(None, ge=1)
     fast_steps: int | None = Field(None, ge=1)

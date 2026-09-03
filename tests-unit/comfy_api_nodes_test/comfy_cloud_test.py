@@ -270,21 +270,32 @@ CONTROLLED_IMAGE_NODES = [
     (
         nodes_comfy_cloud.ComfyCloudZImageTurboNode,
         "z-image-turbo/text-to-image",
-        ["prompt", "aspect_ratio", "seed", "steps", "shift"],
-        {"prompt": "A glass forest", "aspect_ratio": "16:9", "seed": 9, "steps": 10, "shift": 2.5},
-        {"prompt": "A glass forest", "width": 1344, "height": 768, "seed": 9, "steps": 10, "shift": 2.5},
+        ["prompt", "aspect_ratio", "seed", "model", "steps", "shift"],
+        {
+            "prompt": "A glass forest", "aspect_ratio": "16:9", "seed": 9, "model": "nvfp4",
+            "steps": 10, "shift": 2.5,
+        },
+        {
+            "prompt": "A glass forest", "width": 1344, "height": 768, "seed": 9, "model": "nvfp4",
+            "steps": 10, "shift": 2.5,
+        },
     ),
     (
         nodes_comfy_cloud.ComfyCloudFlux2TextToImageNode,
         "flux-2/text-to-image",
-        ["prompt", "aspect_ratio", "turbo", "seed", "steps", "turbo_steps", "turbo_strength", "guidance"],
+        [
+            "prompt", "aspect_ratio", "turbo", "seed", "model", "lora", "steps", "turbo_steps",
+            "turbo_strength", "guidance",
+        ],
         {
             "prompt": "A glass forest", "aspect_ratio": "1:1", "turbo": False, "seed": 9,
-            "steps": 24, "turbo_steps": 6, "turbo_strength": 0.8, "guidance": 4.5,
+            "model": "dev-bf16", "lora": "ultrareal", "steps": 24, "turbo_steps": 6,
+            "turbo_strength": 0.8, "guidance": 4.5,
         },
         {
             "prompt": "A glass forest", "width": 1024, "height": 1024, "turbo": False, "seed": 9,
-            "steps": 24, "turbo_steps": 6, "turbo_strength": 0.8, "guidance": 4.5,
+            "model": "dev-bf16", "lora": "ultrareal", "steps": 24, "turbo_steps": 6,
+            "turbo_strength": 0.8, "guidance": 4.5,
         },
     ),
 ]
@@ -370,6 +381,19 @@ def test_tuning_controls_are_hidden_behind_the_advanced_flag():
         ]
         assert set(plain) <= PLAIN_CONTROLS, f"{node.__name__} shows {sorted(set(plain) - PLAIN_CONTROLS)}"
         assert len(plain) <= 6, f"{node.__name__} opens with {len(plain)} controls"
+
+
+def test_weight_pickers_offer_keys_rather_than_filenames():
+    """Cloud maps each key to a filename it holds. If a key ever became the filename
+    itself the node would be handing the caller a free-text weight path."""
+    for options in (
+        nodes_comfy_cloud._Z_IMAGE_MODELS,
+        nodes_comfy_cloud._FLUX2_MODELS,
+        nodes_comfy_cloud._FLUX2_LORAS,
+    ):
+        assert len(options) == len(set(options))
+        for option in options:
+            assert "." not in option and "/" not in option, option
 
 
 def test_every_seed_starts_at_42_and_advances_after_a_run():
