@@ -1416,7 +1416,7 @@ class TripoConversionNode(IO.ComfyNode):
                     "texture_size",
                     default=4096,
                     min=128,
-                    max=4096,
+                    max=8192,
                     optional=True,
                     advanced=True,
                 ),
@@ -1431,38 +1431,53 @@ class TripoConversionNode(IO.ComfyNode):
                 IO.Boolean.Input("flatten_bottom", default=False, optional=True, advanced=True),
                 IO.Float.Input(
                     "flatten_bottom_threshold",
-                    default=0.0,
-                    min=0.0,
+                    default=0.01,
+                    min=0.01,
                     max=1.0,
                     optional=True,
                     advanced=True,
+                    tooltip="Flattening depth used with flatten_bottom.",
                 ),
                 IO.Boolean.Input("pivot_to_center_bottom", default=False, optional=True, advanced=True),
                 IO.Float.Input(
                     "scale_factor",
                     default=1.0,
-                    min=0.0,
+                    min=0.01,
                     optional=True,
                     advanced=True,
                 ),
-                IO.Boolean.Input("with_animation", default=False, optional=True, advanced=True),
+                IO.Boolean.Input(
+                    "with_animation",
+                    default=True,
+                    optional=True,
+                    advanced=True,
+                    tooltip="Keep the skeleton and animation of rigged or retargeted models.",
+                ),
                 IO.Boolean.Input("pack_uv", default=False, optional=True, advanced=True),
-                IO.Boolean.Input("bake", default=False, optional=True, advanced=True),
+                IO.Boolean.Input(
+                    "bake",
+                    default=True,
+                    optional=True,
+                    advanced=True,
+                    tooltip="Bake advanced materials into the base textures for broader compatibility.",
+                ),
                 IO.String.Input("part_names", default="", optional=True, advanced=True),  # comma-separated list
                 IO.Combo.Input(
                     "fbx_preset",
-                    options=["blender", "mixamo", "3dsmax"],
+                    options=["blender", "mixamo", "3dsmax", "bake_scale"],
                     default="blender",
                     optional=True,
                     advanced=True,
+                    tooltip="FBX compatibility preset. bake_scale bakes the scale transform into the geometry.",
                 ),
                 IO.Boolean.Input("export_vertex_colors", default=False, optional=True, advanced=True),
                 IO.Combo.Input(
                     "export_orientation",
-                    options=["align_image", "default"],
+                    options=["default", "+x", "-x", "+y", "-y"],
                     default="default",
                     optional=True,
                     advanced=True,
+                    tooltip="Forward axis of the exported model. default keeps Tripo's +x.",
                 ),
                 IO.Boolean.Input("animate_in_place", default=False, optional=True, advanced=True),
             ],
@@ -1488,7 +1503,6 @@ class TripoConversionNode(IO.ComfyNode):
                         "texture_size",
                         "texture_format",
                         "flatten_bottom",
-                        "flatten_bottom_threshold",
                         "pivot_to_center_bottom",
                         "scale_factor",
                     ],
@@ -1497,7 +1511,6 @@ class TripoConversionNode(IO.ComfyNode):
                 (
                     $face := (widgets.face_limit != null) ? widgets.face_limit : -1;
                     $texSize := (widgets.texture_size != null) ? widgets.texture_size : 4096;
-                    $flatThresh := (widgets.flatten_bottom_threshold != null) ? widgets.flatten_bottom_threshold : 0;
                     $scale := (widgets.scale_factor != null) ? widgets.scale_factor : 1;
                     $texFmt := (widgets.texture_format != "" ? widgets.texture_format : "jpeg");
                     $advanced :=
@@ -1506,7 +1519,6 @@ class TripoConversionNode(IO.ComfyNode):
                       widgets.pivot_to_center_bottom or
                       ($face != -1) or
                       ($texSize != 4096) or
-                      ($flatThresh != 0) or
                       ($scale != 1) or
                       ($texFmt != "jpeg");
                     {"type":"usd","usd": ($advanced ? 0.1 : 0.05), "format": {"approximate": true}}
@@ -1514,14 +1526,6 @@ class TripoConversionNode(IO.ComfyNode):
                 """,
             ),
         )
-
-    @classmethod
-    def validate_inputs(cls, input_types):
-        # The min and max of input1 and input2 are still validated because
-        # we didn't take `input1` or `input2` as arguments
-        if input_types["original_model_task_id"] not in ("MODEL_TASK_ID", "RIG_TASK_ID", "RETARGET_TASK_ID", "SEGMENT_TASK_ID"):
-            return "original_model_task_id must be MODEL_TASK_ID, RIG_TASK_ID, RETARGET_TASK_ID or SEGMENT_TASK_ID type"
-        return True
 
     @classmethod
     async def execute(
@@ -1563,14 +1567,14 @@ class TripoConversionNode(IO.ComfyNode):
                 force_symmetry=force_symmetry if force_symmetry else None,
                 face_limit=face_limit if face_limit != -1 else None,
                 flatten_bottom=flatten_bottom if flatten_bottom else None,
-                flatten_bottom_threshold=flatten_bottom_threshold if flatten_bottom_threshold != 0.0 else None,
+                flatten_bottom_threshold=flatten_bottom_threshold if flatten_bottom else None,
                 texture_size=texture_size if texture_size != 4096 else None,
                 texture_format=texture_format if texture_format != "JPEG" else None,
                 pivot_to_center_bottom=pivot_to_center_bottom if pivot_to_center_bottom else None,
                 scale_factor=scale_factor if scale_factor != 1.0 else None,
-                with_animation=with_animation if with_animation else None,
+                with_animation=with_animation,
                 pack_uv=pack_uv if pack_uv else None,
-                bake=bake if bake else None,
+                bake=bake,
                 part_names=part_names_list,
                 fbx_preset=fbx_preset if fbx_preset != "blender" else None,
                 export_vertex_colors=export_vertex_colors if export_vertex_colors else None,

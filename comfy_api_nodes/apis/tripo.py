@@ -250,6 +250,14 @@ class TripoFbxPreset(str, Enum):
     BLENDER = "blender"
     MIXAMO = "mixamo"
     _3DSMAX = "3dsmax"
+    BAKE_SCALE = "bake_scale"
+
+
+class TripoExportOrientation(str, Enum):
+    PLUS_X = "+x"
+    MINUS_X = "-x"
+    PLUS_Y = "+y"
+    MINUS_Y = "-y"
 
 
 class TripoFileTokenReference(BaseModel):
@@ -444,7 +452,7 @@ class TripoConvertModelRequest(BaseModel):
     part_names: list[str] | None = Field(None, description="The names of the parts to include")
     fbx_preset: TripoFbxPreset | None = Field(None, description="The preset for the FBX export")
     export_vertex_colors: bool | None = Field(None, description="Whether to export the vertex colors")
-    export_orientation: TripoOrientation | None = Field(None, description="The orientation for the export")
+    export_orientation: TripoExportOrientation | None = Field(None, description="Forward axis of the exported model")
     animate_in_place: bool | None = Field(None, description="Whether to animate in place")
 
 
