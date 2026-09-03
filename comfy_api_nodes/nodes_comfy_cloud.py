@@ -263,9 +263,6 @@ _FLUX2_LORAS = [
 # ids are pointers: the model behind one is re-pointed over time and the id does
 # not change. A saved graph stores the key, so a key that named a model would
 # break every saved graph the day the pointer moved.
-_DEFAULT_MODELS = ["balanced", "quality"]
-_DEFAULT_EDIT_MODELS = ["balanced", "quality", "fast"]
-_DEFAULT_LORAS = ["balanced", "fast"]
 _UINT64_MAX = 0xFFFFFFFFFFFFFFFF
 _NEGATIVE_PROMPT_TOOLTIP = "Leave empty to keep the negative prompt this pipeline was tuned with."
 
@@ -453,85 +450,6 @@ class _ComfyCloudWorkflowNode(IO.ComfyNode):
         return await run(cls, cls.workflow, inputs)
 
 
-class ComfyCloudTextToImageNode(_ComfyCloudWorkflowNode):
-    workflow = "default/text-to-image"
-    node_id = "ComfyCloudTextToImageNode"
-    display_name = "Comfy Cloud Text to Image"
-    summary = (
-        "Generates an image from a text prompt. Comfy Cloud chooses the model and moves it to "
-        "a better one over time, so the graph keeps improving without you editing it. Turbo "
-        "trades a little fidelity for a run around ten times quicker."
-    )
-    category = "partner/image/Comfy Cloud"
-    requires_image = False
-    returns_video = False
-    turbo_tooltip = (
-        "Run the short accelerated schedule instead of the full one. Around ten times "
-        "quicker and correspondingly cheaper, for a small loss of detail."
-    )
-    model_options = _DEFAULT_MODELS
-    model_tooltip = (
-        "How much precision to spend on the weights. balanced is what this pipeline ships "
-        "with; quality is the full-range weights and costs more GPU-seconds."
-    )
-    lora_options = _DEFAULT_LORAS
-    lora_tooltip = (
-        "Which accelerator the turbo pass uses; it has no effect while turbo is off. "
-        "balanced is a four-step distillation, fast a two-step one."
-    )
-
-
-class ComfyCloudTextToVideoNode(_ComfyCloudWorkflowNode):
-    workflow = "default/text-to-video"
-    node_id = "ComfyCloudTextToVideoNode"
-    display_name = "Comfy Cloud Text to Video"
-    summary = (
-        "Generates a video from a text prompt. Comfy Cloud chooses the model and moves it to "
-        "a better one over time, so the graph keeps improving without you editing it."
-    )
-    category = "partner/video/Comfy Cloud"
-    requires_image = False
-    returns_video = True
-
-
-class ComfyCloudImageToVideoNode(_ComfyCloudWorkflowNode):
-    workflow = "default/image-to-video"
-    node_id = "ComfyCloudImageToVideoNode"
-    display_name = "Comfy Cloud Image to Video"
-    summary = (
-        "Animates a still image into a video. Comfy Cloud chooses the model and moves it to a "
-        "better one over time, so the graph keeps improving without you editing it."
-    )
-    category = "partner/video/Comfy Cloud"
-    requires_image = True
-    returns_video = True
-
-
-class ComfyCloudImageEditNode(_ComfyCloudWorkflowNode):
-    workflow = "default/image-edit"
-    node_id = "ComfyCloudImageEditNode"
-    display_name = "Comfy Cloud Image Edit"
-    summary = (
-        "Edits an image from a written instruction. Comfy Cloud chooses the model and moves "
-        "it to a better one over time, so the graph keeps improving without you editing it. "
-        "Turbo trades fidelity for a run around seven times quicker."
-    )
-    category = "partner/image/Comfy Cloud"
-    requires_image = True
-    returns_video = False
-    turbo_tooltip = (
-        "Run a four-step pass instead of the full forty-step one. Around seven times "
-        "quicker, and visibly softer: this pipeline has no accelerator behind the switch, "
-        "so the short schedule is the whole saving."
-    )
-    model_options = _DEFAULT_EDIT_MODELS
-    model_tooltip = (
-        "How much precision to spend on the weights. balanced is what this pipeline ships "
-        "with; quality is the full-range weights, fast a quantised build that loads and "
-        "runs quicker."
-    )
-
-
 class ComfyCloudFlux2TextToImageNode(IO.ComfyNode):
     node_id = "ComfyCloudFlux2TextToImageNode"
     display_name = "Comfy Cloud Flux 2 Text to Image"
@@ -710,10 +628,6 @@ class ComfyCloudExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
-            ComfyCloudTextToImageNode,
-            ComfyCloudTextToVideoNode,
-            ComfyCloudImageToVideoNode,
-            ComfyCloudImageEditNode,
             ComfyCloudMiniMaxH3TextSoundNode,
             ComfyCloudFlux2TextToImageNode,
             ComfyCloudZImageTurboNode,

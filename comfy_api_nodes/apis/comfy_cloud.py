@@ -5,10 +5,6 @@ from pydantic import BaseModel, Field, field_validator
 
 # Only the workflows this build ships. The backend serves more.
 ComfyCloudWorkflow = Literal[
-    "default/text-to-image",
-    "default/text-to-video",
-    "default/image-to-video",
-    "default/image-edit",
     "z-image-turbo/text-to-image",
     "flux-2/text-to-image",
     "minimax-h3/text-to-video",

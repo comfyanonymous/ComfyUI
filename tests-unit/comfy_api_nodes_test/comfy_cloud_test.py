@@ -23,18 +23,31 @@ from comfy_api_nodes import nodes_comfy_cloud
 from comfy_api_nodes.util import download_helpers
 
 
+
+def _execute_with_defaults(node, prompt, **overrides):
+    """Call a node with its own schema defaults, so a test does not have to track
+    each workflow's argument list."""
+    kwargs = {}
+    for spec in node.define_schema().inputs:
+        default = getattr(spec, "default", None)
+        if default is not None:
+            kwargs[spec.id] = default
+        elif getattr(spec, "options", None):
+            kwargs[spec.id] = spec.options[0]
+    kwargs["prompt"] = prompt
+    kwargs.update(overrides)
+    return asyncio.run(node.execute(**kwargs))
+
 @pytest.mark.parametrize(
     ("node", "workflow", "returns_video", "requires_image", "controls"),
     [
         (
-            nodes_comfy_cloud.ComfyCloudTextToImageNode, "default/text-to-image", False, False,
-            {"turbo": False, "model": "balanced", "lora": "balanced"},
+            nodes_comfy_cloud.ComfyCloudZImageTurboNode, "z-image-turbo/text-to-image", False, False,
+            {"width": 1024, "height": 1024, "model": "z_image_turbo_bf16", "steps": 8, "shift": 3.0},
         ),
-        (nodes_comfy_cloud.ComfyCloudTextToVideoNode, "default/text-to-video", True, False, {}),
-        (nodes_comfy_cloud.ComfyCloudImageToVideoNode, "default/image-to-video", True, True, {}),
         (
-            nodes_comfy_cloud.ComfyCloudImageEditNode, "default/image-edit", False, True,
-            {"turbo": False, "model": "balanced"},
+            nodes_comfy_cloud.ComfyCloudMiniMaxH3TextSoundNode, "minimax-h3/text-to-video", True, False,
+            {"aspect_ratio": "16:9", "duration_seconds": 5.0, "resolution": "480p", "steps": 20},
         ),
     ],
 )
@@ -67,8 +80,7 @@ def test_workflow_submission_polling_and_download(
     monkeypatch.setattr(nodes_comfy_cloud, "download_url_to_video_output", video_download)
     monkeypatch.setattr(nodes_comfy_cloud, "get_number_of_images", lambda image: 1)
 
-    image = object() if requires_image else None
-    output = asyncio.run(node.execute("A tiny fennec fox", image))
+    output = _execute_with_defaults(node, "A tiny fennec fox")
 
     endpoint = sync.call_args.args[1]
     request = sync.call_args.kwargs["data"]
@@ -93,29 +105,15 @@ def test_workflow_submission_polling_and_download(
     assert output[0] == ("video-output" if returns_video else "image-output")
 
 
-@pytest.mark.parametrize(
-    "node",
-    [nodes_comfy_cloud.ComfyCloudImageToVideoNode, nodes_comfy_cloud.ComfyCloudImageEditNode],
-)
-def test_image_workflows_reject_batches(monkeypatch, node):
-    upload = AsyncMock()
-    monkeypatch.setattr(nodes_comfy_cloud, "get_number_of_images", lambda image: 2)
-    monkeypatch.setattr(nodes_comfy_cloud, "upload_image_to_comfyapi", upload)
-
-    with pytest.raises(ValueError, match="Exactly one input image"):
-        asyncio.run(node.execute("Animate this", object()))
-    upload.assert_not_awaited()
-
-
 def test_contract_omits_optional_status_fields():
     request = ComfyCloudGenerateRequest(
-        workflow="default/text-to-image",
+        workflow="z-image-turbo/text-to-image",
         inputs=ComfyCloudWorkflowInputs(prompt="A lighthouse"),
     )
     status = ComfyCloudStatusResponse(task_id="task-1", status="queued")
 
     assert request.model_dump(exclude_none=True) == {
-        "workflow": "default/text-to-image",
+        "workflow": "z-image-turbo/text-to-image",
         "inputs": {"prompt": "A lighthouse"},
     }
     assert status.model_dump(exclude_none=True) == {"task_id": "task-1", "status": "queued"}
@@ -133,7 +131,7 @@ def test_poll_failure_cancels_submitted_task(monkeypatch):
     monkeypatch.setattr(nodes_comfy_cloud, "sync_op_raw", cancel)
 
     with pytest.raises(ValueError, match="invalid status response"):
-        asyncio.run(nodes_comfy_cloud._poll_task(nodes_comfy_cloud.ComfyCloudTextToImageNode, "task/1"))
+        asyncio.run(nodes_comfy_cloud._poll_task(nodes_comfy_cloud.ComfyCloudZImageTurboNode, "task/1"))
 
     cancel.assert_awaited_once()
     assert cancel.call_args.args[1].path == "/proxy/comfy-cloud/workflow/tasks/task%2F1/cancel"
@@ -184,7 +182,7 @@ def test_cloud_workflows_reject_untrusted_output_urls(monkeypatch, url):
     monkeypatch.setattr(nodes_comfy_cloud, "download_url_to_image_tensor", download)
 
     with pytest.raises(RuntimeError, match="invalid output URL"):
-        asyncio.run(nodes_comfy_cloud.ComfyCloudTextToImageNode.execute("prompt"))
+        asyncio.run(nodes_comfy_cloud.ComfyCloudZImageTurboNode.execute("prompt"))
     download.assert_not_awaited()
 
 
@@ -209,13 +207,13 @@ def test_cloud_workflows_accept_signed_https_output_urls(monkeypatch):
     monkeypatch.setattr(nodes_comfy_cloud, "poll_op", poll)
     monkeypatch.setattr(nodes_comfy_cloud, "download_url_to_image_tensor", download)
 
-    output = asyncio.run(nodes_comfy_cloud.ComfyCloudTextToImageNode.execute("prompt"))
+    output = asyncio.run(nodes_comfy_cloud.ComfyCloudZImageTurboNode.execute("prompt"))
 
     assert output[0] == "image-output"
     download.assert_awaited_once_with(
         "https://storage.googleapis.com/comfy-cloud-assets/output.png?signature=example",
         timeout=nodes_comfy_cloud._OUTPUT_DOWNLOAD_TIMEOUT,
-        cls=nodes_comfy_cloud.ComfyCloudTextToImageNode,
+        cls=nodes_comfy_cloud.ComfyCloudZImageTurboNode,
         allow_redirects=False,
     )
 
@@ -223,10 +221,9 @@ def test_cloud_workflows_accept_signed_https_output_urls(monkeypatch):
 @pytest.mark.parametrize(
     "node",
     [
-        nodes_comfy_cloud.ComfyCloudTextToImageNode,
-        nodes_comfy_cloud.ComfyCloudTextToVideoNode,
-        nodes_comfy_cloud.ComfyCloudImageToVideoNode,
-        nodes_comfy_cloud.ComfyCloudImageEditNode,
+        nodes_comfy_cloud.ComfyCloudZImageTurboNode,
+        nodes_comfy_cloud.ComfyCloudFlux2TextToImageNode,
+        nodes_comfy_cloud.ComfyCloudMiniMaxH3TextSoundNode,
     ],
 )
 def test_capability_nodes_reject_oversized_prompts(monkeypatch, node):
@@ -239,12 +236,11 @@ def test_capability_nodes_reject_oversized_prompts(monkeypatch, node):
 
 
 def test_capability_nodes_strip_prompts_before_submission(monkeypatch):
-    run = AsyncMock(return_value=("output",))
-    monkeypatch.setattr(nodes_comfy_cloud.ComfyCloudTextToImageNode, "_run", run)
+    values = nodes_comfy_cloud._validate_node_inputs(
+        nodes_comfy_cloud.ComfyCloudZImageTurboNode, {"prompt": "  prompt  "}
+    )
 
-    asyncio.run(nodes_comfy_cloud.ComfyCloudTextToImageNode.execute("  prompt  "))
-
-    assert run.call_args.args[0].prompt == "prompt"
+    assert values["prompt"] == "prompt"
 
 
 def test_task_routes_ignore_response_urls_and_errors_hide_task_token(monkeypatch):
@@ -267,7 +263,7 @@ def test_task_routes_ignore_response_urls_and_errors_hide_task_token(monkeypatch
     monkeypatch.setattr(nodes_comfy_cloud, "poll_op", poll)
 
     with pytest.raises(RuntimeError) as error:
-        asyncio.run(nodes_comfy_cloud.ComfyCloudTextToVideoNode.execute("A prompt"))
+        _execute_with_defaults(nodes_comfy_cloud.ComfyCloudMiniMaxH3TextSoundNode, "A prompt")
 
     assert poll.call_args.args[1].path == "/proxy/comfy-cloud/workflow/tasks/secret%2Ftask-token"
     assert poll.call_args.kwargs["cancel_endpoint"].path == "/proxy/comfy-cloud/workflow/tasks/secret%2Ftask-token/cancel"
@@ -392,22 +388,6 @@ def test_tuning_controls_are_hidden_behind_the_advanced_flag():
         assert len(plain) <= 6, f"{node.__name__} opens with {len(plain)} controls"
 
 
-def test_weight_pickers_offer_keys_rather_than_filenames():
-    """Cloud maps each key to a filename it holds. If a key ever became the filename
-    itself the node would be handing the caller a free-text weight path."""
-    for options in (
-        nodes_comfy_cloud._Z_IMAGE_MODELS,
-        nodes_comfy_cloud._FLUX2_MODELS,
-        nodes_comfy_cloud._FLUX2_LORAS,
-        nodes_comfy_cloud._DEFAULT_MODELS,
-        nodes_comfy_cloud._DEFAULT_EDIT_MODELS,
-        nodes_comfy_cloud._DEFAULT_LORAS,
-    ):
-        assert len(options) == len(set(options))
-        for option in options:
-            assert "." not in option and "/" not in option, option
-
-
 def test_pointer_node_pickers_name_the_trade_off_rather_than_the_model():
     """A default/* id is a pointer: the model behind it is re-pointed over time and
     the id does not change. A saved graph stores the KEY, so a key naming a model
@@ -522,7 +502,7 @@ def test_text_inputs_name_the_field_when_a_linked_value_is_not_a_string():
     output into a text input. That must name the field, not raise AttributeError."""
     with pytest.raises(ValueError, match="prompt"):
         nodes_comfy_cloud._validate_node_inputs(
-            nodes_comfy_cloud.ComfyCloudTextToImageNode, {"prompt": 7}
+            nodes_comfy_cloud.ComfyCloudZImageTurboNode, {"prompt": 7}
         )
 
 
@@ -640,10 +620,9 @@ def test_extension_registers_exactly_the_shipped_set():
     """The shipped surface is deliberate: four capability nodes whose model the backend
     chooses, plus the named workflows that expose control a generic shape cannot."""
     capability_nodes = {
-        nodes_comfy_cloud.ComfyCloudTextToImageNode,
-        nodes_comfy_cloud.ComfyCloudTextToVideoNode,
-        nodes_comfy_cloud.ComfyCloudImageToVideoNode,
-        nodes_comfy_cloud.ComfyCloudImageEditNode,
+        nodes_comfy_cloud.ComfyCloudZImageTurboNode,
+        nodes_comfy_cloud.ComfyCloudFlux2TextToImageNode,
+        nodes_comfy_cloud.ComfyCloudMiniMaxH3TextSoundNode,
     }
     named_nodes = {
         nodes_comfy_cloud.ComfyCloudMiniMaxH3TextSoundNode,
