@@ -71,6 +71,7 @@ def test_workflow_submission_polling_and_download(monkeypatch, node, workflow, r
         inputs=ComfyCloudWorkflowInputs(
             prompt="A tiny fennec fox",
             image_url="https://example.com/input.png" if requires_image else None,
+            seed=42,
         ),
     )
     assert upload.await_count == int(requires_image)
@@ -269,32 +270,100 @@ CONTROLLED_IMAGE_NODES = [
     (
         nodes_comfy_cloud.ComfyCloudZImageTurboNode,
         "z-image-turbo/text-to-image",
-        ["prompt", "seed"],
-        {"prompt": "A glass forest", "seed": 9},
+        ["prompt", "aspect_ratio", "seed", "steps", "shift"],
+        {"prompt": "A glass forest", "aspect_ratio": "16:9", "seed": 9, "steps": 10, "shift": 2.5},
+        {"prompt": "A glass forest", "width": 1344, "height": 768, "seed": 9, "steps": 10, "shift": 2.5},
+    ),
+    (
+        nodes_comfy_cloud.ComfyCloudFlux2TextToImageNode,
+        "flux-2/text-to-image",
+        ["prompt", "aspect_ratio", "turbo", "seed", "steps", "turbo_steps", "turbo_strength", "guidance"],
+        {
+            "prompt": "A glass forest", "aspect_ratio": "1:1", "turbo": False, "seed": 9,
+            "steps": 24, "turbo_steps": 6, "turbo_strength": 0.8, "guidance": 4.5,
+        },
+        {
+            "prompt": "A glass forest", "width": 1024, "height": 1024, "turbo": False, "seed": 9,
+            "steps": 24, "turbo_steps": 6, "turbo_strength": 0.8, "guidance": 4.5,
+        },
+    ),
+    (
+        nodes_comfy_cloud.ComfyCloudIdeogram4TextToImageNode,
+        "ideogram-4/text-to-image",
+        ["prompt", "aspect_ratio", "rendering_speed", "seed", "guidance"],
+        {"prompt": "A glass forest", "aspect_ratio": "3:2", "rendering_speed": "quality", "seed": 9, "guidance": 6.5},
+        {"prompt": "A glass forest", "width": 1152, "height": 768, "rendering_speed": "quality", "seed": 9, "guidance": 6.5},
+    ),
+    (
+        nodes_comfy_cloud.ComfyCloudLongCatTextToImageNode,
+        "longcat/text-to-image",
+        ["prompt", "aspect_ratio", "seed", "negative_prompt", "steps", "cfg", "guidance"],
+        {
+            "prompt": "A glass forest", "aspect_ratio": "4:3", "seed": 9,
+            "negative_prompt": "blurry", "steps": 24, "cfg": 4.5, "guidance": 3.5,
+        },
+        {
+            "prompt": "A glass forest", "width": 1024, "height": 768, "seed": 9,
+            "negative_prompt": "blurry", "steps": 24, "cfg": 4.5, "guidance": 3.5,
+        },
+    ),
+    (
+        nodes_comfy_cloud.ComfyCloudCapybaraTextToImageNode,
+        "capybara-0.1/text-to-image",
+        ["prompt", "aspect_ratio", "seed", "negative_prompt", "steps", "cfg", "shift"],
+        {
+            "prompt": "A glass forest", "aspect_ratio": "1:1", "seed": 9,
+            "negative_prompt": "blurry", "steps": 24, "cfg": 6.5, "shift": 7.5,
+        },
+        {
+            "prompt": "A glass forest", "width": 1280, "height": 1280, "seed": 9,
+            "negative_prompt": "blurry", "steps": 24, "cfg": 6.5, "shift": 7.5,
+        },
     ),
     (
         nodes_comfy_cloud.ComfyCloudKrea2CreativeImageNode,
         "krea-2/text-to-image",
-        ["prompt", "prompt_enhance", "aspect_ratio", "seed"],
-        {"prompt": "A glass forest", "prompt_enhance": False, "aspect_ratio": "16:9", "seed": 12},
+        ["prompt", "prompt_enhance", "aspect_ratio", "seed", "style_lora", "style_strength", "steps"],
+        {
+            "prompt": "A glass forest", "prompt_enhance": False, "aspect_ratio": "16:9", "seed": 12,
+            "style_lora": True, "style_strength": 0.6, "steps": 10,
+        },
+        {
+            "prompt": "A glass forest", "prompt_enhance": False, "aspect_ratio": "16:9", "seed": 12,
+            "style_lora": True, "style_strength": 0.6, "steps": 10,
+        },
     ),
     (
         nodes_comfy_cloud.ComfyCloudQwenImageEdit2511Node,
         "qwen-image-edit-2511/image-edit",
-        ["image", "instruction", "quality_mode", "seed"],
-        {"image": object(), "instruction": "Remove the sign", "quality_mode": "fast", "seed": 15},
+        ["image", "instruction", "quality_mode", "seed", "negative_prompt", "steps", "fast_steps", "cfg", "shift"],
+        {
+            "image": object(), "instruction": "Remove the sign", "quality_mode": "fast", "seed": 15,
+            "negative_prompt": "blurry", "steps": 32, "fast_steps": 6, "cfg": 3.5, "shift": 3.0,
+        },
+        {
+            "instruction": "Remove the sign", "quality_mode": "fast", "seed": 15,
+            "negative_prompt": "blurry", "steps": 32, "fast_steps": 6, "cfg": 3.5, "shift": 3.0,
+            "assets": {"image": {"type": "IMAGE", "url": "/uploads/input.png"}},
+        },
     ),
     (
         nodes_comfy_cloud.ComfyCloudSeedVR2ImageUpscaleNode,
         "seedvr2/upscale-image",
-        ["image", "scale"],
-        {"image": object(), "scale": "2x"},
+        ["image", "scale", "seed", "color_correction", "steps"],
+        {"image": object(), "scale": "2x", "seed": 15, "color_correction": "lab", "steps": 2},
+        {
+            "scale": "2x", "seed": 15, "color_correction": "lab", "steps": 2,
+            "assets": {"image": {"type": "IMAGE", "url": "/uploads/input.png"}},
+        },
     ),
 ]
 
 
-@pytest.mark.parametrize(("node", "workflow", "input_names", "arguments"), CONTROLLED_IMAGE_NODES)
-def test_controlled_image_node_schema_and_request_mapping(monkeypatch, node, workflow, input_names, arguments):
+@pytest.mark.parametrize(("node", "workflow", "input_names", "arguments", "expected_inputs"), CONTROLLED_IMAGE_NODES)
+def test_controlled_image_node_schema_and_request_mapping(
+    monkeypatch, node, workflow, input_names, arguments, expected_inputs
+):
     sync = AsyncMock(
         return_value=ComfyCloudGenerateResponse(
             task_id="task-2",
@@ -328,9 +397,6 @@ def test_controlled_image_node_schema_and_request_mapping(monkeypatch, node, wor
 
     output = asyncio.run(node.execute(**arguments))
     request = sync.call_args.kwargs["data"]
-    expected_inputs = {key: value for key, value in arguments.items() if key != "image"}
-    if "image" in arguments:
-        expected_inputs["assets"] = {"image": {"type": "IMAGE", "url": "/uploads/input.png"}}
 
     assert request.workflow == workflow
     assert request.inputs.model_dump(exclude_none=True) == expected_inputs
@@ -349,11 +415,51 @@ def test_controlled_image_node_schema_and_request_mapping(monkeypatch, node, wor
 
 
 def test_controlled_image_nodes_are_declared_and_registered():
-    workflows = {workflow for _, workflow, _, _ in CONTROLLED_IMAGE_NODES}
+    workflows = {workflow for _, workflow, _, _, _ in CONTROLLED_IMAGE_NODES}
     registered = set(asyncio.run(nodes_comfy_cloud.ComfyCloudExtension().get_node_list()))
 
     assert workflows <= set(get_args(ComfyCloudWorkflow))
-    assert {node for node, _, _, _ in CONTROLLED_IMAGE_NODES} <= registered
+    assert {node for node, _, _, _, _ in CONTROLLED_IMAGE_NODES} <= registered
+
+
+# The controls a first-time user is shown before expanding anything. Everything
+# outside this set has to be advanced, or the node opens on a wall of dials.
+PLAIN_CONTROLS = {
+    "prompt", "instruction", "image", "audio", "first_frame", "last_frame",
+    "aspect_ratio", "duration_seconds", "seed", "scale", "quality_mode",
+    "prompt_enhance", "enhance_prompt", "turbo", "rendering_speed",
+}
+
+
+def test_tuning_controls_are_hidden_behind_the_advanced_flag():
+    for node in asyncio.run(nodes_comfy_cloud.ComfyCloudExtension().get_node_list()):
+        plain = [
+            input_spec.id
+            for input_spec in node.define_schema().inputs
+            if not getattr(input_spec, "advanced", None)
+        ]
+        assert set(plain) <= PLAIN_CONTROLS, f"{node.__name__} shows {sorted(set(plain) - PLAIN_CONTROLS)}"
+        assert len(plain) <= 6, f"{node.__name__} opens with {len(plain)} controls"
+
+
+def test_every_seed_starts_at_42_and_advances_after_a_run():
+    for node in asyncio.run(nodes_comfy_cloud.ComfyCloudExtension().get_node_list()):
+        seed = next((i for i in node.define_schema().inputs if i.id == "seed"), None)
+        assert seed is not None, f"{node.__name__} has no seed"
+        assert seed.default == 42, f"{node.__name__} seeds at {seed.default}"
+        assert seed.control_after_generate is True
+
+
+def test_aspect_ratios_resolve_to_sizes_the_latents_accept():
+    """The graphs that take a width and a height get them from this table, so every
+    side has to sit on the 16-pixel grid at both render scales, not only at 1x."""
+    for ratio in nodes_comfy_cloud._ASPECT_RATIOS:
+        for scale in (1.0, 1.25):
+            width, height = nodes_comfy_cloud._dimensions(ratio, scale)
+            assert width % 16 == 0 and height % 16 == 0, (ratio, scale)
+            assert 256 <= width <= 2048 and 256 <= height <= 2048, (ratio, scale)
+    assert nodes_comfy_cloud._dimensions("1:1") == (1024, 1024)
+    assert nodes_comfy_cloud._dimensions("1:1", 1.25) == (1280, 1280)
 
 
 def test_cloud_workflow_controls_have_connection_sockets():
@@ -475,7 +581,7 @@ def test_wan_negative_prompt_defers_to_the_graph_when_left_empty(monkeypatch, ty
     default = next(i for i in node.define_schema().inputs if i.id == "negative_prompt").default
     assert default == ""
 
-    asyncio.run(node.execute(object(), object(), "a cat", typed, 5, 3))
+    asyncio.run(node.execute(object(), object(), "a cat", negative_prompt=typed))
 
     assert run.call_args.args[2].negative_prompt == sent
 
@@ -490,7 +596,7 @@ def test_ltx_performance_stages_image_and_audio(monkeypatch):
     monkeypatch.setattr(nodes_comfy_cloud, "get_number_of_images", lambda image: 1)
     audio = {"waveform": torch.zeros(1, 1, 480000), "sample_rate": 48000}
 
-    asyncio.run(nodes_comfy_cloud.ComfyCloudLTX23ImageAudioPerformanceNode.execute(object(), audio, "sing", True, 9, 7))
+    asyncio.run(nodes_comfy_cloud.ComfyCloudLTX23ImageAudioPerformanceNode.execute(object(), audio, "sing"))
 
     inputs = run.call_args.args[2]
     assert inputs.image_url == "https://example.com/image.png"

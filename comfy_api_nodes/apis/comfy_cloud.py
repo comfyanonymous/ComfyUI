@@ -41,6 +41,21 @@ class ComfyCloudWorkflowInputs(BaseModel):
     quality_mode: str | None = Field(None)
     seed: int | None = Field(None, ge=0, le=0xFFFFFFFFFFFFFFFF)
     scale: str | None = Field(None)
+    width: int | None = Field(None, ge=256, le=2048)
+    height: int | None = Field(None, ge=256, le=2048)
+    resolution: str | None = Field(None)
+    rendering_speed: str | None = Field(None)
+    color_correction: str | None = Field(None)
+    turbo: bool | None = Field(None)
+    style_lora: bool | None = Field(None)
+    steps: int | None = Field(None, ge=1)
+    turbo_steps: int | None = Field(None, ge=1)
+    fast_steps: int | None = Field(None, ge=1)
+    cfg: float | None = Field(None, ge=0)
+    guidance: float | None = Field(None, ge=0)
+    shift: float | None = Field(None, ge=0)
+    turbo_strength: float | None = Field(None, ge=0)
+    style_strength: float | None = Field(None, ge=0)
 
 
 class ComfyCloudAssetInput(BaseModel):
