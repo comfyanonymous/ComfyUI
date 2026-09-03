@@ -1,11 +1,26 @@
 import logging
 from types import SimpleNamespace
 
+import pytest
+import torch
+
 from comfy.cli_args import args
 
-args.cpu = True
+# comfy.model_management probes the CUDA device at import time, so the CPU
+# override must be in place before the import below runs (a per-test
+# monkeypatch fixture would apply too late). Scope it to this module instead
+# of leaving it mutated for the rest of the pytest process.
+_original_cpu_flag = args.cpu
+if not torch.cuda.is_available():
+    args.cpu = True
 
 from comfy import model_base, model_management
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _restore_cli_cpu_flag():
+    yield
+    args.cpu = _original_cpu_flag
 
 
 def _model_config():
