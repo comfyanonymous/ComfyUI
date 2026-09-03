@@ -839,7 +839,17 @@ def _minimax_inputs(image: bool) -> list[IO.Input]:
     return inputs + [
         _prompt_input(),
         _aspect_ratio_input("1:1" if image else "16:9"),
-        IO.Float.Input("duration_seconds", default=5, min=5, max=15, step=0.01),
+        IO.Int.Input(
+            "duration_seconds",
+            default=5,
+            min=5,
+            max=15,
+            display_mode=IO.NumberDisplay.slider,
+            tooltip=(
+                "Length in seconds. The pipeline quantises to 17-frame steps at 24fps, "
+                "so the clip lands within about two thirds of a second of this."
+            ),
+        ),
         _seed_input(),
         _video_resolution_input(),
         _steps_input(20, 60),
@@ -865,7 +875,7 @@ class ComfyCloudMiniMaxH3TextSoundNode(IO.ComfyNode):
         cls,
         prompt: str,
         aspect_ratio: str = "16:9",
-        duration_seconds: float = 5,
+        duration_seconds: int = 5,
         seed: int = 42,
         resolution: str = "480p",
         steps: int = 20,
@@ -898,7 +908,17 @@ def _minimax_h3_inputs(default_ratio: str, plain: list[IO.Input] | None = None) 
         _prompt_input(),
         _aspect_ratio_input(default_ratio),
         _video_resolution_input(advanced=False),
-        IO.Float.Input("duration_seconds", default=5, min=5, max=15, step=0.01),
+        IO.Int.Input(
+            "duration_seconds",
+            default=5,
+            min=5,
+            max=15,
+            display_mode=IO.NumberDisplay.slider,
+            tooltip=(
+                "Length in seconds. The pipeline quantises to 17-frame steps at 24fps, "
+                "so the clip lands within about two thirds of a second of this."
+            ),
+        ),
         _seed_input(),
         *(plain or []),
         _steps_input(20, 60),
@@ -949,7 +969,7 @@ class ComfyCloudMiniMaxH3ImageToVideoNode(IO.ComfyNode):
         last_frame: Input.Image | None = None,
         aspect_ratio: str = "1:1",
         resolution: str = "480p",
-        duration_seconds: float = 5,
+        duration_seconds: int = 5,
         seed: int = 42,
         steps: int = 20,
         denoise: float = 1.0,
@@ -991,7 +1011,7 @@ class ComfyCloudMiniMaxH3VideoContinuationNode(IO.ComfyNode):
         prompt: str,
         aspect_ratio: str = "1:1",
         resolution: str = "480p",
-        duration_seconds: float = 5,
+        duration_seconds: int = 5,
         seed: int = 42,
         steps: int = 20,
         denoise: float = 1.0,
@@ -1061,7 +1081,7 @@ class ComfyCloudMiniMaxH3ReferenceToVideoNode(IO.ComfyNode):
         reference_images: dict[str, Input.Image] | None = None,
         aspect_ratio: str = "16:9",
         resolution: str = "480p",
-        duration_seconds: float = 5,
+        duration_seconds: int = 5,
         seed: int = 42,
         ref_image_size: str = "match",
         steps: int = 20,
