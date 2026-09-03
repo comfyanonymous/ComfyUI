@@ -1670,12 +1670,13 @@ class TripoImportModelNode(IO.ComfyNode):
         return IO.NodeOutput(task_id)
 
 
-def _p1_price_expr(*, geometry_credits: int, textured_credits: int, detailed_credits: int) -> str:
+def _p1_price_expr(*, geometry_credits: int, textured_credits: int, detailed_credits: int, extreme_credits: int) -> str:
     return (
         "("
         "  $mode := widgets.output_mode;"
-        '  $detailed := $lookup(widgets, "output_mode.texture_quality") = "detailed";'
-        f'  $credits := $mode = "geometry only" ? {geometry_credits} : ($detailed ? {detailed_credits} : {textured_credits});'
+        '  $tq := $lookup(widgets, "output_mode.texture_quality");'
+        f'  $textured := $tq = "extreme" ? {extreme_credits} : ($tq = "detailed" ? {detailed_credits} : {textured_credits});'
+        f'  $credits := $mode = "geometry only" ? {geometry_credits} : $textured;'
         '  {"type":"usd","usd": $credits * 0.01, "format": {"approximate": true}}'
         ")"
     )
@@ -1685,7 +1686,12 @@ def _p1_textured_inputs(*, include_image_alignment: bool) -> list:
     """Inputs shown inside the 'Textured' branch of the P1 output_mode DynamicCombo."""
     inputs: list = [
         IO.Boolean.Input("pbr", default=True, tooltip="Include PBR maps. When on, base texture is forced on too."),
-        IO.Combo.Input("texture_quality", options=["standard", "detailed"], default="standard"),
+        IO.Combo.Input(
+            "texture_quality",
+            options=["standard", "detailed", "extreme"],
+            default="standard",
+            tooltip="detailed = HD textures, extreme = 8K Ultra textures.",
+        ),
     ]
     if include_image_alignment:
         inputs.extend(
@@ -1773,7 +1779,8 @@ def _p1_common_inputs() -> list:
             default=False,
             optional=True,
             advanced=True,
-            tooltip="Apply geometry-based compression. Decompress before editing.",
+            tooltip="Apply meshopt geometry compression (EXT_meshopt_compression). Smaller files, "
+            "but ComfyUI's 3D preview cannot display them; decompress before editing.",
         ),
     ]
 
@@ -1828,7 +1835,7 @@ class TripoP1TextToModelNode(IO.ComfyNode):
             is_api_node=True,
             price_badge=IO.PriceBadge(
                 depends_on=IO.PriceBadgeDepends(widgets=["output_mode", "output_mode.texture_quality"]),
-                expr=_p1_price_expr(geometry_credits=30, textured_credits=40, detailed_credits=50),
+                expr=_p1_price_expr(geometry_credits=30, textured_credits=40, detailed_credits=50, extreme_credits=60),
             ),
         )
 
@@ -1904,7 +1911,7 @@ class TripoP1ImageToModelNode(IO.ComfyNode):
             is_api_node=True,
             price_badge=IO.PriceBadge(
                 depends_on=IO.PriceBadgeDepends(widgets=["output_mode", "output_mode.texture_quality"]),
-                expr=_p1_price_expr(geometry_credits=40, textured_credits=50, detailed_credits=60),
+                expr=_p1_price_expr(geometry_credits=40, textured_credits=50, detailed_credits=60, extreme_credits=70),
             ),
         )
 
@@ -1989,7 +1996,7 @@ class TripoP1MultiviewToModelNode(IO.ComfyNode):
             is_api_node=True,
             price_badge=IO.PriceBadge(
                 depends_on=IO.PriceBadgeDepends(widgets=["output_mode", "output_mode.texture_quality"]),
-                expr=_p1_price_expr(geometry_credits=40, textured_credits=50, detailed_credits=60),
+                expr=_p1_price_expr(geometry_credits=40, textured_credits=50, detailed_credits=60, extreme_credits=70),
             ),
         )
 
