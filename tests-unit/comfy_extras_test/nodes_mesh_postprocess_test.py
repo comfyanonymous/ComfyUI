@@ -99,16 +99,18 @@ def test_fill_holes_empty_faces_routed_to_selected_device(monkeypatch):
     """The empty-face early return must also land on the selected device:
     a batch mixing an empty item with a non-empty item would otherwise hand
     torch.stack tensors on different devices (the non-empty item is moved by
-    the guard below; the empty item wasn't)."""
+    the guard below; the empty item wasn't). Exercise the actual MPS->CPU
+    fallback (not CPU-to-CPU) and check the destination passed to .to(), not
+    merely that .to() was called."""
     monkeypatch.setattr(
-        comfy.model_management, "get_torch_device", lambda: torch.device("cpu")
+        comfy.model_management, "get_torch_device", lambda: torch.device("mps")
     )
 
-    moved = []
+    moved_to = {}
     real_to = torch.Tensor.to
 
     def tracking_to(self, *args, **kwargs):
-        moved.append(self)
+        moved_to[id(self)] = args[0] if args else kwargs.get("device")
         return real_to(self, *args, **kwargs)
 
     monkeypatch.setattr(torch.Tensor, "to", tracking_to)
@@ -119,9 +121,9 @@ def test_fill_holes_empty_faces_routed_to_selected_device(monkeypatch):
 
     fill_holes_v2_fn(verts, faces, max_perimeter=10.0, colors=colors)
 
-    assert any(t is verts for t in moved)
-    assert any(t is faces for t in moved)
-    assert any(t is colors for t in moved)
+    assert moved_to.get(id(verts)) == torch.device("cpu")
+    assert moved_to.get(id(faces)) == torch.device("cpu")
+    assert moved_to.get(id(colors)) == torch.device("cpu")
 
 
 def test_unwrap_mesh_pec_uses_guarded_device_on_mps(monkeypatch):
@@ -135,7 +137,9 @@ def test_unwrap_mesh_pec_uses_guarded_device_on_mps(monkeypatch):
     seen = {}
 
     def fake_uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance, device=None):
-        seen["device"] = positions.device
+        seen["positions_device"] = positions.device
+        seen["indices_device"] = indices.device
+        seen["device_arg"] = device
         n = positions.shape[0]
         return np.arange(n), indices.cpu().numpy(), np.zeros((n, 2), dtype=np.float32)
 
@@ -148,7 +152,39 @@ def test_unwrap_mesh_pec_uses_guarded_device_on_mps(monkeypatch):
 
     UnwrapMesh.execute(mesh, "pec", 1024, 1, 0.0)
 
-    assert seen["device"] == torch.device("cpu")
+    assert seen["positions_device"] == torch.device("cpu")
+    assert seen["indices_device"] == torch.device("cpu")
+    assert seen["device_arg"] == torch.device("cpu")
+
+
+def test_unwrap_mesh_adaptive_keeps_compute_device_for_lscm(monkeypatch):
+    """"adaptive" charting itself always runs on CPU, but its dense LSCM solve
+    must still get the guarded compute_device (CUDA/etc, MPS->CPU), not the
+    CPU value forced on segmentation -- otherwise adaptive unwrap loses GPU
+    acceleration for its parameterization step on every non-MPS backend."""
+    monkeypatch.setattr(
+        comfy.model_management, "get_torch_device", lambda: torch.device("cuda")
+    )
+
+    seen = {}
+
+    def fake_uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance, device=None):
+        seen["positions_device"] = positions.device
+        seen["device_arg"] = device
+        n = positions.shape[0]
+        return np.arange(n), indices.cpu().numpy(), np.zeros((n, 2), dtype=np.float32)
+
+    monkeypatch.setattr(nodes_mesh_postprocess, "_uv_unwrap", fake_uv_unwrap)
+    monkeypatch.setattr(UnwrapMesh, "hidden", types.SimpleNamespace(unique_id=None), raising=False)
+
+    verts = torch.zeros((4, 3))
+    faces = torch.tensor([[0, 1, 2], [0, 2, 3]], dtype=torch.long)
+    mesh = MESH(vertices=verts, faces=faces)
+
+    UnwrapMesh.execute(mesh, "adaptive", 1024, 1, 0.0)
+
+    assert seen["positions_device"] == torch.device("cpu")
+    assert seen["device_arg"] == torch.device("cuda")
 
 
 def test_uv_unwrap_lscm_uses_passed_device_not_raw_get_torch_device(monkeypatch):
@@ -159,6 +195,17 @@ def test_uv_unwrap_lscm_uses_passed_device_not_raw_get_torch_device(monkeypatch)
     monkeypatch.setattr(
         comfy.model_management, "get_torch_device", lambda: torch.device("mps")
     )
+
+    # The later atlas-packing step (unrelated to this LSCM check) also calls
+    # get_torch_device() directly with no MPS guard; stub it out so the mocked
+    # "mps" above doesn't make this test try to allocate a real MPS tensor.
+    def fake_pack_bitmap_concat(uvs_cat, uv_offsets, faces_cat, face_offsets,
+                                 chart_3d_areas, chart_uv_areas, **kwargs):
+        n = len(chart_3d_areas)
+        zeros, ones = np.zeros(n, dtype=np.float64), np.ones(n, dtype=np.float64)
+        return zeros, zeros, np.zeros(n, dtype=bool), zeros, ones, ones, 1, 1
+
+    monkeypatch.setattr(nodes_mesh_postprocess._uv_pack, "pack_bitmap_concat", fake_pack_bitmap_concat)
 
     seen = {}
     real_lscm = nodes_mesh_postprocess._uv_param.lscm_charts_batch

@@ -2746,7 +2746,7 @@ class UnwrapMesh(IO.ComfyNode):
 
             vmapping, indices, uvs = _uv_unwrap(
                 vi.to(seg_device).float(), fi.to(seg_device).long(),
-                segmenter, int(resolution), int(padding), weld_abs, device=seg_device)
+                segmenter, int(resolution), int(padding), weld_abs, device=compute_device)
             uvs = uvs.copy()
             uvs[:, 1] = 1.0 - uvs[:, 1]                       # UV y flipped vs trimesh
 
