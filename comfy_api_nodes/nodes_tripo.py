@@ -156,6 +156,13 @@ def glb_output(task_id: str, model: Types.File3D) -> IO.NodeOutput:
     return IO.NodeOutput(f"{task_id}.glb", task_id, model)
 
 
+def check_smart_low_poly_face_limit(smart_low_poly: bool | None, face_limit: int | None, quad: bool | None) -> None:
+    if smart_low_poly and face_limit not in (None, -1) and not 500 <= face_limit <= (10000 if quad else 20000):
+        raise ValueError(
+            "With smart_low_poly, face_limit must be between 500 and 20,000 for triangles or 500 and 10,000 for quads."
+        )
+
+
 def glb_or_fbx_output(task_id: str, model: Types.File3D) -> IO.NodeOutput:
     return IO.NodeOutput(
         f"{task_id}.{model.format}",
@@ -228,6 +235,21 @@ class TripoTextToModelNode(IO.ComfyNode):
                     optional=True,
                     advanced=True,
                 ),
+                IO.Boolean.Input(
+                    "smart_low_poly",
+                    default=False,
+                    optional=True,
+                    advanced=True,
+                    tooltip="Low-poly mesh with clean, hand-crafted style topology (500-20,000 faces, quad 500-10,000). "
+                    "Best for simple subjects; complex ones may fail.",
+                ),
+                IO.Boolean.Input(
+                    "auto_size",
+                    default=True,
+                    optional=True,
+                    advanced=True,
+                    tooltip="Scale the output to real-world meters.",
+                ),
             ],
             outputs=[
                 IO.String.Output(display_name="model_file"),  # for backward compatibility only
@@ -248,6 +270,7 @@ class TripoTextToModelNode(IO.ComfyNode):
                         "model_version",
                         "texture",
                         "quad",
+                        "smart_low_poly",
                         "texture_quality",
                         "geometry_quality",
                     ],
@@ -260,6 +283,7 @@ class TripoTextToModelNode(IO.ComfyNode):
                   $geometryAddon := (widgets.geometry_quality = "detailed" and $isV3OrLater) ? 20 : 0;
                   $credits := (widgets.texture ? 20 : 10)
                     + (widgets.quad ? 5 : 0)
+                    + (widgets.smart_low_poly ? 10 : 0)
                     + $textureAddon
                     + $geometryAddon;
                   {"type":"usd","usd": $credits * 0.01, "format": {"approximate": true}}
@@ -284,9 +308,12 @@ class TripoTextToModelNode(IO.ComfyNode):
         geometry_quality: str | None = None,
         face_limit: int | None = None,
         quad: bool | None = None,
+        smart_low_poly: bool | None = None,
+        auto_size: bool = True,
     ) -> IO.NodeOutput:
         if not prompt:
             raise RuntimeError("Prompt is required")
+        check_smart_low_poly_face_limit(smart_low_poly, face_limit, quad)
         response = await sync_op(
             cls,
             endpoint=ApiEndpoint(path="/proxy/tripo/v2/openapi/task", method="POST"),
@@ -304,8 +331,9 @@ class TripoTextToModelNode(IO.ComfyNode):
                 texture_quality=texture_quality,
                 face_limit=face_limit if face_limit != -1 else None,
                 geometry_quality=geometry_quality,
-                auto_size=True,
+                auto_size=auto_size,
                 quad=quad,
+                smart_low_poly=smart_low_poly,
             ),
         )
         return glb_or_fbx_output(*await poll_until_finished(cls, response, average_duration=80))
@@ -389,6 +417,21 @@ class TripoImageToModelNode(IO.ComfyNode):
                     optional=True,
                     advanced=True,
                 ),
+                IO.Boolean.Input(
+                    "smart_low_poly",
+                    default=False,
+                    optional=True,
+                    advanced=True,
+                    tooltip="Low-poly mesh with clean, hand-crafted style topology (500-20,000 faces, quad 500-10,000). "
+                    "Best for simple subjects; complex ones may fail.",
+                ),
+                IO.Boolean.Input(
+                    "auto_size",
+                    default=True,
+                    optional=True,
+                    advanced=True,
+                    tooltip="Scale the output to real-world meters.",
+                ),
             ],
             outputs=[
                 IO.String.Output(display_name="model_file"),  # for backward compatibility only
@@ -409,6 +452,7 @@ class TripoImageToModelNode(IO.ComfyNode):
                         "model_version",
                         "texture",
                         "quad",
+                        "smart_low_poly",
                         "texture_quality",
                         "geometry_quality",
                     ],
@@ -421,6 +465,7 @@ class TripoImageToModelNode(IO.ComfyNode):
                   $geometryAddon := (widgets.geometry_quality = "detailed" and $isV3OrLater) ? 20 : 0;
                   $credits := (widgets.texture ? 30 : 20)
                     + (widgets.quad ? 5 : 0)
+                    + (widgets.smart_low_poly ? 10 : 0)
                     + $textureAddon
                     + $geometryAddon;
                   {"type":"usd","usd": $credits * 0.01, "format": {"approximate": true}}
@@ -445,9 +490,12 @@ class TripoImageToModelNode(IO.ComfyNode):
         texture_alignment: str | None = None,
         face_limit: int | None = None,
         quad: bool | None = None,
+        smart_low_poly: bool | None = None,
+        auto_size: bool = True,
     ) -> IO.NodeOutput:
         if image is None:
             raise RuntimeError("Image is required")
+        check_smart_low_poly_face_limit(smart_low_poly, face_limit, quad)
         tripo_file = TripoFileReference(
             root=TripoUrlReference(
                 url=(await upload_images_to_comfyapi(cls, image, max_images=1))[0],
@@ -471,8 +519,9 @@ class TripoImageToModelNode(IO.ComfyNode):
                 texture_seed=texture_seed,
                 texture_quality=texture_quality,
                 face_limit=face_limit if face_limit != -1 else None,
-                auto_size=True,
+                auto_size=auto_size,
                 quad=quad,
+                smart_low_poly=smart_low_poly,
             ),
         )
         return glb_or_fbx_output(*await poll_until_finished(cls, response, average_duration=80))
@@ -542,7 +591,8 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                     default=False,
                     optional=True,
                     advanced=True,
-                    tooltip="This parameter is deprecated and does nothing.",
+                    tooltip="Quad mesh output. Tripo delivers quad meshes as FBX, so the result "
+                    "arrives on the FBX output and the GLB output stays empty.",
                 ),
                 IO.Combo.Input(
                     "geometry_quality",
@@ -551,11 +601,27 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                     optional=True,
                     advanced=True,
                 ),
+                IO.Boolean.Input(
+                    "smart_low_poly",
+                    default=False,
+                    optional=True,
+                    advanced=True,
+                    tooltip="Low-poly mesh with clean, hand-crafted style topology (500-20,000 faces, quad 500-10,000). "
+                    "Best for simple subjects; complex ones may fail.",
+                ),
+                IO.Boolean.Input(
+                    "auto_size",
+                    default=False,
+                    optional=True,
+                    advanced=True,
+                    tooltip="Scale the output to real-world meters.",
+                ),
             ],
             outputs=[
                 IO.String.Output(display_name="model_file"),  # for backward compatibility only
                 IO.Custom("MODEL_TASK_ID").Output(display_name="model task_id"),
-                IO.File3DGLB.Output(display_name="GLB"),
+                IO.File3DGLB.Output(display_name="GLB", tooltip="Empty when quad is enabled."),
+                IO.File3DFBX.Output(display_name="FBX", tooltip="Only populated when quad is enabled."),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
@@ -569,6 +635,8 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                     widgets=[
                         "model_version",
                         "texture",
+                        "quad",
+                        "smart_low_poly",
                         "texture_quality",
                         "geometry_quality",
                     ],
@@ -580,6 +648,8 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                   $textureAddon := widgets.texture ? ($tq = "extreme" ? 20 : ($tq = "detailed" ? 10 : 0)) : 0;
                   $geometryAddon := (widgets.geometry_quality = "detailed" and $isV3OrLater) ? 20 : 0;
                   $credits := (widgets.texture ? 30 : 20)
+                    + (widgets.quad ? 5 : 0)
+                    + (widgets.smart_low_poly ? 10 : 0)
                     + $textureAddon
                     + $geometryAddon;
                   {"type":"usd","usd": $credits * 0.01, "format": {"approximate": true}}
@@ -606,6 +676,8 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
         texture_alignment: str | None = None,
         face_limit: int | None = None,
         quad: bool | None = None,
+        smart_low_poly: bool | None = None,
+        auto_size: bool = False,
     ) -> IO.NodeOutput:
         if image is None:
             raise RuntimeError("front image for multiview is required")
@@ -613,6 +685,7 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
         image_dict = {"image": image, "image_left": image_left, "image_back": image_back, "image_right": image_right}
         if image_left is None and image_back is None and image_right is None:
             raise RuntimeError("At least one of left, back, or right image must be provided for multiview")
+        check_smart_low_poly_face_limit(smart_low_poly, face_limit, quad)
         for image_name in ["image", "image_left", "image_back", "image_right"]:
             image_ = image_dict[image_name]
             if image_ is not None:
@@ -642,10 +715,12 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                 geometry_quality=geometry_quality,
                 texture_alignment=texture_alignment,
                 face_limit=face_limit if face_limit != -1 else None,
-                quad=None,
+                auto_size=auto_size,
+                quad=quad,
+                smart_low_poly=smart_low_poly,
             ),
         )
-        return glb_output(*await poll_until_finished(cls, response, average_duration=80))
+        return glb_or_fbx_output(*await poll_until_finished(cls, response, average_duration=80))
 
 
 class TripoImageToMultiviewNode(IO.ComfyNode):

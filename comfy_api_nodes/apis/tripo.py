@@ -296,6 +296,7 @@ class TripoTextToModelRequest(BaseModel):
     style: TripoStyle | None = None
     auto_size: bool | None = Field(False, description="Whether to auto-size the model")
     quad: bool | None = Field(False, description="Whether to apply quad to the generated model")
+    smart_low_poly: bool | None = Field(None, description="Low-poly output with clean, hand-crafted style topology")
 
 
 class TripoImageToModelRequest(BaseModel):
@@ -316,6 +317,7 @@ class TripoImageToModelRequest(BaseModel):
     auto_size: bool | None = Field(False, description="Whether to auto-size the model")
     orientation: TripoOrientation | None = TripoOrientation.DEFAULT
     quad: bool | None = Field(False, description="Whether to apply quad to the generated model")
+    smart_low_poly: bool | None = Field(None, description="Low-poly output with clean, hand-crafted style topology")
 
 
 class TripoMultiviewToModelRequest(BaseModel):
@@ -334,6 +336,7 @@ class TripoMultiviewToModelRequest(BaseModel):
     auto_size: bool | None = Field(False, description="Whether to auto-size the model")
     orientation: TripoOrientation | None = Field(TripoOrientation.DEFAULT, description="The orientation for the model")
     quad: bool | None = Field(False, description="Whether to apply quad to the generated model")
+    smart_low_poly: bool | None = Field(None, description="Low-poly output with clean, hand-crafted style topology")
 
 
 class TripoTexturePrompt(BaseModel):
