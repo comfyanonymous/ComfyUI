@@ -94,6 +94,35 @@ def test_fill_holes_selects_device_before_weld(monkeypatch):
     assert call_order.index("compute_device") < call_order.index("weld")
 
 
+def test_fill_holes_empty_faces_routed_to_selected_device(monkeypatch):
+    """The empty-face early return must also land on the selected device:
+    a batch mixing an empty item with a non-empty item would otherwise hand
+    torch.stack tensors on different devices (the non-empty item is moved by
+    the guard below; the empty item wasn't)."""
+    monkeypatch.setattr(
+        comfy.model_management, "get_torch_device", lambda: torch.device("cpu")
+    )
+
+    moved = []
+    real_to = torch.Tensor.to
+
+    def tracking_to(self, *args, **kwargs):
+        moved.append(self)
+        return real_to(self, *args, **kwargs)
+
+    monkeypatch.setattr(torch.Tensor, "to", tracking_to)
+
+    verts = torch.zeros((0, 3))
+    faces = torch.zeros((0, 3), dtype=torch.long)
+    colors = torch.zeros((0, 4))
+
+    fill_holes_v2_fn(verts, faces, max_perimeter=10.0, colors=colors)
+
+    assert any(t is verts for t in moved)
+    assert any(t is faces for t in moved)
+    assert any(t is colors for t in moved)
+
+
 def test_unwrap_mesh_pec_uses_guarded_device_on_mps(monkeypatch):
     """UnwrapMesh's "pec" segmenter runs parallel-edge-collapse chart clustering
     (scatter_reduce_-heavy) on compute_device; it must also route through the

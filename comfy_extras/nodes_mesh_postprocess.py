@@ -2118,12 +2118,12 @@ def fill_holes_v2_fn(vertices, faces, max_perimeter=0.03, colors=None, weld_epsi
         c_out = torch.stack(c_list) if c_list is not None else None
         return torch.stack(v_list), torch.stack(f_list), c_out
 
-    if faces.numel() == 0:
-        return vertices, faces, colors
     # Select the guarded compute device (MPS->CPU, see #16017) and move inputs there
     # before the adaptive weld below, whose scatter_add_ calls would otherwise still
     # run on MPS.
     dev = _mesh_postprocess_compute_device()
+    if faces.numel() == 0:
+        return vertices.to(dev), faces.to(dev), colors.to(dev) if colors is not None else None
     vertices = vertices.to(dev)
     faces = faces.to(dev)
     if colors is not None:
