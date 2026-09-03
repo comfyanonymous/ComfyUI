@@ -361,6 +361,7 @@ class TripoTextureModelRequest(BaseModel):
         description="Optional guidance for texturing. Required in practice for imported models, "
         "which carry no source image to infer texture from.",
     )
+    part_names: list[str] | None = Field(None, description="Parts of a segmented model to texture; all parts when omitted")
 
 
 class TripoAnimatePrerigcheckRequest(BaseModel):

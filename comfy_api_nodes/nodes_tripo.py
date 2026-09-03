@@ -53,6 +53,7 @@ from comfy_api_nodes.util import (
 )
 
 MULTIVIEW_KEYS = ("front_view_url", "left_view_url", "back_view_url", "right_view_url")
+TEXTURE_SOURCE_TYPES_WITH_IMAGE = ("text_to_model", "image_to_model", "multiview_to_model", "texture_model")
 
 
 FACE_LIMIT_TOOLTIP = (
@@ -761,7 +762,7 @@ class TripoTextureNode(IO.ComfyNode):
             display_name="Tripo: Texture model",
             category="partner/3d/Tripo",
             inputs=[
-                IO.Custom("MODEL_TASK_ID").Input("model_task_id"),
+                IO.Custom("MODEL_TASK_ID,SEGMENT_TASK_ID").Input("model_task_id"),
                 IO.Boolean.Input(
                     "texture",
                     default=True,
@@ -832,6 +833,13 @@ class TripoTextureNode(IO.ComfyNode):
                     optional=True,
                     tooltip="Reference images guiding the textures. Cannot be combined with texture_prompt or style_image.",
                 ),
+                IO.String.Input(
+                    "part_names",
+                    default="",
+                    optional=True,
+                    advanced=True,
+                    tooltip="Comma-separated part names from Tripo: Segment Model to texture. Empty textures every part.",
+                ),
             ],
             outputs=[
                 IO.String.Output(display_name="model_file"),  # for backward compatibility only
@@ -873,6 +881,7 @@ class TripoTextureNode(IO.ComfyNode):
         model_version: str | None = None,
         style_image: Input.Image | None = None,
         reference: dict | None = None,
+        part_names: str = "",
     ) -> IO.NodeOutput:
         text = texture_prompt.strip()
         mode = reference["reference"] if reference else "none"
@@ -880,6 +889,17 @@ class TripoTextureNode(IO.ComfyNode):
             raise ValueError("Reference images cannot be combined with texture_prompt or style_image.")
         if style_image is not None and not text:
             raise ValueError("style_image requires a texture_prompt.")
+        if not text:
+            source = await sync_op(
+                cls,
+                endpoint=ApiEndpoint(path=f"/proxy/tripo/v2/openapi/task/{model_task_id}"),
+                response_model=TripoTaskResponse,
+            )
+            if source.data.type not in TEXTURE_SOURCE_TYPES_WITH_IMAGE:
+                raise ValueError(
+                    "This model has no source image to texture from (imported, segmented, completed or retopologized). "
+                    "Give a texture_prompt; Tripo accepts reference images only for models it generated itself."
+                )
         if mode == "image":
             prompt = TripoTexturePrompt(image=await upload_image_reference(cls, reference["reference_image"]))
         elif mode == "multiview":
@@ -906,6 +926,7 @@ class TripoTextureNode(IO.ComfyNode):
                 texture_quality=texture_quality,
                 texture_alignment=texture_alignment,
                 texture_prompt=prompt,
+                part_names=split_part_names(part_names),
             ),
         )
         return glb_or_fbx_output(*await poll_until_finished(cls, response, average_duration=80))
