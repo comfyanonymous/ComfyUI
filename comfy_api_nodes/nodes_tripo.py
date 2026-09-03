@@ -165,6 +165,8 @@ def check_smart_low_poly_face_limit(smart_low_poly: bool | None, face_limit: int
 
 
 def glb_or_fbx_output(task_id: str, model: Types.File3D) -> IO.NodeOutput:
+    if model.format not in ("glb", "fbx"):
+        raise RuntimeError(f"Tripo returned a file of type {model.format.upper() or 'unknown'} where GLB or FBX was expected")
     return IO.NodeOutput(
         f"{task_id}.{model.format}",
         task_id,
