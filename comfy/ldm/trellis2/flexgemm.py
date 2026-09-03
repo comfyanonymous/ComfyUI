@@ -112,10 +112,10 @@ def sparse_submanifold_conv3d(
         y_stride = D
         z_stride = 1
 
-        flat_keys = coords[:, 0].long().mul_(b_stride)
-        flat_keys.add_(coords[:, 1].long().mul_(x_stride))
-        flat_keys.add_(coords[:, 2].long().mul_(y_stride))
-        flat_keys.add_(coords[:, 3].long().mul_(z_stride))
+        flat_keys = coords[:, 0].long() * b_stride
+        flat_keys.add_(coords[:, 1], alpha=x_stride)
+        flat_keys.add_(coords[:, 2], alpha=y_stride)
+        flat_keys.add_(coords[:, 3], alpha=z_stride)
         vals = torch.arange(coords.shape[0], dtype=torch.int32, device=device)
         hashmap = TorchHashMap(flat_keys, vals)
 
