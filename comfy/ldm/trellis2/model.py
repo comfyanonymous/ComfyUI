@@ -118,15 +118,27 @@ class SparseRotaryPositionEmbedder(nn.Module):
             freqs_cis = self._get_freqs_cis(coords)
             q.register_spatial_cache(cache_name, freqs_cis)
 
-        if q.feats.ndim == 3:
-            f_cis = freqs_cis.unsqueeze(1)
+        # Sparse feats are [N, heads, head_dim] with no explicit batch axis (batch
+        # is folded into N via coords). Accelerated RoPE backends (e.g. the
+        # comfy_kitchen triton kernel) require a 4-D (batch, dim1, dim2, head_dim)
+        # input, so add a size-1 batch dim here and mirror it on freqs_cis, the
+        # same way the dense path does for its [B, L, H, head_dim] tensors.
+        is_sparse_feats = q.feats.ndim == 3
+        if is_sparse_feats:
+            f_cis = freqs_cis.unsqueeze(0).unsqueeze(2)
         else:
             f_cis = freqs_cis
 
         if k is None:
-            return q.replace(apply_rope1(q.feats, f_cis))
+            q_feats = q.feats.unsqueeze(0) if is_sparse_feats else q.feats
+            out = apply_rope1(q_feats, f_cis)
+            return q.replace(out.squeeze(0) if is_sparse_feats else out)
 
-        q_feats, k_feats = apply_rope(q.feats, k.feats, f_cis)
+        q_feats = q.feats.unsqueeze(0) if is_sparse_feats else q.feats
+        k_feats = k.feats.unsqueeze(0) if is_sparse_feats else k.feats
+        q_feats, k_feats = apply_rope(q_feats, k_feats, f_cis)
+        if is_sparse_feats:
+            q_feats, k_feats = q_feats.squeeze(0), k_feats.squeeze(0)
         return q.replace(q_feats), k.replace(k_feats)
 
 
