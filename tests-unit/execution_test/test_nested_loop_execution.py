@@ -128,7 +128,7 @@ def test_nested_loops_execute_each_body_once_without_final_requeue(monkeypatch):
             "inputs": {
                 "mode": "simple",
                 "mode.num_iterations": 2,
-                "iteration_outer": ["outer", 0],
+                "parent_iteration": ["outer", 0],
                 "initial_iteration_value": ["outer", 4],
             },
         },
@@ -242,7 +242,7 @@ def run_nested_accumulation(monkeypatch, producer_name, producer_class):
             "inputs": {
                 "mode": "simple",
                 "mode.num_iterations": 2,
-                "iteration_outer": ["outer", 0],
+                "parent_iteration": ["outer", 0],
             },
         },
         "producer": {

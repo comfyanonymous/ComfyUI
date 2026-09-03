@@ -106,7 +106,7 @@ def test_termination_input_brings_preview_branch_into_loop_body():
 def test_nested_phase_step_and_window_loops_have_distinct_closes():
     prompt = DynPrompt({
         "phase": node("StartLoop"),
-        "step": node("StartLoop", iteration_outer=["phase", 0], initial_iteration_value=["phase", 4]),
+        "step": node("StartLoop", parent_iteration=["phase", 0], initial_iteration_value=["phase", 4]),
         "sample": node("Body", latent=["step", 4], iteration=["step", 0]),
         "step_close": node(
             "EndLoop",

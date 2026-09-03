@@ -122,7 +122,7 @@ def test_loop_count_modes_remain_list_aware(monkeypatch):
         monkeypatch,
         {
             "mode": ["For"],
-            "start_iteration": [3],
+            "start_iteration_index": [3],
             "max_iteration": [0],
             "step": [-2],
         },
@@ -160,7 +160,7 @@ def test_close_loop_allows_no_carried_or_output_value(monkeypatch):
 def test_loop_schema_has_integrated_carried_value():
     inputs = nodes_loop.StartLoop.INPUT_TYPES()
 
-    assert list(inputs["optional"]) == ["iteration_outer", "initial_iteration_value"]
+    assert list(inputs["optional"]) == ["parent_iteration", "initial_iteration_value"]
     assert nodes_loop.StartLoop.RETURN_NAMES == [
         "iteration_index",
         "is_first",
@@ -184,7 +184,7 @@ def test_loop_step_must_not_be_zero(monkeypatch):
     with pytest.raises(ValueError, match="step must not be 0"):
         run_loop(
             monkeypatch,
-            {"mode": ["For"], "start_iteration": [0], "max_iteration": [1], "step": [0]},
+            {"mode": ["For"], "start_iteration_index": [0], "max_iteration": [1], "step": [0]},
         )
 
 
@@ -197,7 +197,7 @@ def test_outer_loop_orders_nested_close_after_nested_opener(monkeypatch):
     }
     dynprompt = DynPrompt({
         "outer": {"class_type": "StartLoop", "inputs": {}},
-        "inner": {"class_type": "StartLoop", "inputs": {"iteration_outer": ["outer", 0]}},
+        "inner": {"class_type": "StartLoop", "inputs": {"parent_iteration": ["outer", 0]}},
         "inner_body": {"class_type": "Body", "inputs": {"value": ["inner", 0]}},
         "inner_close": {
             "class_type": "EndLoop",
@@ -250,7 +250,7 @@ def test_outer_loop_ignores_nested_link_whose_target_has_finished(monkeypatch):
     }
     dynprompt = DynPrompt({
         "outer": {"class_type": "StartLoop", "inputs": {}},
-        "inner": {"class_type": "StartLoop", "inputs": {"iteration_outer": ["outer", 0]}},
+        "inner": {"class_type": "StartLoop", "inputs": {"parent_iteration": ["outer", 0]}},
         "inner_body": {"class_type": "Body", "inputs": {"value": ["inner", 0]}},
         "inner_close": {
             "class_type": "EndLoop",
