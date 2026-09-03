@@ -28,6 +28,8 @@ def test_cat_tensors_with_lazy_casting_param():
     fake = LazyCastingLikeTensor(real)
 
     out = cat_tensors([fake, fake])
+    regular_out = cat_tensors([real, real])
 
     assert out.device.type == "cpu"
     assert torch.equal(out, torch.cat([real, real], dim=0))
+    assert torch.equal(regular_out, torch.cat([real, real], dim=0))
