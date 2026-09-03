@@ -184,7 +184,6 @@ TRIPO_BIPED_ANIMATIONS = (
     "preset:biped:pitch_baseball",
     "preset:biped:play_mobile_game",
     "preset:biped:play_video_game",
-    "preset:biped:press-up",
     "preset:biped:run_upstairs",
     "preset:biped:run",
     "preset:biped:scared_01",
