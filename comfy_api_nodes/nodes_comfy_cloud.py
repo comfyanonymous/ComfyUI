@@ -417,7 +417,7 @@ class _ComfyCloudPromptSeedImageNode(_ComfyCloudWorkflowNode):
 class ComfyCloudCapybaraTextToImageNode(_ComfyCloudPromptSeedImageNode):
     workflow = "image.capybara-0-1-text-to-image.v1"
     node_id = "ComfyCloudCapybaraTextToImageNode"
-    display_name = "Comfy Cloud Capybara 0.1"
+    display_name = "Comfy Cloud Capybara 0.1 Text to Image"
     summary = (
         "Generates an image from a text prompt with Capybara 0.1, rendered at 1280x1280 "
         "rather than upscaled from a smaller canvas."
@@ -427,7 +427,7 @@ class ComfyCloudCapybaraTextToImageNode(_ComfyCloudPromptSeedImageNode):
 class ComfyCloudIdeogram4TextToImageNode(_ComfyCloudPromptSeedImageNode):
     workflow = "image.ideogram-4-text-to-image.v1"
     node_id = "ComfyCloudIdeogram4TextToImageNode"
-    display_name = "Comfy Cloud Ideogram 4"
+    display_name = "Comfy Cloud Ideogram 4 Text to Image"
     summary = (
         "Generates an image from a text prompt with Ideogram 4, a model aimed at typography "
         "and graphic layout work."
@@ -437,7 +437,7 @@ class ComfyCloudIdeogram4TextToImageNode(_ComfyCloudPromptSeedImageNode):
 class ComfyCloudLongCatTextToImageNode(_ComfyCloudPromptSeedImageNode):
     workflow = "image.longcat-text-to-image.v1"
     node_id = "ComfyCloudLongCatTextToImageNode"
-    display_name = "Comfy Cloud LongCat"
+    display_name = "Comfy Cloud LongCat Text to Image"
     summary = (
         "Generates a 1024x1024 image from a text prompt with LongCat, running a full 20-step "
         "sampler instead of a distilled shortcut. Slower and dearer per run than the turbo "
@@ -448,7 +448,7 @@ class ComfyCloudLongCatTextToImageNode(_ComfyCloudPromptSeedImageNode):
 class ComfyCloudFlux2TextToImageNode(_ComfyCloudPromptSeedImageNode):
     workflow = "image.flux-2-text-to-image.v1"
     node_id = "ComfyCloudFlux2TextToImageNode"
-    display_name = "Comfy Cloud Flux 2"
+    display_name = "Comfy Cloud Flux 2 Text to Image"
     summary = (
         "Generates an image from a text prompt with Flux 2 dev plus its Turbo LoRA, which "
         "trades a little fidelity for a much shorter run."
@@ -458,7 +458,7 @@ class ComfyCloudFlux2TextToImageNode(_ComfyCloudPromptSeedImageNode):
 class ComfyCloudZImageTurboNode(_ComfyCloudPromptSeedImageNode):
     workflow = "image.z-image-turbo.v1"
     node_id = "ComfyCloudZImageTurboNode"
-    display_name = "Comfy Cloud Z-Image Turbo"
+    display_name = "Comfy Cloud Z-Image Turbo Text to Image"
     summary = (
         "Generates a 1024x1024 image from a text prompt with Z-Image Turbo in 8 steps. One of "
         "the quickest and cheapest nodes here, which makes it the one to iterate on."
@@ -468,7 +468,7 @@ class ComfyCloudZImageTurboNode(_ComfyCloudPromptSeedImageNode):
 class ComfyCloudKrea2CreativeImageNode(_ComfyCloudWorkflowNode):
     workflow = "image.krea-2-creative-image.v1"
     node_id = "ComfyCloudKrea2CreativeImageNode"
-    display_name = "Comfy Cloud Krea 2"
+    display_name = "Comfy Cloud Krea 2 Text to Image"
     summary = (
         "Generates an image from a text prompt with Krea 2 Turbo in 8 steps. The Krea 2 "
         "darkbrush style LoRA is baked into this graph, so output carries that look by "
@@ -564,7 +564,7 @@ class ComfyCloudQwenImageEdit2511Node(_ComfyCloudWorkflowNode):
 class ComfyCloudSeedVR2ImageUpscaleNode(_ComfyCloudWorkflowNode):
     workflow = "image.seedvr2-image-upscale.v1"
     node_id = "ComfyCloudSeedVR2ImageUpscaleNode"
-    display_name = "Comfy Cloud SeedVR2 Upscale"
+    display_name = "Comfy Cloud SeedVR2 Upscale Image"
     summary = (
         "Upscales and restores an image with the SeedVR2 7B diffusion upscaler in a single "
         "step. It rebuilds detail rather than resampling, so it suits soft or heavily "
@@ -640,7 +640,7 @@ class ComfyCloudMiniMaxH3TextSoundNode(IO.ComfyNode):
     def define_schema(cls) -> IO.Schema:
         return _video_schema(
             "ComfyCloudMiniMaxH3TextSoundNode",
-            "Comfy Cloud MiniMax H3 Text to Video",
+            "Comfy Cloud MiniMax H3 Text to Video with Audio",
             (
                 "Generates a video with a matching soundtrack from a text prompt, using MiniMax "
                 "H3. Picture and audio come out of the same pass rather than being dubbed on "
@@ -668,7 +668,7 @@ class ComfyCloudMiniMaxH3ImageSoundNode(IO.ComfyNode):
     def define_schema(cls) -> IO.Schema:
         return _video_schema(
             "ComfyCloudMiniMaxH3ImageSoundNode",
-            "Comfy Cloud MiniMax H3 Image to Video",
+            "Comfy Cloud MiniMax H3 Image to Video with Audio",
             (
                 "Animates a still image into a video with a matching soundtrack, using MiniMax "
                 "H3. Picture and audio come out of the same pass rather than being dubbed on "
@@ -704,7 +704,7 @@ class ComfyCloudLTX23ImageAudioPerformanceNode(IO.ComfyNode):
     def define_schema(cls) -> IO.Schema:
         return _video_schema(
             "ComfyCloudLTX23ImageAudioPerformanceNode",
-            "Comfy Cloud LTX-2.3 Performance",
+            "Comfy Cloud LTX-2.3 Image to Video",
             (
                 "Drives a still image with an audio track to produce an audio-led performance "
                 "video, using LTX-2.3 22B with a 2x spatial upscaler. Duration cannot exceed the "
@@ -761,7 +761,7 @@ class ComfyCloudWan22FirstLastFrameNode(IO.ComfyNode):
     def define_schema(cls) -> IO.Schema:
         return _video_schema(
             "ComfyCloudWan22FirstLastFrameNode",
-            "Comfy Cloud Wan 2.2 First & Last Frame",
+            "Comfy Cloud Wan 2.2 First-Last-Frame to Video",
             (
                 "Generates the video between a first and a last frame with Wan 2.2 14B, inventing "
                 "the motion that connects them. Frames that differ wildly need a longer duration "
