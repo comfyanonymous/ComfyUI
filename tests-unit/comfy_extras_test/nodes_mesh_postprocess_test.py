@@ -22,6 +22,7 @@ from comfy_api.latest._util.geometry_types import MESH
 from comfy_extras.nodes_mesh_postprocess import (
     UnwrapMesh,
     _mesh_postprocess_compute_device,
+    _uv_unwrap,
     fill_holes_v2_fn,
 )
 
@@ -133,7 +134,7 @@ def test_unwrap_mesh_pec_uses_guarded_device_on_mps(monkeypatch):
 
     seen = {}
 
-    def fake_uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance):
+    def fake_uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance, device=None):
         seen["device"] = positions.device
         n = positions.shape[0]
         return np.arange(n), indices.cpu().numpy(), np.zeros((n, 2), dtype=np.float32)
@@ -146,5 +147,31 @@ def test_unwrap_mesh_pec_uses_guarded_device_on_mps(monkeypatch):
     mesh = MESH(vertices=verts, faces=faces)
 
     UnwrapMesh.execute(mesh, "pec", 1024, 1, 0.0)
+
+    assert seen["device"] == torch.device("cpu")
+
+
+def test_uv_unwrap_lscm_uses_passed_device_not_raw_get_torch_device(monkeypatch):
+    """_uv_unwrap's LSCM batch solve must use the device passed in by the caller
+    (UnwrapMesh.execute's guarded seg_device), not comfy.model_management.get_torch_device()
+    directly -- otherwise the "pec" path can still build scatter tensors on MPS even
+    though its inputs were already moved to CPU by the guard."""
+    monkeypatch.setattr(
+        comfy.model_management, "get_torch_device", lambda: torch.device("mps")
+    )
+
+    seen = {}
+    real_lscm = nodes_mesh_postprocess._uv_param.lscm_charts_batch
+
+    def tracking_lscm(*args, **kwargs):
+        seen["device"] = kwargs.get("device")
+        return real_lscm(*args, **kwargs)
+
+    monkeypatch.setattr(nodes_mesh_postprocess._uv_param, "lscm_charts_batch", tracking_lscm)
+
+    verts = torch.tensor([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
+    faces = torch.tensor([[0, 1, 2]], dtype=torch.long)
+
+    _uv_unwrap(verts, faces, "pec", 1024, 1, 0.0, device=torch.device("cpu"))
 
     assert seen["device"] == torch.device("cpu")

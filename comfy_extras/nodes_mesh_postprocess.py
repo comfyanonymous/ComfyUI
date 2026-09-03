@@ -2514,7 +2514,7 @@ def _uv_weld_vertices(v, f, weld_distance):
     return v_new, f_new, welded_to_orig
 
 
-def _uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance):
+def _uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance, device=None):
     """UV-unwrap a single mesh; returns (vmapping, indices, uvs); vmapping maps each output
     vertex to an input vertex (seam verts duplicated)."""
     t_start = time.perf_counter()
@@ -2616,7 +2616,7 @@ def _uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance
     lscm_uv = _uv_param.lscm_charts_batch(
         verts_concat, uv0, gl_faces, face_pos, chart_sorted, chart_of_vert,
         vert_offsets, lscm_ids, n_charts,
-        device=comfy.model_management.get_torch_device())
+        device=device if device is not None else comfy.model_management.get_torch_device())
     param_done += int(lscm_ids.size)
     pbar.update_absolute(400 + (250 * param_done) // n_charts, 1000)
 
@@ -2746,7 +2746,7 @@ class UnwrapMesh(IO.ComfyNode):
 
             vmapping, indices, uvs = _uv_unwrap(
                 vi.to(seg_device).float(), fi.to(seg_device).long(),
-                segmenter, int(resolution), int(padding), weld_abs)
+                segmenter, int(resolution), int(padding), weld_abs, device=seg_device)
             uvs = uvs.copy()
             uvs[:, 1] = 1.0 - uvs[:, 1]                       # UV y flipped vs trimesh
 
