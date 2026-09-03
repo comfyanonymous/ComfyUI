@@ -574,9 +574,8 @@ def _merge_params(endpoint_params: dict[str, Any], method: str, data: dict[str, 
     return params
 
 
-# Error codes where a 5xx means "this is switched off", not "try again in a
-# moment". Retrying one only makes the user wait through the backoff before
-# showing them the same answer.
+# 5xx codes that mean "switched off", not "try again": retrying only makes the
+# user wait through the backoff for the same answer.
 _TERMINAL_SERVICE_REFUSALS = frozenset({"comfy_cloud_provider_disabled"})
 
 
@@ -596,9 +595,7 @@ def _friendly_http_message(status: int, body: Any) -> str:
     try:
         if isinstance(body, dict):
             err = body.get("error")
-            # comfy-api's own error envelope is FLAT: {"error": "<code>",
-            # "message": "<user-facing text>"}. Without this the message is
-            # skipped and the user is shown the raw JSON of the whole body.
+            # comfy-api's envelope is flat: {"error": code, "message": text}.
             if isinstance(err, str):
                 msg = body.get("message")
                 if isinstance(msg, str) and msg:

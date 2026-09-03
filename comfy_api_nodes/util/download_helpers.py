@@ -73,8 +73,8 @@ async def download_url_to_bytesio(
 
     while True:
         attempt += 1
-        # A retry re-reads the body from byte zero, so a BytesIO a previous attempt
-        # part-filled has to be emptied first or the two bodies concatenate.
+        # A retry re-reads from byte zero, so a part-filled BytesIO must be emptied
+        # or the two bodies concatenate.
         if isinstance(dest, BytesIO):
             dest.seek(0)
             dest.truncate(0)
@@ -123,9 +123,8 @@ async def download_url_to_bytesio(
                 raise ProcessingInterrupted("Task cancelled") from None
 
             async with resp:
-                # 3xx and not 4xx: under allow_redirects=False a redirect arrives here
-                # instead of being followed, and its body is not the file that was asked
-                # for. With the default True, aiohttp has already resolved these.
+                # Under allow_redirects=False a redirect lands here unfollowed, and its
+                # body is not the file that was asked for.
                 if resp.status >= 300:
                     with contextlib.suppress(Exception):
                         try:

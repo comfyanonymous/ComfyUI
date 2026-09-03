@@ -31,11 +31,7 @@ from comfy_api_nodes.util import (
 )
 
 
-# Buckets a Comfy Cloud output may be served from. MUST stay in step with
-# comfyCloudOutputBuckets in cloud's services/comfy-api/config/config.go, which is
-# where that set is declared: widen one without the other and every run completes on
-# the GPU and then has its output rejected here. The partner-nodes-* entries are the
-# buckets staging and prod already point the shared partner-node asset key at.
+# Must stay in step with comfyCloudOutputBuckets in cloud's services/comfy-api/config/config.go.
 _OUTPUT_BUCKETS = frozenset(
     {
         "comfy-cloud-assets",
@@ -46,16 +42,6 @@ _OUTPUT_BUCKETS = frozenset(
     }
 )
 _GENERATE_ENDPOINT = ApiEndpoint(path="/proxy/comfy-cloud/workflow/generate", method="POST")
-# Three separate budgets that are easy to confuse and must not drift apart:
-#   _RUN_TIMEOUT_SECONDS      the platform's own ceiling on a Cloud job (ingest stamps
-#                             max_runtime; 2100s is the default tier value). We do not
-#                             enforce it, we poll under it.
-#   _POLL_* below             how long this node waits for that job. Deliberately a little
-#                             ABOVE the platform ceiling so a job that is still legitimately
-#                             running is never abandoned early, and the job's own timeout is
-#                             what ends it.
-#   _OUTPUT_DOWNLOAD_TIMEOUT  a separate budget for fetching the finished artifact, which
-#                             happens only after the job has already succeeded.
 _RUN_TIMEOUT_SECONDS = 2100
 _POLL_INTERVAL_SECONDS = 5.0
 _POLL_MAX_ATTEMPTS = int(_RUN_TIMEOUT_SECONDS / _POLL_INTERVAL_SECONDS) + 24  # +2 min of slack
@@ -63,15 +49,8 @@ _OUTPUT_DOWNLOAD_TIMEOUT = 30 * 60
 _MAX_UPLOAD_IMAGE_PIXELS = 32_000_000
 _MAX_UPLOAD_IMAGE_DIMENSION = 8192
 _MAX_DECODED_AUDIO_BYTES = 256 * 1024 * 1024
-# The rate Metronome actually charges for a Comfy Cloud run: the "GPU Hour Usage"
-# billable metric sums gpu_seconds and prices it per gpu_type, and the rate for
-# rtx_pro_6000 is 0.185 cents per GPU-second. Confirmed against the live rate
-# card, not derived here.
-#
-# This is a HARDCODED MIRROR of that rate card and nothing links the two, so it
-# will drift the moment pricing changes. It previously read 0.001295, which
-# under-quoted every run by ~43% against the user. If the rate card moves, this
-# has to move with it, and it ships on the ComfyUI release train.
+# Hardcoded mirror of Metronome's rtx_pro_6000 rate. Nothing links the two, so it
+# must be changed by hand when the rate card moves.
 COMFY_CLOUD_GPU_SECOND_USD = 0.00185
 COMFY_CLOUD_CREDITS_PER_USD = 211
 COMFY_CLOUD_GPU_SECOND_CREDITS = COMFY_CLOUD_GPU_SECOND_USD * COMFY_CLOUD_CREDITS_PER_USD
@@ -95,7 +74,6 @@ def _comfy_cloud_description(summary: str) -> str:
     return summary + _COMFY_CLOUD_RATE_DESCRIPTION
 
 
-# Per-widget (min, max) length, keyed by input id. Anything not listed gets (0, None).
 _TEXT_LIMITS = {
     "prompt": (1, 4096),
     "instruction": (1, 4096),
@@ -153,14 +131,9 @@ def _validated_output_url(url: str) -> str:
         and decoded_path.startswith("/proxy/comfy-cloud/")
         and posixpath.normpath(decoded_path) == decoded_path
     )
-    # The bucket is the first path segment of a signed GCS URL. Pin it to the same set the
-    # backend enforces (comfyCloudOutputBuckets) rather than trusting any bucket on the host:
-    # the URL is backend-supplied, so this is defence in depth, but the asymmetry with the Go
-    # side is free to close and an unpinned host check is the kind of thing that quietly stops
-    # being true.
-    # normpath before trusting that segment: a client resolves dot segments before it
-    # sends the request, so ".../comfy-cloud-assets/../other/x.png" advertises an allowed
-    # bucket here and fetches from another one on the wire.
+    # normpath first: a client resolves dot segments before sending, so
+    # ".../comfy-cloud-assets/../other/x.png" would advertise an allowed bucket here
+    # and fetch from another one on the wire.
     bucket = decoded_path.lstrip("/").split("/", 1)[0]
     is_signed_https_url = (
         parsed.scheme == "https"
@@ -214,8 +187,6 @@ async def _poll_task(cls: type[IO.ComfyNode], task_id: str) -> ComfyCloudStatusR
             max_poll_attempts=_POLL_MAX_ATTEMPTS,
         )
     except Exception:
-        # Best-effort: the job is billed per GPU-second, so stop it before surfacing the
-        # failure. A cancel that itself fails must not replace the error the user needs.
         with contextlib.suppress(Exception):
             await sync_op_raw(cls, cancel_endpoint, max_retries=0)
         raise
@@ -229,9 +200,6 @@ def _validate_node_inputs(cls: type[IO.ComfyNode], values: dict) -> dict:
         value = values[input_spec.id]
         io_type = input_spec.get_io_type()
         if io_type == "STRING":
-            # Every widget here has socketless=False, so a graph can link any output into
-            # a text input. Name the field like the branches below rather than letting
-            # .strip() raise AttributeError.
             if not isinstance(value, str):
                 raise ValueError(f"{input_spec.id} must be a string.")
             value = value.strip()
@@ -843,8 +811,7 @@ class ComfyCloudWan22FirstLastFrameNode(IO.ComfyNode):
         _validate_image_upload(last_frame)
         first_url = await upload_image_to_comfyapi(cls, first_frame, wait_label="Uploading first frame")
         last_url = await upload_image_to_comfyapi(cls, last_frame, wait_label="Uploading last frame")
-        # Omit the field rather than sending "" so the backend applies the graph's own
-        # negative prompt, which it substitutes only when the caller supplies none.
+        # Omitted, not "", so the backend applies the graph's own negative prompt.
         inputs = ComfyCloudWorkflowInputs(
             prompt=prompt, negative_prompt=negative_prompt or None, first_frame_url=first_url,
             last_frame_url=last_url, duration_seconds=duration_seconds, seed=seed,
@@ -863,15 +830,10 @@ class ComfyCloudExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
-            # Capability nodes. The backend maps each alias to a curated workflow
-            # (text-to-video -> MiniMax H3, image-to-video -> LTX-2.3, image-edit ->
-            # Qwen-Image-Edit-2511), so the model behind a shape can be swapped
-            # server-side without a ComfyUI release. Stable class_type per output shape.
             ComfyCloudTextToImageNode,
             ComfyCloudTextToVideoNode,
             ComfyCloudImageToVideoNode,
             ComfyCloudImageEditNode,
-            # Named workflows, for control the generic shape cannot express.
             ComfyCloudMiniMaxH3TextSoundNode,
             ComfyCloudMiniMaxH3ImageSoundNode,
             ComfyCloudWan22FirstLastFrameNode,

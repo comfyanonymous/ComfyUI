@@ -3,8 +3,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 
-# Only the workflows this build actually ships. The backend serves more; a node must not
-# reference one that has not been vetted for the client surface.
+# Only the workflows this build ships. The backend serves more.
 ComfyCloudWorkflow = Literal[
     "text-to-image",
     "text-to-video",
@@ -25,9 +24,7 @@ ComfyCloudWorkflow = Literal[
 ]
 
 
-# Only the inputs the shipped nodes actually send, for the same reason
-# ComfyCloudWorkflow is narrowed above: the frozen manifests accept more, but a field
-# no node sets is surface this build cannot exercise or test.
+# Only the inputs the shipped nodes send. The manifests accept more.
 class ComfyCloudWorkflowInputs(BaseModel):
     prompt: str | None = Field(None)
     image_url: str | None = Field(None)
