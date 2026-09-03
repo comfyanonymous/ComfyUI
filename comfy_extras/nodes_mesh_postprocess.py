@@ -2118,8 +2118,16 @@ def fill_holes_v2_fn(vertices, faces, max_perimeter=0.03, colors=None, weld_epsi
         c_out = torch.stack(c_list) if c_list is not None else None
         return torch.stack(v_list), torch.stack(f_list), c_out
 
+    # Select the guarded compute device (MPS->CPU, see #16017) and move inputs there
+    # before the adaptive weld below, whose scatter_add_ calls would otherwise still
+    # run on MPS.
+    dev = _mesh_postprocess_compute_device()
     if faces.numel() == 0:
-        return vertices, faces, colors
+        return vertices.to(dev), faces.to(dev), colors.to(dev) if colors is not None else None
+    vertices = vertices.to(dev)
+    faces = faces.to(dev)
+    if colors is not None:
+        colors = colors.to(dev)
     # Adaptive weld: welded surfaces have V/F ≈ 0.5-1.0; V/F > 1 means unwelded (hole-fill
     # would emit a bogus tri per face). Double epsilon until V/F < WELDED_THRESHOLD or WELD_CAP.
     if weld_epsilon_rel > 0:
@@ -2148,10 +2156,8 @@ def fill_holes_v2_fn(vertices, faces, max_perimeter=0.03, colors=None, weld_epsi
                 f"duplicate verts at distances >{WELD_CAP}× bbox; fix upstream "
                 f"(decimate node settings) or run WeldVertices manually with a larger epsilon."
             )
-    dev = comfy.model_management.get_torch_device()
     out_v, out_f, out_c, _ = _fill_holes_v2_gpu(
-        vertices.to(dev), faces.to(dev), max_perimeter,
-        colors.to(dev) if colors is not None else None, fill_chains, max_verts)
+        vertices, faces, max_perimeter, colors, fill_chains, max_verts)
     return out_v, out_f, out_c
 
 
@@ -2238,6 +2244,22 @@ def _fmt_face_change(n_in, n_out) -> str:
     return f"faces: {_fmt_count(n_in)} → {_fmt_count(n_out)}{pct}"
 
 
+def _mesh_postprocess_compute_device():
+    """Device for mesh postprocess kernels that scatter/index_put_ over large
+    (millions of vertices/faces) index tensors: QEM decimate, dual-contouring
+    remesh, hole-filling (component labeling/perimeter/centroid reduction),
+    and parallel-edge-collapse UV chart segmentation.
+
+    PyTorch's MPS backend has a scatter/index_put_ bug that produces
+    out-of-range indices on tensors of that size (see issue #16017); fall
+    back to CPU there.
+    """
+    device = comfy.model_management.get_torch_device()
+    if comfy.model_management.is_device_mps(device):
+        return torch.device("cpu")
+    return device
+
+
 class DecimateMesh(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -2293,7 +2315,7 @@ class DecimateMesh(IO.ComfyNode):
             cfg = QEMConfig()  # midpoint defaults
 
         # ComfyUI passes meshes on CPU (QEM much slower there); compute on device, return on original.
-        compute_device = comfy.model_management.get_torch_device()
+        compute_device = _mesh_postprocess_compute_device()
 
         counts = {"in": 0, "out": 0}
 
@@ -2389,7 +2411,7 @@ class RemeshMesh(IO.ComfyNode):
         drop_enclosed_components = bool(sign_mode.get("drop_enclosed_components", False))
 
         # ComfyUI passes meshes on CPU (remesh far faster on GPU); compute on device, return on original.
-        compute_device = comfy.model_management.get_torch_device()
+        compute_device = _mesh_postprocess_compute_device()
         counts = {"in": 0, "out": 0}
 
         def _fn(v, f, c):
@@ -2492,7 +2514,7 @@ def _uv_weld_vertices(v, f, weld_distance):
     return v_new, f_new, welded_to_orig
 
 
-def _uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance):
+def _uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance, device=None):
     """UV-unwrap a single mesh; returns (vmapping, indices, uvs); vmapping maps each output
     vertex to an input vertex (seam verts duplicated)."""
     t_start = time.perf_counter()
@@ -2594,7 +2616,7 @@ def _uv_unwrap(positions, indices, segmenter, resolution, padding, weld_distance
     lscm_uv = _uv_param.lscm_charts_batch(
         verts_concat, uv0, gl_faces, face_pos, chart_sorted, chart_of_vert,
         vert_offsets, lscm_ids, n_charts,
-        device=comfy.model_management.get_torch_device())
+        device=device if device is not None else comfy.model_management.get_torch_device())
     param_done += int(lscm_ids.size)
     pbar.update_absolute(400 + (250 * param_done) // n_charts, 1000)
 
@@ -2695,7 +2717,9 @@ class UnwrapMesh(IO.ComfyNode):
 
     @classmethod
     def execute(cls, mesh, segmenter, resolution, padding, weld_distance):
-        compute_device = comfy.model_management.get_torch_device()
+        # "pec" runs its parallel-edge-collapse charting (scatter/index_put_-heavy) on
+        # compute_device; "adaptive" already forces CPU regardless.
+        compute_device = _mesh_postprocess_compute_device()
         seg_device = compute_device if segmenter == "pec" else torch.device("cpu")
 
         is_list = isinstance(mesh.vertices, list)
@@ -2722,7 +2746,7 @@ class UnwrapMesh(IO.ComfyNode):
 
             vmapping, indices, uvs = _uv_unwrap(
                 vi.to(seg_device).float(), fi.to(seg_device).long(),
-                segmenter, int(resolution), int(padding), weld_abs)
+                segmenter, int(resolution), int(padding), weld_abs, device=compute_device)
             uvs = uvs.copy()
             uvs[:, 1] = 1.0 - uvs[:, 1]                       # UV y flipped vs trimesh
 
