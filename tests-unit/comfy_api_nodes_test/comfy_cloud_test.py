@@ -287,76 +287,6 @@ CONTROLLED_IMAGE_NODES = [
             "steps": 24, "turbo_steps": 6, "turbo_strength": 0.8, "guidance": 4.5,
         },
     ),
-    (
-        nodes_comfy_cloud.ComfyCloudIdeogram4TextToImageNode,
-        "ideogram-4/text-to-image",
-        ["prompt", "aspect_ratio", "rendering_speed", "seed", "guidance"],
-        {"prompt": "A glass forest", "aspect_ratio": "3:2", "rendering_speed": "quality", "seed": 9, "guidance": 6.5},
-        {"prompt": "A glass forest", "width": 1152, "height": 768, "rendering_speed": "quality", "seed": 9, "guidance": 6.5},
-    ),
-    (
-        nodes_comfy_cloud.ComfyCloudLongCatTextToImageNode,
-        "longcat/text-to-image",
-        ["prompt", "aspect_ratio", "seed", "negative_prompt", "steps", "cfg", "guidance"],
-        {
-            "prompt": "A glass forest", "aspect_ratio": "4:3", "seed": 9,
-            "negative_prompt": "blurry", "steps": 24, "cfg": 4.5, "guidance": 3.5,
-        },
-        {
-            "prompt": "A glass forest", "width": 1024, "height": 768, "seed": 9,
-            "negative_prompt": "blurry", "steps": 24, "cfg": 4.5, "guidance": 3.5,
-        },
-    ),
-    (
-        nodes_comfy_cloud.ComfyCloudCapybaraTextToImageNode,
-        "capybara-0.1/text-to-image",
-        ["prompt", "aspect_ratio", "seed", "negative_prompt", "steps", "cfg", "shift"],
-        {
-            "prompt": "A glass forest", "aspect_ratio": "1:1", "seed": 9,
-            "negative_prompt": "blurry", "steps": 24, "cfg": 6.5, "shift": 7.5,
-        },
-        {
-            "prompt": "A glass forest", "width": 1280, "height": 1280, "seed": 9,
-            "negative_prompt": "blurry", "steps": 24, "cfg": 6.5, "shift": 7.5,
-        },
-    ),
-    (
-        nodes_comfy_cloud.ComfyCloudKrea2CreativeImageNode,
-        "krea-2/text-to-image",
-        ["prompt", "prompt_enhance", "aspect_ratio", "seed", "style_lora", "style_strength", "steps"],
-        {
-            "prompt": "A glass forest", "prompt_enhance": False, "aspect_ratio": "16:9", "seed": 12,
-            "style_lora": True, "style_strength": 0.6, "steps": 10,
-        },
-        {
-            "prompt": "A glass forest", "prompt_enhance": False, "aspect_ratio": "16:9", "seed": 12,
-            "style_lora": True, "style_strength": 0.6, "steps": 10,
-        },
-    ),
-    (
-        nodes_comfy_cloud.ComfyCloudQwenImageEdit2511Node,
-        "qwen-image-edit-2511/image-edit",
-        ["image", "instruction", "quality_mode", "seed", "negative_prompt", "steps", "fast_steps", "cfg", "shift"],
-        {
-            "image": object(), "instruction": "Remove the sign", "quality_mode": "fast", "seed": 15,
-            "negative_prompt": "blurry", "steps": 32, "fast_steps": 6, "cfg": 3.5, "shift": 3.0,
-        },
-        {
-            "instruction": "Remove the sign", "quality_mode": "fast", "seed": 15,
-            "negative_prompt": "blurry", "steps": 32, "fast_steps": 6, "cfg": 3.5, "shift": 3.0,
-            "assets": {"image": {"type": "IMAGE", "url": "/uploads/input.png"}},
-        },
-    ),
-    (
-        nodes_comfy_cloud.ComfyCloudSeedVR2ImageUpscaleNode,
-        "seedvr2/upscale-image",
-        ["image", "scale", "seed", "color_correction", "steps"],
-        {"image": object(), "scale": "2x", "seed": 15, "color_correction": "lab", "steps": 2},
-        {
-            "scale": "2x", "seed": 15, "color_correction": "lab", "steps": 2,
-            "assets": {"image": {"type": "IMAGE", "url": "/uploads/input.png"}},
-        },
-    ),
 ]
 
 
@@ -565,45 +495,6 @@ def test_upload_inputs_have_decoded_resource_limits():
         nodes_comfy_cloud._validate_audio_upload(oversized_audio)
 
 
-@pytest.mark.parametrize(
-    ("typed", "sent"),
-    [("", None), ("   ", None), ("blurry, low quality", "blurry, low quality")],
-)
-def test_wan_negative_prompt_defers_to_the_graph_when_left_empty(monkeypatch, typed, sent):
-    """The backend substitutes the frozen graph's own negative prompt only when the caller
-    sends none, so an untouched widget must omit the field rather than send an empty one."""
-    run = AsyncMock(return_value=("video-output",))
-    monkeypatch.setattr(nodes_comfy_cloud, "_run_video_workflow", run)
-    monkeypatch.setattr(nodes_comfy_cloud, "upload_image_to_comfyapi", AsyncMock(return_value="u"))
-    monkeypatch.setattr(nodes_comfy_cloud, "get_number_of_images", lambda image: 1)
-
-    node = nodes_comfy_cloud.ComfyCloudWan22FirstLastFrameNode
-    default = next(i for i in node.define_schema().inputs if i.id == "negative_prompt").default
-    assert default == ""
-
-    asyncio.run(node.execute(object(), object(), "a cat", negative_prompt=typed))
-
-    assert run.call_args.args[2].negative_prompt == sent
-
-
-def test_ltx_performance_stages_image_and_audio(monkeypatch):
-    run = AsyncMock(return_value=("video-output",))
-    image_upload = AsyncMock(return_value="https://example.com/image.png")
-    audio_upload = AsyncMock(return_value="https://example.com/audio.mp4")
-    monkeypatch.setattr(nodes_comfy_cloud, "_run_video_workflow", run)
-    monkeypatch.setattr(nodes_comfy_cloud, "upload_image_to_comfyapi", image_upload)
-    monkeypatch.setattr(nodes_comfy_cloud, "upload_audio_to_comfyapi", audio_upload)
-    monkeypatch.setattr(nodes_comfy_cloud, "get_number_of_images", lambda image: 1)
-    audio = {"waveform": torch.zeros(1, 1, 480000), "sample_rate": 48000}
-
-    asyncio.run(nodes_comfy_cloud.ComfyCloudLTX23ImageAudioPerformanceNode.execute(object(), audio, "sing"))
-
-    inputs = run.call_args.args[2]
-    assert inputs.image_url == "https://example.com/image.png"
-    assert inputs.audio_url == "https://example.com/audio.mp4"
-    assert inputs.duration_seconds == 9
-
-
 def _stub_download_session(monkeypatch, responses):
     """Point download_url_to_bytesio at a scripted list of responses, one per attempt.
 
@@ -708,17 +599,8 @@ def test_extension_registers_exactly_the_shipped_set():
     }
     named_nodes = {
         nodes_comfy_cloud.ComfyCloudMiniMaxH3TextSoundNode,
-        nodes_comfy_cloud.ComfyCloudMiniMaxH3ImageSoundNode,
-        nodes_comfy_cloud.ComfyCloudWan22FirstLastFrameNode,
-        nodes_comfy_cloud.ComfyCloudLTX23ImageAudioPerformanceNode,
-        nodes_comfy_cloud.ComfyCloudKrea2CreativeImageNode,
-        nodes_comfy_cloud.ComfyCloudQwenImageEdit2511Node,
-        nodes_comfy_cloud.ComfyCloudSeedVR2ImageUpscaleNode,
         nodes_comfy_cloud.ComfyCloudZImageTurboNode,
         nodes_comfy_cloud.ComfyCloudFlux2TextToImageNode,
-        nodes_comfy_cloud.ComfyCloudIdeogram4TextToImageNode,
-        nodes_comfy_cloud.ComfyCloudLongCatTextToImageNode,
-        nodes_comfy_cloud.ComfyCloudCapybaraTextToImageNode,
     }
     registered = set(asyncio.run(nodes_comfy_cloud.ComfyCloudExtension().get_node_list()))
 

@@ -9,18 +9,9 @@ ComfyCloudWorkflow = Literal[
     "default/text-to-video",
     "default/image-to-video",
     "default/image-edit",
-    "krea-2/text-to-image",
-    "qwen-image-edit-2511/image-edit",
-    "seedvr2/upscale-image",
     "z-image-turbo/text-to-image",
     "flux-2/text-to-image",
-    "ideogram-4/text-to-image",
-    "longcat/text-to-image",
-    "capybara-0.1/text-to-image",
     "minimax-h3/text-to-video",
-    "minimax-h3/image-to-video",
-    "ltx-2.3/image-to-video",
-    "wan-2.2/first-last-frame-to-video",
 ]
 
 
