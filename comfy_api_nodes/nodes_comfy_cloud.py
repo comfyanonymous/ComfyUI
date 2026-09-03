@@ -860,63 +860,6 @@ def _video_schema(node_id: str, display_name: str, summary: str, inputs: list[IO
     )
 
 
-def _minimax_inputs(image: bool) -> list[IO.Input]:
-    inputs = [IO.Image.Input("image")] if image else []
-    return inputs + [
-        _prompt_input(),
-        # Same order as _minimax_h3_inputs: seed, aspect ratio, shot shape.
-        _seed_input(),
-        _aspect_ratio_input("1:1" if image else "16:9"),
-        _video_resolution_input(),
-        IO.Int.Input(
-            "duration_seconds",
-            default=5,
-            min=5,
-            max=15,
-            display_mode=IO.NumberDisplay.slider,
-            tooltip=(
-                "Length in seconds. The pipeline quantises to 17-frame steps at 24fps, "
-                "so the clip lands within about two thirds of a second of this."
-            ),
-        ),
-        _steps_input(20, 60),
-    ]
-
-
-class ComfyCloudMiniMaxH3TextToVideoNode(IO.ComfyNode):
-    @classmethod
-    def define_schema(cls) -> IO.Schema:
-        return _video_schema(
-            "ComfyCloudMiniMaxH3TextToVideoNode",
-            "Comfy Cloud MiniMax H3 Text to Video",
-            (
-                "Generates a video with a matching soundtrack from a text prompt, using MiniMax "
-                "H3. Picture and audio come out of the same pass rather than being dubbed on "
-                "afterwards."
-            ),
-            _minimax_inputs(image=False),
-        )
-
-    @classmethod
-    async def execute(
-        cls,
-        prompt: str,
-        aspect_ratio: str = "16:9",
-        duration_seconds: int = 5,
-        seed: int = 42,
-        resolution: str = "480p",
-        steps: int = 20,
-    ) -> IO.NodeOutput:
-        prompt = _validate_node_inputs(cls, locals())["prompt"]
-        inputs = ComfyCloudWorkflowInputs(
-            prompt=prompt, aspect_ratio=aspect_ratio, duration_seconds=duration_seconds,
-            seed=seed, resolution=resolution, steps=steps,
-        )
-        return await _run_video_workflow(cls, "minimax-h3/text-to-video", inputs)
-
-
-# MiniMax H3's two Qwen3-VL encoder precisions. Keys, not filenames: cloud holds
-# the file each one maps to.
 _MINIMAX_H3_TEXT_ENCODERS = [
     "qwen3vl_32b_minimax_h3_nvfp4_awq",
     "qwen3vl_32b_minimax_h3_int8_convrot",
@@ -975,6 +918,45 @@ async def _minimax_h3_asset(cls: type[IO.ComfyNode], image: Input.Image) -> Comf
     )
 
 
+class ComfyCloudMiniMaxH3TextToVideoNode(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return _video_schema(
+            "ComfyCloudMiniMaxH3TextToVideoNode",
+            "Comfy Cloud MiniMax H3 Text to Video",
+            (
+                "Generates a video with a matching soundtrack from a text prompt, using MiniMax "
+                "H3. Picture and audio come out of the same pass rather than being dubbed on "
+                "afterwards."
+            ),
+            _minimax_h3_inputs("16:9"),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        prompt: str,
+        aspect_ratio: str = "16:9",
+        duration_seconds: int = 5,
+        seed: int = 42,
+        resolution: str = "480p",
+        steps: int = 20,
+        denoise: float = 1.0,
+        sampler: str = "res_multistep",
+        scheduler: str = "simple",
+        text_encoder: str = _MINIMAX_H3_TEXT_ENCODERS[0],
+    ) -> IO.NodeOutput:
+        prompt = _validate_node_inputs(cls, locals())["prompt"]
+        inputs = ComfyCloudWorkflowInputs(
+            prompt=prompt, aspect_ratio=aspect_ratio, duration_seconds=duration_seconds,
+            seed=seed, resolution=resolution, steps=steps, denoise=denoise, sampler=sampler,
+            scheduler=scheduler, text_encoder=text_encoder,
+        )
+        return await _run_video_workflow(cls, "minimax-h3/text-to-video", inputs)
+
+
+# MiniMax H3's two Qwen3-VL encoder precisions. Keys, not filenames: cloud holds
+# the file each one maps to.
 class ComfyCloudMiniMaxH3FirstLastFrameToVideoNode(IO.ComfyNode):
     @classmethod
     def define_schema(cls) -> IO.Schema:

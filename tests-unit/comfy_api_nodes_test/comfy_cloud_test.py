@@ -51,7 +51,11 @@ def _execute_with_defaults(node, prompt, **overrides):
         ),
         (
             nodes_comfy_cloud.ComfyCloudMiniMaxH3TextToVideoNode, "minimax-h3/text-to-video", True, False,
-            {"aspect_ratio": "16:9", "duration_seconds": 5.0, "resolution": "480p", "steps": 20},
+            {
+                "aspect_ratio": "16:9", "duration_seconds": 5.0, "resolution": "480p", "steps": 20,
+                "denoise": 1.0, "sampler": "res_multistep", "scheduler": "simple",
+                "text_encoder": "qwen3vl_32b_minimax_h3_nvfp4_awq",
+            },
         ),
     ],
 )
