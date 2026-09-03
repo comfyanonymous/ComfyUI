@@ -24,15 +24,23 @@ from comfy_api_nodes.util import download_helpers
 
 
 @pytest.mark.parametrize(
-    ("node", "workflow", "returns_video", "requires_image"),
+    ("node", "workflow", "returns_video", "requires_image", "controls"),
     [
-        (nodes_comfy_cloud.ComfyCloudTextToImageNode, "default/text-to-image", False, False),
-        (nodes_comfy_cloud.ComfyCloudTextToVideoNode, "default/text-to-video", True, False),
-        (nodes_comfy_cloud.ComfyCloudImageToVideoNode, "default/image-to-video", True, True),
-        (nodes_comfy_cloud.ComfyCloudImageEditNode, "default/image-edit", False, True),
+        (
+            nodes_comfy_cloud.ComfyCloudTextToImageNode, "default/text-to-image", False, False,
+            {"turbo": False, "model": "balanced", "lora": "balanced"},
+        ),
+        (nodes_comfy_cloud.ComfyCloudTextToVideoNode, "default/text-to-video", True, False, {}),
+        (nodes_comfy_cloud.ComfyCloudImageToVideoNode, "default/image-to-video", True, True, {}),
+        (
+            nodes_comfy_cloud.ComfyCloudImageEditNode, "default/image-edit", False, True,
+            {"turbo": False, "model": "balanced"},
+        ),
     ],
 )
-def test_workflow_submission_polling_and_download(monkeypatch, node, workflow, returns_video, requires_image):
+def test_workflow_submission_polling_and_download(
+    monkeypatch, node, workflow, returns_video, requires_image, controls
+):
     sync = AsyncMock(
         return_value=ComfyCloudGenerateResponse(
             task_id="task-1",
@@ -72,6 +80,7 @@ def test_workflow_submission_polling_and_download(monkeypatch, node, workflow, r
             prompt="A tiny fennec fox",
             image_url="https://example.com/input.png" if requires_image else None,
             seed=42,
+            **controls,
         ),
     )
     assert upload.await_count == int(requires_image)
@@ -390,10 +399,25 @@ def test_weight_pickers_offer_keys_rather_than_filenames():
         nodes_comfy_cloud._Z_IMAGE_MODELS,
         nodes_comfy_cloud._FLUX2_MODELS,
         nodes_comfy_cloud._FLUX2_LORAS,
+        nodes_comfy_cloud._DEFAULT_MODELS,
+        nodes_comfy_cloud._DEFAULT_EDIT_MODELS,
+        nodes_comfy_cloud._DEFAULT_LORAS,
     ):
         assert len(options) == len(set(options))
         for option in options:
             assert "." not in option and "/" not in option, option
+
+
+def test_pointer_node_pickers_name_the_trade_off_rather_than_the_model():
+    """A default/* id is a pointer: the model behind it is re-pointed over time and
+    the id does not change. A saved graph stores the KEY, so a key naming a model
+    would stop resolving the day the pointer moved."""
+    tiers = {"fast", "balanced", "quality"}
+    for node in asyncio.run(nodes_comfy_cloud.ComfyCloudExtension().get_node_list()):
+        if not getattr(node, "workflow", "").startswith("default/"):
+            continue
+        for options in (node.model_options, node.lora_options):
+            assert set(options) <= tiers, f"{node.__name__}: {sorted(set(options) - tiers)}"
 
 
 def test_every_seed_starts_at_42_and_advances_after_a_run():

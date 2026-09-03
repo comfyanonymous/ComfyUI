@@ -259,6 +259,13 @@ _FLUX2_LORAS = [
     "chatgpt-4o", "detailed-portraits", "manga-posters", "neo-victorian",
     "soares", "spy-world-50s", "ultrareal",
 ]
+# The default/* pickers key on the TRADE-OFF rather than the model, because those
+# ids are pointers: the model behind one is re-pointed over time and the id does
+# not change. A saved graph stores the key, so a key that named a model would
+# break every saved graph the day the pointer moved.
+_DEFAULT_MODELS = ["balanced", "quality"]
+_DEFAULT_EDIT_MODELS = ["balanced", "quality", "fast"]
+_DEFAULT_LORAS = ["balanced", "fast"]
 _UINT64_MAX = 0xFFFFFFFFFFFFFFFF
 _NEGATIVE_PROMPT_TOOLTIP = "Leave empty to keep the negative prompt this pipeline was tuned with."
 
@@ -374,6 +381,13 @@ class _ComfyCloudWorkflowNode(IO.ComfyNode):
     category: ClassVar[str]
     requires_image: ClassVar[bool]
     returns_video: ClassVar[bool]
+    # Whatever the pipeline behind this pointer happens to expose. Empty means the
+    # graph has no equivalent control, not that one was left off.
+    turbo_tooltip: ClassVar[str] = ""
+    model_options: ClassVar[list[str]] = []
+    model_tooltip: ClassVar[str] = ""
+    lora_options: ClassVar[list[str]] = []
+    lora_tooltip: ClassVar[str] = ""
 
     @classmethod
     def define_schema(cls) -> IO.Schema:
@@ -387,7 +401,13 @@ class _ComfyCloudWorkflowNode(IO.ComfyNode):
         ]
         if cls.requires_image:
             inputs.append(IO.Image.Input("image"))
+        if cls.turbo_tooltip:
+            inputs.append(IO.Boolean.Input("turbo", default=False, tooltip=cls.turbo_tooltip))
         inputs.append(_seed_input())
+        if cls.model_options:
+            inputs.append(_weights_input("model", cls.model_options, cls.model_tooltip))
+        if cls.lora_options:
+            inputs.append(_weights_input("lora", cls.lora_options, cls.lora_tooltip))
 
         return _cloud_schema(
             cls.node_id,
@@ -399,14 +419,33 @@ class _ComfyCloudWorkflowNode(IO.ComfyNode):
         )
 
     @classmethod
-    async def execute(cls, prompt: str, image: Input.Image | None = None, seed: int = 42) -> IO.NodeOutput:
+    async def execute(
+        cls,
+        prompt: str,
+        image: Input.Image | None = None,
+        seed: int = 42,
+        turbo: bool = False,
+        model: str = "balanced",
+        lora: str = "balanced",
+    ) -> IO.NodeOutput:
         prompt = _validate_node_inputs(cls, locals())["prompt"]
 
         image_url = None
         if cls.requires_image:
             image_url = await _upload_workflow_image(cls, image, total_pixels=2048 * 2048)
 
-        return await cls._run(ComfyCloudWorkflowInputs(prompt=prompt, image_url=image_url, seed=seed))
+        # Send only what this node declares: cloud rejects an input the pipeline
+        # behind the id has no binding for.
+        controls = {}
+        if cls.turbo_tooltip:
+            controls["turbo"] = turbo
+        if cls.model_options:
+            controls["model"] = model
+        if cls.lora_options:
+            controls["lora"] = lora
+        return await cls._run(
+            ComfyCloudWorkflowInputs(prompt=prompt, image_url=image_url, seed=seed, **controls)
+        )
 
     @classmethod
     async def _run(cls, inputs: ComfyCloudWorkflowInputs) -> IO.NodeOutput:
@@ -420,11 +459,26 @@ class ComfyCloudTextToImageNode(_ComfyCloudWorkflowNode):
     display_name = "Comfy Cloud Text to Image"
     summary = (
         "Generates an image from a text prompt. Comfy Cloud chooses the model and moves it to "
-        "a better one over time, so the graph keeps improving without you editing it."
+        "a better one over time, so the graph keeps improving without you editing it. Turbo "
+        "trades a little fidelity for a run around ten times quicker."
     )
     category = "partner/image/Comfy Cloud"
     requires_image = False
     returns_video = False
+    turbo_tooltip = (
+        "Run the short accelerated schedule instead of the full one. Around ten times "
+        "quicker and correspondingly cheaper, for a small loss of detail."
+    )
+    model_options = _DEFAULT_MODELS
+    model_tooltip = (
+        "How much precision to spend on the weights. balanced is what this pipeline ships "
+        "with; quality is the full-range weights and costs more GPU-seconds."
+    )
+    lora_options = _DEFAULT_LORAS
+    lora_tooltip = (
+        "Which accelerator the turbo pass uses; it has no effect while turbo is off. "
+        "balanced is a four-step distillation, fast a two-step one."
+    )
 
 
 class ComfyCloudTextToVideoNode(_ComfyCloudWorkflowNode):
@@ -459,11 +513,23 @@ class ComfyCloudImageEditNode(_ComfyCloudWorkflowNode):
     display_name = "Comfy Cloud Image Edit"
     summary = (
         "Edits an image from a written instruction. Comfy Cloud chooses the model and moves "
-        "it to a better one over time, so the graph keeps improving without you editing it."
+        "it to a better one over time, so the graph keeps improving without you editing it. "
+        "Turbo trades fidelity for a run around seven times quicker."
     )
     category = "partner/image/Comfy Cloud"
     requires_image = True
     returns_video = False
+    turbo_tooltip = (
+        "Run a four-step pass instead of the full forty-step one. Around seven times "
+        "quicker, and visibly softer: this pipeline has no accelerator behind the switch, "
+        "so the short schedule is the whole saving."
+    )
+    model_options = _DEFAULT_EDIT_MODELS
+    model_tooltip = (
+        "How much precision to spend on the weights. balanced is what this pipeline ships "
+        "with; quality is the full-range weights, fast a quantised build that loads and "
+        "runs quicker."
+    )
 
 
 class ComfyCloudFlux2TextToImageNode(IO.ComfyNode):
