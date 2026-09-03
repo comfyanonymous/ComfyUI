@@ -2148,7 +2148,7 @@ def fill_holes_v2_fn(vertices, faces, max_perimeter=0.03, colors=None, weld_epsi
                 f"duplicate verts at distances >{WELD_CAP}× bbox; fix upstream "
                 f"(decimate node settings) or run WeldVertices manually with a larger epsilon."
             )
-    dev = comfy.model_management.get_torch_device()
+    dev = _mesh_postprocess_compute_device()
     out_v, out_f, out_c, _ = _fill_holes_v2_gpu(
         vertices.to(dev), faces.to(dev), max_perimeter,
         colors.to(dev) if colors is not None else None, fill_chains, max_verts)
@@ -2239,11 +2239,14 @@ def _fmt_face_change(n_in, n_out) -> str:
 
 
 def _mesh_postprocess_compute_device():
-    """Device for the QEM/dual-contouring mesh postprocess kernels.
+    """Device for mesh postprocess kernels that scatter/index_put_ over large
+    (millions of vertices/faces) index tensors: QEM decimate, dual-contouring
+    remesh, hole-filling (component labeling/perimeter/centroid reduction),
+    and parallel-edge-collapse UV chart segmentation.
 
     PyTorch's MPS backend has a scatter/index_put_ bug that produces
-    out-of-range indices on the large (millions of vertices/faces) index
-    tensors these kernels build (see issue #16017); fall back to CPU there.
+    out-of-range indices on tensors of that size (see issue #16017); fall
+    back to CPU there.
     """
     device = comfy.model_management.get_torch_device()
     if comfy.model_management.is_device_mps(device):
@@ -2708,7 +2711,9 @@ class UnwrapMesh(IO.ComfyNode):
 
     @classmethod
     def execute(cls, mesh, segmenter, resolution, padding, weld_distance):
-        compute_device = comfy.model_management.get_torch_device()
+        # "pec" runs its parallel-edge-collapse charting (scatter/index_put_-heavy) on
+        # compute_device; "adaptive" already forces CPU regardless.
+        compute_device = _mesh_postprocess_compute_device()
         seg_device = compute_device if segmenter == "pec" else torch.device("cpu")
 
         is_list = isinstance(mesh.vertices, list)
