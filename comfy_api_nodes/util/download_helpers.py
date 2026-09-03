@@ -293,6 +293,7 @@ async def download_url_to_file_3d(
     timeout: float | None = None,
     max_retries: int = 5,
     cls: type[COMFY_IO.ComfyNode] = None,
+    allow_redirects: bool = True,
 ) -> Types.File3D:
     """Downloads a 3D model file from a URL into memory as BytesIO.
 
@@ -307,6 +308,7 @@ async def download_url_to_file_3d(
         timeout=timeout,
         max_retries=max_retries,
         cls=cls,
+        allow_redirects=allow_redirects,
     )
 
     if task_id is not None:

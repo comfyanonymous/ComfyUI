@@ -726,3 +726,41 @@ def test_disabled_provider_is_not_retried():
     assert not client._is_terminal_service_refusal({"error": "upstream_timeout"})
     assert not client._is_terminal_service_refusal({})
     assert not client._is_terminal_service_refusal("bad gateway")
+
+
+@pytest.mark.parametrize(
+    ("kind", "io_type"),
+    [("image", "IMAGE"), ("video", "VIDEO"), ("audio", "AUDIO"), ("model3d", "FILE_3D_GLB")],
+)
+def test_every_output_kind_declares_its_io_type(kind, io_type):
+    output, _ = nodes_comfy_cloud._OUTPUT_KINDS[kind]
+    assert output().get_io_type() == io_type
+
+
+@pytest.mark.parametrize("kind", ["image", "video", "audio", "model3d"])
+def test_every_output_kind_refuses_a_redirect_off_the_vetted_url(monkeypatch, kind):
+    """The bucket pin decides where the bytes may come from. Following a redirect
+    would hand that decision back to the server we just checked."""
+    seen = {}
+
+    async def fake(url, *args, **kwargs):
+        seen.update(kwargs)
+        return "output"
+
+    async def fake_bytesio(url, dest, *args, **kwargs):
+        seen.update(kwargs)
+
+    monkeypatch.setattr(nodes_comfy_cloud, "download_url_to_image_tensor", fake)
+    monkeypatch.setattr(nodes_comfy_cloud, "download_url_to_video_output", fake)
+    monkeypatch.setattr(nodes_comfy_cloud, "download_url_to_file_3d", fake)
+    monkeypatch.setattr(nodes_comfy_cloud, "download_url_to_bytesio", fake_bytesio)
+    monkeypatch.setattr(nodes_comfy_cloud, "audio_bytes_to_audio_input", lambda data: "audio")
+    monkeypatch.setattr(
+        nodes_comfy_cloud, "_submit_workflow",
+        AsyncMock(return_value="https://storage.googleapis.com/comfy-cloud-assets/o.bin?X-Goog-Signature=x"),
+    )
+
+    _, run = nodes_comfy_cloud._OUTPUT_KINDS[kind]
+    asyncio.run(run(nodes_comfy_cloud.ComfyCloudZImageTurboNode, "z-image-turbo/text-to-image", None))
+
+    assert seen["allow_redirects"] is False

@@ -1,6 +1,7 @@
 import contextlib
 import math
 import posixpath
+from io import BytesIO
 from typing import ClassVar
 from urllib.parse import quote, unquote, urlsplit
 
@@ -19,6 +20,9 @@ from comfy_api_nodes.apis.comfy_cloud import (
 )
 from comfy_api_nodes.util import (
     ApiEndpoint,
+    audio_bytes_to_audio_input,
+    download_url_to_bytesio,
+    download_url_to_file_3d,
     download_url_to_image_tensor,
     download_url_to_video_output,
     get_number_of_images,
@@ -45,6 +49,8 @@ _RUN_TIMEOUT_SECONDS = 2100
 _POLL_INTERVAL_SECONDS = 5.0
 _POLL_MAX_ATTEMPTS = int(_RUN_TIMEOUT_SECONDS / _POLL_INTERVAL_SECONDS) + 24  # +2 min of slack
 _OUTPUT_DOWNLOAD_TIMEOUT = 30 * 60
+_MODEL3D_IO_TYPE = "FILE_3D_GLB"
+_MODEL3D_FILE_FORMAT = "glb"
 _MAX_UPLOAD_IMAGE_PIXELS = 32_000_000
 _MAX_UPLOAD_IMAGE_DIMENSION = 8192
 _MAX_DECODED_AUDIO_BYTES = 256 * 1024 * 1024
@@ -353,6 +359,39 @@ async def _run_video_workflow(
     )
 
 
+async def _run_audio_workflow(
+    cls: type[IO.ComfyNode], workflow: ComfyCloudWorkflow, inputs: ComfyCloudWorkflowInputs
+) -> IO.NodeOutput:
+    url = await _submit_workflow(cls, workflow, inputs)
+    buffer = BytesIO()
+    await download_url_to_bytesio(
+        url, buffer, timeout=_OUTPUT_DOWNLOAD_TIMEOUT, cls=cls, allow_redirects=False
+    )
+    return IO.NodeOutput(audio_bytes_to_audio_input(buffer.getvalue()))
+
+
+async def _run_model3d_workflow(
+    cls: type[IO.ComfyNode], workflow: ComfyCloudWorkflow, inputs: ComfyCloudWorkflowInputs
+) -> IO.NodeOutput:
+    url = await _submit_workflow(cls, workflow, inputs)
+    return IO.NodeOutput(
+        await download_url_to_file_3d(
+            url, _MODEL3D_FILE_FORMAT, timeout=_OUTPUT_DOWNLOAD_TIMEOUT, cls=cls, allow_redirects=False
+        )
+    )
+
+
+# Output kind -> (schema output, runner). The bucket pin and signed-URL check in
+# _submit_workflow apply to every kind: they guard where the bytes come from, not
+# what they decode to.
+_OUTPUT_KINDS = {
+    "image": (IO.Image.Output, _run_image_workflow),
+    "video": (IO.Video.Output, _run_video_workflow),
+    "audio": (IO.Audio.Output, _run_audio_workflow),
+    "model3d": (lambda: IO.Custom(_MODEL3D_IO_TYPE).Output(), _run_model3d_workflow),
+}
+
+
 async def _upload_workflow_image(cls: type[IO.ComfyNode], image: Input.Image, **options) -> str:
     if get_number_of_images(image) != 1:
         raise ValueError("Exactly one input image is required.")
@@ -377,7 +416,7 @@ class _ComfyCloudWorkflowNode(IO.ComfyNode):
     summary: ClassVar[str]
     category: ClassVar[str]
     requires_image: ClassVar[bool]
-    returns_video: ClassVar[bool]
+    output_kind: ClassVar[str] = "image"
     # Whatever the pipeline behind this pointer happens to expose. Empty means the
     # graph has no equivalent control, not that one was left off.
     turbo_tooltip: ClassVar[str] = ""
@@ -412,7 +451,7 @@ class _ComfyCloudWorkflowNode(IO.ComfyNode):
             cls.summary,
             cls.category,
             inputs,
-            IO.Video.Output() if cls.returns_video else IO.Image.Output(),
+            _OUTPUT_KINDS[cls.output_kind][0](),
         )
 
     @classmethod
@@ -446,7 +485,7 @@ class _ComfyCloudWorkflowNode(IO.ComfyNode):
 
     @classmethod
     async def _run(cls, inputs: ComfyCloudWorkflowInputs) -> IO.NodeOutput:
-        run = _run_video_workflow if cls.returns_video else _run_image_workflow
+        run = _OUTPUT_KINDS[cls.output_kind][1]
         return await run(cls, cls.workflow, inputs)
 
 
