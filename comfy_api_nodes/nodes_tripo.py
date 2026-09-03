@@ -182,7 +182,13 @@ class TripoTextToModelNode(IO.ComfyNode):
                 IO.Combo.Input(
                     "model_version", options=TripoModelVersion, default=TripoModelVersion.v2_5_20250123, optional=True
                 ),
-                IO.Combo.Input("style", options=TripoStyle, default="None", optional=True),
+                IO.Combo.Input(
+                    "style",
+                    options=TripoStyle,
+                    default="None",
+                    optional=True,
+                    tooltip="No longer supported by Tripo and ignored. Kept for older workflows.",
+                ),
                 IO.Boolean.Input(
                     "texture",
                     default=True,
@@ -248,17 +254,14 @@ class TripoTextToModelNode(IO.ComfyNode):
                 ),
                 expr="""
                 (
-                  $isV14 := $contains(widgets.model_version,"v1.4");
                   $isV3OrLater := $contains(widgets.model_version,"v3.");
                   $tq := widgets.texture_quality;
                   $textureAddon := widgets.texture ? ($tq = "extreme" ? 20 : ($tq = "detailed" ? 10 : 0)) : 0;
                   $geometryAddon := (widgets.geometry_quality = "detailed" and $isV3OrLater) ? 20 : 0;
-                  $credits := $isV14 ? 20 : (
-                    (widgets.texture ? 20 : 10)
+                  $credits := (widgets.texture ? 20 : 10)
                     + (widgets.quad ? 5 : 0)
                     + $textureAddon
-                    + $geometryAddon
-                  );
+                    + $geometryAddon;
                   {"type":"usd","usd": $credits * 0.01, "format": {"approximate": true}}
                 )
                 """,
@@ -282,7 +285,6 @@ class TripoTextToModelNode(IO.ComfyNode):
         face_limit: int | None = None,
         quad: bool | None = None,
     ) -> IO.NodeOutput:
-        style_enum = None if style == "None" else style
         if not prompt:
             raise RuntimeError("Prompt is required")
         response = await sync_op(
@@ -294,7 +296,6 @@ class TripoTextToModelNode(IO.ComfyNode):
                 prompt=prompt,
                 negative_prompt=negative_prompt if negative_prompt else None,
                 model_version=model_version,
-                style=style_enum,
                 texture=texture,
                 pbr=False if texture is False else pbr,
                 image_seed=image_seed,
@@ -329,7 +330,13 @@ class TripoImageToModelNode(IO.ComfyNode):
                     tooltip="The model version to use for generation",
                     optional=True,
                 ),
-                IO.Combo.Input("style", options=TripoStyle, default="None", optional=True),
+                IO.Combo.Input(
+                    "style",
+                    options=TripoStyle,
+                    default="None",
+                    optional=True,
+                    tooltip="No longer supported by Tripo and ignored. Kept for older workflows.",
+                ),
                 IO.Boolean.Input(
                     "texture",
                     default=True,
@@ -408,17 +415,14 @@ class TripoImageToModelNode(IO.ComfyNode):
                 ),
                 expr="""
                 (
-                  $isV14 := $contains(widgets.model_version,"v1.4");
                   $isV3OrLater := $contains(widgets.model_version,"v3.");
                   $tq := widgets.texture_quality;
                   $textureAddon := widgets.texture ? ($tq = "extreme" ? 20 : ($tq = "detailed" ? 10 : 0)) : 0;
                   $geometryAddon := (widgets.geometry_quality = "detailed" and $isV3OrLater) ? 20 : 0;
-                  $credits := $isV14 ? 30 : (
-                    (widgets.texture ? 30 : 20)
+                  $credits := (widgets.texture ? 30 : 20)
                     + (widgets.quad ? 5 : 0)
                     + $textureAddon
-                    + $geometryAddon
-                  );
+                    + $geometryAddon;
                   {"type":"usd","usd": $credits * 0.01, "format": {"approximate": true}}
                 )
                 """,
@@ -442,7 +446,6 @@ class TripoImageToModelNode(IO.ComfyNode):
         face_limit: int | None = None,
         quad: bool | None = None,
     ) -> IO.NodeOutput:
-        style_enum = None if style == "None" else style
         if image is None:
             raise RuntimeError("Image is required")
         tripo_file = TripoFileReference(
@@ -459,7 +462,6 @@ class TripoImageToModelNode(IO.ComfyNode):
                 type=TripoTaskType.IMAGE_TO_MODEL,
                 file=tripo_file,
                 model_version=model_version,
-                style=style_enum,
                 texture=texture,
                 pbr=False if texture is False else pbr,
                 model_seed=model_seed,
@@ -573,16 +575,13 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                 ),
                 expr="""
                 (
-                  $isV14 := $contains(widgets.model_version,"v1.4");
                   $isV3OrLater := $contains(widgets.model_version,"v3.");
                   $tq := widgets.texture_quality;
                   $textureAddon := widgets.texture ? ($tq = "extreme" ? 20 : ($tq = "detailed" ? 10 : 0)) : 0;
                   $geometryAddon := (widgets.geometry_quality = "detailed" and $isV3OrLater) ? 20 : 0;
-                  $credits := $isV14 ? 30 : (
-                    (widgets.texture ? 30 : 20)
+                  $credits := (widgets.texture ? 30 : 20)
                     + $textureAddon
-                    + $geometryAddon
-                  );
+                    + $geometryAddon;
                   {"type":"usd","usd": $credits * 0.01, "format": {"approximate": true}}
                 )
                 """,

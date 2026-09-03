@@ -8,7 +8,6 @@ class TripoModelVersion(str, Enum):
     v3_1_20260211 = "v3.1-20260211"
     v3_0_20250812 = "v3.0-20250812"
     v2_5_20250123 = "v2.5-20250123"
-    v1_4_20240625 = "v1.4-20240625"
 
 
 class TripoTextureModelVersion(str, Enum):
