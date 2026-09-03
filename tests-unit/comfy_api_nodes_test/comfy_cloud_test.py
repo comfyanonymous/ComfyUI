@@ -378,6 +378,10 @@ PLAIN_CONTROLS = {
     # rather than a tuning dial; max_duration is that graph's length control and
     # tiled_decode its one quality-against-speed switch.
     "lyrics", "max_duration", "tiled_decode",
+    # Video: the frame-size budget is a headline choice rather than a dial, and
+    # reference-to-video's slots are its media input. ref_image_size is that
+    # graph's one quality-against-speed switch.
+    "resolution", "reference_images", "ref_image_size",
 }
 
 
@@ -389,7 +393,10 @@ def test_tuning_controls_are_hidden_behind_the_advanced_flag():
             if not getattr(input_spec, "advanced", None)
         ]
         assert set(plain) <= PLAIN_CONTROLS, f"{node.__name__} shows {sorted(set(plain) - PLAIN_CONTROLS)}"
-        assert len(plain) <= 6, f"{node.__name__} opens with {len(plain)} controls"
+        # The headline set is prompt, the media inputs, aspect ratio, resolution,
+        # duration, seed and one quality-against-speed switch. A node taking two
+        # keyframes, or one reference slot plus that switch, lands on seven.
+        assert len(plain) <= 7, f"{node.__name__} opens with {len(plain)} controls"
 
 
 def test_pointer_node_pickers_name_the_trade_off_rather_than_the_model():
@@ -635,6 +642,9 @@ def test_extension_registers_exactly_the_shipped_set():
         nodes_comfy_cloud.ComfyCloudMageFlowTextToImageNode,
         nodes_comfy_cloud.ComfyCloudMageFlowTurboTextToImageNode,
         nodes_comfy_cloud.ComfyCloudMiniMaxMusic3TextToAudioNode,
+        nodes_comfy_cloud.ComfyCloudMiniMaxH3ImageToVideoNode,
+        nodes_comfy_cloud.ComfyCloudMiniMaxH3ReferenceToVideoNode,
+        nodes_comfy_cloud.ComfyCloudMiniMaxH3VideoContinuationNode,
     }
     registered = set(asyncio.run(nodes_comfy_cloud.ComfyCloudExtension().get_node_list()))
 

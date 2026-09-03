@@ -8,6 +8,9 @@ ComfyCloudWorkflow = Literal[
     "z-image-turbo/text-to-image",
     "flux-2/text-to-image",
     "minimax-h3/text-to-video",
+    "minimax-h3/video-continuation",
+    "minimax-h3/reference-to-video",
+    "minimax-h3/image-to-video",
     "mage-flow/text-to-image",
     "mage-flow-turbo/text-to-image",
     "minimax-music-3/text-to-audio",
@@ -54,6 +57,7 @@ class ComfyCloudWorkflowInputs(BaseModel):
     scheduler: str | None = Field(None)
     denoise: float | None = Field(None, ge=0, le=1)
     text_encoder: str | None = Field(None)
+    ref_image_size: str | None = Field(None)
     lyrics: str | None = Field(None)
     max_duration: float | None = Field(None, gt=0)
     caption_cfg: float | None = Field(None, ge=0)
