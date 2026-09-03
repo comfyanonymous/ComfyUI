@@ -283,7 +283,7 @@ class TripoFileReference(RootModel):
 class TripoTextToModelRequest(BaseModel):
     type: TripoTaskType = Field(TripoTaskType.TEXT_TO_MODEL, description="Type of task")
     prompt: str = Field(..., description="The text prompt describing the model to generate", max_length=1024)
-    negative_prompt: str | None = Field(None, description="The negative text prompt", max_length=1024)
+    negative_prompt: str | None = Field(None, description="The negative text prompt", max_length=255)
     model_version: TripoModelVersion | None = TripoModelVersion.v2_5_20250123
     face_limit: int | None = Field(None, description="The number of faces to limit the generation to")
     texture: bool | None = Field(True, description="Whether to apply texture to the generated model")

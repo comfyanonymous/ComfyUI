@@ -53,6 +53,7 @@ from comfy_api_nodes.util import (
 )
 
 MULTIVIEW_KEYS = ("front_view_url", "left_view_url", "back_view_url", "right_view_url")
+SEED_MAX = 2**31 - 1
 TEXTURE_SOURCE_TYPES_WITH_IMAGE = ("text_to_model", "image_to_model", "multiview_to_model", "texture_model")
 
 
@@ -185,9 +186,9 @@ class TripoTextToModelNode(IO.ComfyNode):
             category="partner/3d/Tripo",
             inputs=[
                 IO.String.Input("prompt", multiline=True),
-                IO.String.Input("negative_prompt", multiline=True, optional=True),
+                IO.String.Input("negative_prompt", multiline=True, optional=True, tooltip="Up to 255 characters."),
                 IO.Combo.Input(
-                    "model_version", options=TripoModelVersion, default=TripoModelVersion.v2_5_20250123, optional=True
+                    "model_version", options=TripoModelVersion, default=TripoModelVersion.v3_1_20260211, optional=True
                 ),
                 IO.Combo.Input(
                     "style",
@@ -208,9 +209,9 @@ class TripoTextToModelNode(IO.ComfyNode):
                     optional=True,
                     tooltip="PBR material maps (base color, metallic, roughness, normal). Requires texture.",
                 ),
-                IO.Int.Input("image_seed", default=42, optional=True, advanced=True),
-                IO.Int.Input("model_seed", default=42, optional=True, advanced=True),
-                IO.Int.Input("texture_seed", default=42, optional=True, advanced=True),
+                IO.Int.Input("image_seed", default=42, min=0, max=SEED_MAX, optional=True, advanced=True),
+                IO.Int.Input("model_seed", default=42, min=0, max=SEED_MAX, optional=True, advanced=True),
+                IO.Int.Input("texture_seed", default=42, min=0, max=SEED_MAX, optional=True, advanced=True),
                 IO.Combo.Input(
                     "texture_quality",
                     default="standard",
@@ -311,7 +312,7 @@ class TripoTextToModelNode(IO.ComfyNode):
         smart_low_poly: bool | None = None,
         auto_size: bool = True,
     ) -> IO.NodeOutput:
-        if not prompt:
+        if not prompt.strip():
             raise RuntimeError("Prompt is required")
         check_smart_low_poly_face_limit(smart_low_poly, face_limit, quad)
         response = await sync_op(
@@ -377,7 +378,7 @@ class TripoImageToModelNode(IO.ComfyNode):
                     optional=True,
                     tooltip="PBR material maps (base color, metallic, roughness, normal). Requires texture.",
                 ),
-                IO.Int.Input("model_seed", default=42, optional=True, advanced=True),
+                IO.Int.Input("model_seed", default=42, min=0, max=SEED_MAX, optional=True, advanced=True),
                 IO.Combo.Input(
                     "orientation",
                     options=TripoOrientation,
@@ -385,7 +386,7 @@ class TripoImageToModelNode(IO.ComfyNode):
                     optional=True,
                     advanced=True,
                 ),
-                IO.Int.Input("texture_seed", default=42, optional=True, advanced=True),
+                IO.Int.Input("texture_seed", default=42, min=0, max=SEED_MAX, optional=True, advanced=True),
                 IO.Combo.Input(
                     "texture_quality",
                     default="standard",
@@ -568,8 +569,8 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                     optional=True,
                     tooltip="PBR material maps (base color, metallic, roughness, normal). Requires texture.",
                 ),
-                IO.Int.Input("model_seed", default=42, optional=True, advanced=True),
-                IO.Int.Input("texture_seed", default=42, optional=True, advanced=True),
+                IO.Int.Input("model_seed", default=42, min=0, max=SEED_MAX, optional=True, advanced=True),
+                IO.Int.Input("texture_seed", default=42, min=0, max=SEED_MAX, optional=True, advanced=True),
                 IO.Combo.Input(
                     "texture_quality",
                     default="standard",
@@ -849,7 +850,7 @@ class TripoTextureNode(IO.ComfyNode):
                     optional=True,
                     tooltip="PBR material maps (base color, metallic, roughness, normal); off gives a plain color texture.",
                 ),
-                IO.Int.Input("texture_seed", default=42, optional=True, advanced=True),
+                IO.Int.Input("texture_seed", default=42, min=0, max=SEED_MAX, optional=True, advanced=True),
                 IO.Combo.Input(
                     "texture_quality",
                     default="standard",
@@ -1699,7 +1700,7 @@ def _p1_textured_inputs(*, include_image_alignment: bool) -> list:
                 ),
             ]
         )
-    inputs.append(IO.Int.Input("texture_seed", default=42, advanced=True))
+    inputs.append(IO.Int.Input("texture_seed", default=42, min=0, max=SEED_MAX, advanced=True))
     return inputs
 
 
@@ -1748,7 +1749,7 @@ def _p1_common_inputs() -> list:
             advanced=True,
             tooltip="Target face count, 48-20000. -1 lets Tripo pick adaptively.",
         ),
-        IO.Int.Input("model_seed", default=42, optional=True, advanced=True),
+        IO.Int.Input("model_seed", default=42, min=0, max=SEED_MAX, optional=True, advanced=True),
         IO.Boolean.Input(
             "auto_size",
             default=False,
@@ -1807,7 +1808,7 @@ class TripoP1TextToModelNode(IO.ComfyNode):
                 IO.String.Input("prompt", multiline=True, tooltip="Up to 1024 characters."),
                 IO.String.Input("negative_prompt", multiline=True, optional=True, tooltip="Up to 255 characters."),
                 _build_p1_output_mode(include_image_alignment=False),
-                IO.Int.Input("image_seed", default=42, optional=True, advanced=True),
+                IO.Int.Input("image_seed", default=42, min=0, max=SEED_MAX, optional=True, advanced=True),
                 *_p1_common_inputs(),
             ],
             outputs=[
@@ -1840,7 +1841,7 @@ class TripoP1TextToModelNode(IO.ComfyNode):
         export_uv: bool = True,
         compress_geometry: bool = False,
     ) -> IO.NodeOutput:
-        if not prompt:
+        if not prompt.strip():
             raise RuntimeError("Prompt is required")
         common = _build_p1_request_kwargs(
             output_mode=output_mode,
