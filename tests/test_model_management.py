@@ -1,4 +1,4 @@
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import comfy.model_management as model_management
 
@@ -16,14 +16,15 @@ class FakeStream:
 
 
 def test_npu_current_stream(monkeypatch):
+    device = NPUDevice()
     current_stream = object()
     npu = Mock()
     npu.current_stream.return_value = current_stream
     monkeypatch.setattr(model_management.torch, "npu", npu, raising=False)
 
-    assert model_management.is_device_npu(NPUDevice())
-    assert model_management.current_stream(NPUDevice()) is current_stream
-    npu.current_stream.assert_called_once_with()
+    assert model_management.is_device_npu(device)
+    assert model_management.current_stream(device) is current_stream
+    npu.current_stream.assert_called_once_with(device)
 
 
 def test_npu_offload_streams(monkeypatch):
@@ -53,7 +54,10 @@ def test_npu_offload_streams(monkeypatch):
     assert second_stream.waited_for is current_stream
     assert model_management.stream_counters[device] == 0
     assert npu.Stream.call_count == 2
-    npu.Stream.assert_any_call(device=device, priority=0)
+    assert npu.Stream.call_args_list == [
+        call(device=device, priority=0),
+        call(device=device, priority=0),
+    ]
 
 
 def test_npu_offload_streams_disabled(monkeypatch):

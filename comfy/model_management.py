@@ -1364,7 +1364,7 @@ def current_stream(device):
     elif is_device_xpu(device):
         return torch.xpu.current_stream()
     elif is_device_npu(device):
-        return torch.npu.current_stream()
+        return torch.npu.current_stream(device)
     else:
         return None
 
