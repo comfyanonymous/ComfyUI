@@ -251,7 +251,8 @@ class TripoTextToModelNode(IO.ComfyNode):
                     default=True,
                     optional=True,
                     advanced=True,
-                    tooltip="Scale the output to real-world meters.",
+                    tooltip="Scale textured models to their real-world size in meters. Tripo stores the size as the model's "
+                    "scene transform and bakes it in when the model is converted, rigged or retargeted; ignored without texture.",
                 ),
             ],
             outputs=[
@@ -433,7 +434,8 @@ class TripoImageToModelNode(IO.ComfyNode):
                     default=True,
                     optional=True,
                     advanced=True,
-                    tooltip="Scale the output to real-world meters.",
+                    tooltip="Scale textured models to their real-world size in meters. Tripo stores the size as the model's "
+                    "scene transform and bakes it in when the model is converted, rigged or retargeted; ignored without texture.",
                 ),
             ],
             outputs=[
@@ -617,7 +619,8 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                     default=False,
                     optional=True,
                     advanced=True,
-                    tooltip="Scale the output to real-world meters.",
+                    tooltip="Scale textured models to their real-world size in meters. Tripo stores the size as the model's "
+                    "scene transform and bakes it in when the model is converted, rigged or retargeted; ignored without texture.",
                 ),
             ],
             outputs=[
