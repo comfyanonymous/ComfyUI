@@ -691,7 +691,7 @@ class Gemma4Base(BaseLlama, BaseGenerate, torch.nn.Module):
             tracker = trackers.get((cache_cls, length))
             if tracker is None:
                 tracker = (torch.empty((1,), device=device, dtype=torch.int64),
-                           torch.empty((batch,), device=device, dtype=torch.int32))
+                           torch.zeros((batch,), device=device, dtype=torch.int32))
                 trackers[(cache_cls, length)] = tracker
             # zero-init: decode attends full capacity with masked tails, 0*0 stays finite
             key = torch.zeros((batch, kv_heads, length, head_dim), device=device, dtype=execution_dtype)
