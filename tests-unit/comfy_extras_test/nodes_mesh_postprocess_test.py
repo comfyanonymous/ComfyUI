@@ -59,6 +59,41 @@ def test_fill_holes_uses_guarded_device_on_mps(monkeypatch):
     assert out_f.device == torch.device("cpu")
 
 
+def test_fill_holes_selects_device_before_weld(monkeypatch):
+    """The compute-device fallback must be selected (and inputs moved) before
+    the adaptive weld runs; otherwise weld_vertices_fn's scatter_add_ calls
+    still execute on MPS even though _fill_holes_v2_gpu itself is guarded."""
+    monkeypatch.setattr(
+        comfy.model_management, "get_torch_device", lambda: torch.device("mps")
+    )
+
+    call_order = []
+    real_weld = nodes_mesh_postprocess.weld_vertices_fn
+    real_compute_device = nodes_mesh_postprocess._mesh_postprocess_compute_device
+
+    def tracking_weld(*args, **kwargs):
+        call_order.append("weld")
+        return real_weld(*args, **kwargs)
+
+    def tracking_compute_device():
+        call_order.append("compute_device")
+        return real_compute_device()
+
+    monkeypatch.setattr(nodes_mesh_postprocess, "weld_vertices_fn", tracking_weld)
+    monkeypatch.setattr(
+        nodes_mesh_postprocess, "_mesh_postprocess_compute_device", tracking_compute_device
+    )
+
+    verts = torch.tensor([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
+    faces = torch.tensor([[0, 2, 3], [1, 2, 3]], dtype=torch.long)
+
+    fill_holes_v2_fn(verts, faces, max_perimeter=10.0, weld_epsilon_rel=1e-5)
+
+    assert "compute_device" in call_order
+    assert "weld" in call_order
+    assert call_order.index("compute_device") < call_order.index("weld")
+
+
 def test_unwrap_mesh_pec_uses_guarded_device_on_mps(monkeypatch):
     """UnwrapMesh's "pec" segmenter runs parallel-edge-collapse chart clustering
     (scatter_reduce_-heavy) on compute_device; it must also route through the

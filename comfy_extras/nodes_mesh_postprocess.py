@@ -2120,6 +2120,14 @@ def fill_holes_v2_fn(vertices, faces, max_perimeter=0.03, colors=None, weld_epsi
 
     if faces.numel() == 0:
         return vertices, faces, colors
+    # Select the guarded compute device (MPS->CPU, see #16017) and move inputs there
+    # before the adaptive weld below, whose scatter_add_ calls would otherwise still
+    # run on MPS.
+    dev = _mesh_postprocess_compute_device()
+    vertices = vertices.to(dev)
+    faces = faces.to(dev)
+    if colors is not None:
+        colors = colors.to(dev)
     # Adaptive weld: welded surfaces have V/F ≈ 0.5-1.0; V/F > 1 means unwelded (hole-fill
     # would emit a bogus tri per face). Double epsilon until V/F < WELDED_THRESHOLD or WELD_CAP.
     if weld_epsilon_rel > 0:
@@ -2148,10 +2156,8 @@ def fill_holes_v2_fn(vertices, faces, max_perimeter=0.03, colors=None, weld_epsi
                 f"duplicate verts at distances >{WELD_CAP}× bbox; fix upstream "
                 f"(decimate node settings) or run WeldVertices manually with a larger epsilon."
             )
-    dev = _mesh_postprocess_compute_device()
     out_v, out_f, out_c, _ = _fill_holes_v2_gpu(
-        vertices.to(dev), faces.to(dev), max_perimeter,
-        colors.to(dev) if colors is not None else None, fill_chains, max_verts)
+        vertices, faces, max_perimeter, colors, fill_chains, max_verts)
     return out_v, out_f, out_c
 
 
