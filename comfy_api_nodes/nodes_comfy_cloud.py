@@ -252,12 +252,12 @@ _ASPECT_DIMENSIONS = {
 _VIDEO_RESOLUTIONS = ["480p", "720p"]
 _LTX_RESOLUTIONS = ["1280x720", "960x960", "720x1280"]
 # Weight pickers. Keys, not filenames: cloud holds the file each key maps to.
-_Z_IMAGE_MODELS = ["bf16", "int8", "nvfp4"]
-_FLUX2_MODELS = ["dev-fp8", "dev-bf16"]
+_Z_IMAGE_MODELS = ["z_image_turbo_bf16", "z_image_turbo_int8_convrot", "z_image_turbo_nvfp4"]
+_FLUX2_MODELS = ["flux2_dev_fp8mixed", "flux2-dev"]
 _FLUX2_LORAS = [
-    "turbo", "turbo-v2", "analog-film", "berthe-morisot", "boring-reality",
-    "chatgpt-4o", "detailed-portraits", "manga-posters", "neo-victorian",
-    "soares", "spy-world-50s", "ultrareal",
+    "Flux_2-Turbo-LoRA_comfyui", "Flux2TurboComfyv2", "flux2-herbst_photo_analog_film", "flux2_berthe_morisot", "flux2-boreal_dev2_boring_reality_for_dev",
+    "flux2-yfg_chatgpt_4o_style", "flux2-wanderer_s_detailed_portraits", "flux2-yfg_fonts_japanese_manga_posters", "flux2-neo_victorian_style",
+    "flux2-yfg_soares", "flux2-yfg_spy_world_50s_dev_and_dev", "flux2-lenovo_ultrareal",
 ]
 # The default/* pickers key on the TRADE-OFF rather than the model, because those
 # ids are pointers: the model behind one is re-pointed over time and the id does
@@ -580,8 +580,8 @@ class ComfyCloudFlux2TextToImageNode(IO.ComfyNode):
         aspect_ratio: str = "1:1",
         turbo: bool = True,
         seed: int = 42,
-        model: str = "dev-fp8",
-        lora: str = "turbo",
+        model: str = "flux2_dev_fp8mixed",
+        lora: str = "Flux_2-Turbo-LoRA_comfyui",
         steps: int = 20,
         turbo_steps: int = 8,
         turbo_strength: float = 1.0,
@@ -633,7 +633,7 @@ class ComfyCloudZImageTurboNode(IO.ComfyNode):
         prompt: str,
         aspect_ratio: str = "1:1",
         seed: int = 42,
-        model: str = "bf16",
+        model: str = "z_image_turbo_bf16",
         steps: int = 8,
         shift: float = 3.0,
     ) -> IO.NodeOutput:

@@ -281,11 +281,11 @@ CONTROLLED_IMAGE_NODES = [
         "z-image-turbo/text-to-image",
         ["prompt", "aspect_ratio", "seed", "model", "steps", "shift"],
         {
-            "prompt": "A glass forest", "aspect_ratio": "16:9", "seed": 9, "model": "nvfp4",
+            "prompt": "A glass forest", "aspect_ratio": "16:9", "seed": 9, "model": "z_image_turbo_nvfp4",
             "steps": 10, "shift": 2.5,
         },
         {
-            "prompt": "A glass forest", "width": 1344, "height": 768, "seed": 9, "model": "nvfp4",
+            "prompt": "A glass forest", "width": 1344, "height": 768, "seed": 9, "model": "z_image_turbo_nvfp4",
             "steps": 10, "shift": 2.5,
         },
     ),
@@ -298,12 +298,12 @@ CONTROLLED_IMAGE_NODES = [
         ],
         {
             "prompt": "A glass forest", "aspect_ratio": "1:1", "turbo": False, "seed": 9,
-            "model": "dev-bf16", "lora": "ultrareal", "steps": 24, "turbo_steps": 6,
+            "model": "flux2-dev", "lora": "flux2-lenovo_ultrareal", "steps": 24, "turbo_steps": 6,
             "turbo_strength": 0.8, "guidance": 4.5,
         },
         {
             "prompt": "A glass forest", "width": 1024, "height": 1024, "turbo": False, "seed": 9,
-            "model": "dev-bf16", "lora": "ultrareal", "steps": 24, "turbo_steps": 6,
+            "model": "flux2-dev", "lora": "flux2-lenovo_ultrareal", "steps": 24, "turbo_steps": 6,
             "turbo_strength": 0.8, "guidance": 4.5,
         },
     ),
