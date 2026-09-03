@@ -89,7 +89,7 @@ class Preview3D(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="Preview3D",
-            display_name="Preview 3D & Animation (DEPRECATED)", 
+            display_name="Preview 3D & Animation (DEPRECATED)",
             category="3d",
             description="Preview a 3D model file without saving it to the ComfyUI output directory.",
             is_experimental=True,
