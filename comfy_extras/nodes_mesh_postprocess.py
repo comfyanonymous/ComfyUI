@@ -2238,6 +2238,19 @@ def _fmt_face_change(n_in, n_out) -> str:
     return f"faces: {_fmt_count(n_in)} → {_fmt_count(n_out)}{pct}"
 
 
+def _mesh_postprocess_compute_device():
+    """Device for the QEM/dual-contouring mesh postprocess kernels.
+
+    PyTorch's MPS backend has a scatter/index_put_ bug that produces
+    out-of-range indices on the large (millions of vertices/faces) index
+    tensors these kernels build (see issue #16017); fall back to CPU there.
+    """
+    device = comfy.model_management.get_torch_device()
+    if comfy.model_management.is_device_mps(device):
+        return torch.device("cpu")
+    return device
+
+
 class DecimateMesh(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -2293,7 +2306,7 @@ class DecimateMesh(IO.ComfyNode):
             cfg = QEMConfig()  # midpoint defaults
 
         # ComfyUI passes meshes on CPU (QEM much slower there); compute on device, return on original.
-        compute_device = comfy.model_management.get_torch_device()
+        compute_device = _mesh_postprocess_compute_device()
 
         counts = {"in": 0, "out": 0}
 
@@ -2389,7 +2402,7 @@ class RemeshMesh(IO.ComfyNode):
         drop_enclosed_components = bool(sign_mode.get("drop_enclosed_components", False))
 
         # ComfyUI passes meshes on CPU (remesh far faster on GPU); compute on device, return on original.
-        compute_device = comfy.model_management.get_torch_device()
+        compute_device = _mesh_postprocess_compute_device()
         counts = {"in": 0, "out": 0}
 
         def _fn(v, f, c):
