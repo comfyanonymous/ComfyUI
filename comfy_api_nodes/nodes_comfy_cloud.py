@@ -83,6 +83,7 @@ _TEXT_LIMITS = {
     "prompt": (1, 4096),
     "instruction": (1, 4096),
     "negative_prompt": (0, 2048),
+    "lyrics": (0, 4096),
 }
 
 
@@ -260,6 +261,20 @@ _LTX_RESOLUTIONS = ["1280x720", "960x960", "720x1280"]
 # Weight pickers. Keys, not filenames: cloud holds the file each key maps to.
 _Z_IMAGE_MODELS = ["z_image_turbo_bf16", "z_image_turbo_int8_convrot", "z_image_turbo_nvfp4"]
 _FLUX2_MODELS = ["flux2_dev_fp8mixed", "flux2-dev"]
+_MAGE_FLOW_MODELS = ["mage_flow_int8_convrot", "mage_flow_bf16", "mage_flow_base_bf16"]
+_MAGE_FLOW_TURBO_MODELS = ["mage_flow_turbo_int8_convrot", "mage_flow_turbo_bf16"]
+_MAGE_FLOW_TEXT_ENCODERS = ["qwen3vl_4b_bf16", "qwen3vl_4b_fp8_scaled"]
+_MINIMAX_MUSIC3_MODELS = [
+    "minimax_music3_dit_fp16", "minimax_music3_dit_fp32", "minimax_music3_dit_int8_convrot",
+]
+_MINIMAX_MUSIC3_TEXT_ENCODERS = [
+    "minimax_music3_text_encoder_pruned_int8_convrot", "minimax_music3_text_encoder_pruned_bf16",
+]
+_MINIMAX_MUSIC3_QUALITIES = ["V0", "128k", "320k"]
+# The samplers and schedulers the curated graphs offer. ComfyUI ships far more;
+# these are the ones executed on cloud against every graph that lists them.
+_SAMPLERS = ["euler", "dpmpp_2m", "res_multistep"]
+_SCHEDULERS = ["simple", "karras", "beta"]
 _FLUX2_LORAS = [
     "Flux_2-Turbo-LoRA_comfyui", "Flux2TurboComfyv2", "flux2-herbst_photo_analog_film", "flux2_berthe_morisot", "flux2-boreal_dev2_boring_reality_for_dev",
     "flux2-yfg_chatgpt_4o_style", "flux2-wanderer_s_detailed_portraits", "flux2-yfg_fonts_japanese_manga_posters", "flux2-neo_victorian_style",
@@ -292,8 +307,8 @@ def _aspect_ratio_input(default: str = "1:1") -> IO.Combo.Input:
     return IO.Combo.Input("aspect_ratio", options=_ASPECT_RATIOS, default=default)
 
 
-def _seed_input() -> IO.Int.Input:
-    return IO.Int.Input("seed", default=42, min=0, max=_UINT64_MAX, control_after_generate=True)
+def _seed_input(maximum: int = _UINT64_MAX) -> IO.Int.Input:
+    return IO.Int.Input("seed", default=42, min=0, max=maximum, control_after_generate=True)
 
 
 def _steps_input(default: int, maximum: int, name: str = "steps", tooltip: str | None = None) -> IO.Int.Input:
@@ -310,6 +325,18 @@ def _tuning_input(
 
 def _weights_input(name: str, options: list[str], tooltip: str) -> IO.Combo.Input:
     return IO.Combo.Input(name, options=options, default=options[0], advanced=True, tooltip=tooltip)
+
+
+def _sampling_inputs(steps: int, cfg: float, cfg_max: float, sampler_node: str) -> list[IO.Input]:
+    """The KSampler dials a curated graph exposes. Every graph that has a sampler
+    has the same five, so they are described once."""
+    return [
+        _steps_input(steps, 100),
+        _tuning_input("cfg", cfg, cfg_max, tooltip=f"Classifier-free guidance scale for the {sampler_node} pass."),
+        _tuning_input("denoise", 1.0, 1.0, step=0.01),
+        IO.Combo.Input("sampler", options=_SAMPLERS, default="euler", advanced=True),
+        IO.Combo.Input("scheduler", options=_SCHEDULERS, default="simple", advanced=True),
+    ]
 
 
 def _video_resolution_input() -> IO.Combo.Input:
@@ -606,6 +633,202 @@ class ComfyCloudZImageTurboNode(IO.ComfyNode):
         )
 
 
+class _ComfyCloudMageFlowNode(IO.ComfyNode):
+    """Mage-Flow text to image. The base and turbo graphs are the same pipeline at
+    two schedule lengths, so they differ only in their step and cfg defaults and
+    which checkpoints load."""
+
+    workflow: ClassVar[ComfyCloudWorkflow]
+    node_id: ClassVar[str]
+    display_name: ClassVar[str]
+    summary: ClassVar[str]
+    default_steps: ClassVar[int]
+    default_cfg: ClassVar[float]
+    model_options: ClassVar[list[str]]
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return _image_schema(
+            cls,
+            [
+                _prompt_input(),
+                _aspect_ratio_input(),
+                _seed_input(),
+                _negative_prompt_input(),
+                # The graph sizes itself through a resolution selector, so the
+                # caller picks a ratio and a pixel budget rather than a raw pair.
+                IO.Float.Input(
+                    "megapixels", default=1.0, min=0.1, max=16.0, step=0.1, advanced=True,
+                    tooltip="Total pixel budget. 1.0 is about 1024x1024 at a square ratio.",
+                ),
+                IO.Int.Input(
+                    "size_multiple", default=16, min=8, max=128, step=4, advanced=True,
+                    tooltip="Round each side to this multiple.",
+                ),
+                *_sampling_inputs(cls.default_steps, cls.default_cfg, 20.0, "diffusion"),
+                _weights_input(
+                    "model", cls.model_options,
+                    "Checkpoint precision. int8 loads quicker; bf16 is the reference weights.",
+                ),
+                _weights_input(
+                    "text_encoder", _MAGE_FLOW_TEXT_ENCODERS,
+                    "Qwen3-VL 4B precision used to encode the prompt.",
+                ),
+            ],
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        prompt: str,
+        aspect_ratio: str = "1:1",
+        seed: int = 42,
+        negative_prompt: str = "",
+        megapixels: float = 1.0,
+        size_multiple: int = 16,
+        steps: int | None = None,
+        cfg: float | None = None,
+        denoise: float = 1.0,
+        sampler: str = "euler",
+        scheduler: str = "simple",
+        model: str | None = None,
+        text_encoder: str = "qwen3vl_4b_bf16",
+    ) -> IO.NodeOutput:
+        # The three per-variant defaults are resolved before validation, so the
+        # subclass's schema defaults are what an omitted argument falls back to.
+        steps = cls.default_steps if steps is None else steps
+        cfg = cls.default_cfg if cfg is None else cfg
+        model = cls.model_options[0] if model is None else model
+        validated = _validate_node_inputs(cls, locals())
+        return await _run_image_workflow(
+            cls,
+            cls.workflow,
+            ComfyCloudWorkflowInputs(
+                prompt=validated["prompt"], negative_prompt=validated["negative_prompt"],
+                aspect_ratio=aspect_ratio, megapixels=megapixels, size_multiple=size_multiple,
+                seed=seed, steps=steps, cfg=cfg, denoise=denoise, sampler=sampler,
+                scheduler=scheduler, model=model, text_encoder=text_encoder,
+            ),
+        )
+
+
+class ComfyCloudMageFlowTextToImageNode(_ComfyCloudMageFlowNode):
+    workflow = "mage-flow/text-to-image"
+    node_id = "ComfyCloudMageFlowTextToImageNode"
+    display_name = "Comfy Cloud Mage Flow Text to Image"
+    summary = (
+        "Generates an image from a text prompt with Mage-Flow over a full 30-step pass. "
+        "It takes a negative prompt, which the distilled turbo variant cannot use well."
+    )
+    default_steps = 30
+    default_cfg = 5.0
+    model_options = _MAGE_FLOW_MODELS
+
+
+class ComfyCloudMageFlowTurboTextToImageNode(_ComfyCloudMageFlowNode):
+    workflow = "mage-flow-turbo/text-to-image"
+    node_id = "ComfyCloudMageFlowTurboTextToImageNode"
+    display_name = "Comfy Cloud Mage Flow Turbo Text to Image"
+    summary = (
+        "Generates an image from a text prompt with distilled Mage-Flow in 4 steps at cfg 1. "
+        "Roughly a seventh of the GPU time of the full pass, which makes it the one to iterate on."
+    )
+    default_steps = 4
+    default_cfg = 1.0
+    model_options = _MAGE_FLOW_TURBO_MODELS
+
+
+class ComfyCloudMiniMaxMusic3TextToAudioNode(IO.ComfyNode):
+    output_kind = "audio"
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return _cloud_schema(
+            "ComfyCloudMiniMaxMusic3TextToAudioNode",
+            "Comfy Cloud MiniMax Music 3 Text to Audio",
+            (
+                "Generates a full song from a description with MiniMax Music 3. The prompt "
+                "carries the style, instrumentation and mood; lyrics are sung rather than "
+                "described, and an empty lyric leaves the track instrumental."
+            ),
+            "partner/audio/Comfy Cloud",
+            [
+                _prompt_input(),
+                IO.String.Input(
+                    "lyrics", multiline=True, default="",
+                    tooltip="Words to sing. Leave empty for an instrumental.",
+                ),
+                IO.Float.Input(
+                    "max_duration", default=120.0, min=0.04, max=360.0, step=0.04,
+                    tooltip="Longest the track may run. The model can end the song earlier.",
+                ),
+                IO.Boolean.Input(
+                    "tiled_decode", default=True,
+                    tooltip="Decode the waveform in tiles. Off decodes in one pass, which is "
+                            "quicker on short tracks and needs far more memory on long ones.",
+                ),
+                # SeedNode caps at int64, below the uint64 the other graphs take.
+                _seed_input(0x7FFFFFFFFFFFFFFF),
+                _tuning_input(
+                    "caption_cfg", 1.5, 100.0,
+                    tooltip="How closely the arrangement follows the prompt.",
+                ),
+                IO.Int.Input(
+                    "top_k", default=50, min=1, max=16384, advanced=True,
+                    tooltip="Token sampling width while the prompt is turned into an arrangement.",
+                ),
+                *_sampling_inputs(30, 1.7, 100.0, "audio diffusion"),
+                IO.Int.Input("tile_size", default=1536, min=32, max=8192, step=8, advanced=True),
+                IO.Int.Input("tile_overlap", default=64, min=0, max=1024, step=8, advanced=True),
+                _weights_input("model", _MINIMAX_MUSIC3_MODELS, "Diffusion transformer precision."),
+                _weights_input(
+                    "text_encoder", _MINIMAX_MUSIC3_TEXT_ENCODERS, "Prompt encoder precision."
+                ),
+                _weights_input(
+                    "audio_quality", _MINIMAX_MUSIC3_QUALITIES,
+                    "mp3 bitrate. V0 is variable and the highest quality of the three.",
+                ),
+            ],
+            _OUTPUT_KINDS[cls.output_kind][0](),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        prompt: str,
+        lyrics: str = "",
+        max_duration: float = 120.0,
+        tiled_decode: bool = True,
+        seed: int = 42,
+        caption_cfg: float = 1.5,
+        top_k: int = 50,
+        steps: int = 30,
+        cfg: float = 1.7,
+        denoise: float = 1.0,
+        sampler: str = "euler",
+        scheduler: str = "simple",
+        tile_size: int = 1536,
+        tile_overlap: int = 64,
+        model: str = "minimax_music3_dit_fp16",
+        text_encoder: str = "minimax_music3_text_encoder_pruned_int8_convrot",
+        audio_quality: str = "V0",
+    ) -> IO.NodeOutput:
+        validated = _validate_node_inputs(cls, locals())
+        run = _OUTPUT_KINDS[cls.output_kind][1]
+        return await run(
+            cls,
+            "minimax-music-3/text-to-audio",
+            ComfyCloudWorkflowInputs(
+                prompt=validated["prompt"], lyrics=validated["lyrics"],
+                max_duration=max_duration, tiled_decode=tiled_decode, seed=seed,
+                caption_cfg=caption_cfg, top_k=top_k, steps=steps, cfg=cfg, denoise=denoise,
+                sampler=sampler, scheduler=scheduler, tile_size=tile_size,
+                tile_overlap=tile_overlap, model=model, text_encoder=text_encoder,
+                audio_quality=audio_quality,
+            ),
+        )
+
+
 def _video_schema(node_id: str, display_name: str, summary: str, inputs: list[IO.Input]) -> IO.Schema:
     return _cloud_schema(
         node_id, display_name, summary, "partner/video/Comfy Cloud", inputs, IO.Video.Output()
@@ -668,8 +891,11 @@ class ComfyCloudExtension(ComfyExtension):
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
             ComfyCloudMiniMaxH3TextSoundNode,
+            ComfyCloudMiniMaxMusic3TextToAudioNode,
             ComfyCloudFlux2TextToImageNode,
             ComfyCloudZImageTurboNode,
+            ComfyCloudMageFlowTextToImageNode,
+            ComfyCloudMageFlowTurboTextToImageNode,
         ]
 
 

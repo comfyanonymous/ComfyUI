@@ -8,6 +8,9 @@ ComfyCloudWorkflow = Literal[
     "z-image-turbo/text-to-image",
     "flux-2/text-to-image",
     "minimax-h3/text-to-video",
+    "mage-flow/text-to-image",
+    "mage-flow-turbo/text-to-image",
+    "minimax-music-3/text-to-audio",
 ]
 
 
@@ -45,6 +48,20 @@ class ComfyCloudWorkflowInputs(BaseModel):
     shift: float | None = Field(None, ge=0)
     turbo_strength: float | None = Field(None, ge=0)
     style_strength: float | None = Field(None, ge=0)
+    megapixels: float | None = Field(None, gt=0)
+    size_multiple: int | None = Field(None, ge=1)
+    sampler: str | None = Field(None)
+    scheduler: str | None = Field(None)
+    denoise: float | None = Field(None, ge=0, le=1)
+    text_encoder: str | None = Field(None)
+    lyrics: str | None = Field(None)
+    max_duration: float | None = Field(None, gt=0)
+    caption_cfg: float | None = Field(None, ge=0)
+    top_k: int | None = Field(None, ge=1)
+    tiled_decode: bool | None = Field(None)
+    tile_size: int | None = Field(None, ge=1)
+    tile_overlap: int | None = Field(None, ge=0)
+    audio_quality: str | None = Field(None)
 
 
 class ComfyCloudAssetInput(BaseModel):

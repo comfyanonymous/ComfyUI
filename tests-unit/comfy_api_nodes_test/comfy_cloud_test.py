@@ -374,6 +374,10 @@ PLAIN_CONTROLS = {
     "prompt", "instruction", "image", "audio", "first_frame", "last_frame",
     "aspect_ratio", "duration_seconds", "seed", "scale", "quality_mode",
     "prompt_enhance", "enhance_prompt", "turbo", "rendering_speed",
+    # Music: lyrics are sung rather than described, so they are a second prompt
+    # rather than a tuning dial; max_duration is that graph's length control and
+    # tiled_decode its one quality-against-speed switch.
+    "lyrics", "max_duration", "tiled_decode",
 }
 
 
@@ -628,6 +632,9 @@ def test_extension_registers_exactly_the_shipped_set():
         nodes_comfy_cloud.ComfyCloudMiniMaxH3TextSoundNode,
         nodes_comfy_cloud.ComfyCloudZImageTurboNode,
         nodes_comfy_cloud.ComfyCloudFlux2TextToImageNode,
+        nodes_comfy_cloud.ComfyCloudMageFlowTextToImageNode,
+        nodes_comfy_cloud.ComfyCloudMageFlowTurboTextToImageNode,
+        nodes_comfy_cloud.ComfyCloudMiniMaxMusic3TextToAudioNode,
     }
     registered = set(asyncio.run(nodes_comfy_cloud.ComfyCloudExtension().get_node_list()))
 
