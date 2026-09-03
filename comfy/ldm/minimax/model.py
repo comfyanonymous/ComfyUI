@@ -74,6 +74,17 @@ def _axis_from_sqrt_area(dim, patch, sqrt_area):
     return (torch.arange(n, dtype=torch.float64) * (ratio / n) + (1.0 - ratio) / 2.0) * 32.0
 
 
+def mask_row_values(mask, latent_t, lat_h, lat_w):
+    # [T, H, W] denoise mask (1 = generate) -> per-2x2-patch-row float in [0, 1],
+    # None when every row fully generates
+    m = torch.nn.functional.pad(mask, (0, lat_w - mask.shape[-1], 0, lat_h - mask.shape[-2]), mode="replicate")
+    m = m.reshape(latent_t, lat_h // 2, 2, lat_w // 2, 2).amax(dim=(2, 4))
+    values = m.reshape(-1)
+    if bool((values >= 1.0 - 1e-3).all()):
+        return None
+    return values
+
+
 def _frame_grid(h, w):
     # area-normalized (h, w) coordinates of one latent frame's 2x2-patch rows
     area = math.sqrt(h * w)
@@ -212,17 +223,22 @@ class AdalnProj(nn.Module):
         return x.chunk(self.expand, dim=-1)
 
 
+def _mod_row(vecs, row, dtype):
+    # row is a mod-row index, or a per-token LongTensor of mod-row indices
+    return vecs[row].to(dtype)
+
+
 def _mod_scale_shift(h, shift, scale, segments):
     # segments: [(start, stop, mod_row)] covering h contiguously.
     for a, b, row in segments:
-        h[a:b].mul_(1.0 + scale[row].to(h.dtype)).add_(shift[row].to(h.dtype))
+        h[a:b].mul_(1.0 + _mod_row(scale, row, h.dtype)).add_(_mod_row(shift, row, h.dtype))
     return h
 
 
 def _mod_gate(x, gate, other, segments):
     # other is the fresh attn/mlp output: accumulate the gated residual into the stream in place, one fused kernel per segment
     for a, b, row in segments:
-        x[a:b].addcmul_(other[a:b], gate[row].to(x.dtype))
+        x[a:b].addcmul_(other[a:b], _mod_row(gate, row, x.dtype))
     return x
 
 
@@ -287,14 +303,42 @@ class FinalLayer(nn.Module):
         self.video_out = operations.Linear(hidden, video_dim, bias=True, dtype=torch.float32, device=device)
         self.audio_out = operations.Linear(hidden, audio_dim, bias=True, dtype=torch.float32, device=device)
 
-    def forward(self, x, t_emb, video_seg, audio_seg):
-        # video_seg / audio_seg: (start, stop, timestep_row) of the target streams
+    def forward(self, x, t_emb, video_seg, audio_seg, sigma, sample_sigmas, shifts):
+        # video_seg / audio_seg: (start, stop, row) of the target streams, where row
+        # is a mod-row index or a per-token blend (see _mod_row)
         shift, scale = self.adaln_proj(t_emb)
-        va, vb, vrow = video_seg
-        aa, ab, arow = audio_seg
-        hv = (self.norm(x[va:vb]) * (1.0 + scale[vrow]) + shift[vrow]).to(torch.float32)
-        ha = (self.norm(x[aa:ab]) * (1.0 + scale[arow]) + shift[arow]).to(torch.float32)
-        return self.video_out(hv), self.audio_out(ha)
+
+        def mod(seg):
+            a, b, row = seg
+            return (self.norm(x[a:b]) * (1.0 + _mod_row(scale, row, scale.dtype)) + _mod_row(shift, row, shift.dtype)).to(torch.float32)
+
+        n = self.video_out.weight.shape[0] // self.video_out.out_features
+        if n == 1:
+            return self.video_out(mod(video_seg)), self.audio_out(mod(audio_seg))
+
+        # PDD head bank: row block 0 is a full head, later blocks are offsets from it;
+        # a step consumes the dt-weighted mean of the heads it spans.
+        if sample_sigmas is None:
+            raise ValueError("MiniMax H3 PDD heads need the sampler's sigma schedule")
+        i = int((sample_sigmas - sigma).abs().argmin())
+        sigma_next = sample_sigmas[min(i + 1, sample_sigmas.shape[0] - 1)]
+        start, stop = (round(float(1.0 - time_shift_sigma(s, shifts[0], 1.0)) * n) for s in (sigma, sigma_next))
+        start = min(start, n - 1)
+        stop = max(stop, start + 1)
+        return (_pdd_head(self.video_out, mod(video_seg), n, start, stop, shifts[0]),
+                _pdd_head(self.audio_out, mod(audio_seg), n, start, stop, shifts[1]))
+
+
+def _pdd_head(head, h, n, start, stop, flow_shift):
+    grid = torch.linspace(1.0, 0.0, n + 1, dtype=torch.float64)
+    dt = (1.0 - flow_shift * grid / (1.0 + (flow_shift - 1.0) * grid)).diff()[start:stop]
+    w = (dt / dt.sum()).to(h)
+    with comfy.ops.CastBiasWeightContext(head, h, offloadable=True) as (weight, bias):
+        rows = weight.reshape(n, -1, weight.shape[1])
+        brows = bias.reshape(n, -1)
+        first = max(start, 1)
+        return nn.functional.linear(h, rows[0] + torch.einsum("n,noi->oi", w[first - start:], rows[first:stop]),
+                                    brows[0] + torch.einsum("n,no->o", w[first - start:], brows[first:stop]))
 
 
 class PackedLayout:
@@ -506,7 +550,7 @@ class MiniMaxH3Model(nn.Module):
             rows.append(r.to(device))
         return torch.cat(rows, dim=0) if rows else None
 
-    def forward(self, x, timestep, context, transformer_options={}, minimax_payload=None, **kwargs):
+    def forward(self, x, timestep, context, transformer_options={}, minimax_payload=None, denoise_mask=None, audio_denoise_mask=None, **kwargs):
         # the sampler carries the audio as (sigma_v / sigma_a) * x_audio; undo it outside
         # the wrappers so they and the network see the stream's own latent and velocity
         scale = float((minimax_payload or {}).get("audio_scale", 1.0))
@@ -523,7 +567,8 @@ class MiniMaxH3Model(nn.Module):
             self._forward,
             self,
             comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
-        ).execute(x, timestep, context, transformer_options, minimax_payload=minimax_payload, **kwargs)
+        ).execute(x, timestep, context, transformer_options, minimax_payload=minimax_payload,
+                  denoise_mask=denoise_mask, audio_denoise_mask=audio_denoise_mask, **kwargs)
 
         if scale != 1.0:
             # d/d(sigma_v) of the carried variable
@@ -531,7 +576,7 @@ class MiniMaxH3Model(nn.Module):
                       + (1.0 + (scale - 1.0) * sigma_a).to(out[1].dtype) * out[1])
         return out
 
-    def _forward(self, x, timestep, context, transformer_options={}, minimax_payload=None, **kwargs):
+    def _forward(self, x, timestep, context, transformer_options={}, minimax_payload=None, denoise_mask=None, audio_denoise_mask=None, **kwargs):
         video_x, audio_x = x[0], x[1]
         orig_t, orig_h, orig_w = video_x.shape[2], video_x.shape[3], video_x.shape[4]
         video_x = comfy.ldm.common_dit.pad_to_patch_size(video_x, self.patch_size)
@@ -561,15 +606,46 @@ class MiniMaxH3Model(nn.Module):
         # distinct timesteps are known analytically: text/pad follow video, cond rows pin near 1
         vis_aug = float(payload.get("visual_cond_noise_aug", VISUAL_COND_TIMESTEP))
         aud_aug = float(payload.get("audio_cond_noise_aug", AUDIO_COND_TIMESTEP))
-        has_vis_cond = any(k in ("cond", "ref_img") for _, _, k in layout.segments)
-        has_aud_cond = any(k in ("cond_audio", "ref_audio") for _, _, k in layout.segments)
         seg_t = {"text": t_v, "video": t_v, "audio": t_a,
                  "cond": max(t_v, vis_aug), "ref_img": max(t_v, vis_aug),
                  "cond_audio": max(t_a, aud_aug), "ref_audio": max(t_a, aud_aug)}
-        unique_t = sorted({t_v, t_a} | ({seg_t["cond"]} if has_vis_cond else set())
-                          | ({seg_t["ref_audio"]} if has_aud_cond else set()))
+
+        # masked rows run at their own strength: mask value m puts a row at sigma = m * sigma_stream,
+        # so its label is 1 - m * sigma, clamped at the cond timestep for fully preserved rows
+        t_pin_v = max(t_v, VISUAL_COND_TIMESTEP)
+        t_pin_a = max(t_a, AUDIO_COND_TIMESTEP)
+        video_rows_t = None
+        audio_rows_t = None
+        if denoise_mask is not None:
+            m = mask_row_values(denoise_mask[0, 0].to(torch.float32), latent_t, lat_h, lat_w)
+            if m is not None:
+                rows_t = (1.0 - m * sigma_v.to(m.device)).clamp(max=t_pin_v)
+                if rows_t.unique().numel() == 1:
+                    seg_t["video"] = float(rows_t[0])
+                else:
+                    video_rows_t = rows_t
+        if audio_denoise_mask is not None:
+            m = audio_denoise_mask[0, 0].to(torch.float32).reshape(-1)
+            if not bool((m >= 1.0 - 1e-3).all()):
+                sigma_a = 1.0 - t_a
+                rows_t = (1.0 - m * sigma_a).clamp(max=t_pin_a)
+                if rows_t.unique().numel() == 1:
+                    seg_t["audio"] = float(rows_t[0])
+                else:
+                    audio_rows_t = rows_t
+
+        unique_t = sorted({t_v, t_a} | {seg_t[k] for _, _, k in layout.segments}
+                          | (set(video_rows_t.unique().tolist()) if video_rows_t is not None else set())
+                          | (set(audio_rows_t.unique().tolist()) if audio_rows_t is not None else set()))
         t_row = {t: i for i, t in enumerate(unique_t)}
         seg_tag = {"text": 1, "video": 0, "audio": 2, "cond": 0, "ref_img": 0, "cond_audio": 2, "ref_audio": 2}
+
+        def rows_to_mod_index(rows_t, tag):
+            # per-row timestep values -> per-row mod-row indices into the t_emb table
+            levels = rows_t.unique()
+            base = torch.tensor([t_row[v] * 3 + tag for v in levels.tolist()],
+                                dtype=torch.long, device=rows_t.device)
+            return base[torch.searchsorted(levels, rows_t)]
 
         text_tags = payload.get("text_token_tags")
         mod_segments = []
@@ -583,6 +659,10 @@ class MiniMaxH3Model(nn.Module):
                     if i == b - a or tags[i] != tags[run_start]:
                         mod_segments.append((a + run_start, a + i, row_base + int(tags[run_start])))
                         run_start = i
+            elif kind == "video" and video_rows_t is not None:
+                mod_segments.append((a, b, rows_to_mod_index(video_rows_t, seg_tag[kind])))
+            elif kind == "audio" and audio_rows_t is not None:
+                mod_segments.append((a, b, rows_to_mod_index(audio_rows_t, seg_tag[kind])))
             else:
                 mod_segments.append((a, b, row_base + seg_tag[kind]))
 
@@ -651,7 +731,7 @@ class MiniMaxH3Model(nn.Module):
                                          transformer_options=args["transformer_options"])}
                 h = blocks_replace[("double_block", i)](
                     {"img": h, "t_emb": t_emb, "mod_segments": mod_segments, "rope_freqs": rope_freqs,
-                     "transformer_options": transformer_options},
+                     "layout": layout, "transformer_options": transformer_options},
                     {"original_block": block_wrap})["img"]
             else:
                 h = block(h, t_emb, mod_segments, rope_freqs, transformer_options=transformer_options)
@@ -659,9 +739,17 @@ class MiniMaxH3Model(nn.Module):
             comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, device, None)
 
         # target streams are single contiguous segments (audio then video, last two)
-        video_seg = next((a, b, t_row[seg_t["video"]]) for a, b, k in layout.segments if k == "video")
-        audio_seg = next((a, b, t_row[seg_t["audio"]]) for a, b, k in layout.segments if k == "audio")
-        v, a = self.final_layer(h, t_emb, video_seg, audio_seg)
+        va, vb, _ = next(s for s in layout.segments if s[2] == "video")
+        aa, ab, _ = next(s for s in layout.segments if s[2] == "audio")
+        if video_rows_t is not None:
+            video_seg = (va, vb, rows_to_mod_index(video_rows_t, 0) // 3)
+        else:
+            video_seg = (va, vb, t_row[seg_t["video"]])
+        if audio_rows_t is not None:
+            audio_seg = (aa, ab, rows_to_mod_index(audio_rows_t, 0) // 3)
+        else:
+            audio_seg = (aa, ab, t_row[seg_t["audio"]])
+        v, a = self.final_layer(h, t_emb, video_seg, audio_seg, sigma_v, transformer_options.get("sample_sigmas"), (shift_v, shift_a))
 
         video_out = unpatchify_video(v, latent_t, lat_h // 2, lat_w // 2, self.latents_dim, self.patch_size)
         video_out = video_out[:, :, :orig_t, :orig_h, :orig_w]
