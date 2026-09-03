@@ -838,7 +838,10 @@ def _minimax_inputs(image: bool) -> list[IO.Input]:
     inputs = [IO.Image.Input("image")] if image else []
     return inputs + [
         _prompt_input(),
+        # Same order as _minimax_h3_inputs: seed, aspect ratio, shot shape.
+        _seed_input(),
         _aspect_ratio_input("1:1" if image else "16:9"),
+        _video_resolution_input(),
         IO.Int.Input(
             "duration_seconds",
             default=5,
@@ -850,18 +853,16 @@ def _minimax_inputs(image: bool) -> list[IO.Input]:
                 "so the clip lands within about two thirds of a second of this."
             ),
         ),
-        _seed_input(),
-        _video_resolution_input(),
         _steps_input(20, 60),
     ]
 
 
-class ComfyCloudMiniMaxH3TextSoundNode(IO.ComfyNode):
+class ComfyCloudMiniMaxH3TextToVideoNode(IO.ComfyNode):
     @classmethod
     def define_schema(cls) -> IO.Schema:
         return _video_schema(
-            "ComfyCloudMiniMaxH3TextSoundNode",
-            "Comfy Cloud MiniMax H3 Text to Video with Audio",
+            "ComfyCloudMiniMaxH3TextToVideoNode",
+            "Comfy Cloud MiniMax H3 Text to Video",
             (
                 "Generates a video with a matching soundtrack from a text prompt, using MiniMax "
                 "H3. Picture and audio come out of the same pass rather than being dubbed on "
@@ -906,6 +907,10 @@ def _minimax_h3_inputs(default_ratio: str, plain: list[IO.Input] | None = None) 
     """
     return [
         _prompt_input(),
+        # Order per review: seed, aspect ratio, then the shot's shape, then the
+        # sampling controls, then the weights. Kept identical across every node
+        # so moving between them does not move the knobs.
+        _seed_input(),
         _aspect_ratio_input(default_ratio),
         _video_resolution_input(advanced=False),
         IO.Int.Input(
@@ -919,7 +924,6 @@ def _minimax_h3_inputs(default_ratio: str, plain: list[IO.Input] | None = None) 
                 "so the clip lands within about two thirds of a second of this."
             ),
         ),
-        _seed_input(),
         *(plain or []),
         _steps_input(20, 60),
         _tuning_input(
@@ -943,16 +947,17 @@ async def _minimax_h3_asset(cls: type[IO.ComfyNode], image: Input.Image) -> Comf
     )
 
 
-class ComfyCloudMiniMaxH3ImageToVideoNode(IO.ComfyNode):
+class ComfyCloudMiniMaxH3FirstLastFrameToVideoNode(IO.ComfyNode):
     @classmethod
     def define_schema(cls) -> IO.Schema:
         return _video_schema(
-            "ComfyCloudMiniMaxH3ImageToVideoNode",
-            "Comfy Cloud MiniMax H3 Image to Video",
+            "ComfyCloudMiniMaxH3FirstLastFrameToVideoNode",
+            "Comfy Cloud MiniMax H3 First-Last Frame to Video",
             (
-                "Animates a still into a video with a matching soundtrack, using MiniMax H3. "
-                "Connect a last frame as well and the model generates the motion between the two "
-                "keyframes rather than away from the first."
+                "Generates the motion between two keyframes, with a matching soundtrack, using "
+                "MiniMax H3. Give it the opening and closing frames and the model fills in the "
+                "shot between them. The last frame is optional: leave it out and the motion runs "
+                "away from the first frame instead."
             ),
             [
                 IO.Image.Input("first_frame"),
@@ -981,7 +986,7 @@ class ComfyCloudMiniMaxH3ImageToVideoNode(IO.ComfyNode):
             assets["last_frame"] = await _minimax_h3_asset(cls, last_frame)
         return await _run_video_workflow(
             cls,
-            "minimax-h3/image-to-video",
+            "minimax-h3/first-last-frame-to-video",
             ComfyCloudWorkflowInputs(
                 prompt=prompt, aspect_ratio=aspect_ratio, resolution=resolution,
                 duration_seconds=duration_seconds, seed=seed, steps=steps, denoise=denoise,
@@ -990,16 +995,16 @@ class ComfyCloudMiniMaxH3ImageToVideoNode(IO.ComfyNode):
         )
 
 
-class ComfyCloudMiniMaxH3VideoContinuationNode(IO.ComfyNode):
+class ComfyCloudMiniMaxH3ImageToVideoNode(IO.ComfyNode):
     @classmethod
     def define_schema(cls) -> IO.Schema:
         return _video_schema(
-            "ComfyCloudMiniMaxH3VideoContinuationNode",
-            "Comfy Cloud MiniMax H3 Video Continuation",
+            "ComfyCloudMiniMaxH3ImageToVideoNode",
+            "Comfy Cloud MiniMax H3 Image to Video",
             (
-                "Carries on from where a clip left off: hand it that clip's closing frame and a "
-                "prompt for what happens next, and MiniMax H3 generates the following shot with "
-                "its own soundtrack. Chain several to build a longer sequence."
+                "Animates a still into a video with a matching soundtrack, using MiniMax H3. "
+                "Feed it a clip's closing frame and it continues the sequence, so chaining "
+                "several builds a longer shot."
             ),
             [IO.Image.Input("first_frame"), *_minimax_h3_inputs("1:1")],
         )
@@ -1020,7 +1025,7 @@ class ComfyCloudMiniMaxH3VideoContinuationNode(IO.ComfyNode):
         prompt = _validate_node_inputs(cls, locals())["prompt"]
         return await _run_video_workflow(
             cls,
-            "minimax-h3/video-continuation",
+            "minimax-h3/image-to-video",
             ComfyCloudWorkflowInputs(
                 prompt=prompt, aspect_ratio=aspect_ratio, resolution=resolution,
                 duration_seconds=duration_seconds, seed=seed, steps=steps, denoise=denoise,
@@ -1122,10 +1127,10 @@ class ComfyCloudExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
-            ComfyCloudMiniMaxH3TextSoundNode,
-            ComfyCloudMiniMaxH3ImageToVideoNode,
+            ComfyCloudMiniMaxH3TextToVideoNode,
+            ComfyCloudMiniMaxH3FirstLastFrameToVideoNode,
             ComfyCloudMiniMaxH3ReferenceToVideoNode,
-            ComfyCloudMiniMaxH3VideoContinuationNode,
+            ComfyCloudMiniMaxH3ImageToVideoNode,
             ComfyCloudMiniMaxMusic3TextToAudioNode,
             ComfyCloudFlux2TextToImageNode,
             ComfyCloudZImageTurboNode,

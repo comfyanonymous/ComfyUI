@@ -46,7 +46,7 @@ def _execute_with_defaults(node, prompt, **overrides):
             {"width": 1024, "height": 1024, "model": "z_image_turbo_bf16", "steps": 8, "shift": 3.0},
         ),
         (
-            nodes_comfy_cloud.ComfyCloudMiniMaxH3TextSoundNode, "minimax-h3/text-to-video", True, False,
+            nodes_comfy_cloud.ComfyCloudMiniMaxH3TextToVideoNode, "minimax-h3/text-to-video", True, False,
             {"aspect_ratio": "16:9", "duration_seconds": 5.0, "resolution": "480p", "steps": 20},
         ),
     ],
@@ -223,7 +223,7 @@ def test_cloud_workflows_accept_signed_https_output_urls(monkeypatch):
     [
         nodes_comfy_cloud.ComfyCloudZImageTurboNode,
         nodes_comfy_cloud.ComfyCloudFlux2TextToImageNode,
-        nodes_comfy_cloud.ComfyCloudMiniMaxH3TextSoundNode,
+        nodes_comfy_cloud.ComfyCloudMiniMaxH3TextToVideoNode,
     ],
 )
 def test_capability_nodes_reject_oversized_prompts(monkeypatch, node):
@@ -263,7 +263,7 @@ def test_task_routes_ignore_response_urls_and_errors_hide_task_token(monkeypatch
     monkeypatch.setattr(nodes_comfy_cloud, "poll_op", poll)
 
     with pytest.raises(RuntimeError) as error:
-        _execute_with_defaults(nodes_comfy_cloud.ComfyCloudMiniMaxH3TextSoundNode, "A prompt")
+        _execute_with_defaults(nodes_comfy_cloud.ComfyCloudMiniMaxH3TextToVideoNode, "A prompt")
 
     assert poll.call_args.args[1].path == "/proxy/comfy-cloud/workflow/tasks/secret%2Ftask-token"
     assert poll.call_args.kwargs["cancel_endpoint"].path == "/proxy/comfy-cloud/workflow/tasks/secret%2Ftask-token/cancel"
@@ -633,18 +633,18 @@ def test_extension_registers_exactly_the_shipped_set():
     capability_nodes = {
         nodes_comfy_cloud.ComfyCloudZImageTurboNode,
         nodes_comfy_cloud.ComfyCloudFlux2TextToImageNode,
-        nodes_comfy_cloud.ComfyCloudMiniMaxH3TextSoundNode,
+        nodes_comfy_cloud.ComfyCloudMiniMaxH3TextToVideoNode,
     }
     named_nodes = {
-        nodes_comfy_cloud.ComfyCloudMiniMaxH3TextSoundNode,
+        nodes_comfy_cloud.ComfyCloudMiniMaxH3TextToVideoNode,
         nodes_comfy_cloud.ComfyCloudZImageTurboNode,
         nodes_comfy_cloud.ComfyCloudFlux2TextToImageNode,
         nodes_comfy_cloud.ComfyCloudMageFlowTextToImageNode,
         nodes_comfy_cloud.ComfyCloudMageFlowTurboTextToImageNode,
         nodes_comfy_cloud.ComfyCloudMiniMaxMusic3TextToAudioNode,
-        nodes_comfy_cloud.ComfyCloudMiniMaxH3ImageToVideoNode,
+        nodes_comfy_cloud.ComfyCloudMiniMaxH3FirstLastFrameToVideoNode,
         nodes_comfy_cloud.ComfyCloudMiniMaxH3ReferenceToVideoNode,
-        nodes_comfy_cloud.ComfyCloudMiniMaxH3VideoContinuationNode,
+        nodes_comfy_cloud.ComfyCloudMiniMaxH3ImageToVideoNode,
     }
     registered = set(asyncio.run(nodes_comfy_cloud.ComfyCloudExtension().get_node_list()))
 
