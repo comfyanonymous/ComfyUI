@@ -261,6 +261,12 @@ _LTX_RESOLUTIONS = ["1280x720", "960x960", "720x1280"]
 # Weight pickers. Keys, not filenames: cloud holds the file each key maps to.
 _Z_IMAGE_MODELS = ["z_image_turbo_bf16", "z_image_turbo_int8_convrot", "z_image_turbo_nvfp4"]
 _FLUX2_MODELS = ["flux2_dev_fp8mixed", "flux2-dev"]
+_FLUX2_TEXT_ENCODERS = [
+    "mistral_3_small_flux2_bf16",
+    "mistral_3_small_flux2_fp8",
+    "mistral_3_small_flux2_fp4_mixed",
+]
+_Z_IMAGE_TEXT_ENCODERS = ["qwen_3_4b", "qwen_3_4b_fp8_mixed", "qwen_3_4b_fp4_mixed"]
 _MAGE_FLOW_MODELS = ["mage_flow_int8_convrot", "mage_flow_bf16", "mage_flow_base_bf16"]
 _MAGE_FLOW_TURBO_MODELS = ["mage_flow_turbo_int8_convrot", "mage_flow_turbo_bf16"]
 _MAGE_FLOW_TEXT_ENCODERS = ["qwen3vl_4b_bf16", "qwen3vl_4b_fp8_scaled"]
@@ -553,6 +559,14 @@ class ComfyCloudFlux2TextToImageNode(IO.ComfyNode):
                 _steps_input(8, 50, name="turbo_steps", tooltip="Steps for the Turbo LoRA pass."),
                 _tuning_input("turbo_strength", 1.0, 2.0, step=0.05),
                 _tuning_input("guidance", 4.0, 20.0),
+                IO.Combo.Input("sampler", options=_SAMPLERS, default="euler", advanced=True),
+                _weights_input(
+                    "text_encoder",
+                    _FLUX2_TEXT_ENCODERS,
+                    "Mistral 3 Small precision. fp8 and fp4 load quicker; bf16 is the full-range "
+                    "weights. This graph has no scheduler dial: Flux 2 derives its sigma schedule "
+                    "from the output size and steps.",
+                ),
             ],
         )
 
@@ -569,6 +583,8 @@ class ComfyCloudFlux2TextToImageNode(IO.ComfyNode):
         turbo_steps: int = 8,
         turbo_strength: float = 1.0,
         guidance: float = 4.0,
+        sampler: str = "euler",
+        text_encoder: str = _FLUX2_TEXT_ENCODERS[0],
     ) -> IO.NodeOutput:
         prompt = _validate_node_inputs(cls, locals())["prompt"]
         width, height = _dimensions(aspect_ratio)
@@ -578,7 +594,7 @@ class ComfyCloudFlux2TextToImageNode(IO.ComfyNode):
             ComfyCloudWorkflowInputs(
                 prompt=prompt, width=width, height=height, turbo=turbo, seed=seed, model=model,
                 lora=lora, steps=steps, turbo_steps=turbo_steps, turbo_strength=turbo_strength,
-                guidance=guidance,
+                guidance=guidance, sampler=sampler, text_encoder=text_encoder,
             ),
         )
 
@@ -607,6 +623,13 @@ class ComfyCloudZImageTurboNode(IO.ComfyNode):
                 ),
                 _steps_input(8, 50),
                 _tuning_input("shift", 3.0, 20.0),
+                IO.Combo.Input("sampler", options=_SAMPLERS, default="res_multistep", advanced=True),
+                IO.Combo.Input("scheduler", options=_SCHEDULERS, default="simple", advanced=True),
+                _weights_input(
+                    "text_encoder",
+                    _Z_IMAGE_TEXT_ENCODERS,
+                    "Qwen3 4B precision. The mixed-precision variants load quicker.",
+                ),
             ],
         )
 
@@ -619,6 +642,9 @@ class ComfyCloudZImageTurboNode(IO.ComfyNode):
         model: str = "z_image_turbo_bf16",
         steps: int = 8,
         shift: float = 3.0,
+        sampler: str = "res_multistep",
+        scheduler: str = "simple",
+        text_encoder: str = _Z_IMAGE_TEXT_ENCODERS[0],
     ) -> IO.NodeOutput:
         prompt = _validate_node_inputs(cls, locals())["prompt"]
         width, height = _dimensions(aspect_ratio)
@@ -627,7 +653,7 @@ class ComfyCloudZImageTurboNode(IO.ComfyNode):
             "z-image-turbo/text-to-image",
             ComfyCloudWorkflowInputs(
                 prompt=prompt, width=width, height=height, seed=seed, model=model, steps=steps,
-                shift=shift,
+                shift=shift, sampler=sampler, scheduler=scheduler, text_encoder=text_encoder,
             ),
         )
 
@@ -933,6 +959,8 @@ def _minimax_h3_inputs(default_ratio: str, plain: list[IO.Input] | None = None) 
             step=0.01,
             tooltip="Fraction of the sigma schedule to run. Below 1 starts partway in.",
         ),
+        IO.Combo.Input("sampler", options=_SAMPLERS, default="res_multistep", advanced=True),
+        IO.Combo.Input("scheduler", options=_SCHEDULERS, default="simple", advanced=True),
         _weights_input(
             "text_encoder",
             _MINIMAX_H3_TEXT_ENCODERS,
@@ -978,6 +1006,8 @@ class ComfyCloudMiniMaxH3FirstLastFrameToVideoNode(IO.ComfyNode):
         seed: int = 42,
         steps: int = 20,
         denoise: float = 1.0,
+        sampler: str = "res_multistep",
+        scheduler: str = "simple",
         text_encoder: str = _MINIMAX_H3_TEXT_ENCODERS[0],
     ) -> IO.NodeOutput:
         prompt = _validate_node_inputs(cls, locals())["prompt"]
@@ -989,7 +1019,7 @@ class ComfyCloudMiniMaxH3FirstLastFrameToVideoNode(IO.ComfyNode):
             "minimax-h3/first-last-frame-to-video",
             ComfyCloudWorkflowInputs(
                 prompt=prompt, aspect_ratio=aspect_ratio, resolution=resolution,
-                duration_seconds=duration_seconds, seed=seed, steps=steps, denoise=denoise,
+                duration_seconds=duration_seconds, seed=seed, steps=steps, denoise=denoise, sampler=sampler, scheduler=scheduler,
                 text_encoder=text_encoder, assets=assets,
             ),
         )
@@ -1020,6 +1050,8 @@ class ComfyCloudMiniMaxH3ImageToVideoNode(IO.ComfyNode):
         seed: int = 42,
         steps: int = 20,
         denoise: float = 1.0,
+        sampler: str = "res_multistep",
+        scheduler: str = "simple",
         text_encoder: str = _MINIMAX_H3_TEXT_ENCODERS[0],
     ) -> IO.NodeOutput:
         prompt = _validate_node_inputs(cls, locals())["prompt"]
@@ -1028,7 +1060,7 @@ class ComfyCloudMiniMaxH3ImageToVideoNode(IO.ComfyNode):
             "minimax-h3/image-to-video",
             ComfyCloudWorkflowInputs(
                 prompt=prompt, aspect_ratio=aspect_ratio, resolution=resolution,
-                duration_seconds=duration_seconds, seed=seed, steps=steps, denoise=denoise,
+                duration_seconds=duration_seconds, seed=seed, steps=steps, denoise=denoise, sampler=sampler, scheduler=scheduler,
                 text_encoder=text_encoder,
                 assets={"first_frame": await _minimax_h3_asset(cls, first_frame)},
             ),
@@ -1091,6 +1123,8 @@ class ComfyCloudMiniMaxH3ReferenceToVideoNode(IO.ComfyNode):
         ref_image_size: str = "match",
         steps: int = 20,
         denoise: float = 1.0,
+        sampler: str = "res_multistep",
+        scheduler: str = "simple",
         text_encoder: str = _MINIMAX_H3_TEXT_ENCODERS[0],
     ) -> IO.NodeOutput:
         prompt = _validate_node_inputs(cls, locals())["prompt"]

@@ -43,7 +43,11 @@ def _execute_with_defaults(node, prompt, **overrides):
     [
         (
             nodes_comfy_cloud.ComfyCloudZImageTurboNode, "z-image-turbo/text-to-image", False, False,
-            {"width": 1024, "height": 1024, "model": "z_image_turbo_bf16", "steps": 8, "shift": 3.0},
+            {
+                "width": 1024, "height": 1024, "model": "z_image_turbo_bf16", "steps": 8,
+                "shift": 3.0, "sampler": "res_multistep", "scheduler": "simple",
+                "text_encoder": "qwen_3_4b",
+            },
         ),
         (
             nodes_comfy_cloud.ComfyCloudMiniMaxH3TextToVideoNode, "minimax-h3/text-to-video", True, False,
@@ -275,14 +279,19 @@ CONTROLLED_IMAGE_NODES = [
     (
         nodes_comfy_cloud.ComfyCloudZImageTurboNode,
         "z-image-turbo/text-to-image",
-        ["prompt", "aspect_ratio", "seed", "model", "steps", "shift"],
+        [
+            "prompt", "aspect_ratio", "seed", "model", "steps", "shift", "sampler", "scheduler",
+            "text_encoder",
+        ],
         {
             "prompt": "A glass forest", "aspect_ratio": "16:9", "seed": 9, "model": "z_image_turbo_nvfp4",
-            "steps": 10, "shift": 2.5,
+            "steps": 10, "shift": 2.5, "sampler": "dpmpp_2m", "scheduler": "karras",
+            "text_encoder": "qwen_3_4b_fp8_mixed",
         },
         {
             "prompt": "A glass forest", "width": 1344, "height": 768, "seed": 9, "model": "z_image_turbo_nvfp4",
-            "steps": 10, "shift": 2.5,
+            "steps": 10, "shift": 2.5, "sampler": "dpmpp_2m", "scheduler": "karras",
+            "text_encoder": "qwen_3_4b_fp8_mixed",
         },
     ),
     (
@@ -290,17 +299,19 @@ CONTROLLED_IMAGE_NODES = [
         "flux-2/text-to-image",
         [
             "prompt", "aspect_ratio", "turbo", "seed", "model", "lora", "steps", "turbo_steps",
-            "turbo_strength", "guidance",
+            "turbo_strength", "guidance", "sampler", "text_encoder",
         ],
         {
             "prompt": "A glass forest", "aspect_ratio": "1:1", "turbo": False, "seed": 9,
             "model": "flux2-dev", "lora": "flux2-lenovo_ultrareal", "steps": 24, "turbo_steps": 6,
-            "turbo_strength": 0.8, "guidance": 4.5,
+            "turbo_strength": 0.8, "guidance": 4.5, "sampler": "dpmpp_2m",
+            "text_encoder": "mistral_3_small_flux2_fp8",
         },
         {
             "prompt": "A glass forest", "width": 1024, "height": 1024, "turbo": False, "seed": 9,
             "model": "flux2-dev", "lora": "flux2-lenovo_ultrareal", "steps": 24, "turbo_steps": 6,
-            "turbo_strength": 0.8, "guidance": 4.5,
+            "turbo_strength": 0.8, "guidance": 4.5, "sampler": "dpmpp_2m",
+            "text_encoder": "mistral_3_small_flux2_fp8",
         },
     ),
 ]
