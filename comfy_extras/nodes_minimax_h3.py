@@ -414,6 +414,7 @@ class MiniMaxH3FunControlPatch:
         self.control_latent = None
         self.control_latent_shape = None
         self.control_stream = None
+        self.pristine_stream = None
         self.active = False
 
     def _fit_frames(self, frames, frame_count, width, height):
@@ -472,26 +473,28 @@ class MiniMaxH3FunControlPatch:
         self.active = self.sigma_end <= sigma <= self.sigma_start
         self.control_stream = None
         if self.active:
-            payload = kwargs.get("minimax_payload") or {}
-            if payload.get("keyframes") or payload.get("refs"):
-                raise ValueError("MiniMax H3 Fun ControlNet does not support keyframe or reference conditioning")
             self.prepare_control_latent(x[0].shape)
         try:
             return executor(x, timestep, context, transformer_options, **kwargs)
         finally:
             self.control_stream = None
+            self.pristine_stream = None
 
     def before_block(self, block_index, args):
         if not self.active or block_index != self.model_patch.model.injection_layers[0]:
             return
-        self.control_latent = self.control_latent.to(args["img"].device)
-        self.control_stream = self.model_patch.model.init_stream(
-            args["img"], self.control_latent, args["layout"], args["t_emb"])
+        # stash only: control weight loads here would clobber the base block's freshly staged weights
+        self.pristine_stream = args["img"].clone()
 
     def after_block(self, block_index, args, out):
         if not self.active:
             return out
         control_index = self.model_patch.model.injection_layers.index(block_index)
+        if control_index == 0:
+            self.control_latent = self.control_latent.to(out["img"].device)
+            self.control_stream = self.model_patch.model.init_stream(
+                self.pristine_stream, self.control_latent, args["layout"], args["t_emb"])
+            self.pristine_stream = None
         self.control_stream, skip = self.model_patch.model.step(
             control_index, self.control_stream, args["t_emb"], args["mod_segments"], args["rope_freqs"],
             transformer_options=args["transformer_options"])
@@ -510,6 +513,7 @@ class MiniMaxH3FunControlPatch:
         self.control_latent = None
         self.control_latent_shape = None
         self.control_stream = None
+        self.pristine_stream = None
         self.active = False
 
     def models(self):
