@@ -45,9 +45,12 @@ def malloc_graph_begin(module, device):
     MALLOC_GRAPH_USED = True
 
 def malloc_graph_end():
-    graph = ACTIVE_MALLOC_GRAPHS.pop(threading.get_ident(), None)
-    if graph is not None and graph.pop():
-        _malloc_graph_break()
+    thread_id = threading.get_ident()
+    graph = ACTIVE_MALLOC_GRAPHS.get(thread_id)
+    if graph is not None:
+        if graph.pop():
+            _malloc_graph_break()
+        ACTIVE_MALLOC_GRAPHS.pop(thread_id)
 
 def cleanup_prefetched_modules(module, comfy_modules):
     for s in comfy_modules:
@@ -82,7 +85,9 @@ def cleanup_prefetch_queues():
     global MALLOC_GRAPH_BREAKS
     global MALLOC_GRAPH_USED
 
-    ACTIVE_MALLOC_GRAPHS.pop(threading.get_ident(), None)
+    graph = ACTIVE_MALLOC_GRAPHS.pop(threading.get_ident(), None)
+    if graph is not None:
+        graph.abort()
     for queue in PREFETCH_QUEUES:
         for entry in queue:
             if entry is None or not isinstance(entry, tuple):
