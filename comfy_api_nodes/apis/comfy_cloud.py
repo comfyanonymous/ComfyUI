@@ -5,22 +5,22 @@ from pydantic import BaseModel, Field, field_validator
 
 # Only the workflows this build ships. The backend serves more.
 ComfyCloudWorkflow = Literal[
-    "text-to-image",
-    "text-to-video",
-    "image-to-video",
-    "image-edit",
-    "image.krea-2-creative-image.v1",
-    "image.qwen-image-edit-2511.v1",
-    "image.seedvr2-image-upscale.v1",
-    "image.z-image-turbo.v1",
-    "image.flux-2-text-to-image.v1",
-    "image.ideogram-4-text-to-image.v1",
-    "image.longcat-text-to-image.v1",
-    "image.capybara-0-1-text-to-image.v1",
-    "video.minimax-h3-text-sound.v1",
-    "video.minimax-h3-image-sound.v1",
-    "video.ltx-2-3-image-audio-performance.v1",
-    "video.wan-2-2-14b-first-last-frame.v1",
+    "default/text-to-image",
+    "default/text-to-video",
+    "default/image-to-video",
+    "default/image-edit",
+    "krea-2/text-to-image",
+    "qwen-image-edit-2511/image-edit",
+    "seedvr2/upscale-image",
+    "z-image-turbo/text-to-image",
+    "flux-2/text-to-image",
+    "ideogram-4/text-to-image",
+    "longcat/text-to-image",
+    "capybara-0.1/text-to-image",
+    "minimax-h3/text-to-video",
+    "minimax-h3/image-to-video",
+    "ltx-2.3/image-to-video",
+    "wan-2.2/first-last-frame-to-video",
 ]
 
 

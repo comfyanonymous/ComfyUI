@@ -318,7 +318,7 @@ class _ComfyCloudWorkflowNode(IO.ComfyNode):
 
 
 class ComfyCloudTextToImageNode(_ComfyCloudWorkflowNode):
-    workflow = "text-to-image"
+    workflow = "default/text-to-image"
     node_id = "ComfyCloudTextToImageNode"
     display_name = "Comfy Cloud Text to Image"
     summary = (
@@ -331,7 +331,7 @@ class ComfyCloudTextToImageNode(_ComfyCloudWorkflowNode):
 
 
 class ComfyCloudTextToVideoNode(_ComfyCloudWorkflowNode):
-    workflow = "text-to-video"
+    workflow = "default/text-to-video"
     node_id = "ComfyCloudTextToVideoNode"
     display_name = "Comfy Cloud Text to Video"
     summary = (
@@ -344,7 +344,7 @@ class ComfyCloudTextToVideoNode(_ComfyCloudWorkflowNode):
 
 
 class ComfyCloudImageToVideoNode(_ComfyCloudWorkflowNode):
-    workflow = "image-to-video"
+    workflow = "default/image-to-video"
     node_id = "ComfyCloudImageToVideoNode"
     display_name = "Comfy Cloud Image to Video"
     summary = (
@@ -357,7 +357,7 @@ class ComfyCloudImageToVideoNode(_ComfyCloudWorkflowNode):
 
 
 class ComfyCloudImageEditNode(_ComfyCloudWorkflowNode):
-    workflow = "image-edit"
+    workflow = "default/image-edit"
     node_id = "ComfyCloudImageEditNode"
     display_name = "Comfy Cloud Image Edit"
     summary = (
@@ -415,7 +415,7 @@ class _ComfyCloudPromptSeedImageNode(_ComfyCloudWorkflowNode):
 
 
 class ComfyCloudCapybaraTextToImageNode(_ComfyCloudPromptSeedImageNode):
-    workflow = "image.capybara-0-1-text-to-image.v1"
+    workflow = "capybara-0.1/text-to-image"
     node_id = "ComfyCloudCapybaraTextToImageNode"
     display_name = "Comfy Cloud Capybara 0.1 Text to Image"
     summary = (
@@ -425,7 +425,7 @@ class ComfyCloudCapybaraTextToImageNode(_ComfyCloudPromptSeedImageNode):
 
 
 class ComfyCloudIdeogram4TextToImageNode(_ComfyCloudPromptSeedImageNode):
-    workflow = "image.ideogram-4-text-to-image.v1"
+    workflow = "ideogram-4/text-to-image"
     node_id = "ComfyCloudIdeogram4TextToImageNode"
     display_name = "Comfy Cloud Ideogram 4 Text to Image"
     summary = (
@@ -435,7 +435,7 @@ class ComfyCloudIdeogram4TextToImageNode(_ComfyCloudPromptSeedImageNode):
 
 
 class ComfyCloudLongCatTextToImageNode(_ComfyCloudPromptSeedImageNode):
-    workflow = "image.longcat-text-to-image.v1"
+    workflow = "longcat/text-to-image"
     node_id = "ComfyCloudLongCatTextToImageNode"
     display_name = "Comfy Cloud LongCat Text to Image"
     summary = (
@@ -446,7 +446,7 @@ class ComfyCloudLongCatTextToImageNode(_ComfyCloudPromptSeedImageNode):
 
 
 class ComfyCloudFlux2TextToImageNode(_ComfyCloudPromptSeedImageNode):
-    workflow = "image.flux-2-text-to-image.v1"
+    workflow = "flux-2/text-to-image"
     node_id = "ComfyCloudFlux2TextToImageNode"
     display_name = "Comfy Cloud Flux 2 Text to Image"
     summary = (
@@ -456,7 +456,7 @@ class ComfyCloudFlux2TextToImageNode(_ComfyCloudPromptSeedImageNode):
 
 
 class ComfyCloudZImageTurboNode(_ComfyCloudPromptSeedImageNode):
-    workflow = "image.z-image-turbo.v1"
+    workflow = "z-image-turbo/text-to-image"
     node_id = "ComfyCloudZImageTurboNode"
     display_name = "Comfy Cloud Z-Image Turbo Text to Image"
     summary = (
@@ -466,7 +466,7 @@ class ComfyCloudZImageTurboNode(_ComfyCloudPromptSeedImageNode):
 
 
 class ComfyCloudKrea2CreativeImageNode(_ComfyCloudWorkflowNode):
-    workflow = "image.krea-2-creative-image.v1"
+    workflow = "krea-2/text-to-image"
     node_id = "ComfyCloudKrea2CreativeImageNode"
     display_name = "Comfy Cloud Krea 2 Text to Image"
     summary = (
@@ -509,7 +509,7 @@ class ComfyCloudKrea2CreativeImageNode(_ComfyCloudWorkflowNode):
 
 
 class ComfyCloudQwenImageEdit2511Node(_ComfyCloudWorkflowNode):
-    workflow = "image.qwen-image-edit-2511.v1"
+    workflow = "qwen-image-edit-2511/image-edit"
     node_id = "ComfyCloudQwenImageEdit2511Node"
     display_name = "Comfy Cloud Qwen Image Edit 2511"
     summary = (
@@ -562,7 +562,7 @@ class ComfyCloudQwenImageEdit2511Node(_ComfyCloudWorkflowNode):
 
 
 class ComfyCloudSeedVR2ImageUpscaleNode(_ComfyCloudWorkflowNode):
-    workflow = "image.seedvr2-image-upscale.v1"
+    workflow = "seedvr2/upscale-image"
     node_id = "ComfyCloudSeedVR2ImageUpscaleNode"
     display_name = "Comfy Cloud SeedVR2 Upscale Image"
     summary = (
@@ -660,7 +660,7 @@ class ComfyCloudMiniMaxH3TextSoundNode(IO.ComfyNode):
         inputs = ComfyCloudWorkflowInputs(
             prompt=prompt, aspect_ratio=aspect_ratio, duration_seconds=duration_seconds, seed=seed
         )
-        return await _run_video_workflow(cls, "video.minimax-h3-text-sound.v1", inputs)
+        return await _run_video_workflow(cls, "minimax-h3/text-to-video", inputs)
 
 
 class ComfyCloudMiniMaxH3ImageSoundNode(IO.ComfyNode):
@@ -696,7 +696,7 @@ class ComfyCloudMiniMaxH3ImageSoundNode(IO.ComfyNode):
             prompt=prompt, image_url=image_url, aspect_ratio=aspect_ratio,
             duration_seconds=duration_seconds, seed=seed,
         )
-        return await _run_video_workflow(cls, "video.minimax-h3-image-sound.v1", inputs)
+        return await _run_video_workflow(cls, "minimax-h3/image-to-video", inputs)
 
 
 class ComfyCloudLTX23ImageAudioPerformanceNode(IO.ComfyNode):
@@ -753,7 +753,7 @@ class ComfyCloudLTX23ImageAudioPerformanceNode(IO.ComfyNode):
             prompt=prompt, image_url=image_url, audio_url=audio_url, enhance_prompt=enhance_prompt,
             duration_seconds=duration_seconds, seed=seed,
         )
-        return await _run_video_workflow(cls, "video.ltx-2-3-image-audio-performance.v1", inputs)
+        return await _run_video_workflow(cls, "ltx-2.3/image-to-video", inputs)
 
 
 class ComfyCloudWan22FirstLastFrameNode(IO.ComfyNode):
@@ -816,7 +816,7 @@ class ComfyCloudWan22FirstLastFrameNode(IO.ComfyNode):
             prompt=prompt, negative_prompt=negative_prompt or None, first_frame_url=first_url,
             last_frame_url=last_url, duration_seconds=duration_seconds, seed=seed,
         )
-        return await _run_video_workflow(cls, "video.wan-2-2-14b-first-last-frame.v1", inputs)
+        return await _run_video_workflow(cls, "wan-2.2/first-last-frame-to-video", inputs)
 
 
 def _audio_duration(audio: Input.Audio) -> float:

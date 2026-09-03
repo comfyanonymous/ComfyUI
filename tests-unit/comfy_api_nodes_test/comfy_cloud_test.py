@@ -26,10 +26,10 @@ from comfy_api_nodes.util import download_helpers
 @pytest.mark.parametrize(
     ("node", "workflow", "returns_video", "requires_image"),
     [
-        (nodes_comfy_cloud.ComfyCloudTextToImageNode, "text-to-image", False, False),
-        (nodes_comfy_cloud.ComfyCloudTextToVideoNode, "text-to-video", True, False),
-        (nodes_comfy_cloud.ComfyCloudImageToVideoNode, "image-to-video", True, True),
-        (nodes_comfy_cloud.ComfyCloudImageEditNode, "image-edit", False, True),
+        (nodes_comfy_cloud.ComfyCloudTextToImageNode, "default/text-to-image", False, False),
+        (nodes_comfy_cloud.ComfyCloudTextToVideoNode, "default/text-to-video", True, False),
+        (nodes_comfy_cloud.ComfyCloudImageToVideoNode, "default/image-to-video", True, True),
+        (nodes_comfy_cloud.ComfyCloudImageEditNode, "default/image-edit", False, True),
     ],
 )
 def test_workflow_submission_polling_and_download(monkeypatch, node, workflow, returns_video, requires_image):
@@ -99,13 +99,13 @@ def test_image_workflows_reject_batches(monkeypatch, node):
 
 def test_contract_omits_optional_status_fields():
     request = ComfyCloudGenerateRequest(
-        workflow="text-to-image",
+        workflow="default/text-to-image",
         inputs=ComfyCloudWorkflowInputs(prompt="A lighthouse"),
     )
     status = ComfyCloudStatusResponse(task_id="task-1", status="queued")
 
     assert request.model_dump(exclude_none=True) == {
-        "workflow": "text-to-image",
+        "workflow": "default/text-to-image",
         "inputs": {"prompt": "A lighthouse"},
     }
     assert status.model_dump(exclude_none=True) == {"task_id": "task-1", "status": "queued"}
@@ -268,25 +268,25 @@ def test_task_routes_ignore_response_urls_and_errors_hide_task_token(monkeypatch
 CONTROLLED_IMAGE_NODES = [
     (
         nodes_comfy_cloud.ComfyCloudZImageTurboNode,
-        "image.z-image-turbo.v1",
+        "z-image-turbo/text-to-image",
         ["prompt", "seed"],
         {"prompt": "A glass forest", "seed": 9},
     ),
     (
         nodes_comfy_cloud.ComfyCloudKrea2CreativeImageNode,
-        "image.krea-2-creative-image.v1",
+        "krea-2/text-to-image",
         ["prompt", "prompt_enhance", "aspect_ratio", "seed"],
         {"prompt": "A glass forest", "prompt_enhance": False, "aspect_ratio": "16:9", "seed": 12},
     ),
     (
         nodes_comfy_cloud.ComfyCloudQwenImageEdit2511Node,
-        "image.qwen-image-edit-2511.v1",
+        "qwen-image-edit-2511/image-edit",
         ["image", "instruction", "quality_mode", "seed"],
         {"image": object(), "instruction": "Remove the sign", "quality_mode": "fast", "seed": 15},
     ),
     (
         nodes_comfy_cloud.ComfyCloudSeedVR2ImageUpscaleNode,
-        "image.seedvr2-image-upscale.v1",
+        "seedvr2/upscale-image",
         ["image", "scale"],
         {"image": object(), "scale": "2x"},
     ),
