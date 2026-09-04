@@ -344,6 +344,9 @@ def is_within_directory(directory: str, target: str) -> bool:
     # against `directory` with a trailing separator added (unless it's a root
     # like "/" or "C:\" that already ends in one) avoids that, while still
     # rejecting a sibling directory with a shared prefix (e.g. `/a/b` vs `/a/bc`).
+    # normcase() is a no-op on POSIX; on Windows it lowercases so a target
+    # differing only in case from `directory` still compares as contained.
+    directory, target = os.path.normcase(directory), os.path.normcase(target)
     directory_prefix = directory if directory.endswith(os.sep) else directory + os.sep
     return target == directory or target.startswith(directory_prefix)
 

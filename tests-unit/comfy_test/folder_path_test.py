@@ -2,6 +2,7 @@
 # TODO(yoland): clean up this after I get back down
 import sys
 import pytest
+import ntpath
 import os
 import tempfile
 from unittest.mock import patch
@@ -194,11 +195,23 @@ def test_is_within_directory_unc_share_root(monkeypatch):
     # `nt` module it needs is unavailable, so it falls back to plain
     # normalization), so patching it in here exercises the real Windows-only
     # ntpath.commonpath() bug without needing an actual Windows host.
-    import ntpath
     monkeypatch.setattr(os.path, "realpath", ntpath.realpath)
     monkeypatch.setattr(os, "sep", "\\")
 
     directory = r"\\nas\temp_fast"
     target = r"\\nas\temp_fast\dataset"
+    assert folder_paths.is_within_directory(directory, target) is True
+
+
+def test_is_within_directory_case_insensitive_on_windows(monkeypatch):
+    # Windows paths are case-insensitive: a target that differs only in case
+    # from `directory` must still be reported as contained. posixpath.normcase
+    # is a no-op, so patch it to ntpath's lowercasing version too.
+    monkeypatch.setattr(os.path, "realpath", ntpath.realpath)
+    monkeypatch.setattr(os.path, "normcase", ntpath.normcase)
+    monkeypatch.setattr(os, "sep", "\\")
+
+    directory = r"C:\Output"
+    target = r"c:\output\dataset"
     assert folder_paths.is_within_directory(directory, target) is True
 
