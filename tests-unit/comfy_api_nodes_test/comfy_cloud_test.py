@@ -46,7 +46,7 @@ def _execute_with_defaults(node, prompt, **overrides):
     [
         (
             nodes_comfy_cloud.ComfyCloudZImageTurboNode, "z-image-turbo/text-to-image", False, False,
-            {"width": 1024, "height": 1024},
+            {"aspect_ratio": "1:1", "megapixels": 1.0},
         ),
         (
             nodes_comfy_cloud.ComfyCloudMiniMaxH3TextToVideoNode, "minimax-h3/text-to-video", True, False,
@@ -281,16 +281,16 @@ CONTROLLED_IMAGE_NODES = [
     (
         nodes_comfy_cloud.ComfyCloudZImageTurboNode,
         "z-image-turbo/text-to-image",
-        ["prompt", "seed", "aspect_ratio"],
-        {"prompt": "A glass forest", "seed": 9, "aspect_ratio": "16:9"},
-        {"prompt": "A glass forest", "width": 1344, "height": 768, "seed": 9},
+        ["prompt", "seed", "aspect_ratio", "megapixels"],
+        {"prompt": "A glass forest", "seed": 9, "aspect_ratio": "16:9", "megapixels": 1.5},
+        {"prompt": "A glass forest", "aspect_ratio": "16:9", "megapixels": 1.5, "seed": 9},
     ),
     (
         nodes_comfy_cloud.ComfyCloudFlux2TextToImageNode,
         "flux-2/text-to-image",
-        ["prompt", "seed", "aspect_ratio", "turbo"],
-        {"prompt": "A glass forest", "seed": 9, "aspect_ratio": "1:1", "turbo": False},
-        {"prompt": "A glass forest", "width": 1024, "height": 1024, "turbo": False, "seed": 9},
+        ["prompt", "seed", "aspect_ratio", "megapixels", "turbo"],
+        {"prompt": "A glass forest", "seed": 9, "aspect_ratio": "3:2", "megapixels": 2.0, "turbo": False},
+        {"prompt": "A glass forest", "aspect_ratio": "3:2", "megapixels": 2.0, "turbo": False, "seed": 9},
     ),
 ]
 
@@ -445,18 +445,6 @@ def test_every_seed_starts_at_42_and_advances_after_a_run():
         assert seed is not None, f"{node.__name__} has no seed"
         assert seed.default == 42, f"{node.__name__} seeds at {seed.default}"
         assert seed.control_after_generate is True
-
-
-def test_aspect_ratios_resolve_to_sizes_the_latents_accept():
-    """The graphs that take a width and a height get them from this table, so every
-    side has to sit on the 16-pixel grid at both render scales, not only at 1x."""
-    for ratio in nodes_comfy_cloud._ASPECT_RATIOS:
-        for scale in (1.0, 1.25):
-            width, height = nodes_comfy_cloud._dimensions(ratio, scale)
-            assert width % 16 == 0 and height % 16 == 0, (ratio, scale)
-            assert 256 <= width <= 2048 and 256 <= height <= 2048, (ratio, scale)
-    assert nodes_comfy_cloud._dimensions("1:1") == (1024, 1024)
-    assert nodes_comfy_cloud._dimensions("1:1", 1.25) == (1280, 1280)
 
 
 def test_cloud_workflow_controls_have_connection_sockets():
