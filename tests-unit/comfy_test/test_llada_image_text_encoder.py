@@ -111,6 +111,41 @@ def test_aio_clip_processing_adapts_official_expert_tensor_names():
     }
 
 
+def test_aio_clip_component_prefixes_roundtrip_for_saving():
+    config = comfy.supported_models.LLaDAImage(
+        {"image_model": "llada_image", "variant": "base"}
+    )
+    checkpoint_state = {
+        "text_encoders.llada2.model.language_model.word_embeddings.weight": torch.empty(
+            64, 16
+        ),
+        "text_encoders.llada2.model.language_model.layers.1.mlp.experts.gate_proj": torch.empty(
+            8, 4, 16
+        ),
+        "text_encoders.queryformer.meta_queries": torch.empty(5, 16),
+        "text_encoders.text_projection.projector.weight": torch.empty(8, 16),
+        "text_encoders.sigvq.prior_token_embedding.weight": torch.empty(8, 10),
+        "text_encoders.tokenizer_json": torch.empty(128, dtype=torch.uint8),
+    }
+
+    processed = config.process_clip_state_dict(dict(checkpoint_state))
+
+    assert set(processed) == {
+        "llada2.model.language_model.word_embeddings.weight",
+        "llada2.model.language_model.layers.1.mlp.experts.gate_proj.weight",
+        "llada2.queryformer.meta_queries",
+        "llada2.text_projection.projector.weight",
+        "llada2.sigvq.prior_token_embedding.weight",
+        "tokenizer_json",
+    }
+
+    saved = config.process_clip_state_dict_for_saving(processed)
+
+    assert set(saved) == set(checkpoint_state)
+    for key in checkpoint_state:
+        assert saved[key] is checkpoint_state[key]
+
+
 class TinyVQGenerator(LLaDAImageClipModel):
     def __init__(self):
         nn.Module.__init__(self)

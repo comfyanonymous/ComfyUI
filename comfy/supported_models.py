@@ -864,6 +864,14 @@ class LLaDAImage(supported_models_base.BASE):
 
     def process_clip_state_dict(self, state_dict):
         state_dict = super().process_clip_state_dict(state_dict)
+        state_dict = utils.state_dict_prefix_replace(
+            state_dict,
+            {
+                "queryformer.": "llada2.queryformer.",
+                "text_projection.": "llada2.text_projection.",
+                "sigvq.": "llada2.sigvq.",
+            },
+        )
         suffixes = (
             ".mlp.experts.gate_proj",
             ".mlp.experts.up_proj",
@@ -875,6 +883,7 @@ class LLaDAImage(supported_models_base.BASE):
         return state_dict
 
     def process_clip_state_dict_for_saving(self, state_dict):
+        state_dict = dict(state_dict)
         for key in list(state_dict.keys()):
             if key.endswith((
                 ".mlp.experts.gate_proj.weight",
@@ -882,7 +891,17 @@ class LLaDAImage(supported_models_base.BASE):
                 ".mlp.experts.down_proj.weight",
             )):
                 state_dict[key[:-len(".weight")]] = state_dict.pop(key)
-        return super().process_clip_state_dict_for_saving(state_dict)
+        return utils.state_dict_prefix_replace(
+            state_dict,
+            {
+                "llada2.model.": "text_encoders.llada2.model.",
+                "llada2.queryformer.": "text_encoders.queryformer.",
+                "llada2.text_projection.": "text_encoders.text_projection.",
+                "llada2.sigvq.": "text_encoders.sigvq.",
+                "tokenizer_json": "text_encoders.tokenizer_json",
+            },
+            filter_keys=True,
+        )
 
     def clip_target(self, state_dict={}):
         key = "text_encoders.llada2.model.language_model.word_embeddings.weight"

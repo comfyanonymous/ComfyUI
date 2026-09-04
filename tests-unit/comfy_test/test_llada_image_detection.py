@@ -8,10 +8,13 @@ from comfy.cli_args import args
 args.cpu = True
 
 import comfy.model_detection
+import comfy.ops
 import comfy.sd
 import comfy.supported_models
 import comfy.utils
 import nodes
+from comfy.ldm.llada_image.model import LLaDAImage
+from comfy.text_encoders.llada_image import LLaDAImageTEModel
 
 
 PREFIX = "model.diffusion_model."
@@ -43,6 +46,53 @@ def make_metadata(variant="turbo", component_configs=None):
     }
     config.update(component_configs or {})
     return {"config": json.dumps(config)}
+
+
+def make_component_configs():
+    return {
+        "text_encoder": {
+            "vocab_size": 64,
+            "hidden_size": 16,
+            "intermediate_size": 24,
+            "moe_intermediate_size": 8,
+            "num_hidden_layers": 2,
+            "num_attention_heads": 4,
+            "num_key_value_heads": 2,
+            "head_dim": 4,
+            "num_experts": 8,
+            "num_experts_per_tok": 2,
+            "num_shared_experts": 1,
+            "first_k_dense_replace": 1,
+            "n_group": 2,
+            "topk_group": 1,
+            "pad_token_id": 0,
+        },
+        "queryformer": {
+            "num_queries": 5,
+            "hidden_size": 16,
+            "num_hidden_layers": 1,
+            "num_attention_heads": 2,
+            "intermediate_size": 24,
+        },
+        "text_projection": {
+            "hidden_size": 16,
+            "intermediate_size": 28,
+            "num_hidden_layers": 1,
+            "num_attention_heads": 2,
+            "projection_dim": 8,
+        },
+        "sigvq": {
+            "image_size": 16,
+            "patch_size": 4,
+            "hidden_size": 16,
+            "intermediate_size": 28,
+            "num_hidden_layers": 1,
+            "num_attention_heads": 2,
+            "codebook_size": 8,
+            "codebook_embed_dim": 4,
+            "semantic_embed_dim": 10,
+        },
+    }
 
 
 def test_detection_uses_shapes_and_checkpoint_config():
@@ -110,60 +160,22 @@ def test_aio_file_loads_model_clip_and_vae_through_checkpoint_path(
     tokenizer_json = torch.tensor(
         list(tokenizer.to_str().encode("utf-8")), dtype=torch.uint8
     )
+    expected_word_embeddings = torch.randn(64, 16)
+    expected_queries = torch.randn(5, 16)
+    expected_projection = torch.randn(8, 16)
+    expected_codebook = torch.randn(8, 10)
     state_dict = make_state_dict()
     state_dict.update(
         {
-            "text_encoders.llada2.model.language_model.word_embeddings.weight": torch.randn(
-                64, 16
-            ),
+            "text_encoders.llada2.model.language_model.word_embeddings.weight": expected_word_embeddings,
+            "text_encoders.queryformer.meta_queries": expected_queries,
+            "text_encoders.text_projection.projector.weight": expected_projection,
+            "text_encoders.sigvq.prior_token_embedding.weight": expected_codebook,
             "text_encoders.tokenizer_json": tokenizer_json,
             "vae.bn.running_mean": torch.zeros(128),
         }
     )
-    component_configs = {
-        "text_encoder": {
-            "vocab_size": 64,
-            "hidden_size": 16,
-            "intermediate_size": 24,
-            "moe_intermediate_size": 8,
-            "num_hidden_layers": 2,
-            "num_attention_heads": 4,
-            "num_key_value_heads": 2,
-            "head_dim": 4,
-            "num_experts": 8,
-            "num_experts_per_tok": 2,
-            "num_shared_experts": 1,
-            "first_k_dense_replace": 1,
-            "n_group": 2,
-            "topk_group": 1,
-            "pad_token_id": 0,
-        },
-        "queryformer": {
-            "num_queries": 5,
-            "hidden_size": 16,
-            "num_hidden_layers": 1,
-            "num_attention_heads": 2,
-            "intermediate_size": 24,
-        },
-        "text_projection": {
-            "hidden_size": 16,
-            "intermediate_size": 28,
-            "num_hidden_layers": 1,
-            "num_attention_heads": 2,
-            "projection_dim": 8,
-        },
-        "sigvq": {
-            "image_size": 16,
-            "patch_size": 4,
-            "hidden_size": 16,
-            "intermediate_size": 28,
-            "num_hidden_layers": 1,
-            "num_attention_heads": 2,
-            "codebook_size": 8,
-            "codebook_embed_dim": 4,
-            "semantic_embed_dim": 10,
-        },
-    }
+    component_configs = make_component_configs()
 
     class TestVAE:
         def __init__(self, sd, metadata=None, device=None):
@@ -193,5 +205,110 @@ def test_aio_file_loads_model_clip_and_vae_through_checkpoint_path(
     assert clip.cond_stage_model.llada2.queryformer.meta_queries.shape == (5, 16)
     assert clip.cond_stage_model.llada2.text_projection.projector.out_features == 8
     assert clip.cond_stage_model.llada2.sigvq.prior_token_embedding.num_embeddings == 8
+    assert torch.equal(
+        clip.cond_stage_model.llada2.model.language_model.word_embeddings.weight,
+        expected_word_embeddings,
+    )
+    assert torch.equal(
+        clip.cond_stage_model.llada2.queryformer.meta_queries, expected_queries
+    )
+    assert torch.equal(
+        clip.cond_stage_model.llada2.text_projection.projector.weight,
+        expected_projection,
+    )
+    assert torch.equal(
+        clip.cond_stage_model.llada2.sigvq.prior_token_embedding.weight,
+        expected_codebook,
+    )
     assert set(vae.state_dict) == {"bn.running_mean"}
     assert vae.metadata == metadata
+
+
+def test_complete_tiny_aio_loads_every_model_and_clip_tensor(tmp_path, monkeypatch):
+    from tokenizers import Tokenizer
+    from tokenizers.models import WordLevel
+
+    component_configs = make_component_configs()
+    native_model = LLaDAImage(
+        all_patch_size=(1,),
+        all_f_patch_size=(1,),
+        in_channels=4,
+        dim=32,
+        n_layers=2,
+        n_refiner_layers=1,
+        n_heads=2,
+        cap_feat_dim=8,
+        semantic_feat_dim=10,
+        axes_dims=(4, 6, 6),
+        dtype=torch.float32,
+        device=torch.device("cpu"),
+        operations=comfy.ops.disable_weight_init,
+    )
+    native_clip = LLaDAImageTEModel(
+        dtype=torch.float32,
+        llada2_config=component_configs["text_encoder"],
+        queryformer_config=component_configs["queryformer"],
+        text_projection_config=component_configs["text_projection"],
+        sigvq_config=component_configs["sigvq"],
+    )
+    torch.manual_seed(61)
+    for module in (native_model, native_clip):
+        for parameter in module.parameters():
+            torch.nn.init.normal_(parameter, std=0.02)
+
+    expected_model = {
+        key: value.detach().clone() for key, value in native_model.state_dict().items()
+    }
+    expected_clip = {
+        key: value.detach().clone() for key, value in native_clip.state_dict().items()
+    }
+    for name, module in native_clip.named_modules():
+        if hasattr(module, "_orig_shape"):
+            prefix = f"{name}." if name else ""
+            expected_clip[f"{prefix}weight"] = torch.randn(module._orig_shape) * 0.02
+            if getattr(module, "bias", None) is not None:
+                expected_clip[f"{prefix}bias"] = module.bias.detach().clone()
+    adapter = comfy.supported_models.LLaDAImage(
+        {"image_model": "llada_image", "variant": "base"}
+    )
+    checkpoint_state = {
+        f"{PREFIX}{key}": value for key, value in expected_model.items()
+    }
+    checkpoint_state.update(
+        adapter.process_clip_state_dict_for_saving(dict(expected_clip))
+    )
+    tokenizer = Tokenizer(WordLevel({"[UNK]": 0}, unk_token="[UNK]"))
+    checkpoint_state["text_encoders.tokenizer_json"] = torch.tensor(
+        list(tokenizer.to_str().encode("utf-8")), dtype=torch.uint8
+    )
+    checkpoint_state["vae.bn.running_mean"] = torch.zeros(128)
+
+    class TestVAE:
+        def __init__(self, sd, metadata=None, device=None):
+            self.state_dict = sd
+            self.metadata = metadata
+
+    monkeypatch.setattr(comfy.sd, "VAE", TestVAE)
+    checkpoint = tmp_path / "complete-llada-image-aio.safetensors"
+    metadata = make_metadata("base", component_configs)
+    comfy.utils.save_torch_file(checkpoint_state, checkpoint, metadata=metadata)
+    monkeypatch.setattr(
+        nodes.folder_paths,
+        "get_full_path_or_raise",
+        lambda category, name: str(checkpoint),
+    )
+    monkeypatch.setattr(nodes.folder_paths, "get_folder_paths", lambda category: [])
+    monkeypatch.setattr(
+        comfy.model_management, "text_encoder_dtype", lambda device=None: torch.float32
+    )
+
+    model, clip, _ = nodes.CheckpointLoaderSimple().load_checkpoint(checkpoint.name)
+
+    actual_model = model.model.diffusion_model.state_dict()
+    actual_clip = clip.cond_stage_model.state_dict()
+    assert set(actual_model) == set(expected_model)
+    assert set(actual_clip) == set(expected_clip)
+    for key, expected in expected_model.items():
+        assert torch.equal(actual_model[key], expected), key
+    for key, expected in expected_clip.items():
+        assert torch.equal(actual_clip[key], expected), key
