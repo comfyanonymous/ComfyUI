@@ -245,7 +245,10 @@ def test_aio_file_loads_model_clip_and_vae_through_checkpoint_path(
     assert vae.metadata == metadata
 
 
-def test_complete_tiny_aio_loads_every_model_and_clip_tensor(tmp_path, monkeypatch):
+@pytest.mark.parametrize("variant", ("base", "turbo"))
+def test_complete_tiny_aio_loads_and_runs_native_generation_and_editing(
+    tmp_path, monkeypatch, variant
+):
     from tokenizers import Tokenizer
     from tokenizers.models import WordLevel
 
@@ -290,7 +293,7 @@ def test_complete_tiny_aio_loads_every_model_and_clip_tensor(tmp_path, monkeypat
             if getattr(module, "bias", None) is not None:
                 expected_clip[f"{prefix}bias"] = module.bias.detach().clone()
     adapter = comfy.supported_models.LLaDAImage(
-        {"image_model": "llada_image", "variant": "base"}
+        {"image_model": "llada_image", "variant": variant}
     )
     checkpoint_state = {
         f"{PREFIX}{key}": value for key, value in expected_model.items()
@@ -310,8 +313,8 @@ def test_complete_tiny_aio_loads_every_model_and_clip_tensor(tmp_path, monkeypat
             self.metadata = metadata
 
     monkeypatch.setattr(comfy.sd, "VAE", TestVAE)
-    checkpoint = tmp_path / "complete-llada-image-aio.safetensors"
-    metadata = make_metadata("base", component_configs)
+    checkpoint = tmp_path / f"complete-llada-image-{variant}-aio.safetensors"
+    metadata = make_metadata(variant, component_configs)
     comfy.utils.save_torch_file(checkpoint_state, checkpoint, metadata=metadata)
     monkeypatch.setattr(
         nodes.folder_paths,
@@ -325,6 +328,7 @@ def test_complete_tiny_aio_loads_every_model_and_clip_tensor(tmp_path, monkeypat
 
     model, clip, _ = nodes.CheckpointLoaderSimple().load_checkpoint(checkpoint.name)
 
+    assert model.model.model_sampling.llada_image_variant == variant
     actual_model = model.model.diffusion_model.state_dict()
     actual_clip = clip.cond_stage_model.state_dict()
     assert set(actual_model) == set(expected_model)
@@ -333,3 +337,38 @@ def test_complete_tiny_aio_loads_every_model_and_clip_tensor(tmp_path, monkeypat
         assert torch.equal(actual_model[key], expected), key
     for key, expected in expected_clip.items():
         assert torch.equal(actual_clip[key], expected), key
+
+    conditioning = clip.encode_from_tokens_scheduled(
+        clip.tokenize("a tiny blue square"), show_pbar=False
+    )
+    context, conditioning_values = conditioning[0]
+    attention_mask = conditioning_values["attention_mask"]
+    latent = torch.randn(1, 4, 2, 3)
+    sigma = torch.tensor([0.5])
+
+    with torch.inference_mode():
+        generated = model.model.apply_model(
+            latent,
+            sigma,
+            c_crossattn=context,
+            attention_mask=attention_mask,
+        )
+        semantic_features, _ = clip.cond_stage_model.llada2.encode_sigvq(
+            pixel_values=torch.randn(1, 3, 16, 16)
+        )
+        edited = model.model.apply_model(
+            latent,
+            sigma,
+            c_crossattn=context,
+            attention_mask=attention_mask,
+            semantic_features=semantic_features,
+            semantic_mask=torch.ones(
+                semantic_features.shape[:2], dtype=torch.bool
+            ),
+            source_latents=torch.zeros_like(latent),
+        )
+
+    assert generated.shape == latent.shape
+    assert edited.shape == latent.shape
+    assert torch.isfinite(generated).all()
+    assert torch.isfinite(edited).all()
