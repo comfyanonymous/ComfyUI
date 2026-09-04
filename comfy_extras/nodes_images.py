@@ -720,7 +720,7 @@ class GetImageSize(IO.ComfyNode):
             node_id="GetImageSize",
             search_aliases=["dimensions", "resolution", "image info"],
             display_name="Get Image Size",
-            description="Returns width and height of the image, and passes it through unchanged.",
+            description="Returns the width, height, and batch size of the image.",
             category="image",
             inputs=[
                 IO.Image.Input("image"),
