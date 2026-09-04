@@ -397,7 +397,7 @@ class AnimaLLLiteApply:
     FUNCTION = "apply_patch"
     EXPERIMENTAL = True
 
-    CATEGORY = "model_patches/anima"
+    CATEGORY = "model/patch/anima"
 
     def apply_patch(self, model, model_patch, image, strength, start_percent, end_percent, mask=None):
         image = image[..., :3]
