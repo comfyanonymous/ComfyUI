@@ -304,9 +304,22 @@ def test_official_tokenizer_golden_ids_when_reference_is_available():
     )
 
 
-def test_unsupported_conditioning_config_fails_instead_of_approximating():
-    with pytest.raises(ValueError, match="score_function"):
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("attention_dropout", 0.1),
+        ("embedding_dropout", 0.1),
+        ("output_dropout", 0.1),
+        ("output_router_logits", True),
+        ("rope_scaling", {"rope_type": "linear", "factor": 2.0}),
+        ("score_function", "softmax"),
+        ("sliding_window", 4096),
+        ("use_cache", True),
+    ],
+)
+def test_unsupported_conditioning_config_fails_instead_of_approximating(key, value):
+    with pytest.raises(ValueError, match=key):
         LLaDAImageClipModel(
             dtype=torch.float32,
-            model_options={"llada2_config": {"score_function": "softmax"}},
+            model_options={"llada2_config": {key: value}},
         )

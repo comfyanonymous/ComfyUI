@@ -148,6 +148,27 @@ def test_detection_rejects_config_shape_disagreement():
         )
 
 
+@pytest.mark.parametrize(
+    ("component", "key", "value"),
+    [
+        ("queryformer", "hidden_size", 17),
+        ("text_projection", "hidden_size", 17),
+        ("text_projection", "projection_dim", 9),
+        ("sigvq", "semantic_embed_dim", 11),
+    ],
+)
+def test_detection_rejects_cross_component_config_disagreement(
+    component, key, value
+):
+    component_configs = make_component_configs()
+    component_configs[component][key] = value
+
+    with pytest.raises(ValueError, match="config mismatch"):
+        comfy.model_detection.detect_unet_config(
+            make_state_dict(), PREFIX, make_metadata("base", component_configs)
+        )
+
+
 def test_aio_file_loads_model_clip_and_vae_through_checkpoint_path(
     tmp_path, monkeypatch
 ):

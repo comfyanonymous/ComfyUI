@@ -54,6 +54,34 @@ class LLaDA2Config:
     end_of_image_token_id: int = 156902
     image_token_offset: int = 157184
 
+    def __post_init__(self):
+        if self.hidden_size != self.num_attention_heads * self.head_dim:
+            raise ValueError(
+                "LLaDA2 hidden_size must equal num_attention_heads * head_dim"
+            )
+        if self.num_attention_heads % self.num_key_value_heads:
+            raise ValueError(
+                "LLaDA2 num_attention_heads must be divisible by num_key_value_heads"
+            )
+        rope_dim = int(self.head_dim * self.partial_rotary_factor)
+        if rope_dim <= 0 or rope_dim % 2:
+            raise ValueError("LLaDA2 partial rotary dimension must be positive and even")
+        if self.num_experts % self.n_group:
+            raise ValueError("LLaDA2 num_experts must be divisible by n_group")
+        experts_per_group = self.num_experts // self.n_group
+        if experts_per_group < 2:
+            raise ValueError("LLaDA2 routing requires at least two experts per group")
+        if not 1 <= self.topk_group <= self.n_group:
+            raise ValueError("LLaDA2 topk_group must be between one and n_group")
+        if not 1 <= self.num_experts_per_tok <= self.topk_group * experts_per_group:
+            raise ValueError(
+                "LLaDA2 num_experts_per_tok exceeds the selected expert groups"
+            )
+        if not 0 <= self.first_k_dense_replace <= self.num_hidden_layers:
+            raise ValueError(
+                "LLaDA2 first_k_dense_replace must be within the layer count"
+            )
+
 
 def _known_config(config, keys):
     config = config or {}
@@ -603,12 +631,23 @@ class LLaDAImageClipModel(nn.Module):
             "text encoder",
             model_options.get("llada2_config"),
             {
+                "attention_dropout": 0.0,
+                "embedding_dropout": 0.0,
                 "hidden_act": "silu",
                 "moe_router_enable_expert_bias": True,
                 "norm_topk_prob": True,
+                "output_dropout": 0.0,
+                "output_router_logits": False,
                 "router_dtype": "fp32",
+                "rope_scaling": {
+                    "mrope_section": [16, 24, 24],
+                    "rope_type": "default",
+                    "type": "default",
+                },
                 "score_function": "sigmoid",
+                "sliding_window": None,
                 "tie_word_embeddings": False,
+                "use_cache": False,
                 "use_bias": False,
                 "use_qk_norm": True,
                 "use_qkv_bias": False,

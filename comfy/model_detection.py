@@ -450,6 +450,56 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             "text_projection_config": checkpoint_config.get("text_projection"),
             "sigvq_config": checkpoint_config.get("sigvq"),
         }
+        text_config = component_configs["llada2_config"]
+        queryformer_config = component_configs["queryformer_config"]
+        text_projection_config = component_configs["text_projection_config"]
+        sigvq_config = component_configs["sigvq_config"]
+
+        def require_matching_config(
+            left_name, left_config, left_key, right_name, right_config, right_key
+        ):
+            if left_config is None or right_config is None:
+                return
+            left = left_config.get(left_key)
+            right = right_config.get(right_key)
+            if left is not None and right is not None and left != right:
+                raise ValueError(
+                    f"LLaDA-Image config mismatch: {left_name}.{left_key}={left!r}, "
+                    f"but {right_name}.{right_key}={right!r}"
+                )
+
+        require_matching_config(
+            "text_encoder",
+            text_config,
+            "hidden_size",
+            "queryformer",
+            queryformer_config,
+            "hidden_size",
+        )
+        require_matching_config(
+            "text_encoder",
+            text_config,
+            "hidden_size",
+            "text_projection",
+            text_projection_config,
+            "hidden_size",
+        )
+        require_matching_config(
+            "transformer",
+            dit_config,
+            "cap_feat_dim",
+            "text_projection",
+            text_projection_config,
+            "projection_dim",
+        )
+        require_matching_config(
+            "transformer",
+            dit_config,
+            "semantic_feat_dim",
+            "sigvq",
+            sigvq_config,
+            "semantic_embed_dim",
+        )
         dit_config.update({key: value for key, value in component_configs.items() if value is not None})
         return dit_config
 

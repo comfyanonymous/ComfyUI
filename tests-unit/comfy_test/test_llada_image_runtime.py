@@ -32,16 +32,22 @@ def make_model(dtype=torch.float32, device=torch.device("cpu"), layers=1, refine
     return model
 
 
-@pytest.mark.parametrize("editing", [False, True])
-def test_cpu_bfloat16_batch_execution_is_finite(editing):
+@pytest.mark.parametrize(
+    ("editing", "semantic_length"),
+    [(False, 0), (False, 3), (True, 0), (True, 3)],
+)
+def test_cpu_bfloat16_batch_execution_is_finite(editing, semantic_length):
     model = make_model(torch.bfloat16)
     latent = torch.randn(2, 4, 4, 6, dtype=torch.bfloat16)
     context = torch.randn(2, 5, 8, dtype=torch.bfloat16)
     attention_mask = torch.tensor(
         [[1, 1, 1, 0, 0], [1, 1, 1, 1, 1]], dtype=torch.bool
     )
-    semantics = torch.randn(2, 3, 10, dtype=torch.bfloat16)
-    semantic_mask = torch.tensor([[1, 1, 0], [1, 1, 1]], dtype=torch.bool)
+    semantics = torch.randn(2, semantic_length, 10, dtype=torch.bfloat16)
+    if semantic_length:
+        semantic_mask = torch.tensor([[1, 1, 0], [1, 1, 1]], dtype=torch.bool)
+    else:
+        semantic_mask = torch.zeros(2, 0, dtype=torch.bool)
     kwargs = {}
     if editing:
         kwargs["source_latents"] = torch.randn_like(latent)

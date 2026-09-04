@@ -957,13 +957,14 @@ class LLaDAImage(nn.Module):
                 self.sigvq_pad_token,
                 sigvq_sequence.noise_masks,
             )
-            sigvq_features = self.run_blocks(
-                self.sigvq_refiner,
-                sigvq_features,
-                sigvq_attention_mask,
-                sigvq_positions,
-                transformer_options,
-            )
+            if sigvq_features.shape[1] > 0:
+                sigvq_features = self.run_blocks(
+                    self.sigvq_refiner,
+                    sigvq_features,
+                    sigvq_attention_mask,
+                    sigvq_positions,
+                    transformer_options,
+                )
             (
                 unified_features,
                 unified_positions,

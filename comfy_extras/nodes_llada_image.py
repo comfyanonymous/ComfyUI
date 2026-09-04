@@ -1,4 +1,5 @@
 import torch
+from tqdm.auto import trange
 from typing_extensions import override
 
 import comfy.samplers
@@ -32,7 +33,7 @@ def sample_llada_image_turbo(
     )
     s_in = x.new_ones([x.shape[0]])
 
-    for i in range(len(sigmas) - 1):
+    for i in trange(len(sigmas) - 1, disable=disable):
         denoised = model(x, sigmas[i] * s_in, **extra_args)
         if callback is not None:
             callback(
