@@ -22,6 +22,19 @@ from comfy_api.latest import ComfyExtension, io
 
 HEAD_DIM = 128
 BLOCK_SIZE = 64
+# comfy-kitchen 0.2.32 (the current pin) predates the sol_attn availability predicate, the
+# fp16 kernels and extra_tokens; the fallbacks below go once the pin moves past it
+KITCHEN_HAS_SOL_API = hasattr(ck, "sol_attn_is_available")
+
+
+def sol_attn_available(device):
+    if KITCHEN_HAS_SOL_API:
+        return ck.sol_attn_is_available(device)
+    if torch.version.hip:
+        return ck.registry.get_constraints("hip", "sol_attn") is not None
+    rules = ck.registry.get_constraints("cuda", "sol_attn")
+    return (rules is not None and ck.registry.is_available("cuda")
+            and torch.cuda.get_device_capability(device) >= rules.min_compute_capability)
 PRODUCER_CHUNK = 4096
 VSA_CUBE = (4, 4, 4)
 VSA_PLAN_CACHE = 4
@@ -44,9 +57,10 @@ class SparseAttnPatch:
     resets the state when the sampling run ends."""
 
     def __init__(self, tau, topk_ratio, vsa, sigma_start, sigma_end, min_tokens,
-                 dense_blocks, sink_conditioning, verbose):
+                 dense_blocks, sink_conditioning, extra_tokens, verbose):
         self.tau = tau
         self.topk_ratio = topk_ratio
+        self.extra_tokens = extra_tokens
         self.vsa = vsa
         self.sigma_start = sigma_start
         self.sigma_end = sigma_end
@@ -158,6 +172,8 @@ def _ineligible(q, k, v, dim_head):
     """Why these tensors can't go through the kernel, or None. q/k/v are BTHD."""
     if q.device.type != "cuda":
         return "not on CUDA"
+    if not sol_attn_available(q.device):
+        return "no compiled sol_attn kernel for this GPU"
     if q.dtype not in (torch.bfloat16, torch.float16, torch.float32):
         return f"dtype {q.dtype} (kernel takes bf16/fp16)"
     if dim_head != HEAD_DIM:
@@ -202,10 +218,12 @@ def make_attention_override(patch: SparseAttnPatch, previous):
             patch.log_once(("ineligible", tuple(qs.shape), reason), f"dense {tuple(qs.shape)}: {reason}")
             return dense()
         sink, sink_q = patch.sinks(transformer_options, tokens)
-        if q.dtype == torch.float32:   # the kernel quantizes to int8 anyway; bf16 keeps the fp32 range
-            qs, ks, vs = (t.to(torch.bfloat16) for t in (qs, ks, vs))
+        if q.dtype == torch.float32 or (q.dtype == torch.float16 and not KITCHEN_HAS_SOL_API):
+            qs, ks, vs = (t.to(torch.bfloat16) for t in (qs, ks, vs))   # int8 inside anyway
+        extra = {"token_aug": patch.extra_tokens} if KITCHEN_HAS_SOL_API else {}
         out = ck.sol_attn(qs, ks, vs, tau=patch.tau, scale=kwargs.get("scale"),
-                          sink_blocks=list(sink), sink_q=list(sink_q), topk_ratio=patch.topk_ratio).to(q.dtype)
+                          sink_blocks=list(sink), sink_q=list(sink_q), topk_ratio=patch.topk_ratio,
+                          **extra).to(q.dtype)
         patch.log_once(("sparse", tuple(qs.shape)), f"sparse {tuple(qs.shape)}, sinks {sink}/{sink_q}")
         if skip_output_reshape:
             return out.transpose(1, 2)
@@ -232,6 +250,8 @@ def h3_eligible(attn, x, rope_freqs, transformer_options, patch: SparseAttnPatch
     if rope_freqs is None or x.dtype != torch.bfloat16 or x.device.type != "cuda" or attn.head_dim != HEAD_DIM:
         return False
     reason = patch.dense_reason(transformer_options, n_tokens, block_index)
+    if reason is None and not sol_attn_available(x.device):
+        reason = "no compiled sol_attn kernel for this GPU"
     if reason is not None:
         patch.log_once(("dense", n_tokens, reason), f"dense ({n_tokens} tokens): {reason}")
         return False
@@ -276,6 +296,8 @@ def h3_sparse_attention(attn, x, rope_freqs, transformer_options, patch: SparseA
 
     key = (block_index, n, tuple(transformer_options.get("uuids", ())))   # statistics per conditioning branch
     pooled = patch.pooled.get(key)
+    if KITCHEN_HAS_SOL_API:
+        extra["token_aug"] = patch.extra_tokens
     out, kmean, vscale = sol_attn_chunked(
         chunks, n, heads, freqs, (qw, kw),
         kmean=None if pooled is None else pooled[0],
@@ -306,13 +328,20 @@ def make_h3_block_patch(block, block_index, patch: SparseAttnPatch):
 
 
 def apply_block_sparse_attention(model, *, tau, topk_ratio, vsa, start_percent, end_percent, min_tokens,
-                                 dense_blocks, sink_conditioning, verbose):
+                                 dense_blocks, sink_conditioning, extra_tokens, verbose):
     model_sampling = model.get_model_object("model_sampling")
+    if vsa and extra_tokens:
+        # VSA weights were trained against their sparse pattern, don't pull the attention toward dense
+        logging.info("VSA: extra_tokens ignored (the trained sparse pattern is the target)")
+        extra_tokens = 0
+    if extra_tokens and not KITCHEN_HAS_SOL_API:
+        logging.info("extra_tokens needs a comfy-kitchen newer than 0.2.32; ignored")
+        extra_tokens = 0
     patch = SparseAttnPatch(tau=tau, topk_ratio=topk_ratio, vsa=vsa,
                             sigma_start=float(model_sampling.percent_to_sigma(start_percent)),
                             sigma_end=float(model_sampling.percent_to_sigma(end_percent)),
                             min_tokens=min_tokens, dense_blocks=dense_blocks,
-                            sink_conditioning=sink_conditioning, verbose=verbose)
+                            sink_conditioning=sink_conditioning, extra_tokens=extra_tokens, verbose=verbose)
     m = model.clone()
     install_override(patch, m.model_options["transformer_options"])
     m.add_callback_with_key(comfy.patcher_extension.CallbacksMP.ON_PREPARE_STATE, "block_sparse_attention",
@@ -339,11 +368,9 @@ class BlockSparseAttention(io.ComfyNode):
             display_name="Block Sparse Attention",
             category="advanced/model",
             is_experimental=True,
-            description="Block-sparse attention through comfy_kitchen: each query block attends a "
-                        "selected subset of key blocks exactly (Sol-Attn adaptive threshold, "
-                        "SLA top-k, or FastVideo VSA). bf16/fp16 (fp32 is cast), head_dim 128, CUDA; anything else "
-                        "keeps the current attention backend. The gain grows with sequence "
-                        "length; short sequences are usually faster dense.",
+            description="Block-sparse attention through comfy_kitchen: each query block attends a selected subset of key blocks exactly, reducing attention compute. "
+                        "The relative speed gain grows with sequence length since short sequences are usually faster dense. "
+                        "Outside the active schedule, dense_blocks and under min_tokens, the model uses the active dense model attention backend.",
             inputs=[
                 io.Model.Input("model"),
                 io.DynamicCombo.Input("selection", options=[
@@ -369,13 +396,17 @@ class BlockSparseAttention(io.ComfyNode):
                            "top-k (SLA): fixed keep_percent everywhere, recommended only with trained weights. "
                            "VSA (FastVideo): FastH3-VSA's cube tiling and coarse branch, requires weights trained for it."),
                 io.Float.Input("start_percent", default=0.2, min=0.0, max=1.0, step=0.01,
-                               tooltip="Dense before this point of the schedule (the paper warms up dense to 0.2)."),
+                               tooltip="Dense before this point of the schedule."),
                 io.Float.Input("end_percent", default=1.0, min=0.0, max=1.0, step=0.01,
                                tooltip="Dense after this point of the schedule."),
                 io.String.Input("dense_blocks", default="", advanced=True,
                                 tooltip="Transformer blocks that always run dense, e.g. '0, 1, 47-49'."),
                 io.Int.Input("min_tokens", default=12288, min=0, max=1 << 20, step=512, advanced=True,
                              tooltip="Sequences shorter than this stay dense."),
+                io.Int.Input("extra_tokens", default=256, min=0, max=256, step=64, advanced=True,
+                             tooltip="Extra top-scoring tokens each query block attends beyond its selected "
+                                     "blocks. Closer to dense for more attention time; 256 recommended, 0 disables. "
+                                     "CUDA only, ignored for VSA."),
                 io.Combo.Input("sink_conditioning", options=["exact_kv", "exact_kv_and_rows", "off"],
                                default="exact_kv_and_rows", advanced=True,
                                tooltip="MiniMax-H3 only. exact_kv: every query attends the packed text/audio/"
@@ -388,7 +419,7 @@ class BlockSparseAttention(io.ComfyNode):
 
     @classmethod
     def execute(cls, model, selection, start_percent, end_percent, dense_blocks="", min_tokens=12288,
-                sink_conditioning="exact_kv_and_rows", verbose=False) -> io.NodeOutput:
+                extra_tokens=0, sink_conditioning="exact_kv_and_rows", verbose=False) -> io.NodeOutput:
         mode = selection["selection"]
         return io.NodeOutput(apply_block_sparse_attention(
             model, tau=selection.get("tau", 1.3),
@@ -396,7 +427,7 @@ class BlockSparseAttention(io.ComfyNode):
             vsa=mode == "VSA (FastVideo)",
             start_percent=start_percent, end_percent=end_percent, min_tokens=min_tokens,
             dense_blocks=parse_block_list(dense_blocks), sink_conditioning=sink_conditioning,
-            verbose=verbose))
+            extra_tokens=extra_tokens, verbose=verbose))
 
 
 class BlockSparseAttentionExtension(ComfyExtension):
