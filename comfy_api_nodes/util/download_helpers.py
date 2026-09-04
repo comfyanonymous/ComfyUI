@@ -11,7 +11,7 @@ import torch
 from aiohttp.client_exceptions import ClientError, ContentTypeError
 
 from comfy_api.latest import IO as COMFY_IO
-from comfy_api.latest import InputImpl, Types
+from comfy_api.latest import Input, InputImpl, Types
 from folder_paths import get_output_directory
 
 from . import request_logger
@@ -24,9 +24,10 @@ from ._helpers import (
 )
 from .client import _diagnose_connectivity
 from .common_exceptions import ApiServerError, LocalNetworkError, ProcessingInterrupted
-from .conversions import bytesio_to_image_tensor
+from .conversions import audio_bytes_to_audio_input, bytesio_to_image_tensor
 
 _RETRY_STATUS = {408, 429, 500, 502, 503, 504}
+_MAX_IN_MEMORY_DOWNLOAD_BYTES = 512 * 1024 * 1024
 
 
 async def download_url_to_bytesio(
@@ -38,6 +39,7 @@ async def download_url_to_bytesio(
     retry_delay: float = 1.0,
     retry_backoff: float = 2.0,
     cls: type[COMFY_IO.ComfyNode] = None,
+    allow_redirects: bool = True,
 ) -> None:
     """Stream-download a URL to `dest`.
 
@@ -58,6 +60,8 @@ async def download_url_to_bytesio(
     attempt = 0
     delay = retry_delay
     headers: dict[str, str] = {}
+    is_path_sink = isinstance(dest, (str, Path))
+    can_reset_sink = is_path_sink or (callable(getattr(dest, "seek", None)) and callable(getattr(dest, "truncate", None)))
 
     parsed_url = urlparse(url)
     if not parsed_url.scheme and not parsed_url.netloc:  # is URL relative?
@@ -68,10 +72,12 @@ async def download_url_to_bytesio(
 
     while True:
         attempt += 1
+        if not is_path_sink and can_reset_sink:
+            dest.seek(0)
+            dest.truncate(0)
         op_id = _generate_operation_id("GET", url, attempt)
         timeout_cfg = aiohttp.ClientTimeout(total=timeout)
 
-        is_path_sink = isinstance(dest, (str, Path))
         fhandle = None
         session: aiohttp.ClientSession | None = None
         stop_evt: asyncio.Event | None = None
@@ -96,7 +102,9 @@ async def download_url_to_bytesio(
 
             monitor_task = asyncio.create_task(_monitor())
 
-            req_task = asyncio.create_task(session.get(to_aiohttp_url(url), headers=headers))
+            req_task = asyncio.create_task(
+                session.get(to_aiohttp_url(url), headers=headers, allow_redirects=allow_redirects)
+            )
             done, pending = await asyncio.wait({req_task, monitor_task}, return_when=asyncio.FIRST_COMPLETED)
 
             if monitor_task in done and req_task in pending:
@@ -111,7 +119,7 @@ async def download_url_to_bytesio(
                 raise ProcessingInterrupted("Task cancelled") from None
 
             async with resp:
-                if resp.status >= 400:
+                if resp.status >= 300:
                     with contextlib.suppress(Exception):
                         try:
                             body = await resp.json()
@@ -129,10 +137,16 @@ async def download_url_to_bytesio(
                         )
 
                     if resp.status in _RETRY_STATUS and attempt <= max_retries:
+                        if not can_reset_sink:
+                            raise Exception(f"Failed to download (HTTP {resp.status}); destination cannot be reset for retry.")
                         await sleep_with_interrupt(delay, cls, None, None, None)
                         delay *= retry_backoff
                         continue
                     raise Exception(f"Failed to download (HTTP {resp.status}).")
+
+                max_bytes = None if is_path_sink else _MAX_IN_MEMORY_DOWNLOAD_BYTES
+                if max_bytes is not None and resp.content_length is not None and resp.content_length > max_bytes:
+                    raise ValueError(f"Download exceeds the {max_bytes}-byte in-memory limit.")
 
                 if is_path_sink:
                     p = Path(str(dest))
@@ -160,10 +174,12 @@ async def download_url_to_bytesio(
                             break
                         continue
 
-                    sink.write(chunk)
                     written += len(chunk)
+                    if max_bytes is not None and written > max_bytes:
+                        raise ValueError(f"Download exceeds the {max_bytes}-byte in-memory limit.")
+                    sink.write(chunk)
 
-                if isinstance(dest, BytesIO):
+                if not is_path_sink and hasattr(dest, "seek"):
                     with contextlib.suppress(Exception):
                         dest.seek(0)
 
@@ -180,6 +196,8 @@ async def download_url_to_bytesio(
             raise ProcessingInterrupted("Task cancelled") from None
         except (ClientError, OSError) as e:
             if attempt <= max_retries:
+                if not can_reset_sink:
+                    raise ApiServerError("The download failed and its destination cannot be reset for retry.") from e
                 request_logger.log_request_response(
                     operation_id=op_id,
                     request_method="GET",
@@ -221,10 +239,11 @@ async def download_url_to_image_tensor(
     *,
     timeout: float = None,
     cls: type[COMFY_IO.ComfyNode] = None,
+    allow_redirects: bool = True,
 ) -> torch.Tensor:
     """Downloads an image from a URL and returns a [B, H, W, C] tensor."""
     result = BytesIO()
-    await download_url_to_bytesio(url, result, timeout=timeout, cls=cls)
+    await download_url_to_bytesio(url, result, timeout=timeout, cls=cls, allow_redirects=allow_redirects)
     return bytesio_to_image_tensor(result)
 
 
@@ -234,11 +253,40 @@ async def download_url_to_video_output(
     timeout: float = None,
     max_retries: int = 5,
     cls: type[COMFY_IO.ComfyNode] = None,
+    allow_redirects: bool = True,
 ) -> InputImpl.VideoFromFile:
     """Downloads a video from a URL and returns a `VIDEO` output."""
     result = BytesIO()
-    await download_url_to_bytesio(video_url, result, timeout=timeout, max_retries=max_retries, cls=cls)
+    await download_url_to_bytesio(
+        video_url,
+        result,
+        timeout=timeout,
+        max_retries=max_retries,
+        cls=cls,
+        allow_redirects=allow_redirects,
+    )
     return InputImpl.VideoFromFile(result)
+
+
+async def download_url_to_audio_input(
+    audio_url: str,
+    *,
+    timeout: float = None,
+    max_retries: int = 5,
+    cls: type[COMFY_IO.ComfyNode] = None,
+    allow_redirects: bool = True,
+) -> Input.Audio:
+    """Downloads audio from a URL and decodes it into a Comfy AUDIO input."""
+    result = BytesIO()
+    await download_url_to_bytesio(
+        audio_url,
+        result,
+        timeout=timeout,
+        max_retries=max_retries,
+        cls=cls,
+        allow_redirects=allow_redirects,
+    )
+    return audio_bytes_to_audio_input(result)
 
 
 async def download_url_as_bytesio(
@@ -270,6 +318,7 @@ async def download_url_to_file_3d(
     timeout: float | None = None,
     max_retries: int = 5,
     cls: type[COMFY_IO.ComfyNode] = None,
+    allow_redirects: bool = True,
 ) -> Types.File3D:
     """Downloads a 3D model file from a URL into memory as BytesIO.
 
@@ -284,6 +333,7 @@ async def download_url_to_file_3d(
         timeout=timeout,
         max_retries=max_retries,
         cls=cls,
+        allow_redirects=allow_redirects,
     )
 
     if task_id is not None:

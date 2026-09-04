@@ -15,6 +15,8 @@ from comfy_api.latest import Input, InputImpl, Types
 
 from ._helpers import mimetype_to_extension
 
+_MAX_DECODED_AUDIO_BYTES = 256 * 1024 * 1024
+
 
 def bytesio_to_image_tensor(image_bytesio: BytesIO, mode: str | None = None) -> torch.Tensor:
     """Converts image data from BytesIO to a torch.Tensor.
@@ -601,12 +603,14 @@ def _f32_pcm(wav: torch.Tensor) -> torch.Tensor:
     raise ValueError(f"Unsupported wav dtype: {wav.dtype}")
 
 
-def audio_bytes_to_audio_input(audio_bytes: bytes) -> dict:
+def audio_bytes_to_audio_input(audio_bytes: bytes | BytesIO) -> dict:
     """
     Decode any common audio container from bytes using PyAV and return
     a Comfy AUDIO dict: {"waveform": [1, C, T] float32, "sample_rate": int}.
     """
-    with av.open(BytesIO(audio_bytes)) as af:
+    source = audio_bytes if isinstance(audio_bytes, BytesIO) else BytesIO(audio_bytes)
+    source.seek(0)
+    with av.open(source) as af:
         if not af.streams.audio:
             raise ValueError("No audio stream found in response.")
         stream = af.streams.audio[0]
@@ -616,6 +620,7 @@ def audio_bytes_to_audio_input(audio_bytes: bytes) -> dict:
 
         frames: list[torch.Tensor] = []
         n_channels = stream.channels or 1
+        decoded_bytes = 0
 
         for frame in af.decode(streams=stream.index):
             arr = frame.to_ndarray()  # shape can be [C, T] or [T, C] or [T]
@@ -626,6 +631,9 @@ def audio_bytes_to_audio_input(audio_bytes: bytes) -> dict:
                 buf = buf.transpose(0, 1).contiguous()  # [T, C] -> [C, T]
             elif buf.shape[0] != n_channels:
                 buf = buf.reshape(-1, n_channels).t().contiguous()  # fallback to [C, T]
+            decoded_bytes += buf.numel() * buf.element_size()
+            if decoded_bytes > _MAX_DECODED_AUDIO_BYTES:
+                raise ValueError("Decoded audio exceeds the 256 MiB limit.")
             frames.append(buf)
 
     if not frames:

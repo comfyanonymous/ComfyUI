@@ -34,6 +34,7 @@ from .conversions import (
 )
 from .download_helpers import (
     download_url_as_bytesio,
+    download_url_to_audio_input,
     download_url_to_bytesio,
     download_url_to_file_3d,
     download_url_to_image_tensor,
@@ -78,6 +79,7 @@ __all__ = [
     "upload_video_to_comfyapi",
     # Download helpers
     "download_url_as_bytesio",
+    "download_url_to_audio_input",
     "download_url_to_bytesio",
     "download_url_to_file_3d",
     "download_url_to_image_tensor",
