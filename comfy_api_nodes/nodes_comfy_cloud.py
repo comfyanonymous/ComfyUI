@@ -696,10 +696,6 @@ class ComfyCloudMiniMaxMusic3TextToAudioNode(IO.ComfyNode):
                     "max_duration", default=120.0, min=0.04, max=360.0, step=0.04,
                     tooltip="Longest the track may run. The model can end the song earlier.",
                 ),
-                _tuning_input(
-                    "caption_cfg", 1.5, 100.0,
-                    tooltip="How closely the arrangement follows the prompt.",
-                ),
                 IO.Combo.Input(
                     "audio_quality",
                     options=_MINIMAX_MUSIC3_QUALITIES,
