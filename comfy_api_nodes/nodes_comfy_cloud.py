@@ -281,18 +281,6 @@ def _validate_node_inputs(cls: type[IO.ComfyNode], values: dict) -> dict:
 
 
 _ASPECT_RATIOS = ["1:1", "3:4", "2:3", "3:2", "4:3", "16:9", "9:16", "21:9"]
-# One megapixel-class render per ratio. Every side is a multiple of 64, so a
-# pipeline that renders larger still lands on the 16-pixel grid latents want.
-_ASPECT_DIMENSIONS = {
-    "1:1": (1024, 1024),
-    "3:4": (768, 1024),
-    "4:3": (1024, 768),
-    "2:3": (768, 1152),
-    "3:2": (1152, 768),
-    "9:16": (768, 1344),
-    "16:9": (1344, 768),
-    "21:9": (1536, 640),
-}
 _VIDEO_RESOLUTIONS = ["480p", "720p"]
 _LTX_RESOLUTIONS = ["1280x720", "960x960", "720x1280"]
 # Weight pickers. Keys, not filenames: cloud holds the file each key maps to.
@@ -309,11 +297,6 @@ _UINT64_MAX = 0xFFFFFFFFFFFFFFFF
 _NEGATIVE_PROMPT_TOOLTIP = "Leave empty to keep the negative prompt this pipeline was tuned with."
 
 
-def _dimensions(aspect_ratio: str, scale: float = 1.0) -> tuple[int, int]:
-    width, height = _ASPECT_DIMENSIONS[aspect_ratio]
-    return round(width * scale), round(height * scale)
-
-
 def _prompt_input(name: str = "prompt") -> IO.String.Input:
     return IO.String.Input(name, multiline=True, default="")
 
@@ -326,6 +309,14 @@ def _negative_prompt_input() -> IO.String.Input:
 
 def _aspect_ratio_input(default: str = "1:1") -> IO.Combo.Input:
     return IO.Combo.Input("aspect_ratio", options=_ASPECT_RATIOS, default=default)
+
+
+def _megapixels_input() -> IO.Float.Input:
+    # Resolution Selector graphs take a ratio and pixel budget rather than raw dimensions.
+    return IO.Float.Input(
+        "megapixels", default=1.0, min=0.1, max=16.0, step=0.1,
+        tooltip="Total pixel budget. 1.0 is about 1024x1024 at a square ratio.",
+    )
 
 
 def _seed_input(maximum: int = _UINT64_MAX) -> IO.Int.Input:
@@ -542,6 +533,7 @@ class ComfyCloudFlux2TextToImageNode(IO.ComfyNode):
                 _prompt_input(),
                 _seed_input(),
                 _aspect_ratio_input(),
+                _megapixels_input(),
                 IO.Boolean.Input(
                     "turbo",
                     default=True,
@@ -557,15 +549,15 @@ class ComfyCloudFlux2TextToImageNode(IO.ComfyNode):
         prompt: str,
         seed: int = 42,
         aspect_ratio: str = "1:1",
+        megapixels: float = 1.0,
         turbo: bool = True,
     ) -> IO.NodeOutput:
         prompt = _validate_node_inputs(cls, locals())["prompt"]
-        width, height = _dimensions(aspect_ratio)
         return await _run_image_workflow(
             cls,
             "flux-2/text-to-image",
             ComfyCloudWorkflowInputs(
-                prompt=prompt, width=width, height=height, turbo=turbo, seed=seed,
+                prompt=prompt, aspect_ratio=aspect_ratio, megapixels=megapixels, turbo=turbo, seed=seed,
             ),
         )
 
@@ -586,6 +578,7 @@ class ComfyCloudZImageTurboNode(IO.ComfyNode):
                 _prompt_input(),
                 _seed_input(),
                 _aspect_ratio_input(),
+                _megapixels_input(),
             ],
         )
 
@@ -595,14 +588,14 @@ class ComfyCloudZImageTurboNode(IO.ComfyNode):
         prompt: str,
         seed: int = 42,
         aspect_ratio: str = "1:1",
+        megapixels: float = 1.0,
     ) -> IO.NodeOutput:
         prompt = _validate_node_inputs(cls, locals())["prompt"]
-        width, height = _dimensions(aspect_ratio)
         return await _run_image_workflow(
             cls,
             "z-image-turbo/text-to-image",
             ComfyCloudWorkflowInputs(
-                prompt=prompt, width=width, height=height, seed=seed,
+                prompt=prompt, aspect_ratio=aspect_ratio, megapixels=megapixels, seed=seed,
             ),
         )
 
@@ -626,12 +619,7 @@ class _ComfyCloudMageFlowNode(IO.ComfyNode):
                 _negative_prompt_input(),
                 _seed_input(),
                 _aspect_ratio_input(),
-                # The graph sizes itself through a resolution selector, so the
-                # caller picks a ratio and a pixel budget rather than a raw pair.
-                IO.Float.Input(
-                    "megapixels", default=1.0, min=0.1, max=16.0, step=0.1,
-                    tooltip="Total pixel budget. 1.0 is about 1024x1024 at a square ratio.",
-                ),
+                _megapixels_input(),
             ],
         )
 
