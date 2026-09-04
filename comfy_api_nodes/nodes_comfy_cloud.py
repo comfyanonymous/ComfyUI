@@ -52,8 +52,19 @@ _POLL_MAX_ATTEMPTS = int(_RUN_TIMEOUT_SECONDS / _POLL_INTERVAL_SECONDS) + 24  # 
 _OUTPUT_DOWNLOAD_TIMEOUT = 30 * 60
 _MAX_UPLOAD_IMAGE_PIXELS = 32_000_000
 _MAX_UPLOAD_IMAGE_DIMENSION = 8192
+<<<<<<< HEAD
 # Hardcoded mirror of Metronome's rtx_pro_6000 rate. Nothing links the two, so it
 # must be changed by hand when the rate card moves.
+=======
+_MAX_DECODED_AUDIO_BYTES = 256 * 1024 * 1024
+# Hardcoded mirror of Metronome's GPU rate. Nothing links the two, so it must be
+# changed by hand when the rate card moves.
+#
+# VERIFY AGAINST A REAL CHARGE, not the rate card. This was briefly set to
+# 0.00185, read off rtx_pro_6000's card entry, which over-quoted every run by
+# ~43%. Dividing an actual billed event gives the truth:
+#   credits_used 1.98 / gpu_seconds 7.244173 / 211 credits-per-USD = 0.0012954
+>>>>>>> ed201eeac146842e57d555ff5048f00113a93de5
 #
 # THIS IS THE LIST PRICE. Never put a promotional or time-boxed rate here.
 # ComfyUI is pulled, not pushed, so a user keeps whatever value they last pulled
@@ -67,7 +78,7 @@ _MAX_UPLOAD_IMAGE_DIMENSION = 8192
 # The same asymmetry applies to any list-price INCREASE, which is why a
 # server-supplied per-run estimate (BE-9841) is the only way to change this
 # number safely rather than a nicety.
-COMFY_CLOUD_GPU_SECOND_USD = 0.00185
+COMFY_CLOUD_GPU_SECOND_USD = 0.001295
 COMFY_CLOUD_CREDITS_PER_USD = 211
 COMFY_CLOUD_GPU_SECOND_CREDITS = COMFY_CLOUD_GPU_SECOND_USD * COMFY_CLOUD_CREDITS_PER_USD
 _COMFY_CLOUD_PRICE_BADGE = IO.PriceBadge(
@@ -78,7 +89,7 @@ _COMFY_CLOUD_PRICE_BADGE = IO.PriceBadge(
 )
 _COMFY_CLOUD_RATE_DESCRIPTION = (
     f" Runs on a Comfy Cloud GPU, billed by how long it runs at "
-    f"${COMFY_CLOUD_GPU_SECOND_USD:.5f}/GPU-second "
+    f"${COMFY_CLOUD_GPU_SECOND_USD:.6f}/GPU-second "
     f"({COMFY_CLOUD_GPU_SECOND_CREDITS:.2f} credits). Paid in credits, no Cloud "
     "subscription required."
 )
