@@ -22,14 +22,15 @@ from comfy_api_nodes.util import (
     ApiEndpoint,
     audio_bytes_to_audio_input,
     download_url_to_bytesio,
-    download_url_to_file_3d,
     download_url_to_image_tensor,
     download_url_to_video_output,
     get_number_of_images,
     poll_op,
     sync_op,
     sync_op_raw,
+    upload_audio_to_comfyapi,
     upload_image_to_comfyapi,
+    upload_video_to_comfyapi,
     validate_string,
 )
 
@@ -49,11 +50,8 @@ _RUN_TIMEOUT_SECONDS = 2100
 _POLL_INTERVAL_SECONDS = 5.0
 _POLL_MAX_ATTEMPTS = int(_RUN_TIMEOUT_SECONDS / _POLL_INTERVAL_SECONDS) + 24  # +2 min of slack
 _OUTPUT_DOWNLOAD_TIMEOUT = 30 * 60
-_MODEL3D_IO_TYPE = "FILE_3D_GLB"
-_MODEL3D_FILE_FORMAT = "glb"
 _MAX_UPLOAD_IMAGE_PIXELS = 32_000_000
 _MAX_UPLOAD_IMAGE_DIMENSION = 8192
-_MAX_DECODED_AUDIO_BYTES = 256 * 1024 * 1024
 # Hardcoded mirror of Metronome's rtx_pro_6000 rate. Nothing links the two, so it
 # must be changed by hand when the rate card moves.
 #
@@ -197,14 +195,6 @@ def _validate_image_upload(image: Input.Image) -> None:
         raise ValueError("Input image exceeds the 8192px or 32-megapixel Comfy Cloud limit.")
 
 
-def _validate_audio_upload(audio: Input.Audio) -> None:
-    waveform = audio["waveform"]
-    if waveform.ndim != 3 or waveform.shape[0] != 1 or waveform.shape[1] not in (1, 2):
-        raise ValueError("Audio must contain one mono or stereo waveform.")
-    if waveform.numel() * waveform.element_size() > _MAX_DECODED_AUDIO_BYTES:
-        raise ValueError("Decoded audio exceeds the 256 MiB Comfy Cloud limit.")
-
-
 def _progress(response: ComfyCloudStatusResponse) -> float | None:
     if response.progress is None or not math.isfinite(response.progress):
         return None
@@ -277,17 +267,7 @@ def _validate_node_inputs(cls: type[IO.ComfyNode], values: dict) -> dict:
 
 _ASPECT_RATIOS = ["1:1", "3:4", "2:3", "3:2", "4:3", "16:9", "9:16", "21:9"]
 _VIDEO_RESOLUTIONS = ["480p", "720p"]
-_LTX_RESOLUTIONS = ["1280x720", "960x960", "720x1280"]
-# Weight pickers. Keys, not filenames: cloud holds the file each key maps to.
 _MINIMAX_MUSIC3_QUALITIES = ["V0", "128k", "320k"]
-# The samplers and schedulers the curated graphs offer. ComfyUI ships far more;
-# these are the ones executed on cloud against every graph that lists them.
-_SAMPLERS = ["euler", "dpmpp_2m", "res_multistep"]
-_SCHEDULERS = ["simple", "karras", "beta"]
-# The default/* pickers key on the TRADE-OFF rather than the model, because those
-# ids are pointers: the model behind one is re-pointed over time and the id does
-# not change. A saved graph stores the key, so a key that named a model would
-# break every saved graph the day the pointer moved.
 _UINT64_MAX = 0xFFFFFFFFFFFFFFFF
 _NEGATIVE_PROMPT_TOOLTIP = "Leave empty to keep the negative prompt this pipeline was tuned with."
 
@@ -316,22 +296,6 @@ def _megapixels_input() -> IO.Float.Input:
 
 def _seed_input(maximum: int = _UINT64_MAX) -> IO.Int.Input:
     return IO.Int.Input("seed", default=42, min=0, max=maximum, control_after_generate=True)
-
-
-def _steps_input(default: int, maximum: int, name: str = "steps", tooltip: str | None = None) -> IO.Int.Input:
-    return IO.Int.Input(name, default=default, min=1, max=maximum, advanced=True, tooltip=tooltip)
-
-
-def _tuning_input(
-    name: str, default: float, maximum: float, step: float = 0.1, tooltip: str | None = None
-) -> IO.Float.Input:
-    return IO.Float.Input(
-        name, default=default, min=0.0, max=maximum, step=step, advanced=True, tooltip=tooltip
-    )
-
-
-def _weights_input(name: str, options: list[str], tooltip: str) -> IO.Combo.Input:
-    return IO.Combo.Input(name, options=options, default=options[0], advanced=True, tooltip=tooltip)
 
 
 def _video_resolution_input(advanced: bool = True) -> IO.Combo.Input:
@@ -392,28 +356,6 @@ async def _run_audio_workflow(
     return IO.NodeOutput(audio_bytes_to_audio_input(buffer.getvalue()))
 
 
-async def _run_model3d_workflow(
-    cls: type[IO.ComfyNode], workflow: ComfyCloudWorkflow, inputs: ComfyCloudWorkflowInputs
-) -> IO.NodeOutput:
-    url = await _submit_workflow(cls, workflow, inputs)
-    return IO.NodeOutput(
-        await download_url_to_file_3d(
-            url, _MODEL3D_FILE_FORMAT, timeout=_OUTPUT_DOWNLOAD_TIMEOUT, cls=cls, allow_redirects=False
-        )
-    )
-
-
-# Output kind -> (schema output, runner). The bucket pin and signed-URL check in
-# _submit_workflow apply to every kind: they guard where the bytes come from, not
-# what they decode to.
-_OUTPUT_KINDS = {
-    "image": (IO.Image.Output, _run_image_workflow),
-    "video": (IO.Video.Output, _run_video_workflow),
-    "audio": (IO.Audio.Output, _run_audio_workflow),
-    "model3d": (lambda: IO.Custom(_MODEL3D_IO_TYPE).Output(), _run_model3d_workflow),
-}
-
-
 async def _upload_workflow_image(cls: type[IO.ComfyNode], image: Input.Image, **options) -> str:
     if get_number_of_images(image) != 1:
         raise ValueError("Exactly one input image is required.")
@@ -421,94 +363,10 @@ async def _upload_workflow_image(cls: type[IO.ComfyNode], image: Input.Image, **
     return await upload_image_to_comfyapi(cls, image, **options)
 
 
-def _image_asset(url: str) -> dict[str, ComfyCloudAssetInput]:
-    return {"image": ComfyCloudAssetInput(type="IMAGE", url=url)}
-
-
 def _image_schema(cls: type[IO.ComfyNode], inputs: list[IO.Input]) -> IO.Schema:
     return _cloud_schema(
         cls.node_id, cls.display_name, cls.summary, "comfy cloud/image", inputs, IO.Image.Output()
     )
-
-
-class _ComfyCloudWorkflowNode(IO.ComfyNode):
-    workflow: ClassVar[ComfyCloudWorkflow]
-    node_id: ClassVar[str]
-    display_name: ClassVar[str]
-    summary: ClassVar[str]
-    category: ClassVar[str]
-    requires_image: ClassVar[bool]
-    output_kind: ClassVar[str] = "image"
-    # Whatever the pipeline behind this pointer happens to expose. Empty means the
-    # graph has no equivalent control, not that one was left off.
-    turbo_tooltip: ClassVar[str] = ""
-    model_options: ClassVar[list[str]] = []
-    model_tooltip: ClassVar[str] = ""
-    lora_options: ClassVar[list[str]] = []
-    lora_tooltip: ClassVar[str] = ""
-
-    @classmethod
-    def define_schema(cls) -> IO.Schema:
-        inputs = [
-            IO.String.Input(
-                "prompt",
-                multiline=True,
-                default="",
-                tooltip="Describe the content to generate or the edit to apply.",
-            )
-        ]
-        if cls.requires_image:
-            inputs.append(IO.Image.Input("image"))
-        if cls.turbo_tooltip:
-            inputs.append(IO.Boolean.Input("turbo", default=False, tooltip=cls.turbo_tooltip))
-        inputs.append(_seed_input())
-        if cls.model_options:
-            inputs.append(_weights_input("model", cls.model_options, cls.model_tooltip))
-        if cls.lora_options:
-            inputs.append(_weights_input("lora", cls.lora_options, cls.lora_tooltip))
-
-        return _cloud_schema(
-            cls.node_id,
-            cls.display_name,
-            cls.summary,
-            cls.category,
-            inputs,
-            _OUTPUT_KINDS[cls.output_kind][0](),
-        )
-
-    @classmethod
-    async def execute(
-        cls,
-        prompt: str,
-        image: Input.Image | None = None,
-        seed: int = 42,
-        turbo: bool = False,
-        model: str = "balanced",
-        lora: str = "balanced",
-    ) -> IO.NodeOutput:
-        prompt = _validate_node_inputs(cls, locals())["prompt"]
-
-        image_url = None
-        if cls.requires_image:
-            image_url = await _upload_workflow_image(cls, image, total_pixels=2048 * 2048)
-
-        # Send only what this node declares: cloud rejects an input the pipeline
-        # behind the id has no binding for.
-        controls = {}
-        if cls.turbo_tooltip:
-            controls["turbo"] = turbo
-        if cls.model_options:
-            controls["model"] = model
-        if cls.lora_options:
-            controls["lora"] = lora
-        return await cls._run(
-            ComfyCloudWorkflowInputs(prompt=prompt, image_url=image_url, seed=seed, **controls)
-        )
-
-    @classmethod
-    async def _run(cls, inputs: ComfyCloudWorkflowInputs) -> IO.NodeOutput:
-        run = _OUTPUT_KINDS[cls.output_kind][1]
-        return await run(cls, cls.workflow, inputs)
 
 
 class ComfyCloudFlux2TextToImageNode(IO.ComfyNode):
@@ -659,8 +517,6 @@ class ComfyCloudMageFlowTurboTextToImageNode(_ComfyCloudMageFlowNode):
 
 
 class ComfyCloudMiniMaxMusic3TextToAudioNode(IO.ComfyNode):
-    output_kind = "audio"
-
     @classmethod
     def define_schema(cls) -> IO.Schema:
         return _cloud_schema(
@@ -691,7 +547,7 @@ class ComfyCloudMiniMaxMusic3TextToAudioNode(IO.ComfyNode):
                     tooltip="mp3 bitrate. V0 is variable and the highest quality of the three.",
                 ),
             ],
-            _OUTPUT_KINDS[cls.output_kind][0](),
+            IO.Audio.Output(),
         )
 
     @classmethod
@@ -701,23 +557,15 @@ class ComfyCloudMiniMaxMusic3TextToAudioNode(IO.ComfyNode):
         lyrics: str = "",
         seed: int = 42,
         max_duration: float = 120.0,
-        # Widget removed in review, but the value is still sent deliberately.
-        # Unlike every other control dropped here, the node default and the
-        # frozen graph DISAGREE: the manifest bakes cfg_scale 1.7 at node 37:13
-        # while this has always sent 1.5, so going silent would change what the
-        # GPU runs rather than preserve it. Every run QA'd so far used 1.5.
-        # Reconciling the two is a manifest decision, not a node one.
-        caption_cfg: float = 1.5,
         audio_quality: str = "V0",
     ) -> IO.NodeOutput:
         validated = _validate_node_inputs(cls, locals())
-        run = _OUTPUT_KINDS[cls.output_kind][1]
-        return await run(
+        return await _run_audio_workflow(
             cls,
             "minimax-music-3/text-to-audio",
             ComfyCloudWorkflowInputs(
                 prompt=validated["prompt"], lyrics=validated["lyrics"], seed=seed,
-                max_duration=max_duration, caption_cfg=caption_cfg,
+                max_duration=max_duration, caption_cfg=1.5,
                 audio_quality=audio_quality,
             ),
         )
@@ -730,6 +578,7 @@ def _video_schema(node_id: str, display_name: str, summary: str, inputs: list[IO
 
 
 _MINIMAX_H3_MAX_REFERENCES = 4
+_MINIMAX_H3_MAX_AUDIO_REFERENCES = 3
 
 
 def _minimax_h3_inputs(default_ratio: str, plain: list[IO.Input] | None = None) -> list[IO.Input]:
@@ -741,9 +590,6 @@ def _minimax_h3_inputs(default_ratio: str, plain: list[IO.Input] | None = None) 
     """
     return [
         _prompt_input(),
-        # Order per review: seed, aspect ratio, then the shot's shape, then the
-        # sampling controls, then the weights. Kept identical across every node
-        # so moving between them does not move the knobs.
         _seed_input(),
         _aspect_ratio_input(default_ratio),
         _video_resolution_input(advanced=False),
@@ -759,16 +605,6 @@ def _minimax_h3_inputs(default_ratio: str, plain: list[IO.Input] | None = None) 
             ),
         ),
         *(plain or []),
-        _steps_input(20, 60),
-        _tuning_input(
-            "denoise",
-            1.0,
-            1.0,
-            step=0.01,
-            tooltip="Fraction of the sigma schedule to run. Below 1 starts partway in.",
-        ),
-        IO.Combo.Input("sampler", options=_SAMPLERS, default="res_multistep", advanced=True),
-        IO.Combo.Input("scheduler", options=_SCHEDULERS, default="simple", advanced=True),
     ]
 
 
@@ -776,6 +612,14 @@ async def _minimax_h3_asset(cls: type[IO.ComfyNode], image: Input.Image) -> Comf
     return ComfyCloudAssetInput(
         type="IMAGE", url=await _upload_workflow_image(cls, image, total_pixels=2048 * 2048)
     )
+
+
+async def _minimax_h3_video_asset(cls: type[IO.ComfyNode], video: Input.Video) -> ComfyCloudAssetInput:
+    return ComfyCloudAssetInput(type="VIDEO", url=await upload_video_to_comfyapi(cls, video))
+
+
+async def _minimax_h3_audio_asset(cls: type[IO.ComfyNode], audio: Input.Audio) -> ComfyCloudAssetInput:
+    return ComfyCloudAssetInput(type="AUDIO", url=await upload_audio_to_comfyapi(cls, audio))
 
 
 class ComfyCloudMiniMaxH3TextToVideoNode(IO.ComfyNode):
@@ -796,20 +640,15 @@ class ComfyCloudMiniMaxH3TextToVideoNode(IO.ComfyNode):
     async def execute(
         cls,
         prompt: str,
-        aspect_ratio: str = "16:9",
-        duration_seconds: int = 5,
         seed: int = 42,
+        aspect_ratio: str = "16:9",
         resolution: str = "480p",
-        steps: int = 20,
-        denoise: float = 1.0,
-        sampler: str = "res_multistep",
-        scheduler: str = "simple",
+        duration_seconds: int = 5
     ) -> IO.NodeOutput:
         prompt = _validate_node_inputs(cls, locals())["prompt"]
         inputs = ComfyCloudWorkflowInputs(
             prompt=prompt, aspect_ratio=aspect_ratio, duration_seconds=duration_seconds,
-            seed=seed, resolution=resolution, steps=steps, denoise=denoise, sampler=sampler,
-            scheduler=scheduler,
+            seed=seed, resolution=resolution
         )
         return await _run_video_workflow(cls, "minimax-h3/text-to-video", inputs)
 
@@ -840,15 +679,11 @@ class ComfyCloudMiniMaxH3FirstLastFrameToVideoNode(IO.ComfyNode):
         cls,
         first_frame: Input.Image,
         prompt: str,
-        last_frame: Input.Image | None = None,
+        seed: int = 42,
         aspect_ratio: str = "1:1",
         resolution: str = "480p",
         duration_seconds: int = 5,
-        seed: int = 42,
-        steps: int = 20,
-        denoise: float = 1.0,
-        sampler: str = "res_multistep",
-        scheduler: str = "simple",
+        last_frame: Input.Image | None = None,
     ) -> IO.NodeOutput:
         prompt = _validate_node_inputs(cls, locals())["prompt"]
         assets = {"first_frame": await _minimax_h3_asset(cls, first_frame)}
@@ -859,8 +694,7 @@ class ComfyCloudMiniMaxH3FirstLastFrameToVideoNode(IO.ComfyNode):
             "minimax-h3/first-last-frame-to-video",
             ComfyCloudWorkflowInputs(
                 prompt=prompt, aspect_ratio=aspect_ratio, resolution=resolution,
-                duration_seconds=duration_seconds, seed=seed, steps=steps, denoise=denoise, sampler=sampler, scheduler=scheduler,
-                assets=assets,
+                duration_seconds=duration_seconds, seed=seed, assets=assets
             ),
         )
 
@@ -884,14 +718,10 @@ class ComfyCloudMiniMaxH3ImageToVideoNode(IO.ComfyNode):
         cls,
         first_frame: Input.Image,
         prompt: str,
+        seed: int = 42,
         aspect_ratio: str = "1:1",
         resolution: str = "480p",
-        duration_seconds: int = 5,
-        seed: int = 42,
-        steps: int = 20,
-        denoise: float = 1.0,
-        sampler: str = "res_multistep",
-        scheduler: str = "simple",
+        duration_seconds: int = 5
     ) -> IO.NodeOutput:
         prompt = _validate_node_inputs(cls, locals())["prompt"]
         return await _run_video_workflow(
@@ -899,7 +729,7 @@ class ComfyCloudMiniMaxH3ImageToVideoNode(IO.ComfyNode):
             "minimax-h3/image-to-video",
             ComfyCloudWorkflowInputs(
                 prompt=prompt, aspect_ratio=aspect_ratio, resolution=resolution,
-                duration_seconds=duration_seconds, seed=seed, steps=steps, denoise=denoise, sampler=sampler, scheduler=scheduler,
+                duration_seconds=duration_seconds, seed=seed,
                 assets={"first_frame": await _minimax_h3_asset(cls, first_frame)},
             ),
         )
@@ -912,9 +742,9 @@ class ComfyCloudMiniMaxH3ReferenceToVideoNode(IO.ComfyNode):
             "ComfyCloudMiniMaxH3ReferenceToVideoNode",
             "Comfy Cloud MiniMax H3 Reference to Video",
             (
-                "Generates a video with a matching soundtrack from reference images, using "
-                "MiniMax H3. The references carry subject and style across the shot, and the "
-                "prompt addresses them by the order they are connected."
+                "Generates a video with a matching soundtrack from optional image, video, and "
+                "audio references, using MiniMax H3. The references carry subject and style "
+                "across the shot, and the prompt addresses images by connection order."
             ),
             [
                 IO.Autogrow.Input(
@@ -922,12 +752,22 @@ class ComfyCloudMiniMaxH3ReferenceToVideoNode(IO.ComfyNode):
                     template=IO.Autogrow.TemplatePrefix(
                         input=IO.Image.Input("reference_image"),
                         prefix="reference_image_",
-                        min=1,
+                        min=0,
                         max=_MINIMAX_H3_MAX_REFERENCES,
                     ),
                     tooltip=(
                         "Up to four references, addressed in the prompt as <Picture 1> upwards "
                         "in connection order."
+                    ),
+                ),
+                IO.Video.Input("ref_video", optional=True),
+                IO.Autogrow.Input(
+                    "ref_audio",
+                    template=IO.Autogrow.TemplatePrefix(
+                        input=IO.Audio.Input("ref_audio"),
+                        prefix="ref_audio_",
+                        min=0,
+                        max=_MINIMAX_H3_MAX_AUDIO_REFERENCES,
                     ),
                 ),
                 *_minimax_h3_inputs(
@@ -954,44 +794,42 @@ class ComfyCloudMiniMaxH3ReferenceToVideoNode(IO.ComfyNode):
         cls,
         prompt: str,
         reference_images: dict[str, Input.Image] | None = None,
+        ref_video: Input.Video | None = None,
+        ref_audio: dict[str, Input.Audio] | None = None,
+        seed: int = 42,
         aspect_ratio: str = "16:9",
         resolution: str = "480p",
         duration_seconds: int = 5,
-        seed: int = 42,
-        ref_image_size: str = "match",
-        steps: int = 20,
-        denoise: float = 1.0,
-        sampler: str = "res_multistep",
-        scheduler: str = "simple",
+        ref_image_size: str = "match"
     ) -> IO.NodeOutput:
         prompt = _validate_node_inputs(cls, locals())["prompt"]
         images = [image for image in (reference_images or {}).values() if image is not None]
-        if not images:
-            raise ValueError("At least one reference image is required.")
         if len(images) > _MINIMAX_H3_MAX_REFERENCES:
             raise ValueError(f"At most {_MINIMAX_H3_MAX_REFERENCES} reference images are supported.")
+        audios = [audio for audio in (ref_audio or {}).values() if audio is not None]
+        if len(audios) > _MINIMAX_H3_MAX_AUDIO_REFERENCES:
+            raise ValueError(f"At most {_MINIMAX_H3_MAX_AUDIO_REFERENCES} reference audio inputs are supported.")
         # Numbered by connection order, which is the order the prompt's
         # <Picture i> tags refer to them in.
         assets = {
             f"reference_image_{index}": await _minimax_h3_asset(cls, image)
             for index, image in enumerate(images, 1)
         }
+        if ref_video is not None:
+            assets["ref_video"] = await _minimax_h3_video_asset(cls, ref_video)
+        assets.update({
+            f"ref_audio_{index}": await _minimax_h3_audio_asset(cls, audio)
+            for index, audio in enumerate(audios, 1)
+        })
         return await _run_video_workflow(
             cls,
             "minimax-h3/reference-to-video",
             ComfyCloudWorkflowInputs(
                 prompt=prompt, aspect_ratio=aspect_ratio, resolution=resolution,
                 duration_seconds=duration_seconds, seed=seed, ref_image_size=ref_image_size,
-                steps=steps, denoise=denoise, assets=assets,
+                assets=assets,
             ),
         )
-
-
-def _audio_duration(audio: Input.Audio) -> float:
-    sample_rate = float(audio["sample_rate"])
-    if not math.isfinite(sample_rate) or sample_rate <= 0:
-        raise ValueError("Audio sample rate must be a positive number.")
-    return audio["waveform"].shape[-1] / sample_rate
 
 
 class ComfyCloudExtension(ComfyExtension):
@@ -1000,7 +838,7 @@ class ComfyCloudExtension(ComfyExtension):
         return [
             ComfyCloudMiniMaxH3TextToVideoNode,
             ComfyCloudMiniMaxH3FirstLastFrameToVideoNode,
-            ComfyCloudMiniMaxH3ReferenceToVideoNode,
+            ## ComfyCloudMiniMaxH3ReferenceToVideoNode,  # Commenting out until the server side issue is fixed.
             ComfyCloudMiniMaxH3ImageToVideoNode,
             ComfyCloudMiniMaxMusic3TextToAudioNode,
             ComfyCloudFlux2TextToImageNode,

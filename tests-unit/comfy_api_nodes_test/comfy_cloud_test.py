@@ -51,8 +51,7 @@ def _execute_with_defaults(node, prompt, **overrides):
         (
             nodes_comfy_cloud.ComfyCloudMiniMaxH3TextToVideoNode, "minimax-h3/text-to-video", True, False,
             {
-                "aspect_ratio": "16:9", "duration_seconds": 5.0, "resolution": "480p", "steps": 20,
-                "denoise": 1.0, "sampler": "res_multistep", "scheduler": "simple",
+                "aspect_ratio": "16:9", "duration_seconds": 5.0, "resolution": "480p",
             },
         ),
     ],
@@ -358,13 +357,92 @@ def test_controlled_image_nodes_are_declared_and_registered():
     assert {node for node, _, _, _, _ in CONTROLLED_IMAGE_NODES} <= registered
 
 
+def test_music_node_sends_its_hidden_caption_cfg(monkeypatch):
+    run = AsyncMock(return_value="audio-output")
+    monkeypatch.setattr(nodes_comfy_cloud, "_run_audio_workflow", run)
+
+    output = _execute_with_defaults(
+        nodes_comfy_cloud.ComfyCloudMiniMaxMusic3TextToAudioNode,
+        "A dreamy instrumental",
+    )
+
+    inputs = run.call_args.args[2]
+    assert inputs.caption_cfg == 1.5
+    assert output == "audio-output"
+
+
+def test_reference_video_exposes_and_sends_multimodal_references(monkeypatch):
+    node = nodes_comfy_cloud.ComfyCloudMiniMaxH3ReferenceToVideoNode
+    run = AsyncMock(return_value="video-output")
+    asset = AsyncMock(
+        return_value=nodes_comfy_cloud.ComfyCloudAssetInput(type="IMAGE", url="/uploads/reference.png")
+    )
+    video_asset = AsyncMock(
+        return_value=nodes_comfy_cloud.ComfyCloudAssetInput(type="VIDEO", url="/uploads/reference.mp4")
+    )
+    audio_asset = AsyncMock(
+        side_effect=[
+            nodes_comfy_cloud.ComfyCloudAssetInput(type="AUDIO", url="/uploads/reference-1.m4a"),
+            nodes_comfy_cloud.ComfyCloudAssetInput(type="AUDIO", url="/uploads/reference-2.m4a"),
+        ]
+    )
+    monkeypatch.setattr(nodes_comfy_cloud, "_run_video_workflow", run)
+    monkeypatch.setattr(nodes_comfy_cloud, "_minimax_h3_asset", asset)
+    monkeypatch.setattr(nodes_comfy_cloud, "_minimax_h3_video_asset", video_asset)
+    monkeypatch.setattr(nodes_comfy_cloud, "_minimax_h3_audio_asset", audio_asset)
+
+    schema = node.define_schema()
+    input_names = [input_spec.id for input_spec in schema.inputs]
+    assert input_names == [
+        "reference_images", "ref_video", "ref_audio", "prompt", "seed",
+        "aspect_ratio", "resolution", "duration_seconds", "ref_image_size",
+    ]
+    assert next(input_spec for input_spec in schema.inputs if input_spec.id == "ref_video").optional is True
+    image_template = next(input_spec for input_spec in schema.inputs if input_spec.id == "reference_images").template
+    assert (image_template.min, image_template.max) == (0, 4)
+    audio_template = next(input_spec for input_spec in schema.inputs if input_spec.id == "ref_audio").template
+    assert (audio_template.min, audio_template.max) == (0, 3)
+
+    asyncio.run(
+        node.execute(
+            prompt="A glass forest",
+            reference_images={"reference_image_1": "image"},
+            ref_video="video",
+            ref_audio={"ref_audio_1": "audio-1", "ref_audio_2": "audio-2"},
+            ref_image_size="max",
+        )
+    )
+
+    inputs = run.call_args.args[2]
+    assert inputs.ref_image_size == "max"
+    assert inputs.assets == {
+        "reference_image_1": nodes_comfy_cloud.ComfyCloudAssetInput(type="IMAGE", url="/uploads/reference.png"),
+        "ref_video": nodes_comfy_cloud.ComfyCloudAssetInput(type="VIDEO", url="/uploads/reference.mp4"),
+        "ref_audio_1": nodes_comfy_cloud.ComfyCloudAssetInput(type="AUDIO", url="/uploads/reference-1.m4a"),
+        "ref_audio_2": nodes_comfy_cloud.ComfyCloudAssetInput(type="AUDIO", url="/uploads/reference-2.m4a"),
+    }
+    video_asset.assert_awaited_once_with(node, "video")
+    assert audio_asset.await_count == 2
+
+
+def test_reference_video_accepts_no_references(monkeypatch):
+    run = AsyncMock(return_value="video-output")
+    monkeypatch.setattr(nodes_comfy_cloud, "_run_video_workflow", run)
+
+    output = _execute_with_defaults(
+        nodes_comfy_cloud.ComfyCloudMiniMaxH3ReferenceToVideoNode,
+        "An empty desert",
+    )
+
+    assert run.call_args.args[2].assets == {}
+    assert output == "video-output"
+
+
 def _workflow_ids_submitted_by_the_nodes() -> set[str]:
     """Every workflow id the module names, read off the source.
 
-    Matched by shape rather than by call site, because the three ways a node
-    reaches its id are all different: the H3 nodes pass a literal to
-    _run_video_workflow, Mage Flow passes a `workflow` ClassVar, and Music 3
-    goes through the _OUTPUT_KINDS dispatch table. Categories do not collide
+    Matched by shape rather than by call site: most nodes pass a literal to their
+    runner, while Mage Flow passes a `workflow` ClassVar. Categories do not collide
     with the shape ("comfy cloud/image" has a space).
     """
     tree = ast.parse(Path(nodes_comfy_cloud.__file__).read_text())
@@ -404,9 +482,9 @@ PLAIN_CONTROLS = {
     # tiled_decode its one quality-against-speed switch.
     "lyrics", "max_duration", "audio_quality",
     # Video: the frame-size budget is a headline choice rather than a dial, and
-    # reference-to-video's slots are its media input. ref_image_size is that
+    # reference-to-video's slots are its media inputs. ref_image_size is that
     # graph's one quality-against-speed switch.
-    "resolution", "reference_images", "ref_image_size",
+    "resolution", "reference_images", "ref_video", "ref_audio", "ref_image_size",
     # Mage Flow: a negative prompt is a second prompt rather than a dial, and the
     # pixel budget is how that graph is sized at all, so neither is "advanced".
     "negative_prompt", "megapixels",
@@ -422,9 +500,9 @@ def test_tuning_controls_are_hidden_behind_the_advanced_flag():
         ]
         assert set(plain) <= PLAIN_CONTROLS, f"{node.__name__} shows {sorted(set(plain) - PLAIN_CONTROLS)}"
         # The headline set is prompt, the media inputs, aspect ratio, resolution,
-        # duration, seed and one quality-against-speed switch. A node taking two
-        # keyframes, or one reference slot plus that switch, lands on seven.
-        assert len(plain) <= 7, f"{node.__name__} opens with {len(plain)} controls"
+        # duration, seed and one quality-against-speed switch. The multimodal
+        # reference node also exposes its video and audio reference groups.
+        assert len(plain) <= 9, f"{node.__name__} opens with {len(plain)} controls"
 
 
 def test_pointer_node_pickers_name_the_trade_off_rather_than_the_model():
@@ -533,21 +611,15 @@ def test_text_inputs_name_the_field_when_a_linked_value_is_not_a_string():
         )
 
 
-def test_upload_inputs_have_decoded_resource_limits():
+def test_uploaded_images_have_decoded_resource_limits():
     oversized_image = torch.empty((1, 8193, 1, 3), device="meta")
     # The only case that reaches the pixel-count branch rather than the dimension one.
     oversized_pixels = torch.empty((1, 8000, 5000, 3), device="meta")
-    oversized_audio = {
-        "waveform": torch.empty((1, 2, nodes_comfy_cloud._MAX_DECODED_AUDIO_BYTES // 8 + 1), device="meta"),
-        "sample_rate": 48000,
-    }
 
     with pytest.raises(ValueError, match="32-megapixel"):
         nodes_comfy_cloud._validate_image_upload(oversized_image)
     with pytest.raises(ValueError, match="32-megapixel"):
         nodes_comfy_cloud._validate_image_upload(oversized_pixels)
-    with pytest.raises(ValueError, match="256 MiB"):
-        nodes_comfy_cloud._validate_audio_upload(oversized_audio)
 
 
 def _stub_download_session(monkeypatch, responses):
@@ -765,15 +837,18 @@ def test_disabled_provider_is_not_retried():
 
 
 @pytest.mark.parametrize(
-    ("kind", "io_type"),
-    [("image", "IMAGE"), ("video", "VIDEO"), ("audio", "AUDIO"), ("model3d", "FILE_3D_GLB")],
+    ("node", "io_type"),
+    [
+        (nodes_comfy_cloud.ComfyCloudZImageTurboNode, "IMAGE"),
+        (nodes_comfy_cloud.ComfyCloudMiniMaxH3TextToVideoNode, "VIDEO"),
+        (nodes_comfy_cloud.ComfyCloudMiniMaxMusic3TextToAudioNode, "AUDIO"),
+    ],
 )
-def test_every_output_kind_declares_its_io_type(kind, io_type):
-    output, _ = nodes_comfy_cloud._OUTPUT_KINDS[kind]
-    assert output().get_io_type() == io_type
+def test_nodes_declare_their_output_io_type(node, io_type):
+    assert node.define_schema().outputs[0].get_io_type() == io_type
 
 
-@pytest.mark.parametrize("kind", ["image", "video", "audio", "model3d"])
+@pytest.mark.parametrize("kind", ["image", "video", "audio"])
 def test_every_output_kind_refuses_a_redirect_off_the_vetted_url(monkeypatch, kind):
     """The bucket pin decides where the bytes may come from. Following a redirect
     would hand that decision back to the server we just checked."""
@@ -788,7 +863,6 @@ def test_every_output_kind_refuses_a_redirect_off_the_vetted_url(monkeypatch, ki
 
     monkeypatch.setattr(nodes_comfy_cloud, "download_url_to_image_tensor", fake)
     monkeypatch.setattr(nodes_comfy_cloud, "download_url_to_video_output", fake)
-    monkeypatch.setattr(nodes_comfy_cloud, "download_url_to_file_3d", fake)
     monkeypatch.setattr(nodes_comfy_cloud, "download_url_to_bytesio", fake_bytesio)
     monkeypatch.setattr(nodes_comfy_cloud, "audio_bytes_to_audio_input", lambda data: "audio")
     monkeypatch.setattr(
@@ -796,7 +870,11 @@ def test_every_output_kind_refuses_a_redirect_off_the_vetted_url(monkeypatch, ki
         AsyncMock(return_value="https://storage.googleapis.com/comfy-cloud-assets/o.bin?X-Goog-Signature=x"),
     )
 
-    _, run = nodes_comfy_cloud._OUTPUT_KINDS[kind]
+    run = {
+        "image": nodes_comfy_cloud._run_image_workflow,
+        "video": nodes_comfy_cloud._run_video_workflow,
+        "audio": nodes_comfy_cloud._run_audio_workflow,
+    }[kind]
     asyncio.run(run(nodes_comfy_cloud.ComfyCloudZImageTurboNode, "z-image-turbo/text-to-image", None))
 
     assert seen["allow_redirects"] is False
