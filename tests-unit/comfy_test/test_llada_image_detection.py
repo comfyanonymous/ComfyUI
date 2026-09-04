@@ -66,6 +66,9 @@ def make_component_configs():
             "n_group": 2,
             "topk_group": 1,
             "pad_token_id": 0,
+            "mask_token_id": 63,
+            "end_of_image_token_id": 62,
+            "image_token_offset": 32,
         },
         "queryformer": {
             "num_queries": 5,
@@ -279,6 +282,13 @@ def test_complete_tiny_aio_loads_and_runs_native_generation_and_editing(
     for module in (native_model, native_clip):
         for parameter in module.parameters():
             torch.nn.init.normal_(parameter, std=0.02)
+    with torch.no_grad():
+        language_model = native_clip.llada2.model.language_model
+        language_model.word_embeddings.weight.zero_()
+        language_model.word_embeddings.weight[:, 0] = 100.0
+        for name, parameter in language_model.named_parameters():
+            if name == "norm.weight" or name.endswith("layernorm.weight"):
+                parameter.fill_(1.0)
 
     expected_model = {
         key: value.detach().clone() for key, value in native_model.state_dict().items()
@@ -292,6 +302,8 @@ def test_complete_tiny_aio_loads_and_runs_native_generation_and_editing(
             expected_clip[f"{prefix}weight"] = torch.randn(module._orig_shape) * 0.02
             if getattr(module, "bias", None) is not None:
                 expected_clip[f"{prefix}bias"] = module.bias.detach().clone()
+    expected_clip["llada2.model.lm_head.weight"].zero_()
+    expected_clip["llada2.model.lm_head.weight"][32, 0] = 1.0
     adapter = comfy.supported_models.LLaDAImage(
         {"image_model": "llada_image", "variant": variant}
     )
@@ -312,6 +324,12 @@ def test_complete_tiny_aio_loads_and_runs_native_generation_and_editing(
             self.state_dict = sd
             self.metadata = metadata
 
+        @staticmethod
+        def encode(image):
+            return torch.zeros(
+                image.shape[0], 4, image.shape[1] // 16, image.shape[2] // 16
+            )
+
     monkeypatch.setattr(comfy.sd, "VAE", TestVAE)
     checkpoint = tmp_path / f"complete-llada-image-{variant}-aio.safetensors"
     metadata = make_metadata(variant, component_configs)
@@ -326,7 +344,7 @@ def test_complete_tiny_aio_loads_and_runs_native_generation_and_editing(
         comfy.model_management, "text_encoder_dtype", lambda device=None: torch.float32
     )
 
-    model, clip, _ = nodes.CheckpointLoaderSimple().load_checkpoint(checkpoint.name)
+    model, clip, vae = nodes.CheckpointLoaderSimple().load_checkpoint(checkpoint.name)
 
     assert model.model.model_sampling.llada_image_variant == variant
     actual_model = model.model.diffusion_model.state_dict()
@@ -353,22 +371,52 @@ def test_complete_tiny_aio_loads_and_runs_native_generation_and_editing(
             c_crossattn=context,
             attention_mask=attention_mask,
         )
-        semantic_features, _ = clip.cond_stage_model.llada2.encode_sigvq(
-            pixel_values=torch.randn(1, 3, 16, 16)
+
+        from comfy_extras.nodes_llada_image import (
+            LLaDAImageEditConditioning,
+            LLaDAImageVQConditioning,
         )
-        edited = model.model.apply_model(
+
+        vq_positive, vq_negative = LLaDAImageVQConditioning.execute(
+            clip, "a tiny blue square", "", 64, 64
+        )
+        vq_context, vq_values = vq_positive[0]
+        vq_generated = model.model.apply_model(
             latent,
             sigma,
-            c_crossattn=context,
-            attention_mask=attention_mask,
-            semantic_features=semantic_features,
-            semantic_mask=torch.ones(
-                semantic_features.shape[:2], dtype=torch.bool
-            ),
-            source_latents=torch.zeros_like(latent),
+            c_crossattn=vq_context,
+            attention_mask=vq_values["attention_mask"],
+            semantic_features=vq_values["semantic_features"],
+            semantic_mask=vq_values["semantic_mask"],
+        )
+
+        edit_positive, edit_negative, edit_target = (
+            LLaDAImageEditConditioning.execute(
+                clip,
+                vae,
+                torch.rand(1, 32, 32, 3),
+                "make the square red",
+                "",
+            )
+        )
+        edit_context, edit_values = edit_positive[0]
+        edited = model.model.apply_model(
+            edit_target["samples"],
+            sigma,
+            c_crossattn=edit_context,
+            attention_mask=edit_values["attention_mask"],
+            semantic_features=edit_values["semantic_features"],
+            semantic_mask=edit_values["semantic_mask"],
+            source_latents=edit_values["source_latents"],
         )
 
     assert generated.shape == latent.shape
-    assert edited.shape == latent.shape
+    assert vq_generated.shape == latent.shape
+    assert edited.shape == edit_target["samples"].shape
     assert torch.isfinite(generated).all()
+    assert torch.isfinite(vq_generated).all()
     assert torch.isfinite(edited).all()
+    assert vq_positive[0][1]["semantic_features"].shape == (1, 16, 10)
+    assert vq_negative[0][1]["semantic_features"].shape == (1, 0, 10)
+    assert edit_positive[0][1]["source_latents"].shape == (1, 4, 2, 2)
+    assert edit_negative[0][1]["source_latents"].shape == (1, 4, 2, 2)
