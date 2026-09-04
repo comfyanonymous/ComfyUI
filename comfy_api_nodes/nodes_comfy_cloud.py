@@ -73,10 +73,29 @@ _COMFY_CLOUD_RATE_DESCRIPTION = (
 )
 
 
+# Marked beta on purpose: the workflow set is curated by hand and expected to
+# change, so a node can gain or lose options, and a workflow can be retired.
+# display_name is not stored in a saved graph, so this is free to remove later;
+# node_id and the input names are the parts that are permanent.
+_COMFY_CLOUD_BETA_SUFFIX = " [BETA]"
+_COMFY_CLOUD_BETA_DESCRIPTION = (
+    "BETA. The Comfy Cloud node set is still changing: options may be added or "
+    "removed, and a workflow may be retired. "
+)
+
+
+def _comfy_cloud_display_name(display_name: str) -> str:
+    """A SUFFIX, not a prefix: the menu and node search sort alphabetically, so a
+    leading marker would file all of these under "[" instead of their model."""
+    return display_name + _COMFY_CLOUD_BETA_SUFFIX
+
+
 def _comfy_cloud_description(summary: str) -> str:
-    """Node descriptions carry the rate because the price badge only renders on
-    Nodes 2.0, and a plain local install still defaults to the classic canvas."""
-    return summary + _COMFY_CLOUD_RATE_DESCRIPTION
+    """Node descriptions carry the beta notice and the rate. The beta notice leads
+    because it is the caveat to read first; the rate is here because the price
+    badge only renders on Nodes 2.0, and a plain local install still defaults to
+    the classic canvas."""
+    return _COMFY_CLOUD_BETA_DESCRIPTION + summary + _COMFY_CLOUD_RATE_DESCRIPTION
 
 
 _TEXT_LIMITS = {
@@ -113,7 +132,7 @@ def _cloud_schema(
     inputs and output type, so they are all built here."""
     return IO.Schema(
         node_id=node_id,
-        display_name=display_name,
+        display_name=_comfy_cloud_display_name(display_name),
         category=category,
         description=_comfy_cloud_description(summary),
         inputs=_with_input_sockets(inputs),

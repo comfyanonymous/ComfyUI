@@ -321,7 +321,8 @@ def test_controlled_image_node_schema_and_request_mapping(
 
     schema = node.define_schema()
     assert schema.node_id == node.node_id
-    assert schema.display_name == node.display_name
+    # The schema decorates the class attribute with the beta marker.
+    assert schema.display_name == f"{node.display_name} [BETA]"
     assert schema.is_api_node is True
     assert [input.id for input in schema.inputs] == input_names
     assert len(schema.outputs) == 1
@@ -646,6 +647,9 @@ def test_every_node_is_named_for_its_provider():
     for node in asyncio.run(nodes_comfy_cloud.ComfyCloudExtension().get_node_list()):
         name = node.define_schema().display_name
         assert name.startswith("Comfy Cloud "), f"{node.__name__} is named {name!r}"
+        # Beta marker is a SUFFIX so the menu still sorts these by model rather
+        # than filing all of them under "[".
+        assert name.endswith(" [BETA]"), f"{node.__name__} is named {name!r}"
 
 
 @pytest.mark.parametrize(
