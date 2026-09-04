@@ -1,4 +1,7 @@
+import ast
 import asyncio
+import re
+from pathlib import Path
 from io import BytesIO
 from typing import get_args
 from unittest.mock import AsyncMock
@@ -353,6 +356,41 @@ def test_controlled_image_nodes_are_declared_and_registered():
 
     assert workflows <= set(get_args(ComfyCloudWorkflow))
     assert {node for node, _, _, _, _ in CONTROLLED_IMAGE_NODES} <= registered
+
+
+def _workflow_ids_submitted_by_the_nodes() -> set[str]:
+    """Every workflow id the module names, read off the source.
+
+    Matched by shape rather than by call site, because the three ways a node
+    reaches its id are all different: the H3 nodes pass a literal to
+    _run_video_workflow, Mage Flow passes a `workflow` ClassVar, and Music 3
+    goes through the _OUTPUT_KINDS dispatch table. Categories do not collide
+    with the shape ("comfy cloud/image" has a space).
+    """
+    tree = ast.parse(Path(nodes_comfy_cloud.__file__).read_text())
+    shape = re.compile(r"^[a-z0-9][a-z0-9.-]*/[a-z0-9][a-z0-9.-]*$")
+    return {
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and shape.match(node.value)
+    }
+
+
+def test_every_submitted_workflow_id_is_accepted_by_the_request_model():
+    """BE-12049. The union is what pydantic validates the outgoing request
+    against, so an id a node submits but the union does not name is a
+    ValidationError on Run, for that node only, and no test caught it: the
+    check above covers the image nodes alone and only as a subset, so a video
+    id could drift and a stale union entry naming no node stayed invisible.
+
+    Exact equality in both directions, deliberately.
+    """
+    submitted = _workflow_ids_submitted_by_the_nodes()
+    declared = set(get_args(ComfyCloudWorkflow))
+
+    assert submitted, "found no workflow ids; the AST scan above has broken"
+    assert submitted - declared == set(), f"submitted but not in the union: {sorted(submitted - declared)}"
+    assert declared - submitted == set(), f"in the union but submitted by nothing: {sorted(declared - submitted)}"
 
 
 # The controls a first-time user is shown before expanding anything. Everything

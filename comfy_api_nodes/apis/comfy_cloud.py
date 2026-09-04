@@ -8,7 +8,7 @@ ComfyCloudWorkflow = Literal[
     "z-image-turbo/text-to-image",
     "flux-2/text-to-image",
     "minimax-h3/text-to-video",
-    "minimax-h3/video-continuation",
+    "minimax-h3/first-last-frame-to-video",
     "minimax-h3/reference-to-video",
     "minimax-h3/image-to-video",
     "mage-flow/text-to-image",
