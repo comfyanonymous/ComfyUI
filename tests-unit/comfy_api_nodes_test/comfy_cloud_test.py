@@ -43,18 +43,13 @@ def _execute_with_defaults(node, prompt, **overrides):
     [
         (
             nodes_comfy_cloud.ComfyCloudZImageTurboNode, "z-image-turbo/text-to-image", False, False,
-            {
-                "width": 1024, "height": 1024, "model": "z_image_turbo_bf16", "steps": 8,
-                "shift": 3.0, "sampler": "res_multistep", "scheduler": "simple",
-                "text_encoder": "qwen_3_4b",
-            },
+            {"width": 1024, "height": 1024},
         ),
         (
             nodes_comfy_cloud.ComfyCloudMiniMaxH3TextToVideoNode, "minimax-h3/text-to-video", True, False,
             {
                 "aspect_ratio": "16:9", "duration_seconds": 5.0, "resolution": "480p", "steps": 20,
                 "denoise": 1.0, "sampler": "res_multistep", "scheduler": "simple",
-                "text_encoder": "qwen3vl_32b_minimax_h3_nvfp4_awq",
             },
         ),
     ],
@@ -283,40 +278,16 @@ CONTROLLED_IMAGE_NODES = [
     (
         nodes_comfy_cloud.ComfyCloudZImageTurboNode,
         "z-image-turbo/text-to-image",
-        [
-            "prompt", "aspect_ratio", "seed", "model", "steps", "shift", "sampler", "scheduler",
-            "text_encoder",
-        ],
-        {
-            "prompt": "A glass forest", "aspect_ratio": "16:9", "seed": 9, "model": "z_image_turbo_nvfp4",
-            "steps": 10, "shift": 2.5, "sampler": "dpmpp_2m", "scheduler": "karras",
-            "text_encoder": "qwen_3_4b_fp8_mixed",
-        },
-        {
-            "prompt": "A glass forest", "width": 1344, "height": 768, "seed": 9, "model": "z_image_turbo_nvfp4",
-            "steps": 10, "shift": 2.5, "sampler": "dpmpp_2m", "scheduler": "karras",
-            "text_encoder": "qwen_3_4b_fp8_mixed",
-        },
+        ["prompt", "seed", "aspect_ratio"],
+        {"prompt": "A glass forest", "seed": 9, "aspect_ratio": "16:9"},
+        {"prompt": "A glass forest", "width": 1344, "height": 768, "seed": 9},
     ),
     (
         nodes_comfy_cloud.ComfyCloudFlux2TextToImageNode,
         "flux-2/text-to-image",
-        [
-            "prompt", "aspect_ratio", "turbo", "seed", "model", "lora", "steps", "turbo_steps",
-            "turbo_strength", "guidance", "sampler", "text_encoder",
-        ],
-        {
-            "prompt": "A glass forest", "aspect_ratio": "1:1", "turbo": False, "seed": 9,
-            "model": "flux2-dev", "lora": "flux2-lenovo_ultrareal", "steps": 24, "turbo_steps": 6,
-            "turbo_strength": 0.8, "guidance": 4.5, "sampler": "dpmpp_2m",
-            "text_encoder": "mistral_3_small_flux2_fp8",
-        },
-        {
-            "prompt": "A glass forest", "width": 1024, "height": 1024, "turbo": False, "seed": 9,
-            "model": "flux2-dev", "lora": "flux2-lenovo_ultrareal", "steps": 24, "turbo_steps": 6,
-            "turbo_strength": 0.8, "guidance": 4.5, "sampler": "dpmpp_2m",
-            "text_encoder": "mistral_3_small_flux2_fp8",
-        },
+        ["prompt", "seed", "aspect_ratio", "turbo"],
+        {"prompt": "A glass forest", "seed": 9, "aspect_ratio": "1:1", "turbo": False},
+        {"prompt": "A glass forest", "width": 1024, "height": 1024, "turbo": False, "seed": 9},
     ),
 ]
 
@@ -392,11 +363,14 @@ PLAIN_CONTROLS = {
     # Music: lyrics are sung rather than described, so they are a second prompt
     # rather than a tuning dial; max_duration is that graph's length control and
     # tiled_decode its one quality-against-speed switch.
-    "lyrics", "max_duration", "tiled_decode",
+    "lyrics", "max_duration", "audio_quality",
     # Video: the frame-size budget is a headline choice rather than a dial, and
     # reference-to-video's slots are its media input. ref_image_size is that
     # graph's one quality-against-speed switch.
     "resolution", "reference_images", "ref_image_size",
+    # Mage Flow: a negative prompt is a second prompt rather than a dial, and the
+    # pixel budget is how that graph is sized at all, so neither is "advanced".
+    "negative_prompt", "megapixels",
 }
 
 

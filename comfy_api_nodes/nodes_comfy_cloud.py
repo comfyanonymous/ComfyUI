@@ -259,33 +259,11 @@ _ASPECT_DIMENSIONS = {
 _VIDEO_RESOLUTIONS = ["480p", "720p"]
 _LTX_RESOLUTIONS = ["1280x720", "960x960", "720x1280"]
 # Weight pickers. Keys, not filenames: cloud holds the file each key maps to.
-_Z_IMAGE_MODELS = ["z_image_turbo_bf16", "z_image_turbo_int8_convrot", "z_image_turbo_nvfp4"]
-_FLUX2_MODELS = ["flux2_dev_fp8mixed", "flux2-dev"]
-_FLUX2_TEXT_ENCODERS = [
-    "mistral_3_small_flux2_bf16",
-    "mistral_3_small_flux2_fp8",
-    "mistral_3_small_flux2_fp4_mixed",
-]
-_Z_IMAGE_TEXT_ENCODERS = ["qwen_3_4b", "qwen_3_4b_fp8_mixed", "qwen_3_4b_fp4_mixed"]
-_MAGE_FLOW_MODELS = ["mage_flow_int8_convrot", "mage_flow_bf16", "mage_flow_base_bf16"]
-_MAGE_FLOW_TURBO_MODELS = ["mage_flow_turbo_int8_convrot", "mage_flow_turbo_bf16"]
-_MAGE_FLOW_TEXT_ENCODERS = ["qwen3vl_4b_bf16", "qwen3vl_4b_fp8_scaled"]
-_MINIMAX_MUSIC3_MODELS = [
-    "minimax_music3_dit_fp16", "minimax_music3_dit_fp32", "minimax_music3_dit_int8_convrot",
-]
-_MINIMAX_MUSIC3_TEXT_ENCODERS = [
-    "minimax_music3_text_encoder_pruned_int8_convrot", "minimax_music3_text_encoder_pruned_bf16",
-]
 _MINIMAX_MUSIC3_QUALITIES = ["V0", "128k", "320k"]
 # The samplers and schedulers the curated graphs offer. ComfyUI ships far more;
 # these are the ones executed on cloud against every graph that lists them.
 _SAMPLERS = ["euler", "dpmpp_2m", "res_multistep"]
 _SCHEDULERS = ["simple", "karras", "beta"]
-_FLUX2_LORAS = [
-    "Flux_2-Turbo-LoRA_comfyui", "Flux2TurboComfyv2", "flux2-herbst_photo_analog_film", "flux2_berthe_morisot", "flux2-boreal_dev2_boring_reality_for_dev",
-    "flux2-yfg_chatgpt_4o_style", "flux2-wanderer_s_detailed_portraits", "flux2-yfg_fonts_japanese_manga_posters", "flux2-neo_victorian_style",
-    "flux2-yfg_soares", "flux2-yfg_spy_world_50s_dev_and_dev", "flux2-lenovo_ultrareal",
-]
 # The default/* pickers key on the TRADE-OFF rather than the model, because those
 # ids are pointers: the model behind one is re-pointed over time and the id does
 # not change. A saved graph stores the key, so a key that named a model would
@@ -305,7 +283,7 @@ def _prompt_input(name: str = "prompt") -> IO.String.Input:
 
 def _negative_prompt_input() -> IO.String.Input:
     return IO.String.Input(
-        "negative_prompt", multiline=True, default="", advanced=True, tooltip=_NEGATIVE_PROMPT_TOOLTIP
+        "negative_prompt", multiline=True, default="", tooltip=_NEGATIVE_PROMPT_TOOLTIP
     )
 
 
@@ -331,17 +309,6 @@ def _tuning_input(
 
 def _weights_input(name: str, options: list[str], tooltip: str) -> IO.Combo.Input:
     return IO.Combo.Input(name, options=options, default=options[0], advanced=True, tooltip=tooltip)
-def _sampling_inputs(steps: int, cfg: float, cfg_max: float, sampler_node: str) -> list[IO.Input]:
-    """The KSampler dials a curated graph exposes. Every graph that has a sampler
-    has the same five, so they are described once."""
-    return [
-        _steps_input(steps, 100),
-        _tuning_input("cfg", cfg, cfg_max, tooltip=f"Classifier-free guidance scale for the {sampler_node} pass."),
-        _tuning_input("denoise", 1.0, 1.0, step=0.01),
-        IO.Combo.Input("sampler", options=_SAMPLERS, default="euler", advanced=True),
-        IO.Combo.Input("scheduler", options=_SCHEDULERS, default="simple", advanced=True),
-    ]
-
 
 
 def _video_resolution_input(advanced: bool = True) -> IO.Combo.Input:
@@ -437,7 +404,7 @@ def _image_asset(url: str) -> dict[str, ComfyCloudAssetInput]:
 
 def _image_schema(cls: type[IO.ComfyNode], inputs: list[IO.Input]) -> IO.Schema:
     return _cloud_schema(
-        cls.node_id, cls.display_name, cls.summary, "partner/image/Comfy Cloud", inputs, IO.Image.Output()
+        cls.node_id, cls.display_name, cls.summary, "comfy cloud/image", inputs, IO.Image.Output()
     )
 
 
@@ -536,36 +503,13 @@ class ComfyCloudFlux2TextToImageNode(IO.ComfyNode):
             cls,
             [
                 _prompt_input(),
+                _seed_input(),
                 _aspect_ratio_input(),
                 IO.Boolean.Input(
                     "turbo",
                     default=True,
-                    tooltip="Run the chosen LoRA at turbo_steps instead of the full dev pass.",
-                ),
-                _seed_input(),
-                _weights_input(
-                    "model",
-                    _FLUX2_MODELS,
-                    "Flux 2 dev precision. fp8 loads quicker; bf16 is the full-range weights.",
-                ),
-                _weights_input(
-                    "lora",
-                    _FLUX2_LORAS,
-                    "LoRA to apply, loaded only while turbo is on; switch turbo off to run dev "
-                    "with no LoRA at all. The two turbo entries are trained for the short "
-                    "turbo_steps schedule, so a style entry wants turbo_steps raised toward steps.",
-                ),
-                _steps_input(20, 100, tooltip="Steps for the full dev pass, used when turbo is off."),
-                _steps_input(8, 50, name="turbo_steps", tooltip="Steps for the Turbo LoRA pass."),
-                _tuning_input("turbo_strength", 1.0, 2.0, step=0.05),
-                _tuning_input("guidance", 4.0, 20.0),
-                IO.Combo.Input("sampler", options=_SAMPLERS, default="euler", advanced=True),
-                _weights_input(
-                    "text_encoder",
-                    _FLUX2_TEXT_ENCODERS,
-                    "Mistral 3 Small precision. fp8 and fp4 load quicker; bf16 is the full-range "
-                    "weights. This graph has no scheduler dial: Flux 2 derives its sigma schedule "
-                    "from the output size and steps.",
+                    tooltip="Run the Turbo LoRA on a short schedule, trading a little fidelity "
+                            "for a much quicker run. Off runs the full dev pass with no LoRA.",
                 ),
             ],
         )
@@ -574,17 +518,9 @@ class ComfyCloudFlux2TextToImageNode(IO.ComfyNode):
     async def execute(
         cls,
         prompt: str,
+        seed: int = 42,
         aspect_ratio: str = "1:1",
         turbo: bool = True,
-        seed: int = 42,
-        model: str = "flux2_dev_fp8mixed",
-        lora: str = "Flux_2-Turbo-LoRA_comfyui",
-        steps: int = 20,
-        turbo_steps: int = 8,
-        turbo_strength: float = 1.0,
-        guidance: float = 4.0,
-        sampler: str = "euler",
-        text_encoder: str = _FLUX2_TEXT_ENCODERS[0],
     ) -> IO.NodeOutput:
         prompt = _validate_node_inputs(cls, locals())["prompt"]
         width, height = _dimensions(aspect_ratio)
@@ -592,9 +528,7 @@ class ComfyCloudFlux2TextToImageNode(IO.ComfyNode):
             cls,
             "flux-2/text-to-image",
             ComfyCloudWorkflowInputs(
-                prompt=prompt, width=width, height=height, turbo=turbo, seed=seed, model=model,
-                lora=lora, steps=steps, turbo_steps=turbo_steps, turbo_strength=turbo_strength,
-                guidance=guidance, sampler=sampler, text_encoder=text_encoder,
+                prompt=prompt, width=width, height=height, turbo=turbo, seed=seed,
             ),
         )
 
@@ -613,23 +547,8 @@ class ComfyCloudZImageTurboNode(IO.ComfyNode):
             cls,
             [
                 _prompt_input(),
-                _aspect_ratio_input(),
                 _seed_input(),
-                _weights_input(
-                    "model",
-                    _Z_IMAGE_MODELS,
-                    "Checkpoint precision. int8 and nvfp4 are quantised and load quicker; bf16 "
-                    "is the reference weights.",
-                ),
-                _steps_input(8, 50),
-                _tuning_input("shift", 3.0, 20.0),
-                IO.Combo.Input("sampler", options=_SAMPLERS, default="res_multistep", advanced=True),
-                IO.Combo.Input("scheduler", options=_SCHEDULERS, default="simple", advanced=True),
-                _weights_input(
-                    "text_encoder",
-                    _Z_IMAGE_TEXT_ENCODERS,
-                    "Qwen3 4B precision. The mixed-precision variants load quicker.",
-                ),
+                _aspect_ratio_input(),
             ],
         )
 
@@ -637,14 +556,8 @@ class ComfyCloudZImageTurboNode(IO.ComfyNode):
     async def execute(
         cls,
         prompt: str,
-        aspect_ratio: str = "1:1",
         seed: int = 42,
-        model: str = "z_image_turbo_bf16",
-        steps: int = 8,
-        shift: float = 3.0,
-        sampler: str = "res_multistep",
-        scheduler: str = "simple",
-        text_encoder: str = _Z_IMAGE_TEXT_ENCODERS[0],
+        aspect_ratio: str = "1:1",
     ) -> IO.NodeOutput:
         prompt = _validate_node_inputs(cls, locals())["prompt"]
         width, height = _dimensions(aspect_ratio)
@@ -652,8 +565,7 @@ class ComfyCloudZImageTurboNode(IO.ComfyNode):
             cls,
             "z-image-turbo/text-to-image",
             ComfyCloudWorkflowInputs(
-                prompt=prompt, width=width, height=height, seed=seed, model=model, steps=steps,
-                shift=shift, sampler=sampler, scheduler=scheduler, text_encoder=text_encoder,
+                prompt=prompt, width=width, height=height, seed=seed,
             ),
         )
 
@@ -667,9 +579,6 @@ class _ComfyCloudMageFlowNode(IO.ComfyNode):
     node_id: ClassVar[str]
     display_name: ClassVar[str]
     summary: ClassVar[str]
-    default_steps: ClassVar[int]
-    default_cfg: ClassVar[float]
-    model_options: ClassVar[list[str]]
 
     @classmethod
     def define_schema(cls) -> IO.Schema:
@@ -677,27 +586,14 @@ class _ComfyCloudMageFlowNode(IO.ComfyNode):
             cls,
             [
                 _prompt_input(),
-                _aspect_ratio_input(),
-                _seed_input(),
                 _negative_prompt_input(),
+                _seed_input(),
+                _aspect_ratio_input(),
                 # The graph sizes itself through a resolution selector, so the
                 # caller picks a ratio and a pixel budget rather than a raw pair.
                 IO.Float.Input(
-                    "megapixels", default=1.0, min=0.1, max=16.0, step=0.1, advanced=True,
+                    "megapixels", default=1.0, min=0.1, max=16.0, step=0.1,
                     tooltip="Total pixel budget. 1.0 is about 1024x1024 at a square ratio.",
-                ),
-                IO.Int.Input(
-                    "size_multiple", default=16, min=8, max=128, step=4, advanced=True,
-                    tooltip="Round each side to this multiple.",
-                ),
-                *_sampling_inputs(cls.default_steps, cls.default_cfg, 20.0, "diffusion"),
-                _weights_input(
-                    "model", cls.model_options,
-                    "Checkpoint precision. int8 loads quicker; bf16 is the reference weights.",
-                ),
-                _weights_input(
-                    "text_encoder", _MAGE_FLOW_TEXT_ENCODERS,
-                    "Qwen3-VL 4B precision used to encode the prompt.",
                 ),
             ],
         )
@@ -706,33 +602,18 @@ class _ComfyCloudMageFlowNode(IO.ComfyNode):
     async def execute(
         cls,
         prompt: str,
-        aspect_ratio: str = "1:1",
-        seed: int = 42,
         negative_prompt: str = "",
+        seed: int = 42,
+        aspect_ratio: str = "1:1",
         megapixels: float = 1.0,
-        size_multiple: int = 16,
-        steps: int | None = None,
-        cfg: float | None = None,
-        denoise: float = 1.0,
-        sampler: str = "euler",
-        scheduler: str = "simple",
-        model: str | None = None,
-        text_encoder: str = "qwen3vl_4b_bf16",
     ) -> IO.NodeOutput:
-        # The three per-variant defaults are resolved before validation, so the
-        # subclass's schema defaults are what an omitted argument falls back to.
-        steps = cls.default_steps if steps is None else steps
-        cfg = cls.default_cfg if cfg is None else cfg
-        model = cls.model_options[0] if model is None else model
         validated = _validate_node_inputs(cls, locals())
         return await _run_image_workflow(
             cls,
             cls.workflow,
             ComfyCloudWorkflowInputs(
                 prompt=validated["prompt"], negative_prompt=validated["negative_prompt"],
-                aspect_ratio=aspect_ratio, megapixels=megapixels, size_multiple=size_multiple,
-                seed=seed, steps=steps, cfg=cfg, denoise=denoise, sampler=sampler,
-                scheduler=scheduler, model=model, text_encoder=text_encoder,
+                aspect_ratio=aspect_ratio, megapixels=megapixels, seed=seed,
             ),
         )
 
@@ -745,9 +626,6 @@ class ComfyCloudMageFlowTextToImageNode(_ComfyCloudMageFlowNode):
         "Generates an image from a text prompt with Mage-Flow over a full 30-step pass. "
         "It takes a negative prompt, which the distilled turbo variant cannot use well."
     )
-    default_steps = 30
-    default_cfg = 5.0
-    model_options = _MAGE_FLOW_MODELS
 
 
 class ComfyCloudMageFlowTurboTextToImageNode(_ComfyCloudMageFlowNode):
@@ -758,9 +636,6 @@ class ComfyCloudMageFlowTurboTextToImageNode(_ComfyCloudMageFlowNode):
         "Generates an image from a text prompt with distilled Mage-Flow in 4 steps at cfg 1. "
         "Roughly a seventh of the GPU time of the full pass, which makes it the one to iterate on."
     )
-    default_steps = 4
-    default_cfg = 1.0
-    model_options = _MAGE_FLOW_TURBO_MODELS
 
 
 class ComfyCloudMiniMaxMusic3TextToAudioNode(IO.ComfyNode):
@@ -776,42 +651,28 @@ class ComfyCloudMiniMaxMusic3TextToAudioNode(IO.ComfyNode):
                 "carries the style, instrumentation and mood; lyrics are sung rather than "
                 "described, and an empty lyric leaves the track instrumental."
             ),
-            "partner/audio/Comfy Cloud",
+            "comfy cloud/audio",
             [
                 _prompt_input(),
                 IO.String.Input(
                     "lyrics", multiline=True, default="",
                     tooltip="Words to sing. Leave empty for an instrumental.",
                 ),
+                # SeedNode caps at int64, below the uint64 the other graphs take.
+                _seed_input(0x7FFFFFFFFFFFFFFF),
                 IO.Float.Input(
                     "max_duration", default=120.0, min=0.04, max=360.0, step=0.04,
                     tooltip="Longest the track may run. The model can end the song earlier.",
                 ),
-                IO.Boolean.Input(
-                    "tiled_decode", default=True,
-                    tooltip="Decode the waveform in tiles. Off decodes in one pass, which is "
-                            "quicker on short tracks and needs far more memory on long ones.",
-                ),
-                # SeedNode caps at int64, below the uint64 the other graphs take.
-                _seed_input(0x7FFFFFFFFFFFFFFF),
                 _tuning_input(
                     "caption_cfg", 1.5, 100.0,
                     tooltip="How closely the arrangement follows the prompt.",
                 ),
-                IO.Int.Input(
-                    "top_k", default=50, min=1, max=16384, advanced=True,
-                    tooltip="Token sampling width while the prompt is turned into an arrangement.",
-                ),
-                *_sampling_inputs(30, 1.7, 100.0, "audio diffusion"),
-                IO.Int.Input("tile_size", default=1536, min=32, max=8192, step=8, advanced=True),
-                IO.Int.Input("tile_overlap", default=64, min=0, max=1024, step=8, advanced=True),
-                _weights_input("model", _MINIMAX_MUSIC3_MODELS, "Diffusion transformer precision."),
-                _weights_input(
-                    "text_encoder", _MINIMAX_MUSIC3_TEXT_ENCODERS, "Prompt encoder precision."
-                ),
-                _weights_input(
-                    "audio_quality", _MINIMAX_MUSIC3_QUALITIES,
-                    "mp3 bitrate. V0 is variable and the highest quality of the three.",
+                IO.Combo.Input(
+                    "audio_quality",
+                    options=_MINIMAX_MUSIC3_QUALITIES,
+                    default=_MINIMAX_MUSIC3_QUALITIES[0],
+                    tooltip="mp3 bitrate. V0 is variable and the highest quality of the three.",
                 ),
             ],
             _OUTPUT_KINDS[cls.output_kind][0](),
@@ -822,20 +683,9 @@ class ComfyCloudMiniMaxMusic3TextToAudioNode(IO.ComfyNode):
         cls,
         prompt: str,
         lyrics: str = "",
-        max_duration: float = 120.0,
-        tiled_decode: bool = True,
         seed: int = 42,
+        max_duration: float = 120.0,
         caption_cfg: float = 1.5,
-        top_k: int = 50,
-        steps: int = 30,
-        cfg: float = 1.7,
-        denoise: float = 1.0,
-        sampler: str = "euler",
-        scheduler: str = "simple",
-        tile_size: int = 1536,
-        tile_overlap: int = 64,
-        model: str = "minimax_music3_dit_fp16",
-        text_encoder: str = "minimax_music3_text_encoder_pruned_int8_convrot",
         audio_quality: str = "V0",
     ) -> IO.NodeOutput:
         validated = _validate_node_inputs(cls, locals())
@@ -844,11 +694,8 @@ class ComfyCloudMiniMaxMusic3TextToAudioNode(IO.ComfyNode):
             cls,
             "minimax-music-3/text-to-audio",
             ComfyCloudWorkflowInputs(
-                prompt=validated["prompt"], lyrics=validated["lyrics"],
-                max_duration=max_duration, tiled_decode=tiled_decode, seed=seed,
-                caption_cfg=caption_cfg, top_k=top_k, steps=steps, cfg=cfg, denoise=denoise,
-                sampler=sampler, scheduler=scheduler, tile_size=tile_size,
-                tile_overlap=tile_overlap, model=model, text_encoder=text_encoder,
+                prompt=validated["prompt"], lyrics=validated["lyrics"], seed=seed,
+                max_duration=max_duration, caption_cfg=caption_cfg,
                 audio_quality=audio_quality,
             ),
         )
@@ -856,14 +703,10 @@ class ComfyCloudMiniMaxMusic3TextToAudioNode(IO.ComfyNode):
 
 def _video_schema(node_id: str, display_name: str, summary: str, inputs: list[IO.Input]) -> IO.Schema:
     return _cloud_schema(
-        node_id, display_name, summary, "partner/video/Comfy Cloud", inputs, IO.Video.Output()
+        node_id, display_name, summary, "comfy cloud/video", inputs, IO.Video.Output()
     )
 
 
-_MINIMAX_H3_TEXT_ENCODERS = [
-    "qwen3vl_32b_minimax_h3_nvfp4_awq",
-    "qwen3vl_32b_minimax_h3_int8_convrot",
-]
 _MINIMAX_H3_MAX_REFERENCES = 4
 
 
@@ -904,11 +747,6 @@ def _minimax_h3_inputs(default_ratio: str, plain: list[IO.Input] | None = None) 
         ),
         IO.Combo.Input("sampler", options=_SAMPLERS, default="res_multistep", advanced=True),
         IO.Combo.Input("scheduler", options=_SCHEDULERS, default="simple", advanced=True),
-        _weights_input(
-            "text_encoder",
-            _MINIMAX_H3_TEXT_ENCODERS,
-            "Qwen3-VL precision. int8 loads quicker; nvfp4 is what the graph ships with.",
-        ),
     ]
 
 
@@ -944,13 +782,12 @@ class ComfyCloudMiniMaxH3TextToVideoNode(IO.ComfyNode):
         denoise: float = 1.0,
         sampler: str = "res_multistep",
         scheduler: str = "simple",
-        text_encoder: str = _MINIMAX_H3_TEXT_ENCODERS[0],
     ) -> IO.NodeOutput:
         prompt = _validate_node_inputs(cls, locals())["prompt"]
         inputs = ComfyCloudWorkflowInputs(
             prompt=prompt, aspect_ratio=aspect_ratio, duration_seconds=duration_seconds,
             seed=seed, resolution=resolution, steps=steps, denoise=denoise, sampler=sampler,
-            scheduler=scheduler, text_encoder=text_encoder,
+            scheduler=scheduler,
         )
         return await _run_video_workflow(cls, "minimax-h3/text-to-video", inputs)
 
@@ -990,7 +827,6 @@ class ComfyCloudMiniMaxH3FirstLastFrameToVideoNode(IO.ComfyNode):
         denoise: float = 1.0,
         sampler: str = "res_multistep",
         scheduler: str = "simple",
-        text_encoder: str = _MINIMAX_H3_TEXT_ENCODERS[0],
     ) -> IO.NodeOutput:
         prompt = _validate_node_inputs(cls, locals())["prompt"]
         assets = {"first_frame": await _minimax_h3_asset(cls, first_frame)}
@@ -1002,7 +838,7 @@ class ComfyCloudMiniMaxH3FirstLastFrameToVideoNode(IO.ComfyNode):
             ComfyCloudWorkflowInputs(
                 prompt=prompt, aspect_ratio=aspect_ratio, resolution=resolution,
                 duration_seconds=duration_seconds, seed=seed, steps=steps, denoise=denoise, sampler=sampler, scheduler=scheduler,
-                text_encoder=text_encoder, assets=assets,
+                assets=assets,
             ),
         )
 
@@ -1034,7 +870,6 @@ class ComfyCloudMiniMaxH3ImageToVideoNode(IO.ComfyNode):
         denoise: float = 1.0,
         sampler: str = "res_multistep",
         scheduler: str = "simple",
-        text_encoder: str = _MINIMAX_H3_TEXT_ENCODERS[0],
     ) -> IO.NodeOutput:
         prompt = _validate_node_inputs(cls, locals())["prompt"]
         return await _run_video_workflow(
@@ -1043,7 +878,6 @@ class ComfyCloudMiniMaxH3ImageToVideoNode(IO.ComfyNode):
             ComfyCloudWorkflowInputs(
                 prompt=prompt, aspect_ratio=aspect_ratio, resolution=resolution,
                 duration_seconds=duration_seconds, seed=seed, steps=steps, denoise=denoise, sampler=sampler, scheduler=scheduler,
-                text_encoder=text_encoder,
                 assets={"first_frame": await _minimax_h3_asset(cls, first_frame)},
             ),
         )
@@ -1107,7 +941,6 @@ class ComfyCloudMiniMaxH3ReferenceToVideoNode(IO.ComfyNode):
         denoise: float = 1.0,
         sampler: str = "res_multistep",
         scheduler: str = "simple",
-        text_encoder: str = _MINIMAX_H3_TEXT_ENCODERS[0],
     ) -> IO.NodeOutput:
         prompt = _validate_node_inputs(cls, locals())["prompt"]
         images = [image for image in (reference_images or {}).values() if image is not None]
@@ -1127,7 +960,7 @@ class ComfyCloudMiniMaxH3ReferenceToVideoNode(IO.ComfyNode):
             ComfyCloudWorkflowInputs(
                 prompt=prompt, aspect_ratio=aspect_ratio, resolution=resolution,
                 duration_seconds=duration_seconds, seed=seed, ref_image_size=ref_image_size,
-                steps=steps, denoise=denoise, text_encoder=text_encoder, assets=assets,
+                steps=steps, denoise=denoise, assets=assets,
             ),
         )
 
