@@ -45,6 +45,8 @@ _THINKING_UNSUPPORTED = {"Haiku 4.5"}
 # Anthropic decides the actual budget when adaptive is used, based on the `output_config.effort` hint.
 _ADAPTIVE_THINKING_MODELS = {"Opus 4.8", "Sonnet 5", "Opus 4.7", "Opus 4.6", "Sonnet 4.6"}
 _ALWAYS_THINKING_MODELS = {"Opus 5", "Fable 5.1", "Fable 5"}
+_XHIGH_EFFORT_MODELS = {"Opus 5", "Opus 4.8", "Fable 5.1", "Fable 5", "Sonnet 5", "Opus 4.7"}
+_MAX_EFFORT_MODELS = _XHIGH_EFFORT_MODELS | {"Opus 4.6", "Sonnet 4.6"}
 _EXPLICIT_THINKING_OFF_MODELS = {"Sonnet 5"}
 _NO_TEMPERATURE_MODELS = {"Opus 5", "Opus 4.8", "Fable 5.1", "Fable 5", "Sonnet 5"}
 
@@ -56,6 +58,17 @@ _REASONING_BUDGET: dict[str, int] = {
     "high": 16384,
 }
 _REASONING_EFFORTS = ["off", "low", "medium", "high"]
+
+
+def _reasoning_effort_options(model_label: str) -> list[str]:
+    options = list(_REASONING_EFFORTS)
+    if model_label in _ALWAYS_THINKING_MODELS:
+        options.remove("off")
+    if model_label in _XHIGH_EFFORT_MODELS:
+        options.append("xhigh")
+    if model_label in _MAX_EFFORT_MODELS:
+        options.append("max")
+    return options
 
 
 def _claude_model_inputs(model_label: str):
@@ -88,7 +101,7 @@ def _claude_model_inputs(model_label: str):
         inputs.append(
             IO.Combo.Input(
                 "reasoning_effort",
-                options=[e for e in _REASONING_EFFORTS if e != "off"],
+                options=_reasoning_effort_options(model_label),
                 default="high",
                 tooltip="Extended thinking effort. Reasoning is always enabled for this model.",
                 advanced=True,
@@ -98,7 +111,7 @@ def _claude_model_inputs(model_label: str):
         inputs.append(
             IO.Combo.Input(
                 "reasoning_effort",
-                options=_REASONING_EFFORTS,
+                options=_reasoning_effort_options(model_label),
                 default="off",
                 tooltip="Extended thinking effort. 'off' disables reasoning.",
                 advanced=True,
