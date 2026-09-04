@@ -332,12 +332,20 @@ def is_within_directory(directory: str, target: str) -> bool:
     try:
         directory = os.path.realpath(directory)
         target = os.path.realpath(target)
-        return os.path.commonpath((directory, target)) == directory
     except ValueError:
         # ValueError is raised by realpath() on a path with an embedded null
-        # byte, and by commonpath() on Windows when the paths are on different
-        # drives. In either case the target is not safely within the directory.
+        # byte. The target is not safely within the directory.
         return False
+    # A prefix comparison rather than commonpath(): commonpath() raises
+    # ValueError on Windows both for paths on different drives and, more
+    # subtly, when `directory` is a bare UNC share root like `\\server\share`
+    # (no trailing separator) and `target` is a path inside it - the two are
+    # classified as having different "roots" by ntpath.splitroot(). Comparing
+    # against `directory` with a trailing separator added (unless it's a root
+    # like "/" or "C:\" that already ends in one) avoids that, while still
+    # rejecting a sibling directory with a shared prefix (e.g. `/a/b` vs `/a/bc`).
+    directory_prefix = directory if directory.endswith(os.sep) else directory + os.sep
+    return target == directory or target.startswith(directory_prefix)
 
 
 def get_annotated_filepath(name: str, default_dir: str | None=None) -> str:

@@ -180,3 +180,25 @@ def test_models_directory_cli_and_getters(temp_dir):
             reload(comfy.cli_args)
             reload(folder_paths)
 
+
+def test_is_within_directory_unc_share_root(monkeypatch):
+    # Regression test for #16086: --output-directory set to a bare UNC share
+    # root (e.g. r"\\nas\temp_fast", no trailing separator) made
+    # is_within_directory() reject every subfolder inside it. ntpath.splitroot()
+    # gives that bare root an empty "root" component while a subpath like
+    # r"\\nas\temp_fast\dataset" gets root="\\"; ntpath.commonpath() treats the
+    # mismatch as mixing an absolute and a relative path and raises ValueError,
+    # which was being swallowed into `False`.
+    #
+    # ntpath.realpath() has no OS-level effect on a non-Windows CI runner (the
+    # `nt` module it needs is unavailable, so it falls back to plain
+    # normalization), so patching it in here exercises the real Windows-only
+    # ntpath.commonpath() bug without needing an actual Windows host.
+    import ntpath
+    monkeypatch.setattr(os.path, "realpath", ntpath.realpath)
+    monkeypatch.setattr(os, "sep", "\\")
+
+    directory = r"\\nas\temp_fast"
+    target = r"\\nas\temp_fast\dataset"
+    assert folder_paths.is_within_directory(directory, target) is True
+
