@@ -56,6 +56,19 @@ _MAX_UPLOAD_IMAGE_DIMENSION = 8192
 _MAX_DECODED_AUDIO_BYTES = 256 * 1024 * 1024
 # Hardcoded mirror of Metronome's rtx_pro_6000 rate. Nothing links the two, so it
 # must be changed by hand when the rate card moves.
+#
+# THIS IS THE LIST PRICE. Never put a promotional or time-boxed rate here.
+# ComfyUI is pulled, not pushed, so a user keeps whatever value they last pulled
+# for as long as they like. A promo rate shipped here does not expire when the
+# promotion does: the rate card returns to list, that user's node still quotes
+# the discount, and they are charged MORE than they were shown, indefinitely and
+# invisibly to us. A promo belongs in Metronome alone, where ending it actually
+# ends it, and in the launch copy. Quoting above the charged rate is the safe
+# direction; quoting below it is not.
+#
+# The same asymmetry applies to any list-price INCREASE, which is why a
+# server-supplied per-run estimate (BE-9841) is the only way to change this
+# number safely rather than a nicety.
 COMFY_CLOUD_GPU_SECOND_USD = 0.00185
 COMFY_CLOUD_CREDITS_PER_USD = 211
 COMFY_CLOUD_GPU_SECOND_CREDITS = COMFY_CLOUD_GPU_SECOND_USD * COMFY_CLOUD_CREDITS_PER_USD
