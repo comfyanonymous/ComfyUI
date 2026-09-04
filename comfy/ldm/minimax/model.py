@@ -27,6 +27,8 @@ import comfy.patcher_extension
 import comfy.quant_ops
 from comfy.ldm.modules.attention import AttentionTensorContainer, optimized_attention
 
+_AMD_ARCH_CACHE = {}
+
 FRAME_PER_TOKEN = (1, 4, 4, 4, 4)
 FRAME_RESCALE = 5.0 / 3.0
 VISUAL_COND_TIMESTEP = 0.999
@@ -189,11 +191,41 @@ class Attention(nn.Module):
             q = self.q_norm(q.view(s, self.heads, self.head_dim))
             k = self.k_norm(k.view(s, self.heads, self.head_dim))
         v = v.clone()
-        q = AttentionTensorContainer(q.transpose(0, 1).unsqueeze(0))
-        k = AttentionTensorContainer(k.transpose(0, 1).unsqueeze(0))
-        v = AttentionTensorContainer(v.transpose(0, 1).unsqueeze(0))
+        q = q.transpose(0, 1).unsqueeze(0)
+        k = k.transpose(0, 1).unsqueeze(0)
+        v = v.transpose(0, 1).unsqueeze(0)
+        q, k, v = _contiguous_qkv_for_gfx1151(q, k, v)
+        q = AttentionTensorContainer(q)
+        k = AttentionTensorContainer(k)
+        v = AttentionTensorContainer(v)
         out = optimized_attention(q, k, v, self.heads, mask=None, skip_reshape=True, transformer_options=transformer_options)
         return self.out_proj(out.squeeze(0))
+
+
+def _contiguous_qkv_for_gfx1151(q, k, v):
+    if not comfy.model_management.is_amd() or q.shape[-2] < 5000 or q.shape[-1] != 128:
+        return q, k, v
+    if all(x.is_contiguous() for x in (q, k, v)):
+        return q, k, v
+    if _amd_arch(q.device) != "gfx1151":
+        return q, k, v
+    return tuple(x.contiguous() for x in (q, k, v))
+
+
+def _amd_arch(device):
+    if device.type != "cuda":
+        return None
+    index = device.index if device.index is not None else torch.cuda.current_device()
+    key = (device.type, index)
+    if key in _AMD_ARCH_CACHE:
+        return _AMD_ARCH_CACHE[key]
+    if index < 0 or index >= torch.cuda.device_count():
+        _AMD_ARCH_CACHE[key] = None
+        return None
+    arch_name = torch.cuda.get_device_properties(index).gcnArchName
+    arch = arch_name.split(":", 1)[0]
+    _AMD_ARCH_CACHE[key] = arch
+    return arch
 
 
 class MLP(nn.Module):
