@@ -713,6 +713,12 @@ class ComfyCloudMiniMaxMusic3TextToAudioNode(IO.ComfyNode):
         lyrics: str = "",
         seed: int = 42,
         max_duration: float = 120.0,
+        # Widget removed in review, but the value is still sent deliberately.
+        # Unlike every other control dropped here, the node default and the
+        # frozen graph DISAGREE: the manifest bakes cfg_scale 1.7 at node 37:13
+        # while this has always sent 1.5, so going silent would change what the
+        # GPU runs rather than preserve it. Every run QA'd so far used 1.5.
+        # Reconciling the two is a manifest decision, not a node one.
         caption_cfg: float = 1.5,
         audio_quality: str = "V0",
     ) -> IO.NodeOutput:
