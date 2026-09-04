@@ -1,0 +1,197 @@
+import json
+
+import pytest
+import torch
+
+from comfy.cli_args import args
+
+args.cpu = True
+
+import comfy.model_detection
+import comfy.sd
+import comfy.supported_models
+import comfy.utils
+import nodes
+
+
+PREFIX = "model.diffusion_model."
+
+
+def make_state_dict():
+    return {
+        f"{PREFIX}all_x_embedder.1-1.weight": torch.empty(32, 4),
+        f"{PREFIX}all_final_layer.1-1.linear.weight": torch.empty(4, 32),
+        f"{PREFIX}noise_refiner.0.attention.to_q.weight": torch.empty(32, 32),
+        f"{PREFIX}sigvq_refiner.0.attention.to_q.weight": torch.empty(32, 32),
+        f"{PREFIX}context_refiner.0.attention.to_q.weight": torch.empty(32, 32),
+        f"{PREFIX}layers.0.attention.to_q.weight": torch.empty(32, 32),
+        f"{PREFIX}layers.1.attention.to_q.weight": torch.empty(32, 32),
+    }
+
+
+def make_metadata(variant="turbo", component_configs=None):
+    config = {
+        "transformer": {
+            "all_patch_size": [1],
+            "all_f_patch_size": [1],
+            "n_heads": 2,
+            "cap_feat_dim": 8,
+            "semantic_feat_dim": 10,
+            "axes_dims": [4, 6, 6],
+        },
+        "llada_image": {"variant": variant},
+    }
+    config.update(component_configs or {})
+    return {"config": json.dumps(config)}
+
+
+def test_detection_uses_shapes_and_checkpoint_config():
+    detected = comfy.model_detection.detect_unet_config(
+        make_state_dict(), PREFIX, make_metadata()
+    )
+
+    assert detected == {
+        "image_model": "llada_image",
+        "variant": "turbo",
+        "all_patch_size": (1,),
+        "all_f_patch_size": (1,),
+        "in_channels": 4,
+        "dim": 32,
+        "n_layers": 2,
+        "n_refiner_layers": 1,
+        "n_heads": 2,
+        "norm_eps": 1e-5,
+        "qk_norm": True,
+        "cap_feat_dim": 8,
+        "semantic_feat_dim": 10,
+        "rope_theta": 256.0,
+        "t_scale": 1000.0,
+        "axes_dims": (4, 6, 6),
+    }
+
+
+def test_supported_model_sets_exact_flow_sampling_contract():
+    model_config = comfy.model_detection.model_config_from_unet(
+        make_state_dict(), PREFIX, metadata=make_metadata("base")
+    )
+
+    assert isinstance(model_config, comfy.supported_models.LLaDAImage)
+    assert model_config.sampling_settings == {"multiplier": 1.0, "shift": 1.0}
+    assert model_config.latent_format.latent_channels == 128
+
+
+def test_detection_rejects_missing_variant_metadata():
+    with pytest.raises(ValueError, match="base or turbo"):
+        comfy.model_detection.detect_unet_config(
+            make_state_dict(), PREFIX, {"config": json.dumps({"transformer": {}})}
+        )
+
+
+def test_detection_rejects_config_shape_disagreement():
+    metadata = make_metadata()
+    config = json.loads(metadata["config"])
+    config["transformer"]["dim"] = 4096
+
+    with pytest.raises(ValueError, match="state dict implies 32"):
+        comfy.model_detection.detect_unet_config(
+            make_state_dict(), PREFIX, {"config": json.dumps(config)}
+        )
+
+
+def test_aio_file_loads_model_clip_and_vae_through_checkpoint_path(
+    tmp_path, monkeypatch
+):
+    from tokenizers import Tokenizer
+    from tokenizers.models import WordLevel
+    from tokenizers.pre_tokenizers import Whitespace
+
+    tokenizer = Tokenizer(WordLevel({"[UNK]": 0}, unk_token="[UNK]"))
+    tokenizer.pre_tokenizer = Whitespace()
+    tokenizer_json = torch.tensor(
+        list(tokenizer.to_str().encode("utf-8")), dtype=torch.uint8
+    )
+    state_dict = make_state_dict()
+    state_dict.update(
+        {
+            "text_encoders.llada2.model.language_model.word_embeddings.weight": torch.randn(
+                64, 16
+            ),
+            "text_encoders.tokenizer_json": tokenizer_json,
+            "vae.bn.running_mean": torch.zeros(128),
+        }
+    )
+    component_configs = {
+        "text_encoder": {
+            "vocab_size": 64,
+            "hidden_size": 16,
+            "intermediate_size": 24,
+            "moe_intermediate_size": 8,
+            "num_hidden_layers": 2,
+            "num_attention_heads": 4,
+            "num_key_value_heads": 2,
+            "head_dim": 4,
+            "num_experts": 8,
+            "num_experts_per_tok": 2,
+            "num_shared_experts": 1,
+            "first_k_dense_replace": 1,
+            "n_group": 2,
+            "topk_group": 1,
+            "pad_token_id": 0,
+        },
+        "queryformer": {
+            "num_queries": 5,
+            "hidden_size": 16,
+            "num_hidden_layers": 1,
+            "num_attention_heads": 2,
+            "intermediate_size": 24,
+        },
+        "text_projection": {
+            "hidden_size": 16,
+            "intermediate_size": 28,
+            "num_hidden_layers": 1,
+            "num_attention_heads": 2,
+            "projection_dim": 8,
+        },
+        "sigvq": {
+            "image_size": 16,
+            "patch_size": 4,
+            "hidden_size": 16,
+            "intermediate_size": 28,
+            "num_hidden_layers": 1,
+            "num_attention_heads": 2,
+            "codebook_size": 8,
+            "codebook_embed_dim": 4,
+            "semantic_embed_dim": 10,
+        },
+    }
+
+    class TestVAE:
+        def __init__(self, sd, metadata=None, device=None):
+            self.state_dict = sd
+            self.metadata = metadata
+
+    monkeypatch.setattr(comfy.sd, "VAE", TestVAE)
+    checkpoint = tmp_path / "llada-image-aio.safetensors"
+    metadata = make_metadata("base", component_configs)
+    comfy.utils.save_torch_file(state_dict, checkpoint, metadata=metadata)
+
+    monkeypatch.setattr(
+        nodes.folder_paths,
+        "get_full_path_or_raise",
+        lambda category, name: str(checkpoint),
+    )
+    monkeypatch.setattr(nodes.folder_paths, "get_folder_paths", lambda category: [])
+    monkeypatch.setattr(
+        comfy.model_management, "text_encoder_dtype", lambda device=None: torch.float32
+    )
+    model, clip, vae = nodes.CheckpointLoaderSimple().load_checkpoint(checkpoint.name)
+
+    assert model is not None
+    assert clip is not None
+    assert clip.cond_stage_model.clip_name == "llada2"
+    assert clip.cond_stage_model.llada2.config.hidden_size == 16
+    assert clip.cond_stage_model.llada2.queryformer.meta_queries.shape == (5, 16)
+    assert clip.cond_stage_model.llada2.text_projection.projector.out_features == 8
+    assert clip.cond_stage_model.llada2.sigvq.prior_token_embedding.num_embeddings == 8
+    assert set(vae.state_dict) == {"bn.running_mean"}
+    assert vae.metadata == metadata
