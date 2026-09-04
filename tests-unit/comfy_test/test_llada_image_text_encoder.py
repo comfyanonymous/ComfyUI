@@ -72,21 +72,18 @@ def test_backbone_bool_mask_blocks_padded_tokens_from_valid_outputs():
     first = torch.tensor([[1, 2, 3, 4, 5, 0, 0]])
     second = torch.tensor([[1, 2, 3, 4, 5, 6, 7]])
     valid = torch.tensor([[1, 1, 1, 1, 1, 0, 0]], dtype=torch.bool)
-    allowed = valid[:, None, None, :].expand(-1, 1, 7, -1)
-    position_ids = torch.tensor([[0, 1, 2, 3, 4, 4, 4]])
+    allowed = valid[:, None, None, :].expand(-1, 1, 7, -1).repeat(2, 1, 1, 1)
+    position_ids = torch.tensor([[0, 1, 2, 3, 4, 4, 4]]).repeat(2, 1)
 
     with torch.inference_mode():
-        first_output = model.language_model(
-            first, attention_mask=allowed, position_ids=position_ids
-        )
-        second_output = model.language_model(
-            second, attention_mask=allowed, position_ids=position_ids
+        output = model.language_model(
+            torch.cat((first, second)),
+            attention_mask=allowed,
+            position_ids=position_ids,
         )
 
-    torch.testing.assert_close(
-        first_output[:, :5], second_output[:, :5], atol=2e-5, rtol=2e-5
-    )
-    assert torch.isfinite(first_output).all()
+    torch.testing.assert_close(output[0, :5], output[1, :5], atol=2e-5, rtol=2e-5)
+    assert torch.isfinite(output).all()
 
 
 def test_aio_clip_processing_adapts_official_expert_tensor_names():
