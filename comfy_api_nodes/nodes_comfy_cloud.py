@@ -52,10 +52,6 @@ _POLL_MAX_ATTEMPTS = int(_RUN_TIMEOUT_SECONDS / _POLL_INTERVAL_SECONDS) + 24  # 
 _OUTPUT_DOWNLOAD_TIMEOUT = 30 * 60
 _MAX_UPLOAD_IMAGE_PIXELS = 32_000_000
 _MAX_UPLOAD_IMAGE_DIMENSION = 8192
-<<<<<<< HEAD
-# Hardcoded mirror of Metronome's rtx_pro_6000 rate. Nothing links the two, so it
-# must be changed by hand when the rate card moves.
-=======
 _MAX_DECODED_AUDIO_BYTES = 256 * 1024 * 1024
 # Hardcoded mirror of Metronome's GPU rate. Nothing links the two, so it must be
 # changed by hand when the rate card moves.
@@ -64,7 +60,6 @@ _MAX_DECODED_AUDIO_BYTES = 256 * 1024 * 1024
 # 0.00185, read off rtx_pro_6000's card entry, which over-quoted every run by
 # ~43%. Dividing an actual billed event gives the truth:
 #   credits_used 1.98 / gpu_seconds 7.244173 / 211 credits-per-USD = 0.0012954
->>>>>>> ed201eeac146842e57d555ff5048f00113a93de5
 #
 # THIS IS THE LIST PRICE. Never put a promotional or time-boxed rate here.
 # ComfyUI is pulled, not pushed, so a user keeps whatever value they last pulled
