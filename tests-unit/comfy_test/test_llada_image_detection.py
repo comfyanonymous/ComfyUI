@@ -218,6 +218,9 @@ def test_aio_file_loads_model_clip_and_vae_through_checkpoint_path(
     )
     monkeypatch.setattr(nodes.folder_paths, "get_folder_paths", lambda category: [])
     monkeypatch.setattr(
+        comfy.model_management, "unet_dtype", lambda *args, **kwargs: torch.float32
+    )
+    monkeypatch.setattr(
         comfy.model_management, "text_encoder_dtype", lambda device=None: torch.float32
     )
     model, clip, vae = nodes.CheckpointLoaderSimple().load_checkpoint(checkpoint.name)
@@ -340,6 +343,9 @@ def test_complete_tiny_aio_loads_and_runs_native_generation_and_editing(
         lambda category, name: str(checkpoint),
     )
     monkeypatch.setattr(nodes.folder_paths, "get_folder_paths", lambda category: [])
+    monkeypatch.setattr(
+        comfy.model_management, "unet_dtype", lambda *args, **kwargs: torch.float32
+    )
     monkeypatch.setattr(
         comfy.model_management, "text_encoder_dtype", lambda device=None: torch.float32
     )

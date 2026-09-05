@@ -83,12 +83,17 @@ def parity_device():
     return device
 
 
-def assert_bfloat16_parity(actual, expected):
+def matching_finite_values(actual, expected):
     assert torch.equal(torch.isnan(actual), torch.isnan(expected))
     assert torch.equal(torch.isposinf(actual), torch.isposinf(expected))
     assert torch.equal(torch.isneginf(actual), torch.isneginf(expected))
     finite = torch.isfinite(actual)
     assert finite.any()
+    return finite
+
+
+def assert_bfloat16_parity(actual, expected):
+    finite = matching_finite_values(actual, expected)
     absolute_error = (actual.float() - expected.float()).abs()[finite]
     assert float(absolute_error.max()) <= 1.0 / 64.0
     assert float(absolute_error.mean()) <= 1.0 / 256.0
@@ -234,13 +239,13 @@ def test_text_backbone_matches_pinned_official_eager_path(monkeypatch, dtype):
     device = torch.device("cpu") if dtype == torch.float32 else parity_device()
     values = {
         "vocab_size": 64,
-        "hidden_size": 16,
+        "hidden_size": 32,
         "intermediate_size": 24,
         "moe_intermediate_size": 8,
         "num_hidden_layers": 2,
         "num_attention_heads": 4,
         "num_key_value_heads": 2,
-        "head_dim": 4,
+        "head_dim": 8,
         "num_experts": 8,
         "num_experts_per_tok": 2,
         "num_shared_experts": 1,
@@ -271,6 +276,14 @@ def test_text_backbone_matches_pinned_official_eager_path(monkeypatch, dtype):
         .to(device=device, dtype=dtype)
         .eval()
     )
+    with torch.no_grad():
+        for name, parameter in expected_model.named_parameters():
+            if name.endswith("norm.weight"):
+                parameter.fill_(1.0)
+            elif name.endswith("expert_bias"):
+                parameter.zero_()
+            else:
+                parameter.normal_(std=0.02)
     actual_model = LLaDA2Backbone(
         native_config,
         dtype,
@@ -316,6 +329,8 @@ def test_text_backbone_matches_pinned_official_eager_path(monkeypatch, dtype):
     if dtype == torch.bfloat16:
         assert_bfloat16_parity(actual, expected)
     else:
+        assert torch.isfinite(actual).all()
+        assert torch.isfinite(expected).all()
         torch.testing.assert_close(actual, expected, rtol=2e-5, atol=2e-5)
 
 
