@@ -19,6 +19,7 @@ if not has_gpu():
 from comfy import ops
 from comfy.quant_ops import QUANT_ALGOS, QuantizedTensor
 import comfy.utils
+import comfy.model_base as model_base
 
 
 class SimpleModel(torch.nn.Module):
@@ -332,8 +333,6 @@ class TestMixedPrecisionOps(unittest.TestCase):
         """BaseModel must forward its load device to pick_operations, since
         the int8/fp8/etc device-capability checks key off that argument and
         default to assuming full support when it's None (e.g. on MPS)."""
-        import comfy.model_base as model_base
-
         captured = {}
 
         def fake_pick_operations(*args, **kwargs):

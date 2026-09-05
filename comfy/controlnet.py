@@ -838,7 +838,7 @@ def load_controlnet_state_dict(state_dict, model=None, model_options={}):
     manual_cast_dtype = comfy.model_management.unet_manual_cast(unet_dtype, load_device)
     operations = model_options.get("custom_operations", None)
     if operations is None:
-        operations = comfy.ops.pick_operations(unet_dtype, manual_cast_dtype, load_device=load_device)
+        operations = comfy.ops.pick_operations(unet_dtype, manual_cast_dtype, load_device=load_device, disable_fast_fp8=True)
 
     controlnet_config["operations"] = operations
     controlnet_config["dtype"] = unet_dtype
