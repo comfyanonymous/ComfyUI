@@ -25,7 +25,7 @@ import torch.nn.functional as F
 import comfy.ops
 from comfy import sd1_clip
 from comfy.ldm.llada_image.conditioning import QueryFormer, SigVQ, TextProjection
-from comfy.ldm.modules.attention import attention_pytorch
+from comfy.ldm.modules.attention import optimized_attention
 
 
 @dataclass
@@ -396,10 +396,7 @@ class LLaDA2Attention(nn.Module):
         mask = _attention_bias(
             attention_mask, batch, sequence, query.dtype, query.device
         )
-        # This path feeds discrete VQ generation. Keep the pinned upstream
-        # PyTorch SDPA evaluation order: alternate optimized kernels can move
-        # BF16 logits across an argmax boundary and change generated token IDs.
-        hidden_states = attention_pytorch(
+        hidden_states = optimized_attention(
             query,
             key,
             value,

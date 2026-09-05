@@ -17,7 +17,7 @@ from torch import nn
 import torch.nn.functional as F
 
 import comfy.ops
-from comfy.ldm.modules.attention import attention_pytorch, optimized_attention
+from comfy.ldm.modules.attention import optimized_attention
 
 
 class QueryAttention(nn.Module):
@@ -342,10 +342,7 @@ class SigVQAttention(nn.Module):
         query = query.unflatten(-1, (self.heads, self.head_dim)).transpose(1, 2)
         key = key.unflatten(-1, (self.heads, self.head_dim)).transpose(1, 2)
         value = value.unflatten(-1, (self.heads, self.head_dim)).transpose(1, 2)
-        # SigVQ selects a nearest codebook entry after this stack. Match the
-        # pinned upstream PyTorch SDPA path so backend-dependent BF16 rounding
-        # cannot change a discrete semantic token.
-        hidden_states = attention_pytorch(
+        hidden_states = optimized_attention(
             query,
             key,
             value,

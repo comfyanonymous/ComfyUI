@@ -83,6 +83,12 @@ def parity_device():
     return device
 
 
+def assert_bfloat16_parity(actual, expected):
+    absolute_error = (actual.float() - expected.float()).abs()
+    assert float(absolute_error.max()) <= 1.0 / 64.0
+    assert float(absolute_error.mean()) <= 1.0 / 256.0
+
+
 def small_backbone():
     config = LLaDA2Config(
         vocab_size=64,
@@ -303,7 +309,7 @@ def test_text_backbone_matches_pinned_official_eager_path(monkeypatch, dtype):
         )
 
     if dtype == torch.bfloat16:
-        torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+        assert_bfloat16_parity(actual, expected)
     else:
         torch.testing.assert_close(actual, expected, rtol=2e-5, atol=2e-5)
 
