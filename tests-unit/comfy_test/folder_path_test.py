@@ -2,6 +2,7 @@
 # TODO(yoland): clean up this after I get back down
 import sys
 import pytest
+import ntpath
 import os
 import tempfile
 from unittest.mock import patch
@@ -179,4 +180,38 @@ def test_models_directory_cli_and_getters(temp_dir):
         with patch.object(sys, 'argv', ["main.py"]):
             reload(comfy.cli_args)
             reload(folder_paths)
+
+
+def test_is_within_directory_unc_share_root(monkeypatch):
+    # Regression test for #16086: --output-directory set to a bare UNC share
+    # root (e.g. r"\\nas\temp_fast", no trailing separator) made
+    # is_within_directory() reject every subfolder inside it. ntpath.splitroot()
+    # gives that bare root an empty "root" component while a subpath like
+    # r"\\nas\temp_fast\dataset" gets root="\\"; ntpath.commonpath() treats the
+    # mismatch as mixing an absolute and a relative path and raises ValueError,
+    # which was being swallowed into `False`.
+    #
+    # ntpath.realpath() has no OS-level effect on a non-Windows CI runner (the
+    # `nt` module it needs is unavailable, so it falls back to plain
+    # normalization), so patching it in here exercises the real Windows-only
+    # ntpath.commonpath() bug without needing an actual Windows host.
+    monkeypatch.setattr(os.path, "realpath", ntpath.realpath)
+    monkeypatch.setattr(os, "sep", "\\")
+
+    directory = r"\\nas\temp_fast"
+    target = r"\\nas\temp_fast\dataset"
+    assert folder_paths.is_within_directory(directory, target) is True
+
+
+def test_is_within_directory_case_insensitive_on_windows(monkeypatch):
+    # Windows paths are case-insensitive: a target that differs only in case
+    # from `directory` must still be reported as contained. posixpath.normcase
+    # is a no-op, so patch it to ntpath's lowercasing version too.
+    monkeypatch.setattr(os.path, "realpath", ntpath.realpath)
+    monkeypatch.setattr(os.path, "normcase", ntpath.normcase)
+    monkeypatch.setattr(os, "sep", "\\")
+
+    directory = r"C:\Output"
+    target = r"c:\output\dataset"
+    assert folder_paths.is_within_directory(directory, target) is True
 
