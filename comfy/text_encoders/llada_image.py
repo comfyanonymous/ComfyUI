@@ -823,13 +823,13 @@ class LLaDAImageClipModel(nn.Module):
         prompt_embeds = self.text_projection(hidden_states)
         return prompt_embeds, None, {"attention_mask": attention_mask}
 
-    def forward_logits(self, input_ids, attention_mask, position_ids):
+    def forward_logits(self, input_ids, attention_mask, position_ids, logits_to_keep=0):
         hidden_states = self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
             position_ids=position_ids,
         )
-        return self.model.lm_head(hidden_states)
+        return self.model.lm_head(hidden_states[:, -logits_to_keep:])
 
     @staticmethod
     def _num_transfer_tokens(block_length, steps):
@@ -912,7 +912,8 @@ class LLaDAImageClipModel(nn.Module):
                     dim=0,
                 )
                 logits = self.forward_logits(
-                    combined_ids, combined_mask, combined_positions
+                    combined_ids, combined_mask, combined_positions,
+                    logits_to_keep=block_length,
                 )
                 conditional_logits, unconditional_logits = logits.chunk(2, dim=0)
                 active_logits = unconditional_logits[:, -block_length:] + cfg_scale * (
@@ -1005,8 +1006,8 @@ class LLaDAImageTEModel(sd1_clip.SD1ClipModel):
         sequence_length = (sequence_length + 31) // 32 * 32
         tokens = 2 * sequence_length
         dtype_size = comfy.model_management.dtype_size(self.llada2.dtype)
-        # CFG forwards overlap the previous full-sequence logits with the next.
-        logits = 2 * tokens * config.vocab_size * dtype_size
+        # Only the active 32-token block is projected into vocabulary logits.
+        logits = 2 * 2 * 32 * config.vocab_size * dtype_size
         routes = tokens * config.num_experts_per_tok * (
             (config.moe_intermediate_size + config.hidden_size) * dtype_size
             + config.num_experts * 8 + 32

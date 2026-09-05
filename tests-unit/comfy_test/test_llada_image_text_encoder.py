@@ -35,10 +35,10 @@ def test_vq_memory_estimation_includes_cfg_logits_and_block_padding(dtype):
     model = SimpleNamespace(llada2=SimpleNamespace(config=config, dtype=dtype))
     estimate = LLaDAImageTEModel.vq_memory_estimation
     memory = estimate(model, 1050)
-    two_full_logits = 2 * 2 * 1056 * config.vocab_size * dtype.itemsize
+    two_block_logits = 2 * 2 * 32 * config.vocab_size * dtype.itemsize
 
     assert isinstance(memory, int)
-    assert memory > two_full_logits
+    assert memory > two_block_logits
     assert memory == estimate(model, 1056)
     assert memory > estimate(model, 1024)
     assert estimate(model, 2048) > memory
@@ -372,7 +372,8 @@ def test_text_backbone_matches_pinned_official_eager_path(monkeypatch, dtype):
         torch.testing.assert_close(actual, expected, rtol=2e-5, atol=2e-5)
 
 
-def test_vq_block_diffusion_matches_pinned_official_logic():
+@pytest.mark.parametrize("image_token_count", (17, 65))
+def test_vq_block_diffusion_matches_pinned_official_logic(image_token_count):
     official = load_official_text_encoder_module()
 
     class OfficialTiny:
@@ -408,12 +409,12 @@ def test_vq_block_diffusion_matches_pinned_official_logic():
                 image_token_offset=4,
             )
 
-        def forward_logits(self, input_ids, attention_mask, position_ids):
-            return OfficialTiny()(input_ids, attention_mask, position_ids).logits
+        def forward_logits(self, input_ids, attention_mask, position_ids, logits_to_keep=0):
+            assert logits_to_keep == 32
+            return OfficialTiny()(input_ids, attention_mask, position_ids).logits[:, -logits_to_keep:]
 
     input_ids = torch.tensor([[1, 2, 3]])
     unconditional_ids = torch.tensor([2, 3])
-    image_token_count = 17
     expected_output = OfficialTiny().generate(
         data={"input_ids": input_ids, "uncond_ids": unconditional_ids},
         block_length=32,
@@ -574,8 +575,8 @@ class TinyVQGenerator(LLaDAImageClipModel):
             image_token_offset=4,
         )
 
-    def forward_logits(self, input_ids, attention_mask, position_ids):
-        logits = torch.full((*input_ids.shape, 12), -20.0, device=input_ids.device)
+    def forward_logits(self, input_ids, attention_mask, position_ids, logits_to_keep=0):
+        logits = torch.full((input_ids.shape[0], logits_to_keep, 12), -20.0, device=input_ids.device)
         logits[..., 4] = 20.0
         return logits
 
@@ -589,6 +590,32 @@ def test_block_diffusion_vq_generation_is_greedy_and_offset_normalized():
 
     assert token_ids.shape == (1, 4)
     assert torch.equal(token_ids, torch.zeros_like(token_ids))
+
+
+@pytest.mark.parametrize("dtype", (torch.float32, torch.bfloat16))
+def test_vq_logits_project_only_active_block(dtype):
+    torch.manual_seed(42)
+    hidden = torch.randn(2, 96, 16, dtype=dtype)
+    projected_shapes = []
+
+    class Backbone(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.lm_head = nn.Linear(16, 24, bias=False, dtype=dtype)
+
+        def forward(self, **kwargs):
+            return hidden
+
+    backbone = Backbone()
+    model = SimpleNamespace(model=backbone)
+    hook = backbone.lm_head.register_forward_pre_hook(lambda module, inputs: projected_shapes.append(inputs[0].shape))
+    with torch.inference_mode():
+        full = LLaDAImageClipModel.forward_logits(model, None, None, None)
+        block = LLaDAImageClipModel.forward_logits(model, None, None, None, logits_to_keep=32)
+    hook.remove()
+
+    assert projected_shapes == [(2, 96, 16), (2, 32, 16)]
+    torch.testing.assert_close(block, full[:, -32:], rtol=0, atol=0)
 
 
 def test_official_tokenizer_golden_ids_when_reference_is_available():
