@@ -103,6 +103,26 @@ def test_turbo_sampler_single_step_matches_core_seeded_noise_source():
     assert torch.equal(actual, expected)
 
 
+def test_standard_euler_matches_official_nonstochastic_turbo_update():
+    sigmas = torch.tensor([1.0, 0.5, 0.0])
+    latent = torch.ones((1, 1, 2, 2))
+
+    expected = latent.clone()
+    for sigma, sigma_next in zip(sigmas[:-1], sigmas[1:]):
+        denoised = expected * 0.25
+        model_output = (expected - denoised) / sigma
+        expected = expected + (sigma_next - sigma) * model_output
+
+    actual = comfy.k_diffusion.sampling.sample_euler(
+        lambda x, sigma, **kwargs: x * 0.25,
+        latent,
+        sigmas,
+        disable=True,
+    )
+
+    assert torch.equal(actual, expected)
+
+
 def test_semantic_conditioning_matches_cfg_and_edit_contract():
     positive = [[torch.randn(1, 3, 8), {}]]
     negative = [[torch.randn(1, 2, 8), {}]]

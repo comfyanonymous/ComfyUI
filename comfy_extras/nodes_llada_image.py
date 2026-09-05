@@ -92,6 +92,11 @@ class SamplerLLaDAImageTurbo(io.ComfyNode):
             node_id="SamplerLLaDAImageTurbo",
             display_name="Sampler LLaDA-Image Turbo",
             category="model/sampling/samplers",
+            description=(
+                "Use the stochastic flow sampler enabled by the official Turbo "
+                "checkpoint. Pair the LLaDA-Image schedule with the standard Euler "
+                "sampler for the official stochastic_sampling=false alternative."
+            ),
             inputs=[],
             outputs=[io.Sampler.Output()],
         )
