@@ -413,8 +413,31 @@ def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) 
     subdirs: list[str]
     filenames: list[str]
 
+    # `followlinks=True` is deliberate — model directories are routinely linked in
+    # through extra_model_paths.yaml — but os.walk does not detect a link that
+    # points back at an ancestor. Remember the real path of every directory that
+    # has been walked so a cycle is entered once instead of endlessly, which would
+    # otherwise list the same model repeatedly at ever-deeper paths.
+    visited_real_dirs = {os.path.realpath(directory)}
+
     for dirpath, subdirs, filenames in os.walk(directory, followlinks=True, topdown=True):
-        subdirs[:] = [d for d in subdirs if d not in excluded_dir_names]
+        kept_subdirs = []
+        for d in subdirs:
+            if d in excluded_dir_names:
+                continue
+            try:
+                # strict=True so an unresolvable path raises here instead of
+                # returning a fabricated one that would enter the visited set.
+                real_subdir = os.path.realpath(os.path.join(dirpath, d), strict=True)
+            except OSError:
+                logging.warning(f"Warning: Unable to resolve {d}. Skipping this path.")
+                continue
+            if real_subdir in visited_real_dirs:
+                logging.debug("skipping already-walked directory {}".format(real_subdir))
+                continue
+            visited_real_dirs.add(real_subdir)
+            kept_subdirs.append(d)
+        subdirs[:] = kept_subdirs
         for file_name in filenames:
             try:
                 relative_path = os.path.relpath(os.path.join(dirpath, file_name), directory)

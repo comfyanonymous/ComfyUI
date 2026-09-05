@@ -1,8 +1,10 @@
 ### 🗻 This file is created through the spirit of Mount Fuji at its peak
 # TODO(yoland): clean up this after I get back down
 import sys
+import logging
 import pytest
 import os
+import subprocess
 import tempfile
 from unittest.mock import patch
 from importlib import reload
@@ -95,6 +97,109 @@ def test_recursive_search(temp_dir):
     files, dirs = folder_paths.recursive_search(temp_dir)
     assert set(files) == {"file1.txt", os.path.join("subdir", "file2.txt")}
     assert len(dirs) == 2  # temp_dir and subdir
+
+
+def _link_dir(target, link):
+    """Create a directory link the way the platform allows.
+
+    Windows restricts symlink creation to elevated processes by default, so fall
+    back to a junction there. os.walk follows both, so either exercises the same
+    cycle hazard.
+    """
+    try:
+        os.symlink(target, link, target_is_directory=True)
+        return
+    except (OSError, NotImplementedError, AttributeError):
+        pass
+    if sys.platform != "win32":
+        pytest.skip("creating a directory link is not permitted in this environment")
+    completed = subprocess.run(
+        ["cmd", "/c", "mklink", "/J", link, target], capture_output=True, text=True
+    )
+    if completed.returncode != 0 or not os.path.isdir(link):
+        pytest.skip(f"creating a directory junction failed: {completed.stderr.strip()}")
+
+
+def test_recursive_search_enters_a_directory_cycle_once(temp_dir):
+    """A link back to an ancestor must not list the same file over and over.
+
+    `followlinks=True` is needed because model directories are routinely linked
+    in through extra_model_paths.yaml, but os.walk does not detect a link that
+    points at an ancestor. Before the visited-set guard, the single checkpoint
+    below came back once per level of recursion.
+    """
+    checkpoints = os.path.join(temp_dir, "checkpoints")
+    os.makedirs(checkpoints)
+    open(os.path.join(checkpoints, "model.safetensors"), "w").close()
+    _link_dir(temp_dir, os.path.join(checkpoints, "all"))
+
+    files, _dirs = folder_paths.recursive_search(temp_dir)
+
+    assert files == [os.path.join("checkpoints", "model.safetensors")], (
+        f"the one real file must be listed once, got {files}"
+    )
+
+
+def test_recursive_search_still_follows_a_link_to_a_separate_tree(temp_dir, tmp_path):
+    """The guard must not stop following links, only stop revisiting."""
+    external = tmp_path / "external"
+    external.mkdir()
+    (external / "linked.safetensors").write_text("")
+    _link_dir(str(external), os.path.join(temp_dir, "extra"))
+
+    files, _dirs = folder_paths.recursive_search(temp_dir)
+
+    assert files == [os.path.join("extra", "linked.safetensors")]
+
+
+def test_recursive_search_skips_a_directory_it_cannot_resolve(temp_dir, caplog):
+    """The warn-and-skip branch has to be reachable, not decorative.
+
+    `os.path.realpath` only raises with `strict=True`; with the default it
+    invents a path for anything it cannot resolve. Forcing the failure here
+    keeps that branch covered and proves one unresolvable directory does not
+    abort the rest of the walk.
+    """
+    os.makedirs(os.path.join(temp_dir, "good"))
+    os.makedirs(os.path.join(temp_dir, "bad"))
+    open(os.path.join(temp_dir, "good", "a.txt"), "w").close()
+    open(os.path.join(temp_dir, "bad", "b.txt"), "w").close()
+
+    real_realpath = os.path.realpath
+    strict_by_name = {}
+
+    def realpath(path, *args, **kwargs):
+        name = os.path.basename(path)
+        strict_by_name[name] = kwargs.get("strict")
+        if name == "bad":
+            raise OSError(2, "No such file or directory")
+        return real_realpath(path, *args, **kwargs)
+
+    with patch("folder_paths.os.path.realpath", side_effect=realpath):
+        with caplog.at_level(logging.WARNING):
+            files, _dirs = folder_paths.recursive_search(temp_dir)
+
+    assert files == [os.path.join("good", "a.txt")]
+    # strict=True is what makes the raise reachable at all; without it realpath
+    # invents a path for anything it cannot resolve and this branch is dead.
+    # Only the subdirectories are asserted: the root is resolved once before the
+    # walk and is already known to exist from the os.path.isdir guard.
+    assert strict_by_name["bad"] is True
+    assert strict_by_name["good"] is True
+    assert "Unable to resolve bad" in caplog.text
+
+
+def test_recursive_search_still_excludes_named_directories(temp_dir):
+    os.makedirs(os.path.join(temp_dir, "keep"))
+    os.makedirs(os.path.join(temp_dir, "skipme"))
+    open(os.path.join(temp_dir, "keep", "a.txt"), "w").close()
+    open(os.path.join(temp_dir, "skipme", "b.txt"), "w").close()
+
+    files, dirs = folder_paths.recursive_search(temp_dir, excluded_dir_names=["skipme"])
+
+    assert files == [os.path.join("keep", "a.txt")]
+    assert not any("skipme" in d for d in dirs)
+
 
 def test_filter_files_extensions():
     files = ["file1.txt", "file2.jpg", "file3.png", "file4.txt"]
