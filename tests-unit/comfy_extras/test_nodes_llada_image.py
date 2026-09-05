@@ -214,7 +214,8 @@ def test_vq_conditioning_rejects_invalid_dimensions():
         LLaDAImageVQConditioning.execute(None, "", "", 1000, 768)
 
 
-def test_edit_conditioning_preprocesses_both_native_paths(monkeypatch):
+@pytest.mark.parametrize("model_dtype", (torch.float32, torch.bfloat16))
+def test_edit_conditioning_preprocesses_both_native_paths(monkeypatch, model_dtype):
     positive = [[torch.randn(1, 2, 8), {}]]
     negative = [[torch.randn(1, 2, 8), {}]]
     calls = {}
@@ -228,7 +229,7 @@ def test_edit_conditioning_preprocesses_both_native_paths(monkeypatch):
             )
 
     class Model:
-        dtype = torch.float32
+        dtype = model_dtype
 
         @staticmethod
         def encode_sigvq(pixel_values=None, token_ids=None):
@@ -251,6 +252,11 @@ def test_edit_conditioning_preprocesses_both_native_paths(monkeypatch):
 
     assert calls["vae"].shape == (2, 64, 96, 3)
     assert calls["sigvq"].shape == (2, 3, 32, 48)
+    expected_pixels = torch.nn.functional.interpolate(
+        calls["vae"].movedim(-1, 1).float() * 2.0 - 1.0,
+        size=(32, 48), mode="bilinear", align_corners=False,
+    ).to(model_dtype)
+    assert torch.equal(calls["sigvq"], expected_pixels)
     assert calls["sigvq"].min() >= -1.0
     assert calls["sigvq"].max() <= 1.0
     assert latent["samples"].shape == (2, 128, 4, 6)

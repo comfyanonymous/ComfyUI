@@ -260,12 +260,12 @@ class LLaDAImageEditConditioning(io.ComfyNode):
         positive, negative = _encode_prompts(clip, prompt, negative_prompt)
         model, device = _load_llada_clip(clip)
         sigvq_pixels = torch.nn.functional.interpolate(
-            samples.float(),
+            samples.float() * 2.0 - 1.0,
             size=(height // 2, width // 2),
             mode="bilinear",
             align_corners=False,
         )
-        sigvq_pixels = (sigvq_pixels * 2.0 - 1.0).to(device=device, dtype=model.dtype)
+        sigvq_pixels = sigvq_pixels.to(device=device, dtype=model.dtype)
         semantic_features, _ = model.encode_sigvq(pixel_values=sigvq_pixels)
         intermediate_device = comfy.model_management.intermediate_device()
         semantic_features = semantic_features.to(intermediate_device)
