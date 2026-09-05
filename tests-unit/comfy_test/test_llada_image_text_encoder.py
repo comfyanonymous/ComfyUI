@@ -24,8 +24,24 @@ from comfy.text_encoders.llada_image import (
     LLaDA2Gate,
     LLaDAImageClipModel,
     LLaDAImageRawTokenizer,
+    LLaDAImageTEModel,
     _rms_norm,
 )
+
+
+@pytest.mark.parametrize("dtype", (torch.float32, torch.bfloat16))
+def test_vq_memory_estimation_includes_cfg_logits_and_block_padding(dtype):
+    config = LLaDA2Config()
+    model = SimpleNamespace(llada2=SimpleNamespace(config=config, dtype=dtype))
+    estimate = LLaDAImageTEModel.vq_memory_estimation
+    memory = estimate(model, 1050)
+    two_full_logits = 2 * 2 * 1056 * config.vocab_size * dtype.itemsize
+
+    assert isinstance(memory, int)
+    assert memory > two_full_logits
+    assert memory == estimate(model, 1056)
+    assert memory > estimate(model, 1024)
+    assert estimate(model, 2048) > memory
 
 
 @pytest.mark.parametrize("dtype", (torch.float32, torch.bfloat16))

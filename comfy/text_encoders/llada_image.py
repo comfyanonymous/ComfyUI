@@ -23,6 +23,7 @@ from torch import nn
 import torch.nn.functional as F
 from tokenizers import Tokenizer
 
+import comfy.model_management
 import comfy.ops
 from comfy import sd1_clip
 from comfy.ldm.llada_image.conditioning import QueryFormer, SigVQ, TextProjection
@@ -998,6 +999,22 @@ class LLaDAImageTEModel(sd1_clip.SD1ClipModel):
         state_dict = dict(state_dict)
         state_dict.pop("tokenizer_json", None)
         return super().load_state_dict(state_dict, strict=strict, assign=assign)
+
+    def vq_memory_estimation(self, sequence_length):
+        config = self.llada2.config
+        sequence_length = (sequence_length + 31) // 32 * 32
+        tokens = 2 * sequence_length
+        dtype_size = comfy.model_management.dtype_size(self.llada2.dtype)
+        # CFG forwards overlap the previous full-sequence logits with the next.
+        logits = 2 * tokens * config.vocab_size * dtype_size
+        routes = tokens * config.num_experts_per_tok * (
+            (config.moe_intermediate_size + config.hidden_size) * dtype_size
+            + config.num_experts * 8 + 32
+        )
+        hidden = tokens * (12 * config.hidden_size + 3 * config.intermediate_size) * dtype_size
+        attention = 2 * tokens * config.num_attention_heads * sequence_length * 4
+        sampling = 2 * 32 * config.vocab_size * (3 * dtype_size + 2 * 4)
+        return logits + routes + hidden + attention + sampling
 
     def generate_vq_tokens(
         self, input_ids, unconditional_ids, image_token_count, cfg_scale=2.0

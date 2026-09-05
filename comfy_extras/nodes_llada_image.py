@@ -138,10 +138,14 @@ def _set_semantic_conditioning(
     return positive, negative
 
 
-def _load_llada_clip(clip):
+def _load_llada_clip(clip, vq_sequence_length=0):
     if not isinstance(clip.cond_stage_model, LLaDAImageTEModel):
         raise ValueError("The connected CLIP is not an LLaDA-Image AIO text encoder")
-    clip.load_model()
+    if vq_sequence_length:
+        memory_required = clip.cond_stage_model.vq_memory_estimation(vq_sequence_length)
+        comfy.model_management.load_models_gpu([clip.patcher], memory_required=memory_required)
+    else:
+        clip.load_model()
     device = clip.patcher.load_device
     clip.cond_stage_model.set_clip_options({"execution_device": device})
     return clip.cond_stage_model.llada2, device
@@ -183,17 +187,17 @@ class LLaDAImageVQConditioning(io.ComfyNode):
         if width % 16 or height % 16:
             raise ValueError("LLaDA-Image VQ width and height must be divisible by 16")
         positive, negative = _encode_prompts(clip, prompt, negative_prompt)
-        model, device = _load_llada_clip(clip)
         input_ids, unconditional_ids, vq_height, vq_width = clip.tokenizer.tokenize_vq(
             prompt, height, width
         )
+        image_token_count = vq_height * vq_width
+        model, device = _load_llada_clip(clip, len(input_ids) + image_token_count)
         input_ids = torch.tensor(input_ids, dtype=torch.long, device=device).unsqueeze(
             0
         )
         unconditional_ids = torch.tensor(
             unconditional_ids, dtype=torch.long, device=device
         )
-        image_token_count = vq_height * vq_width
         token_ids = model.generate_vq_tokens(
             input_ids, unconditional_ids, image_token_count, cfg_scale=2.0
         )

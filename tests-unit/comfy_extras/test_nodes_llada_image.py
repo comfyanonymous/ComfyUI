@@ -1,5 +1,6 @@
 import torch
 import pytest
+from types import SimpleNamespace
 
 from comfy.cli_args import args
 
@@ -196,9 +197,11 @@ def test_vq_conditioning_generates_expected_token_count(monkeypatch):
         "_encode_prompts",
         lambda clip, prompt, negative_prompt: (positive, negative),
     )
-    monkeypatch.setattr(
-        llada_nodes, "_load_llada_clip", lambda clip: (Model(), torch.device("cpu"))
-    )
+    def load_clip(clip, vq_sequence_length):
+        assert vq_sequence_length == 2 + 24 * 32
+        return Model(), torch.device("cpu")
+
+    monkeypatch.setattr(llada_nodes, "_load_llada_clip", load_clip)
 
     output_positive, output_negative = LLaDAImageVQConditioning.execute(
         Clip(), "fox", "", 1024, 768
@@ -207,6 +210,33 @@ def test_vq_conditioning_generates_expected_token_count(monkeypatch):
     assert output_positive[0][1]["semantic_features"].shape == (1, 768, 10)
     assert output_positive[0][1]["semantic_mask"].all()
     assert output_negative[0][1]["semantic_features"].shape == (1, 0, 10)
+
+
+def test_load_llada_clip_reserves_vq_memory_through_model_management(monkeypatch):
+    class Encoder:
+        llada2 = object()
+
+        def vq_memory_estimation(self, sequence_length):
+            assert sequence_length == 1050
+            return 2345678901
+
+        def set_clip_options(self, options):
+            assert options == {"execution_device": torch.device("cpu")}
+
+    patcher = SimpleNamespace(load_device=torch.device("cpu"))
+    clip = SimpleNamespace(cond_stage_model=Encoder(), patcher=patcher)
+    monkeypatch.setattr(llada_nodes, "LLaDAImageTEModel", Encoder)
+    calls = []
+    monkeypatch.setattr(
+        llada_nodes.comfy.model_management, "load_models_gpu",
+        lambda models, **kwargs: calls.append((models, kwargs)),
+    )
+
+    model, device = llada_nodes._load_llada_clip(clip, 1050)
+
+    assert model is clip.cond_stage_model.llada2
+    assert device == patcher.load_device
+    assert calls == [([patcher], {"memory_required": 2345678901})]
 
 
 def test_vq_conditioning_rejects_invalid_dimensions():
