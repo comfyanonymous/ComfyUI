@@ -51,10 +51,15 @@ class OpenAIImageGenerationRequest(BaseModel):
     size: str | None = Field(None, description="Size of the image (e.g., 1024x1024, 1536x1024, auto)")
 
 
+class Reasoning(BaseModel):
+    effort: str | None = Field(None)
+
+
 class ModelResponseProperties(BaseModel):
     instructions: str | None = Field(None)
     max_output_tokens: int | None = Field(None)
     model: str | None = Field(None)
+    reasoning: Reasoning | None = Field(None)
     temperature: float | None = Field(None, description="Controls randomness in the response", ge=0.0, le=2.0)
     top_p: float | None = Field(
         None,
