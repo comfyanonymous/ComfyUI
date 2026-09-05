@@ -1,5 +1,9 @@
 import hashlib
+import importlib.util
 import os
+import sys
+import types
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -15,9 +19,61 @@ import comfy.supported_models
 from comfy.text_encoders.llada_image import (
     LLaDA2Backbone,
     LLaDA2Config,
+    LLaDA2Experts,
+    LLaDA2Gate,
     LLaDAImageClipModel,
     LLaDAImageRawTokenizer,
 )
+
+
+def load_official_text_encoder_module():
+    source = os.environ.get("LLADA_IMAGE_TEXT_ENCODER_CODE")
+    if not source:
+        pytest.skip(
+            "set LLADA_IMAGE_TEXT_ENCODER_CODE to the pinned official text encoder directory"
+        )
+    root = Path(source)
+    if root.is_file():
+        root = root.parent
+    required = (
+        "configuration_llada2uni_moe.py",
+        "fused_moe_ops.py",
+        "modeling_llada2uni_moe.py",
+    )
+    if any(not (root / name).is_file() for name in required):
+        pytest.skip("the pinned official text encoder code fixture is incomplete")
+    expected_sha256 = {
+        "configuration_llada2uni_moe.py": "e9c88818e03e390cdfa3b683a5235f6d4a7132b56aa6af7d6db9c1bbd4dfd6fe",
+        "fused_moe_ops.py": "e20ed7ec34ae2d57cfcb40ea34b83a669aac3ff12615c86eac517cc3597e8a08",
+        "modeling_llada2uni_moe.py": "c74fdf1183d411a5f7a33621725d45fd8fc98161e586c5a159b83708c081382f",
+    }
+    for name, expected in expected_sha256.items():
+        actual = hashlib.sha256((root / name).read_bytes()).hexdigest()
+        if actual != expected:
+            raise ValueError(
+                f"official text encoder fixture hash mismatch for {name}: "
+                f"expected {expected}, got {actual}"
+            )
+
+    package_name = "_llada_image_official_text_encoder"
+    package = types.ModuleType(package_name)
+    package.__path__ = [str(root)]
+    sys.modules[package_name] = package
+    for stem in ("configuration_llada2uni_moe", "fused_moe_ops"):
+        spec = importlib.util.spec_from_file_location(
+            f"{package_name}.{stem}", root / f"{stem}.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+    stem = "modeling_llada2uni_moe"
+    spec = importlib.util.spec_from_file_location(
+        f"{package_name}.{stem}", root / f"{stem}.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def small_backbone():
@@ -65,6 +121,237 @@ def small_backbone():
     assert not incompatible.missing_keys
     assert not incompatible.unexpected_keys
     return model
+
+
+def test_bfloat16_moe_matches_pinned_official_eager_path(monkeypatch):
+    official = load_official_text_encoder_module()
+    monkeypatch.setenv("LLADA_MOE_BACKEND", "eager")
+    device = torch.device(os.environ.get("LLADA_IMAGE_PARITY_DEVICE", "cpu"))
+    if device.type == "cuda" and not torch.cuda.is_available():
+        pytest.skip("LLADA_IMAGE_PARITY_DEVICE=cuda requires a CUDA PyTorch build")
+    values = {
+        "vocab_size": 64,
+        "hidden_size": 16,
+        "intermediate_size": 24,
+        "moe_intermediate_size": 8,
+        "num_hidden_layers": 2,
+        "num_attention_heads": 4,
+        "num_key_value_heads": 2,
+        "head_dim": 4,
+        "num_experts": 8,
+        "num_experts_per_tok": 2,
+        "num_shared_experts": 1,
+        "first_k_dense_replace": 1,
+        "n_group": 2,
+        "topk_group": 1,
+        "routed_scaling_factor": 2.5,
+        "rms_norm_eps": 1e-6,
+        "rope_theta": 600000.0,
+        "partial_rotary_factor": 0.5,
+        "max_position_embeddings": 64,
+        "pad_token_id": 0,
+    }
+    official_config = official.LLaDA2MoeConfig(
+        **values,
+        attention_dropout=0.0,
+        use_cache=False,
+        use_bias=False,
+        use_qkv_bias=False,
+        use_qk_norm=True,
+        output_router_logits=False,
+    )
+    native_config = LLaDA2Config(**values)
+    operations = comfy.ops.mixed_precision_ops(
+        {}, torch.bfloat16, full_precision_mm=True
+    )
+    official_gate = official.LLaDA2MoeGate(official_config).to(
+        device=device, dtype=torch.bfloat16
+    )
+    official_experts = official.LLaDA2MoeExperts(official_config).to(
+        device=device, dtype=torch.bfloat16
+    )
+    native_gate = LLaDA2Gate(native_config, torch.bfloat16, device)
+    native_experts = LLaDA2Experts(
+        native_config,
+        torch.bfloat16,
+        device,
+        operations,
+    )
+
+    torch.manual_seed(37)
+    with torch.no_grad():
+        official_gate.weight.normal_(std=0.2)
+        official_gate.expert_bias.normal_(std=0.05)
+        official_experts.gate_proj.normal_(std=0.2)
+        official_experts.up_proj.normal_(std=0.2)
+        official_experts.down_proj.normal_(std=0.2)
+    native_gate.load_state_dict(official_gate.state_dict(), strict=True)
+    native_experts.load_state_dict(
+        {
+            "gate_proj.weight": official_experts.gate_proj,
+            "up_proj.weight": official_experts.up_proj,
+            "down_proj.weight": official_experts.down_proj,
+        },
+        strict=True,
+    )
+    hidden_states = torch.randn(3, 16, dtype=torch.bfloat16, device=device)
+
+    with torch.inference_mode():
+        expected_indices, expected_weights, _ = official_gate(hidden_states)
+        actual_indices, actual_weights = native_gate(hidden_states)
+        expected = official_experts(
+            hidden_states, expected_weights, expected_indices
+        )
+        actual = native_experts(hidden_states, actual_weights, actual_indices)
+
+    assert torch.equal(actual_indices, expected_indices)
+    torch.testing.assert_close(actual_weights, expected_weights, rtol=0, atol=0)
+    torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+
+
+def test_text_backbone_matches_pinned_official_eager_path(monkeypatch):
+    official = load_official_text_encoder_module()
+    monkeypatch.setenv("LLADA_MOE_BACKEND", "eager")
+    values = {
+        "vocab_size": 64,
+        "hidden_size": 16,
+        "intermediate_size": 24,
+        "moe_intermediate_size": 8,
+        "num_hidden_layers": 2,
+        "num_attention_heads": 4,
+        "num_key_value_heads": 2,
+        "head_dim": 4,
+        "num_experts": 8,
+        "num_experts_per_tok": 2,
+        "num_shared_experts": 1,
+        "first_k_dense_replace": 1,
+        "n_group": 2,
+        "topk_group": 1,
+        "routed_scaling_factor": 2.5,
+        "rms_norm_eps": 1e-6,
+        "rope_theta": 600000.0,
+        "partial_rotary_factor": 0.5,
+        "max_position_embeddings": 64,
+        "pad_token_id": 0,
+    }
+    official_config = official.LLaDA2MoeConfig(
+        **values,
+        attention_dropout=0.0,
+        use_cache=False,
+        use_bias=False,
+        use_qkv_bias=False,
+        use_qk_norm=True,
+        output_router_logits=False,
+    )
+    native_config = LLaDA2Config(**values)
+    operations = comfy.ops.mixed_precision_ops(
+        {}, torch.float32, full_precision_mm=True
+    )
+    torch.manual_seed(38)
+    expected_model = official.LLaDA2MoeBackbone(official_config).eval()
+    actual_model = LLaDA2Backbone(
+        native_config,
+        torch.float32,
+        torch.device("cpu"),
+        operations,
+    ).eval()
+    state_dict = {}
+    expert_suffixes = (
+        ".mlp.experts.gate_proj",
+        ".mlp.experts.up_proj",
+        ".mlp.experts.down_proj",
+    )
+    for key, value in expected_model.state_dict().items():
+        state_dict[f"{key}.weight" if key.endswith(expert_suffixes) else key] = value
+    incompatible = actual_model.load_state_dict(state_dict, strict=True)
+    assert not incompatible.missing_keys
+    assert not incompatible.unexpected_keys
+
+    input_ids = torch.tensor(
+        [[1, 2, 3, 4, 5, 0, 0], [8, 7, 6, 5, 4, 3, 2]], dtype=torch.long
+    )
+    key_valid = input_ids != 0
+    causal = torch.ones(7, 7, dtype=torch.bool).tril()
+    attention_mask = key_valid[:, None, None, :] & causal[None, None]
+    position_ids = key_valid.long().cumsum(dim=1) - 1
+    position_ids.clamp_min_(0)
+
+    with torch.inference_mode():
+        expected = expected_model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            return_dict=True,
+        ).last_hidden_state
+        actual = actual_model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+        )
+
+    torch.testing.assert_close(actual, expected, rtol=2e-5, atol=2e-5)
+
+
+def test_vq_block_diffusion_matches_pinned_official_logic():
+    official = load_official_text_encoder_module()
+
+    class OfficialTiny:
+        device = torch.device("cpu")
+        _top_k_logits = staticmethod(official.LLaDA2MoeModelLM._top_k_logits)
+        _top_p_logits = staticmethod(official.LLaDA2MoeModelLM._top_p_logits)
+        _sample_with_temperature_topk_topp = (
+            official.LLaDA2MoeModelLM._sample_with_temperature_topk_topp
+        )
+        _get_num_transfer_tokens = staticmethod(
+            official.LLaDA2MoeModelLM._get_num_transfer_tokens
+        )
+        generate = official.LLaDA2MoeModelLM.generate_bd_image_logic
+
+        def __call__(self, input_ids, attention_mask, position_ids):
+            del attention_mask, position_ids
+            logits = torch.full((*input_ids.shape, 12), -20.0)
+            positions = torch.arange(input_ids.shape[1])
+            selected = 4 + positions.remainder(4)
+            logits.scatter_(
+                -1,
+                selected[None, :, None].expand(input_ids.shape[0], -1, -1),
+                20.0,
+            )
+            return SimpleNamespace(logits=logits)
+
+    class NativeTiny(LLaDAImageClipModel):
+        def __init__(self):
+            nn.Module.__init__(self)
+            self.config = SimpleNamespace(
+                mask_token_id=3,
+                end_of_image_token_id=11,
+                image_token_offset=4,
+            )
+
+        def forward_logits(self, input_ids, attention_mask, position_ids):
+            return OfficialTiny()(input_ids, attention_mask, position_ids).logits
+
+    input_ids = torch.tensor([[1, 2, 3]])
+    unconditional_ids = torch.tensor([2, 3])
+    image_token_count = 17
+    expected_output = OfficialTiny().generate(
+        data={"input_ids": input_ids, "uncond_ids": unconditional_ids},
+        block_length=32,
+        steps=8,
+        gen_length=image_token_count,
+        threshold=0.95,
+        mask_id=3,
+        cfg_scale=2.0,
+        mode="eoi",
+    )
+    expected = expected_output[
+        :, input_ids.shape[1] : input_ids.shape[1] + image_token_count
+    ] - 4
+    actual = NativeTiny().generate_vq_tokens(
+        input_ids, unconditional_ids, image_token_count, cfg_scale=2.0
+    )
+
+    assert torch.equal(actual, expected)
 
 
 def test_backbone_bool_mask_blocks_padded_tokens_from_valid_outputs():

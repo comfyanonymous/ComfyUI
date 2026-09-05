@@ -245,14 +245,18 @@ class LLaDA2Experts(nn.Module):
                 current = hidden_states[token_index]
                 gated = F.silu(gate_bank.expert_linear(current, expert_index))
                 gated = gated * up_bank.expert_linear(current, expert_index)
+                gated = gated * routing_weights[
+                    token_index, topk_position, None
+                ].to(gated)
                 expert_output = down_bank.expert_linear(gated, expert_index)
-                expert_output = (
-                    expert_output * routing_weights[token_index, topk_position, None]
-                )
                 output[token_index * top_k + topk_position] = expert_output.to(
                     output.dtype
                 )
-        return output.view(token_count, top_k, self.hidden_size).sum(dim=1)
+        return (
+            output.view(token_count, top_k, self.hidden_size)
+            .sum(dim=1, dtype=torch.float32)
+            .to(output.dtype)
+        )
 
 
 class LLaDA2SparseMoeBlock(nn.Module):
