@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 import torch
 import sys
 import os
@@ -326,6 +327,33 @@ class TestMixedPrecisionOps(unittest.TestCase):
             self.assertEqual(output.shape, (4, 16))
         finally:
             mm.supports_int8_compute = orig_supports_int8
+
+    def test_base_model_forwards_load_device_to_pick_operations(self):
+        """BaseModel must forward its load device to pick_operations, since
+        the int8/fp8/etc device-capability checks key off that argument and
+        default to assuming full support when it's None (e.g. on MPS)."""
+        import comfy.model_base as model_base
+
+        captured = {}
+
+        def fake_pick_operations(*args, **kwargs):
+            captured["load_device"] = kwargs.get("load_device")
+            raise RuntimeError("stop after capturing pick_operations call")
+
+        model_config = SimpleNamespace(
+            unet_config={"dtype": None},
+            optimizations={},
+            custom_operations=None,
+            manual_cast_dtype=None,
+            latent_format=None,
+        )
+        device = torch.device("mps")
+
+        with patch("comfy.ops.pick_operations", side_effect=fake_pick_operations):
+            with self.assertRaises(RuntimeError):
+                model_base.BaseModel(model_config, device=device)
+
+        self.assertEqual(captured.get("load_device"), device)
 
     def test_convrot_w4a4_loads_into_params(self):
         """ConvRot W4A4 checkpoints must load as the dedicated kitchen layout."""
