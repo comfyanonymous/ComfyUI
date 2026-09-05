@@ -373,7 +373,9 @@ def test_text_backbone_matches_pinned_official_eager_path(monkeypatch, dtype):
 
 
 @pytest.mark.parametrize("image_token_count", (17, 65))
-def test_vq_block_diffusion_matches_pinned_official_logic(image_token_count):
+@pytest.mark.parametrize("dtype", (torch.float32, torch.bfloat16))
+@pytest.mark.parametrize("near_threshold", (False, True))
+def test_vq_block_diffusion_matches_pinned_official_logic(image_token_count, dtype, near_threshold):
     official = load_official_text_encoder_module()
 
     class OfficialTiny:
@@ -390,7 +392,13 @@ def test_vq_block_diffusion_matches_pinned_official_logic(image_token_count):
 
         def __call__(self, input_ids, attention_mask, position_ids):
             del attention_mask, position_ids
-            logits = torch.full((*input_ids.shape, 12), -20.0)
+            if near_threshold:
+                logits = torch.full((*input_ids.shape, 12), -100.0, dtype=dtype)
+                chosen = 5 if torch.any(input_ids == 4) else 4
+                logits[..., 4:6] = 0.0
+                logits[..., chosen] = 2.953125
+                return SimpleNamespace(logits=logits)
+            logits = torch.full((*input_ids.shape, 12), -20.0, dtype=dtype)
             positions = torch.arange(input_ids.shape[1])
             selected = 4 + positions.remainder(4)
             logits.scatter_(

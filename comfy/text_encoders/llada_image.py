@@ -920,7 +920,7 @@ class LLaDAImageClipModel(nn.Module):
                     conditional_logits[:, -block_length:]
                     - unconditional_logits[:, -block_length:]
                 )
-                probabilities = F.softmax(active_logits.float(), dim=-1)
+                probabilities = F.softmax(active_logits, dim=-1)
                 sampled = active_logits.argmax(dim=-1)
                 confidence = probabilities.gather(-1, sampled.unsqueeze(-1)).squeeze(-1)
                 count = int(schedule[step_index].item())
