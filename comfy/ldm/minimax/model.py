@@ -188,7 +188,7 @@ class Attention(nn.Module):
         else:
             q = self.q_norm(q.view(s, self.heads, self.head_dim))
             k = self.k_norm(k.view(s, self.heads, self.head_dim))
-        v = v.clone()
+
         q = AttentionTensorContainer(q.transpose(0, 1).unsqueeze(0))
         k = AttentionTensorContainer(k.transpose(0, 1).unsqueeze(0))
         v = AttentionTensorContainer(v.transpose(0, 1).unsqueeze(0))
@@ -563,12 +563,23 @@ class MiniMaxH3Model(nn.Module):
             carry = (sigma_a / sigma_v).to(audio_src.dtype)
             x = [x[0], audio_src * carry]
 
-        out = comfy.patcher_extension.WrapperExecutor.new_class_executor(
+        compile_allocations = comfy.model_prefetch.malloc_graph_enabled(x[0].device)
+        if compile_allocations:
+            out = [torch.empty_like(x[0]), torch.empty_like(x[1])]
+            comfy.model_prefetch.malloc_graph_begin(self, x[0].device)
+        graph_out = comfy.patcher_extension.WrapperExecutor.new_class_executor(
             self._forward,
             self,
             comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
         ).execute(x, timestep, context, transformer_options, minimax_payload=minimax_payload,
                   denoise_mask=denoise_mask, audio_denoise_mask=audio_denoise_mask, **kwargs)
+        if compile_allocations:
+            out[0].copy_(graph_out[0])
+            out[1].copy_(graph_out[1])
+            del graph_out
+            comfy.model_prefetch.malloc_graph_end()
+        else:
+            out = graph_out
 
         if scale != 1.0:
             # d/d(sigma_v) of the carried variable
@@ -724,19 +735,18 @@ class MiniMaxH3Model(nn.Module):
         blocks_replace = patches_replace.get("dit", {})
         prefetch_queue = comfy.model_prefetch.make_prefetch_queue(list(self.blocks), device, transformer_options)
         for i, block in enumerate(self.blocks):
-            comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, device, block)
+            comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, device, block, malloc_scope="block")
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     return {"img": block(args["img"], args["t_emb"], args["mod_segments"], args["rope_freqs"],
                                          transformer_options=args["transformer_options"])}
                 h = blocks_replace[("double_block", i)](
                     {"img": h, "t_emb": t_emb, "mod_segments": mod_segments, "rope_freqs": rope_freqs,
-                     "transformer_options": transformer_options},
+                     "layout": layout, "transformer_options": transformer_options},
                     {"original_block": block_wrap})["img"]
             else:
                 h = block(h, t_emb, mod_segments, rope_freqs, transformer_options=transformer_options)
-        if prefetch_queue is not None:
-            comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, device, None)
+        comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, device, None, malloc_scope="block")
 
         # target streams are single contiguous segments (audio then video, last two)
         va, vb, _ = next(s for s in layout.segments if s[2] == "video")
