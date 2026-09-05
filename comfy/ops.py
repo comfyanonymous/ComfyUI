@@ -1342,6 +1342,12 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                         compute_dtype=compute_dtype,
                         want_requant=want_requant,
                     ) as (weight, bias):
+                        if self._full_precision_mm and isinstance(weight, QuantizedTensor):
+                            # cast_bias_weight only dequantizes on a dtype change, which is a
+                            # no-op here when the quantized weight's orig_dtype already equals
+                            # the compute dtype. Force it so the disabled/unsupported-format
+                            # fallback doesn't hand a QuantizedTensor to a plain linear() call.
+                            weight = weight.dequantize()
                         return self._forward(input, weight, bias)
 
                 with CastBiasWeightContext(

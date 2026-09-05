@@ -323,9 +323,22 @@ class TestMixedPrecisionOps(unittest.TestCase):
             # path since the fast int8 path isn't usable on this device.
             self.assertTrue(model.layer._full_precision_mm)
 
+            # The weight's orig_dtype matches the compute dtype here (both bfloat16),
+            # so cast_bias_weight's dtype-change check alone won't dequantize it. Confirm
+            # the module still hands a real Tensor (not a QuantizedTensor) to the plain
+            # linear() call, since dispatching a QuantizedTensor there would route back
+            # into the disabled fast int8 matmul instead of the full-precision fallback.
+            seen_weight_types = []
+            orig_module_forward = model.layer._forward
+            def _capturing_forward(input, weight, bias, _orig=orig_module_forward):
+                seen_weight_types.append(type(weight))
+                return _orig(input, weight, bias)
+            model.layer._forward = _capturing_forward
+
             input_tensor = torch.randn(4, 256, dtype=torch.bfloat16)
             output = model.layer(input_tensor)
             self.assertEqual(output.shape, (4, 16))
+            self.assertEqual(seen_weight_types, [torch.Tensor])
         finally:
             mm.supports_int8_compute = orig_supports_int8
 
