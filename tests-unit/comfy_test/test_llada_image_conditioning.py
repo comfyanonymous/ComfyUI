@@ -273,3 +273,39 @@ def test_sigvq_bfloat16_image_and_token_paths_match_reference():
         actual_semantic, expected_tokens.semantic_features, rtol=0, atol=0
     )
     assert torch.equal(actual_tokens, token_ids)
+
+
+@pytest.mark.parametrize("component", (QueryFormer, TextProjection, SigVQ))
+def test_conditioning_components_reject_nondivisible_attention_heads(component):
+    with pytest.raises(ValueError, match="must be divisible"):
+        component(
+            hidden_size=10,
+            num_attention_heads=3,
+            dtype=torch.float32,
+            device=torch.device("cpu"),
+            operations=comfy.ops.disable_weight_init,
+        )
+
+
+def test_sigvq_matches_official_input_validation():
+    model = SigVQ(
+        image_size=16,
+        patch_size=4,
+        hidden_size=16,
+        intermediate_size=28,
+        num_hidden_layers=0,
+        num_attention_heads=2,
+        codebook_size=8,
+        codebook_embed_dim=4,
+        semantic_embed_dim=10,
+        dtype=torch.float32,
+        device=torch.device("cpu"),
+        operations=comfy.ops.disable_weight_init,
+    )
+
+    with pytest.raises(ValueError, match="4 dimensions"):
+        model(pixel_values=torch.zeros(3, 8, 8))
+    with pytest.raises(ValueError, match="divisible by 4"):
+        model(pixel_values=torch.zeros(1, 3, 8, 10))
+    with pytest.raises(ValueError, match="2 dimensions"):
+        model(token_ids=torch.zeros(4, dtype=torch.long))

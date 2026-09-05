@@ -351,6 +351,16 @@ class LLaDAImage(nn.Module):
         **kwargs,
     ):
         super().__init__()
+        if len(all_patch_size) != len(all_f_patch_size):
+            raise ValueError(
+                "all_patch_size and all_f_patch_size must have the same length"
+            )
+        if dim % n_heads != 0:
+            raise ValueError(f"dim ({dim}) must be divisible by n_heads ({n_heads})")
+        if dim // n_heads != sum(axes_dims):
+            raise ValueError(
+                "the attention head dimension must equal the sum of axes_dims"
+            )
         self.dtype = dtype
         self.out_channels = in_channels
         self.all_patch_size = all_patch_size
@@ -830,6 +840,16 @@ class LLaDAImage(nn.Module):
         transformer_options={},
         **kwargs,
     ):
+        if source_latents is None and context is None and semantic_features is None:
+            raise ValueError(
+                "text-to-image inference requires context or semantic_features"
+            )
+        if source_latents is not None and (
+            context is None or semantic_features is None
+        ):
+            raise ValueError(
+                "editing requires context, semantic_features, and source_latents"
+            )
         patch_size = self.all_patch_size[0]
         f_patch_size = self.all_f_patch_size[0]
         patch_key = f"{patch_size}-{f_patch_size}"

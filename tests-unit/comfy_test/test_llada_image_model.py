@@ -195,3 +195,47 @@ def test_bfloat16_matches_reference(editing):
     # constrain aggregate drift; this was measured on both CPU and RTX 5090 CUDA.
     assert float(absolute_error.max()) <= 1.0 / 64.0
     assert float(absolute_error.mean()) <= 1.0 / 256.0
+
+
+def test_transformer_matches_official_config_validation():
+    with pytest.raises(ValueError, match="same length"):
+        LLaDAImage(
+            all_patch_size=(1, 2),
+            all_f_patch_size=(1,),
+            dtype=torch.float32,
+            device=torch.device("cpu"),
+            operations=comfy.ops.disable_weight_init,
+        )
+    with pytest.raises(ValueError, match="must be divisible"):
+        LLaDAImage(
+            dim=31,
+            n_heads=2,
+            dtype=torch.float32,
+            device=torch.device("cpu"),
+            operations=comfy.ops.disable_weight_init,
+        )
+    with pytest.raises(ValueError, match="sum of axes_dims"):
+        LLaDAImage(
+            dim=32,
+            n_heads=2,
+            axes_dims=(4, 4, 4),
+            dtype=torch.float32,
+            device=torch.device("cpu"),
+            operations=comfy.ops.disable_weight_init,
+        )
+
+
+def test_transformer_matches_official_conditioning_validation():
+    _, model = make_models()
+    latent = torch.randn(1, 4, 2, 2)
+    timestep = torch.tensor([0.5])
+
+    with pytest.raises(ValueError, match="requires context or semantic_features"):
+        model(latent, timestep)
+    with pytest.raises(ValueError, match="editing requires"):
+        model(
+            latent,
+            timestep,
+            context=torch.randn(1, 2, 8),
+            source_latents=latent,
+        )

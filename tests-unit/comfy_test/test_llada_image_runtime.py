@@ -72,6 +72,7 @@ def test_raw_conditioning_parameters_follow_input_dtype():
         num_queries=2,
         hidden_size=4,
         num_hidden_layers=0,
+        num_attention_heads=2,
         dtype=torch.float32,
         device=torch.device("cpu"),
         operations=comfy.ops.disable_weight_init,

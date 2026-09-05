@@ -147,6 +147,11 @@ class QueryFormer(nn.Module):
         operations=None,
     ):
         super().__init__()
+        if hidden_size % num_attention_heads != 0:
+            raise ValueError(
+                f"hidden_size ({hidden_size}) must be divisible by "
+                f"num_attention_heads ({num_attention_heads})"
+            )
         self.meta_queries = nn.Parameter(
             torch.empty(num_queries, hidden_size, dtype=dtype, device=device)
         )
@@ -289,6 +294,11 @@ class TextProjection(nn.Module):
         operations=None,
     ):
         super().__init__()
+        if hidden_size % num_attention_heads != 0:
+            raise ValueError(
+                f"hidden_size ({hidden_size}) must be divisible by "
+                f"num_attention_heads ({num_attention_heads})"
+            )
         self.layers = nn.ModuleList(
             [
                 TextProjectionBlock(
@@ -571,6 +581,11 @@ class SigVQ(nn.Module):
         operations=None,
     ):
         super().__init__()
+        if hidden_size % num_attention_heads != 0:
+            raise ValueError(
+                f"hidden_size ({hidden_size}) must be divisible by "
+                f"num_attention_heads ({num_attention_heads})"
+            )
         self.patch_size = patch_size
         self.hidden_size = hidden_size
         self.visual = nn.Module()
@@ -613,7 +628,17 @@ class SigVQ(nn.Module):
         if (pixel_values is None) == (token_ids is None):
             raise ValueError("provide exactly one of pixel_values or token_ids")
         if pixel_values is not None:
+            if pixel_values.ndim != 4:
+                raise ValueError(
+                    "pixel_values must have 4 dimensions, got shape "
+                    f"{tuple(pixel_values.shape)}"
+                )
             height, width = pixel_values.shape[-2:]
+            if height % self.patch_size != 0 or width % self.patch_size != 0:
+                raise ValueError(
+                    "image height and width must be divisible by "
+                    f"{self.patch_size}, got {height}x{width}"
+                )
             grid_height = height // self.patch_size
             grid_width = width // self.patch_size
             hidden_states = self.visual.patch_embed(pixel_values)
@@ -628,6 +653,11 @@ class SigVQ(nn.Module):
             hidden_states = self.vqmodel.quant_conv(hidden_states)
             token_ids = self.vqmodel.quantize(hidden_states).reshape(
                 pixel_values.shape[0], -1
+            )
+        elif token_ids.ndim != 2:
+            raise ValueError(
+                "token_ids must have 2 dimensions, got shape "
+                f"{tuple(token_ids.shape)}"
             )
         semantic_features = self.prior_projector(self.prior_token_embedding(token_ids))
         return semantic_features, token_ids
