@@ -833,9 +833,8 @@ class LLaDAImageClipModel(nn.Module):
 
     @staticmethod
     def _num_transfer_tokens(block_length, steps):
-        schedule = torch.full((steps,), block_length // steps, dtype=torch.int64)
-        schedule[: block_length % steps] += 1
-        return schedule
+        count, remainder = divmod(block_length, steps)
+        return [count + (index < remainder) for index in range(steps)]
 
     def generate_vq_tokens(
         self, input_ids, unconditional_ids, image_token_count, cfg_scale=2.0
@@ -865,7 +864,7 @@ class LLaDAImageClipModel(nn.Module):
         prefill_blocks = prompt_length // block_length
         schedule = self._num_transfer_tokens(block_length, steps)
 
-        unconditional_ids = unconditional_ids.flatten().tolist()
+        unconditional_ids = unconditional_ids.flatten()
         padding = prompt_length - len(unconditional_ids)
         if padding < 0:
             raise ValueError(
@@ -877,9 +876,7 @@ class LLaDAImageClipModel(nn.Module):
             dtype=torch.long,
             device=device,
         )
-        unconditional_input[0, -len(unconditional_ids) :] = torch.tensor(
-            unconditional_ids, dtype=torch.long, device=device
-        )
+        unconditional_input[0, -len(unconditional_ids) :] = unconditional_ids
         unconditional_mask = full_attention_mask.clone()
         unconditional_mask[:, :, :, :padding] = False
         unconditional_positions = torch.cat(
@@ -923,7 +920,7 @@ class LLaDAImageClipModel(nn.Module):
                 probabilities = F.softmax(active_logits, dim=-1)
                 sampled = active_logits.argmax(dim=-1)
                 confidence = probabilities.gather(-1, sampled.unsqueeze(-1)).squeeze(-1)
-                count = int(schedule[step_index].item())
+                count = schedule[step_index]
                 scores = torch.where(active, confidence, -torch.inf)
                 selected = torch.zeros_like(sampled, dtype=torch.bool)
                 high_confidence = scores[0] > 0.95

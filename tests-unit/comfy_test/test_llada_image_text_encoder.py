@@ -589,6 +589,37 @@ class TinyVQGenerator(LLaDAImageClipModel):
         return logits
 
 
+@pytest.mark.parametrize("block_length", (1, 17, 32, 65))
+@pytest.mark.parametrize("steps", (1, 3, 8, 64))
+def test_vq_transfer_schedule_uses_python_counts(block_length, steps):
+    expected = torch.full((steps,), block_length // steps, dtype=torch.int64)
+    expected[: block_length % steps] += 1
+    actual = LLaDAImageClipModel._num_transfer_tokens(block_length, steps)
+
+    assert all(type(count) is int for count in actual)
+    assert actual == expected.tolist()
+    assert sum(actual) == block_length
+
+
+@pytest.mark.parametrize("shape", ((2,), (1, 2)))
+def test_vq_unconditional_tokens_stay_tensors(monkeypatch, shape):
+    def reject_list_conversion(tensor):
+        raise AssertionError("VQ token IDs must not round-trip through Python lists")
+
+    class InspectUnconditional(TinyVQGenerator):
+        def forward_logits(self, input_ids, attention_mask, position_ids, logits_to_keep=0):
+            assert torch.equal(input_ids[1, :4], torch.tensor([3, 3, 7, 8]))
+            assert torch.equal(position_ids[1, :4], torch.tensor([0, 0, 0, 1]))
+            assert not attention_mask[1, :, :, :2].any()
+            return super().forward_logits(input_ids, attention_mask, position_ids, logits_to_keep)
+
+    monkeypatch.setattr(torch.Tensor, "tolist", reject_list_conversion)
+    tokens = InspectUnconditional().generate_vq_tokens(
+        torch.tensor([[1, 2, 5, 6]]), torch.tensor([7, 8]).reshape(shape), 4
+    )
+    assert torch.equal(tokens, torch.zeros(1, 4, dtype=torch.long))
+
+
 def test_block_diffusion_vq_generation_is_greedy_and_offset_normalized():
     model = TinyVQGenerator()
     input_ids = torch.tensor([[1, 2]])
