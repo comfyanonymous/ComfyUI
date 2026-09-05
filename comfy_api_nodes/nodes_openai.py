@@ -41,6 +41,7 @@ STARTING_POINT_ID_PATTERN = r"<starting_point_id:(.*)>"
 
 
 class SupportedOpenAIModel(str, Enum):
+    gpt_6_astra = "gpt-6-astra"
     gpt_5_6_sol = "gpt-5.6-sol"
     gpt_5_6_terra = "gpt-5.6-terra"
     gpt_5_6_luna = "gpt-5.6-luna"
@@ -998,7 +999,12 @@ class OpenAIChatNode(IO.ComfyNode):
                 expr="""
                 (
                   $m := widgets.model;
-                  $contains($m, "o4-mini") ? {
+                  $contains($m, "gpt-6-astra") ? {
+                    "type": "list_usd",
+                    "usd": [0.0143, 0.0715],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "o4-mini") ? {
                     "type": "list_usd",
                     "usd": [0.0011, 0.0044],
                     "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
