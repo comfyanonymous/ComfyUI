@@ -180,3 +180,66 @@ def test_models_directory_cli_and_getters(temp_dir):
             reload(comfy.cli_args)
             reload(folder_paths)
 
+
+
+def test_get_full_path_rejects_absolute_filename(temp_dir):
+    # A filename is always treated as relative to the registered folders, so an
+    # absolute one must resolve to "not found" rather than escaping the folder.
+    folder_paths.folder_names_and_paths["test_folder"] = ([temp_dir], {".safetensors"})
+    try:
+        assert folder_paths.get_full_path("test_folder", "/etc/passwd") is None
+        assert folder_paths.get_full_path("test_folder", "../../etc/passwd") is None
+    finally:
+        del folder_paths.folder_names_and_paths["test_folder"]
+
+
+def _other_drive(path) -> str:
+    # A drive letter the given path is definitely not on, so the cross-mount
+    # branch is exercised rather than an ordinary "file is missing" miss. On
+    # POSIX splitdrive() finds no drive and any letter qualifies.
+    on = os.path.splitdrive(str(path))[0].rstrip(":").upper()
+    return "E" if on == "D" else "D"
+
+
+def test_get_full_path_with_filename_on_another_drive(temp_dir):
+    # os.path.relpath raises ValueError when the two paths share no mount, which
+    # on Windows is any filename carrying a different drive letter or a UNC
+    # prefix. get_full_path should report "not found", not raise.
+    folder_paths.folder_names_and_paths["test_folder"] = ([temp_dir], {".safetensors"})
+    other = _other_drive(temp_dir)
+    try:
+        assert folder_paths.get_full_path("test_folder", f"{other}:/models/model.safetensors") is None
+        assert folder_paths.get_full_path("test_folder", rf"{other}:\models\model.safetensors") is None
+        assert folder_paths.get_full_path("test_folder", r"\\server\share\model.safetensors") is None
+    finally:
+        del folder_paths.folder_names_and_paths["test_folder"]
+
+
+def test_get_full_path_with_drive_relative_filename(temp_dir):
+    # "C:models/x" (no separator after the colon) is drive-relative on Windows.
+    # It used to resolve against the process working directory, so the lookup
+    # became <folder>/<cwd-without-drive>/models/x, which never matched. A
+    # filename is only ever relative to a registered folder, so drop the drive.
+    folder_paths.folder_names_and_paths["test_folder"] = ([temp_dir], {".safetensors"})
+    try:
+        os.makedirs(os.path.join(temp_dir, "models"), exist_ok=True)
+        target = os.path.join(temp_dir, "models", "model.safetensors")
+        with open(target, "w") as f:
+            f.write("")
+
+        assert folder_paths.get_full_path("test_folder", "models/model.safetensors") == target
+        assert folder_paths.get_full_path("test_folder", "C:models/model.safetensors") == target
+    finally:
+        del folder_paths.folder_names_and_paths["test_folder"]
+
+
+def test_get_full_path_or_raise_on_another_drive(temp_dir):
+    # The documented failure mode is FileNotFoundError; a ValueError from the
+    # path normalization would bypass callers that catch the former.
+    folder_paths.folder_names_and_paths["test_folder"] = ([temp_dir], {".safetensors"})
+    other = _other_drive(temp_dir)
+    try:
+        with pytest.raises(FileNotFoundError):
+            folder_paths.get_full_path_or_raise("test_folder", f"{other}:/models/model.safetensors")
+    finally:
+        del folder_paths.folder_names_and_paths["test_folder"]
