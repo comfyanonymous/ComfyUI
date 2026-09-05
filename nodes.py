@@ -290,6 +290,9 @@ class ConditioningZeroOut:
             conditioning_lyrics = d.get("conditioning_lyrics", None)
             if conditioning_lyrics is not None:
                 d["conditioning_lyrics"] = torch.zeros_like(conditioning_lyrics)
+            conditioning_scale = d.get("conditioning_scale", None)
+            if conditioning_scale is not None:
+                d["conditioning_scale"] = torch.zeros_like(conditioning_scale)
             n = [torch.zeros_like(t[0]), d]
             c.append(n)
         return (c, )
@@ -364,8 +367,12 @@ class VAEDecodeTiled:
             temporal_size = None
             temporal_overlap = None
 
+        latent = samples["samples"]
+        if latent.is_nested:
+            latent = latent.unbind()[0]
+
         compression = vae.spacial_compression_decode()
-        images = vae.decode_tiled(samples["samples"], tile_x=tile_size // compression, tile_y=tile_size // compression, overlap=overlap // compression, tile_t=temporal_size, overlap_t=temporal_overlap)
+        images = vae.decode_tiled(latent, tile_x=tile_size // compression, tile_y=tile_size // compression, overlap=overlap // compression, tile_t=temporal_size, overlap_t=temporal_overlap)
         if len(images.shape) == 5: #Combine batches
             images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
         return (images, )
@@ -752,16 +759,17 @@ class LoraLoaderModelOnly(LoraLoader):
         return {"required": { "model": ("MODEL",),
                               "lora_name": (folder_paths.get_filename_list("loras"), ),
                               "strength_model": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01}),
-                              }}
+                            }}
     RETURN_TYPES = ("MODEL",)
     DESCRIPTION = "This LoRAs loader is used to modify the diffusion model, altering the way in which latents are denoised such as applying styles. Multiple LoRA nodes can be linked together."
+    SEARCH_ALIASES = ["lora", "load lora", "apply lora", "lora loader", "lora model"]
     FUNCTION = "load_lora_model_only"
 
     def load_lora_model_only(self, model, lora_name, strength_model):
         return (self.load_lora(model, None, lora_name, strength_model, 0)[0],)
 
 class VAELoader:
-    video_taes = ["taehv", "lighttaew2_2", "lighttaew2_1", "lighttaehy1_5", "taeltx_2"]
+    video_taes = ["taehv", "lighttaew2_2", "lighttaew2_1", "lighttaehy1_5", "taeltx_2", "taeh3"]
     image_taes = ["taesd", "taesdxl", "taesd3", "taef1", "taef2"]
 
     @staticmethod
@@ -1011,7 +1019,7 @@ class CLIPLoader:
 
     CATEGORY = "model/loaders"
 
-    DESCRIPTION = "Recipes:\nsd: clip-l\nstable cascade: clip-g\nsd3: t5 xxl / clip-g / clip-l\nstable audio: t5 base\nmochi: t5 xxl\ncogvideox: t5 xxl (226-token padding)\ncosmos: old t5 xxl\nlumina2: gemma 2 2B\nwan: umt5 xxl\nhidream: llama-3.1 (Recommend) or t5\nomnigen2: qwen vl 2.5 3B\njoyimage: qwen3-vl 8B\nlens: gpt-oss-20b\npixeldit: gemma 2 2B elm"
+    DESCRIPTION = "Recipes:\nsd: clip-l\nstable cascade: clip-g\nsd3: t5 xxl / clip-g / clip-l\nstable audio: t5 base\nmochi: t5 xxl\ncogvideox: t5 xxl (226-token padding)\ncosmos: old t5 xxl\nlumina2: gemma 2 2B\nwan: umt5 xxl\nhidream: llama-3.1 (Recommend) or t5\nomnigen2: qwen vl 2.5 3B\njoyimage: qwen3-vl 8B\nlens: gpt-oss-20b\npixeldit: gemma 2 2B elm\nminimax: MiniMax H3 Qwen3-VL or Music3 Qwen/RVQ"
 
     def load_clip(self, clip_name, type="stable_diffusion", device="default"):
         clip_type = getattr(comfy.sd.CLIPType, type.upper(), comfy.sd.CLIPType.STABLE_DIFFUSION)
@@ -1566,7 +1574,7 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image, latent.get("downscale_ratio_spacial", None), latent.get("downscale_ratio_temporal", None))
 
     if disable_noise:
-        noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
+        noise = comfy.sample.prepare_empty_noise(latent_image)
     else:
         batch_inds = latent["batch_index"] if "batch_index" in latent else None
         noise = comfy.sample.prepare_noise(latent_image, seed, batch_inds)
@@ -2445,6 +2453,7 @@ async def init_builtin_extra_nodes():
         "nodes_mahiro.py",
         "nodes_lt_upsampler.py",
         "nodes_lt_audio.py",
+        "nodes_minimax_music.py",
         "nodes_minimax_h3.py",
         "nodes_lt.py",
         "nodes_hooks.py",
@@ -2497,6 +2506,8 @@ async def init_builtin_extra_nodes():
         "nodes_toolkit.py",
         "nodes_replacements.py",
         "nodes_nag.py",
+        "nodes_trellis2.py",
+        "nodes_mesh_postprocess.py",
         "nodes_sdpose.py",
         "nodes_math.py",
         "nodes_number_convert.py",
@@ -2511,7 +2522,9 @@ async def init_builtin_extra_nodes():
         "nodes_void.py",
         "nodes_wandancer.py",
         "nodes_hidream_o1.py",
+        "nodes_sensenova.py",
         "nodes_save_3d.py",
+        "nodes_mesh_io.py",
         "nodes_moge.py",
         "nodes_mediapipe.py",
         "nodes_gaussian_splat.py",
@@ -2519,6 +2532,7 @@ async def init_builtin_extra_nodes():
         "nodes_depth_anything_3.py",
         "nodes_seed.py",
         "nodes_text.py",
+        "nodes_sam3d_body.py",
     ]
 
     import_failed = []

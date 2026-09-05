@@ -486,7 +486,10 @@ class ImageCompositor(io.ComfyNode):
             node_id="ImageCompositor",
             display_name="Create Layered Image",
             category="image",
+            search_aliases=["compositor", "composite", "layer", "layers", "layer editor", "psd"],
             is_experimental=True,
+            # both flags on purpose: terminal compositor graphs must execute (the
+            # editor needs a run to open), and cache hits must replay the layer UI
             is_output_node=True,
             has_intermediate_output=True,
             inputs=[
@@ -525,7 +528,9 @@ class ImageCompositor(io.ComfyNode):
         raw_state = compositor
         state = parse_layer_state(raw_state)
         replay = bool(state is not None and tensors and state["inputs"] == fp)
+        canvas = None
         if replay:
+            canvas = state["canvas"]
             out = composite_from_state(tensors, state, alphas)
         elif tensors:
             canvas = document_canvas(layers) or canvas_extent(frames)
@@ -541,6 +546,8 @@ class ImageCompositor(io.ComfyNode):
         ui_dict["compositor_layers"] = layer_refs
         ui_dict["compositor_inputs"] = fp
         ui_dict["compositor_bboxes"] = layer_ui_entries(frames)
+        if canvas is not None:
+            ui_dict["compositor_canvas"] = [{"w": int(canvas[0]), "h": int(canvas[1])}]
         if state_stale:
             ui_dict["compositor_state_stale"] = [True]
         return io.NodeOutput(out, mask, ui=ui_dict)
@@ -605,7 +612,7 @@ class AddLayer(io.ComfyNode):
                     options=list(_LAYER_MODES),
                     default="normal",
                     optional=True,
-                    tooltip="Initial blend mode.",
+                    tooltip="Initial blend mode, applied against the layers below. On the bottom layer over the default transparent background, non-normal modes produce transparency.",
                 ),
                 io.Float.Input(
                     "rotation",

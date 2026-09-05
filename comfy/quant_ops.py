@@ -40,7 +40,7 @@ try:
         cuda_version = tuple(map(int, str(torch.version.cuda).split('.')))
         if cuda_version < (13,):
             ck.registry.disable("cuda")
-            logging.warning("WARNING: You need pytorch with cu130 or higher to use optimized CUDA operations.")
+            logging.warning("WARNING: You need pytorch with cu130 or higher to use optimized CUDA operations.\nWARNING WARNING WARNING\nIf you are on nvidia 20 series and above it is required that you update your pytorch to cu130 or higher.\n")
 
     # On ROCm/AMD the CUDA backend is unavailable, so Triton is the only accelerated
     # comfy-kitchen backend. Enable it by default there, but only on Triton >= 3.7 AND a
