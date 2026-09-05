@@ -207,6 +207,12 @@ class LLaDA2Experts(nn.Module):
     def forward(self, hidden_states, routing_weights, selected_experts):
         token_count = hidden_states.shape[0]
         top_k = selected_experts.shape[-1]
+        intermediate = torch.empty(
+            token_count * top_k,
+            self.intermediate_size,
+            dtype=hidden_states.dtype,
+            device=hidden_states.device,
+        )
         output = torch.zeros(
             token_count * top_k,
             self.hidden_size,
@@ -219,25 +225,40 @@ class LLaDA2Experts(nn.Module):
         active_experts = (
             torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero().flatten()
         )
+        routes = []
+        for expert_tensor in active_experts:
+            expert_index = int(expert_tensor.item())
+            topk_position, token_index = torch.where(expert_mask[expert_index])
+            routes.append(
+                (
+                    expert_index,
+                    topk_position,
+                    token_index,
+                    token_index * top_k + topk_position,
+                )
+            )
 
-        with (
-            self.gate_proj.bank_resident(hidden_states) as gate_bank,
-            self.up_proj.bank_resident(hidden_states) as up_bank,
-            self.down_proj.bank_resident(hidden_states) as down_bank,
-        ):
-            for expert_tensor in active_experts:
-                expert_index = int(expert_tensor.item())
-                topk_position, token_index = torch.where(expert_mask[expert_index])
+        with self.gate_proj.bank_resident(hidden_states) as gate_bank:
+            for expert_index, _, token_index, route_index in routes:
                 current = hidden_states[token_index]
                 gated = F.silu(gate_bank.expert_linear(current, expert_index))
+                intermediate[route_index] = gated.to(intermediate.dtype)
+
+        with self.up_proj.bank_resident(hidden_states) as up_bank:
+            for expert_index, topk_position, token_index, route_index in routes:
+                current = hidden_states[token_index]
+                gated = intermediate[route_index]
                 gated = gated * up_bank.expert_linear(current, expert_index)
                 gated = gated * routing_weights[
                     token_index, topk_position, None
                 ].to(gated)
+                intermediate[route_index] = gated.to(intermediate.dtype)
+
+        with self.down_proj.bank_resident(hidden_states) as down_bank:
+            for expert_index, _, _, route_index in routes:
+                gated = intermediate[route_index]
                 expert_output = down_bank.expert_linear(gated, expert_index)
-                output[token_index * top_k + topk_position] = expert_output.to(
-                    output.dtype
-                )
+                output[route_index] = expert_output.to(output.dtype)
         return (
             output.view(token_count, top_k, self.hidden_size)
             .sum(dim=1, dtype=torch.float32)

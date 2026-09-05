@@ -3,6 +3,7 @@ import importlib.util
 import os
 import sys
 import types
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -394,6 +395,58 @@ def test_vq_block_diffusion_matches_pinned_official_logic():
     )
 
     assert torch.equal(actual, expected)
+
+
+def test_moe_expert_banks_are_never_resident_together():
+    config = LLaDA2Config(
+        vocab_size=32,
+        hidden_size=16,
+        intermediate_size=24,
+        moe_intermediate_size=8,
+        num_hidden_layers=2,
+        num_attention_heads=4,
+        num_key_value_heads=2,
+        head_dim=4,
+        num_experts=8,
+        num_experts_per_tok=2,
+        num_shared_experts=1,
+        first_k_dense_replace=1,
+        n_group=2,
+        topk_group=1,
+    )
+    experts = LLaDA2Experts(
+        config,
+        dtype=torch.float32,
+        device=torch.device("cpu"),
+        operations=comfy.ops.mixed_precision_ops({}, torch.float32),
+    )
+    for bank in (experts.gate_proj, experts.up_proj, experts.down_proj):
+        bank.weight = torch.nn.Parameter(torch.randn(bank._orig_shape))
+
+    residency = {"active": 0, "maximum": 0}
+    for bank in (experts.gate_proj, experts.up_proj, experts.down_proj):
+        original = bank.bank_resident
+
+        @contextmanager
+        def tracked(input_tensor, _original=original):
+            residency["active"] += 1
+            residency["maximum"] = max(residency["maximum"], residency["active"])
+            try:
+                with _original(input_tensor) as resident:
+                    yield resident
+            finally:
+                residency["active"] -= 1
+
+        bank.bank_resident = tracked
+
+    hidden_states = torch.randn(6, config.hidden_size)
+    selected_experts = torch.tensor([[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3]])
+    routing_weights = torch.rand(6, config.num_experts_per_tok)
+
+    output = experts(hidden_states, routing_weights, selected_experts)
+
+    assert output.shape == hidden_states.shape
+    assert residency == {"active": 0, "maximum": 1}
 
 
 def test_backbone_bool_mask_blocks_padded_tokens_from_valid_outputs():
