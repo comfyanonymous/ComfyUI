@@ -1055,6 +1055,29 @@ def hlg_to_linear(t: torch.Tensor) -> torch.Tensor:
     return torch.where(t <= 0.5, low, high)
 
 
+# ARRI LogC4 constants (2022 specification).
+_LOGC4_A = (2.0 ** 18 - 16.0) / 117.45
+_LOGC4_B = (1023.0 - 95.0) / 1023.0
+_LOGC4_C = 95.0 / 1023.0
+_LOGC4_S = (7.0 * math.log(2.0) * 2.0 ** (7.0 - 14.0 * _LOGC4_C / _LOGC4_B)) / (_LOGC4_A * _LOGC4_B)
+_LOGC4_T = (2.0 ** (14.0 * (-_LOGC4_C / _LOGC4_B) + 6.0) - 64.0) / _LOGC4_A
+
+
+def logc4_to_linear(t: torch.Tensor) -> torch.Tensor:
+    """Inverse ARRI LogC4 curve (2022 spec). Maps a LogC4-encoded signal in
+    [0, 1] to scene-linear light; highlights decode above 1.0. Piecewise: a
+    linear segment below the log cut, an exponential above.
+
+    Operates on RGB channels only; alpha is passed through unchanged."""
+    if t.shape[-1] == 4:
+        rgb, alpha = t[..., :3], t[..., 3:]
+        return torch.cat([logc4_to_linear(rgb), alpha], dim=-1)
+
+    high = (torch.exp2(14.0 * (t - _LOGC4_C) / _LOGC4_B + 6.0) - 64.0) / _LOGC4_A
+    low = t * _LOGC4_S + _LOGC4_T
+    return torch.where(t >= _LOGC4_C, high, low)
+
+
 # ---------------------------------------------------------------------------
 # Metadata injection
 # ---------------------------------------------------------------------------
@@ -1160,11 +1183,12 @@ def inject_exr_metadata(
             new_blob += _exr_attribute(key, "string", json.dumps(value).encode("utf-8"))
     if colorspace is not None:
         # Map each colorspace option to the RGB primaries the linear pixels
-        # are now in. "sRGB" and "linear" both produce Rec. 709 linear; "HDR"
-        # (HLG-encoded Rec. 2020 input) produces Rec. 2020 linear.
+        # are now in. "sRGB", "LogC4" and "linear" all produce Rec. 709 linear;
+        # "HDR" (HLG-encoded Rec. 2020 input) produces Rec. 2020 linear.
         primaries_name = {
             "sRGB":   "Rec.709",
             "linear": "Rec.709",
+            "LogC4":  "Rec.709",
             "HDR":    "Rec.2020",
         }.get(colorspace, "Rec.709")
         new_blob += _exr_attribute(
@@ -1483,6 +1507,9 @@ def _encode_image(
       "sRGB"   → input is sRGB-encoded Rec. 709; apply inverse sRGB EOTF.
       "HDR"    → input is HLG-encoded Rec. 2020 (BT.2100); apply inverse HLG
                  OETF to get scene-linear, per BT.2100 Note 5a.
+      "LogC4"  → input is ARRI LogC4-encoded Rec. 709; apply inverse LogC4 to
+                 get scene-linear (highlights above 1.0). Use for HDR authored
+                 or generated in LogC4 space.
       "linear" → input is already scene-linear (Rec. 709 primaries); write
                  through unchanged. Use this for renderer/compositor output.
 
@@ -1506,6 +1533,8 @@ def _encode_image(
             img_tensor = srgb_to_linear(img_tensor)
         elif colorspace == "HDR":
             img_tensor = hlg_to_linear(img_tensor)
+        elif colorspace == "LogC4":
+            img_tensor = logc4_to_linear(img_tensor)
         img_np = img_tensor.cpu().numpy().astype(np.float32)
     else:
         # PNG path: quantize to integer range.
@@ -1626,13 +1655,14 @@ class SaveImageAdvanced(IO.ComfyNode):
                             IO.Combo.Input("bit_depth", options=["32-bit float"], default="32-bit float", advanced=True),
                             IO.Combo.Input(
                                 "input_color_space",
-                                options=["sRGB", "HDR", "linear"],
+                                options=["sRGB", "HDR", "LogC4", "linear"],
                                 default="sRGB",
                                 advanced=True,
                                 tooltip=(
                                     "Colorspace of the input tensor. The EXR is always written as scene-linear in the matching gamut.\n"
                                     "sRGB — input is sRGB-encoded Rec.709; the inverse sRGB EOTF is applied.\n"
                                     "HDR — input is HLG-encoded Rec.2020 (BT.2100); the inverse HLG OETF is applied to get scene-linear light.\n"
+                                    "LogC4 — input is ARRI LogC4-encoded Rec.709; the inverse LogC4 curve is applied to get scene-linear light (highlights above 1.0). Use for HDR authored/generated in LogC4 space.\n"
                                     "linear — input is already scene-linear (Rec.709 primaries); written through unchanged. Use this for renderer/compositor output."
                                 ),
                             ),
