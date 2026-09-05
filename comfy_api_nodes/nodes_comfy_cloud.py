@@ -844,7 +844,7 @@ class ComfyCloudExtension(ComfyExtension):
         return [
             ComfyCloudMiniMaxH3TextToVideoNode,
             ComfyCloudMiniMaxH3FirstLastFrameToVideoNode,
-            ## ComfyCloudMiniMaxH3ReferenceToVideoNode,  # Commenting out until the server side issue is fixed.
+            # ComfyCloudMiniMaxH3ReferenceToVideoNode,  # Disabled until the server-side issue is fixed.
             ComfyCloudMiniMaxH3ImageToVideoNode,
             ComfyCloudMiniMaxMusic3TextToAudioNode,
             ComfyCloudFlux2TextToImageNode,

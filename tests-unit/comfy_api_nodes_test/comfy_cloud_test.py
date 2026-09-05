@@ -371,6 +371,7 @@ def test_music_node_sends_its_hidden_caption_cfg(monkeypatch):
     assert output == "audio-output"
 
 
+@pytest.mark.skip(reason="Disabled until the server-side issue is fixed")
 def test_reference_video_exposes_and_sends_multimodal_references(monkeypatch):
     node = nodes_comfy_cloud.ComfyCloudMiniMaxH3ReferenceToVideoNode
     run = AsyncMock(return_value="video-output")
@@ -425,6 +426,7 @@ def test_reference_video_exposes_and_sends_multimodal_references(monkeypatch):
     assert audio_asset.await_count == 2
 
 
+@pytest.mark.skip(reason="Disabled until the server-side issue is fixed")
 def test_reference_video_accepts_no_references(monkeypatch):
     run = AsyncMock(return_value="video-output")
     monkeypatch.setattr(nodes_comfy_cloud, "_run_video_workflow", run)
@@ -731,7 +733,6 @@ def test_extension_registers_exactly_the_shipped_set():
         nodes_comfy_cloud.ComfyCloudMageFlowTurboTextToImageNode,
         nodes_comfy_cloud.ComfyCloudMiniMaxMusic3TextToAudioNode,
         nodes_comfy_cloud.ComfyCloudMiniMaxH3FirstLastFrameToVideoNode,
-        nodes_comfy_cloud.ComfyCloudMiniMaxH3ReferenceToVideoNode,
         nodes_comfy_cloud.ComfyCloudMiniMaxH3ImageToVideoNode,
     }
     registered = set(asyncio.run(nodes_comfy_cloud.ComfyCloudExtension().get_node_list()))
