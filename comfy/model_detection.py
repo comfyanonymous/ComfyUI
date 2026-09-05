@@ -399,7 +399,10 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         qkv = state_dict['{}blocks.0.attn.qkv_proj.weight'.format(key_prefix)]
         dit_config["num_attention_heads"] = qkv.shape[0] // (3 * dit_config["attention_head_dim"])
         dit_config["ffn_hidden_size"] = state_dict['{}blocks.0.mlp.fc1.weight'.format(key_prefix)].shape[0] // 2
-        dit_config["text_dim"] = state_dict['{}condition_proj.weight'.format(key_prefix)].shape[1]
+        cond_key = '{}condition_proj.weight'.format(key_prefix)
+        if cond_key in state_dict_keys:
+            w = state_dict[cond_key]
+            dit_config["text_dim"] = getattr(w, "tensor_shape", w.shape)[1] if len(getattr(w, "tensor_shape", w.shape)) > 1 else w.shape[0]
         table_key = '{}adaln_t_table'.format(key_prefix)
         if table_key in state_dict_keys:
             # adaln shipped over a precomputed curve basis: the adaln linears span a small shared basis of the time-embedding curve (no time embedder)
@@ -407,11 +410,15 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["adaln_curve_grid"] = table[0]
             dit_config["time_embed_dim"] = table[1]
         else:
-            te = state_dict['{}time_embedder.proj_in.weight'.format(key_prefix)]
-            dit_config["timestep_input_dim"] = te.shape[1]
-            dit_config["time_embed_hidden_size"] = te.shape[0]
-            dit_config["time_embed_dim"] = state_dict['{}time_embedder.proj_out.weight'.format(key_prefix)].shape[0]
-        dit_config["rope_inv_freq_len"] = state_dict['{}rope.inv_freq'.format(key_prefix)].shape[0]
+            te_key = '{}time_embedder.proj_in.weight'.format(key_prefix)
+            if te_key in state_dict_keys:
+                te = state_dict[te_key]
+                dit_config["timestep_input_dim"] = getattr(te, "tensor_shape", te.shape)[1] if len(getattr(te, "tensor_shape", te.shape)) > 1 else te.shape[0]
+                dit_config["time_embed_hidden_size"] = te.shape[0]
+            if '{}time_embedder.proj_out.weight'.format(key_prefix) in state_dict_keys:
+                dit_config["time_embed_dim"] = state_dict['{}time_embedder.proj_out.weight'.format(key_prefix)].shape[0]
+        if '{}rope.inv_freq'.format(key_prefix) in state_dict_keys:
+            dit_config["rope_inv_freq_len"] = state_dict['{}rope.inv_freq'.format(key_prefix)].shape[0]
         if metadata is not None and "config" in metadata:
             dit_config.update(json.loads(metadata["config"]).get("transformer", {}))
         return dit_config
