@@ -23,6 +23,7 @@ from comfy_api_nodes.apis.openai import (
     OpenAIImageGenerationResponse,
     OpenAIResponse,
     OutputContent,
+    Reasoning,
 )
 from comfy_api_nodes.util import (
     ApiEndpoint,
@@ -41,6 +42,7 @@ STARTING_POINT_ID_PATTERN = r"<starting_point_id:(.*)>"
 
 
 class SupportedOpenAIModel(str, Enum):
+    gpt_6_astra = "gpt-6-astra"
     gpt_5_6_sol = "gpt-5.6-sol"
     gpt_5_6_terra = "gpt-5.6-terra"
     gpt_5_6_luna = "gpt-5.6-luna"
@@ -56,6 +58,30 @@ class SupportedOpenAIModel(str, Enum):
     o3 = "o3"
     o1_pro = "o1-pro"
     o1 = "o1"
+
+
+REASONING_EFFORT_OPTIONS = ["default", "none", "minimal", "low", "medium", "high", "xhigh", "max"]
+_O_SERIES_EFFORTS = ("low", "medium", "high")
+_GPT_5_EFFORTS = ("minimal", "low", "medium", "high")
+_GPT_5_6_EFFORTS = ("none", "low", "medium", "high", "xhigh", "max")
+SUPPORTED_REASONING_EFFORTS: dict[str, tuple[str, ...]] = {
+    SupportedOpenAIModel.gpt_6_astra: ("low", "medium", "high", "xhigh", "max"),
+    SupportedOpenAIModel.gpt_5_6_sol: _GPT_5_6_EFFORTS,
+    SupportedOpenAIModel.gpt_5_6_terra: _GPT_5_6_EFFORTS,
+    SupportedOpenAIModel.gpt_5_6_luna: _GPT_5_6_EFFORTS,
+    SupportedOpenAIModel.gpt_5_5_pro: ("medium", "high", "xhigh"),
+    SupportedOpenAIModel.gpt_5_5: ("none", "low", "medium", "high", "xhigh"),
+    SupportedOpenAIModel.gpt_5: _GPT_5_EFFORTS,
+    SupportedOpenAIModel.gpt_5_mini: _GPT_5_EFFORTS,
+    SupportedOpenAIModel.gpt_5_nano: _GPT_5_EFFORTS,
+    SupportedOpenAIModel.gpt_4_1: (),
+    SupportedOpenAIModel.gpt_4_1_mini: (),
+    SupportedOpenAIModel.gpt_4_1_nano: (),
+    SupportedOpenAIModel.o4_mini: _O_SERIES_EFFORTS,
+    SupportedOpenAIModel.o3: _O_SERIES_EFFORTS,
+    SupportedOpenAIModel.o1_pro: _O_SERIES_EFFORTS,
+    SupportedOpenAIModel.o1: _O_SERIES_EFFORTS,
+}
 
 
 async def validate_and_cast_response(response, timeout: int = None) -> torch.Tensor:
@@ -998,7 +1024,12 @@ class OpenAIChatNode(IO.ComfyNode):
                 expr="""
                 (
                   $m := widgets.model;
-                  $contains($m, "o4-mini") ? {
+                  $contains($m, "gpt-6-astra") ? {
+                    "type": "list_usd",
+                    "usd": [0.0143, 0.0715],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "o4-mini") ? {
                     "type": "list_usd",
                     "usd": [0.0011, 0.0044],
                     "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
@@ -1144,6 +1175,15 @@ class OpenAIChatNode(IO.ComfyNode):
         advanced_options: ModelResponseProperties | None = None,
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=False)
+        if advanced_options is not None and advanced_options.reasoning is not None:
+            effort = advanced_options.reasoning.effort
+            supported = SUPPORTED_REASONING_EFFORTS.get(model)
+            if supported is not None and effort not in supported:
+                if not supported:
+                    raise ValueError(f"{model} is not a reasoning model; set reasoning_effort to 'default'.")
+                raise ValueError(
+                    f"{model} does not support reasoning_effort '{effort}'. Supported: {', '.join(supported)} or 'default'."
+                )
 
         # Create response
         create_response = await sync_op(
@@ -1263,7 +1303,7 @@ class OpenAIChatConfig(IO.ComfyNode):
                     min=16,
                     default=4096,
                     max=16384,
-                    tooltip="An upper bound for the number of tokens that can be generated for a response, including visible output tokens",
+                    tooltip="An upper bound for the number of tokens that can be generated for a response, including visible output tokens and reasoning tokens",
                     optional=True,
                     advanced=True,
                 ),
@@ -1272,6 +1312,16 @@ class OpenAIChatConfig(IO.ComfyNode):
                     multiline=True,
                     optional=True,
                     tooltip="Instructions for the model on how to generate the response",
+                ),
+                IO.Combo.Input(
+                    "reasoning_effort",
+                    options=REASONING_EFFORT_OPTIONS,
+                    default="default",
+                    optional=True,
+                    tooltip="How much the model reasons before answering. 'default' leaves the choice to the model. "
+                    "Supported levels differ per model: GPT-6 Astra low-max, GPT-5.6 none-max (no minimal), "
+                    "GPT-5.5 none-xhigh, GPT-5.5 Pro medium-xhigh, GPT-5 minimal-high, o-series low-high; "
+                    "GPT-4.1 has no reasoning. Unsupported levels are rejected before the request is sent.",
                 ),
             ],
             outputs=[
@@ -1285,6 +1335,7 @@ class OpenAIChatConfig(IO.ComfyNode):
         truncation: bool,
         instructions: str | None = None,
         max_output_tokens: int | None = None,
+        reasoning_effort: str | None = None,
     ) -> IO.NodeOutput:
         """
         Configure advanced options for the OpenAI Chat Node.
@@ -1300,6 +1351,7 @@ class OpenAIChatConfig(IO.ComfyNode):
                 instructions=instructions,
                 truncation=truncation,
                 max_output_tokens=max_output_tokens,
+                reasoning=None if reasoning_effort in (None, "default") else Reasoning(effort=reasoning_effort),
             )
         )
 
