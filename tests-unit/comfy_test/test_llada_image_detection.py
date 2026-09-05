@@ -1,4 +1,5 @@
 import json
+import logging
 
 import pytest
 import torch
@@ -18,6 +19,27 @@ from comfy.text_encoders.llada_image import LLaDAImageTEModel
 
 
 PREFIX = "model.diffusion_model."
+
+
+@pytest.mark.parametrize("checkpoint_dtype", (torch.bfloat16, torch.float32))
+def test_aio_clip_target_preserves_checkpoint_dtype(checkpoint_dtype):
+    configs = make_component_configs()
+    adapter = comfy.supported_models.LLaDAImage({
+        "image_model": "llada_image",
+        "variant": "base",
+        "llada2_config": configs["text_encoder"],
+        "queryformer_config": configs["queryformer"],
+        "text_projection_config": configs["text_projection"],
+        "sigvq_config": configs["sigvq"],
+    })
+    target = adapter.clip_target({
+        "text_encoders.llada2.model.language_model.word_embeddings.weight": torch.empty(1, 1, device="meta", dtype=checkpoint_dtype),
+    })
+    model = target.clip(device="meta", dtype=torch.float16, **target.params)
+    assert isinstance(model, LLaDAImageTEModel)
+    assert model.dtypes == {checkpoint_dtype}
+    assert model.llada2.dtype == checkpoint_dtype
+    assert model.llada2.model.language_model.word_embeddings.weight.dtype == checkpoint_dtype
 
 
 def make_state_dict():
@@ -264,7 +286,7 @@ def test_aio_file_loads_model_clip_and_vae_through_checkpoint_path(
 
 @pytest.mark.parametrize("variant", ("base", "turbo"))
 def test_complete_tiny_aio_loads_and_runs_native_generation_and_editing(
-    tmp_path, monkeypatch, variant
+    tmp_path, monkeypatch, variant, caplog
 ):
     from tokenizers import Tokenizer
     from tokenizers.models import WordLevel
@@ -361,7 +383,10 @@ def test_complete_tiny_aio_loads_and_runs_native_generation_and_editing(
         comfy.model_management, "text_encoder_dtype", lambda device=None: torch.float32
     )
 
-    model, clip, vae = nodes.CheckpointLoaderSimple().load_checkpoint(checkpoint.name)
+    with caplog.at_level(logging.DEBUG):
+        model, clip, vae = nodes.CheckpointLoaderSimple().load_checkpoint(checkpoint.name)
+    assert not any("clip unexpected" in record.message or "clip missing" in record.message for record in caplog.records)
+    assert torch.equal(clip.get_sd()["tokenizer_json"], checkpoint_state["text_encoders.tokenizer_json"])
 
     assert model.model.model_sampling.llada_image_variant == variant
     actual_model = model.model.diffusion_model.state_dict()

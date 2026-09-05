@@ -988,6 +988,11 @@ class LLaDAImageTEModel(sd1_clip.SD1ClipModel):
             clip_model=LLaDAImageClipModel,
         )
 
+    def load_state_dict(self, state_dict, strict=True, assign=False):
+        state_dict = dict(state_dict)
+        state_dict.pop("tokenizer_json", None)
+        return super().load_state_dict(state_dict, strict=strict, assign=assign)
+
     def generate_vq_tokens(
         self, input_ids, unconditional_ids, image_token_count, cfg_scale=2.0
     ):
@@ -997,3 +1002,12 @@ class LLaDAImageTEModel(sd1_clip.SD1ClipModel):
 
     def encode_sigvq(self, pixel_values=None, token_ids=None):
         return self.llada2.encode_sigvq(pixel_values=pixel_values, token_ids=token_ids)
+
+
+def te(dtype_llada=None):
+    class LLaDAImageTEModel_(LLaDAImageTEModel):
+        def __init__(self, device="cpu", dtype=None, model_options=None, **kwargs):
+            if dtype_llada is not None:
+                dtype = dtype_llada
+            super().__init__(device=device, dtype=dtype, model_options=model_options, **kwargs)
+    return LLaDAImageTEModel_

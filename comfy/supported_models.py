@@ -909,7 +909,7 @@ class LLaDAImage(supported_models_base.BASE):
             return None
         target = supported_models_base.ClipTarget(
             comfy.text_encoders.llada_image.LLaDAImageTokenizer,
-            comfy.text_encoders.llada_image.LLaDAImageTEModel,
+            comfy.text_encoders.llada_image.te(dtype_llada=state_dict[key].dtype),
         )
         for key in (
             "llada2_config",
