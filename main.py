@@ -50,6 +50,7 @@ if __name__ == "__main__":
         and os.environ.get("CUDA_VISIBLE_DEVICES") is None
     ):
         os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+        logging.warning("On windows we are currently forcing single GPU mode in ComfyUI due to a Nvidia related issue, if you want to disable this use: --cuda-device all")
 
 faulthandler.enable(file=sys.stderr, all_threads=args.debug_hang)
 if __name__ == "__main__" and args.debug_hang:
@@ -271,7 +272,7 @@ def dynamic_vram_supported():
 
 if args.enable_dynamic_vram or (enables_dynamic_vram() and dynamic_vram_supported()):
     if (not args.enable_dynamic_vram) and (comfy.model_management.torch_version_numeric < (2, 8)):
-        logging.warning("Unsupported Pytorch detected. DynamicVRAM support requires Pytorch version 2.8 or later. Falling back to legacy ModelPatcher. VRAM estimates may be unreliable especially on Windows")
+        logging.warning("Unsupported Pytorch detected. DynamicVRAM support requires Pytorch version 2.8 or later (2.12+ is recommended). Falling back to legacy ModelPatcher. VRAM estimates may be unreliable especially on Windows")
     else:
         try:
             aimdo_initialized = comfy_aimdo.control.init_devices((d.index, int(args.vram_headroom * 1024 ** 3)) for d in comfy.model_management.get_all_torch_devices())
@@ -602,7 +603,7 @@ if __name__ == "__main__":
             "dynamic vram enabled please give us a detailed reports as this "
             "argument will be removed soon. If you use gguf we recommend keeping "
             "dynamic vram enabled and using native ComfyUI model formats instead. "
-            "ComfyUI native formats like fp8 will be faster even if they are larger than your memory."
+            "ComfyUI native formats like fp8, int8 and w4a8 will be faster even if they are larger than your memory."
         )
     event_loop, _, start_all_func = start_comfyui()
     try:
