@@ -99,6 +99,12 @@ def _require_config_values(component, config, expected):
             )
 
 
+def _rms_norm(hidden_states, norm):
+    # LLaDA rounds normalized activations before applying the affine weight.
+    with comfy.ops.CastBiasWeightContext(norm, hidden_states, offloadable=True) as (weight, _):
+        return F.rms_norm(hidden_states, norm.normalized_shape, None, norm.eps) * weight
+
+
 class LLaDA2MLP(nn.Module):
     def __init__(
         self, hidden_size, intermediate_size, dtype=None, device=None, operations=None
@@ -389,8 +395,8 @@ class LLaDA2Attention(nn.Module):
         query, key, value = qkv.split(
             [self.num_heads, self.num_key_value_heads, self.num_key_value_heads], dim=-2
         )
-        query = self.query_layernorm(query.transpose(1, 2))
-        key = self.key_layernorm(key.transpose(1, 2))
+        query = _rms_norm(query.transpose(1, 2), self.query_layernorm)
+        key = _rms_norm(key.transpose(1, 2), self.key_layernorm)
         value = value.transpose(1, 2)
         cos, sin = _rotary_embeddings(
             position_ids, self.rope_dim, self.rope_theta, query.dtype
@@ -443,13 +449,13 @@ class LLaDA2DecoderLayer(nn.Module):
     ):
         residual = hidden_states
         hidden_states = self.attention(
-            self.input_layernorm(hidden_states),
+            _rms_norm(hidden_states, self.input_layernorm),
             attention_mask,
             position_ids,
             transformer_options,
         )
         hidden_states = residual + hidden_states
-        return hidden_states + self.mlp(self.post_attention_layernorm(hidden_states))
+        return hidden_states + self.mlp(_rms_norm(hidden_states, self.post_attention_layernorm))
 
 
 class LLaDA2LanguageModel(nn.Module):
@@ -503,7 +509,7 @@ class LLaDA2LanguageModel(nn.Module):
             hidden_states = layer(
                 hidden_states, attention_mask, position_ids, transformer_options
             )
-        return self.norm(hidden_states)
+        return _rms_norm(hidden_states, self.norm)
 
 
 class LLaDA2Backbone(nn.Module):

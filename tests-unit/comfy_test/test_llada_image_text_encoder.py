@@ -24,7 +24,28 @@ from comfy.text_encoders.llada_image import (
     LLaDA2Gate,
     LLaDAImageClipModel,
     LLaDAImageRawTokenizer,
+    _rms_norm,
 )
+
+
+@pytest.mark.parametrize("dtype", (torch.float32, torch.bfloat16))
+def test_rms_norm_rounds_before_nonunit_affine_weight(dtype):
+    inputs = torch.linspace(-17, 29, 2048, dtype=dtype).reshape(2, 1024)
+    norm = comfy.ops.manual_cast.RMSNorm(1024, eps=1e-6, dtype=dtype)
+    norm.weight.data.copy_(torch.linspace(0.1, 3.4, 1024, dtype=dtype))
+    full_precision = inputs.float()
+    normalized = full_precision * torch.rsqrt(full_precision.square().mean(-1, keepdim=True) + norm.eps)
+    expected = normalized.to(dtype) * norm.weight
+    torch.testing.assert_close(_rms_norm(inputs, norm), expected, rtol=0 if dtype == torch.bfloat16 else 1e-5, atol=0 if dtype == torch.bfloat16 else 1e-6)
+
+
+def test_rms_norm_uses_patched_affine_weight():
+    inputs = torch.tensor([[1.0, 2.0, 3.0, 4.0]])
+    norm = comfy.ops.manual_cast.RMSNorm(4, eps=1e-6)
+    norm.weight.data.fill_(1.0)
+    norm.weight_function = [lambda weight: weight * 2]
+    expected = torch.nn.functional.rms_norm(inputs, (4,), eps=norm.eps) * 2
+    torch.testing.assert_close(_rms_norm(inputs, norm), expected)
 
 
 def load_official_text_encoder_module():
