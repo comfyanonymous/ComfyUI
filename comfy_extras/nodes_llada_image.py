@@ -243,9 +243,12 @@ class LLaDAImageEditConditioning(io.ComfyNode):
         width = image.shape[2] // 32 * 32
         if height < 32 or width < 32:
             raise ValueError("LLaDA-Image editing requires an image at least 32x32")
-        samples = comfy.utils.common_upscale(
-            image.movedim(-1, 1), width, height, "lanczos", "disabled"
-        )[:, :3]
+        samples = image.movedim(-1, 1)
+        if samples.shape[-2:] != (height, width):
+            samples = comfy.utils.common_upscale(
+                samples, width, height, "lanczos", "disabled"
+            )
+        samples = samples[:, :3]
         resized_image = samples.movedim(1, -1)
         source_latents = vae.encode(resized_image)
 

@@ -237,3 +237,41 @@ def test_edit_conditioning_preprocesses_both_native_paths(monkeypatch):
     assert output_positive[0][1]["semantic_features"].shape == (2, 12, 10)
     assert output_positive[0][1]["source_latents"].shape == (2, 128, 4, 6)
     assert output_negative[0][1]["source_latents"].shape == (2, 128, 4, 6)
+
+
+def test_edit_conditioning_preserves_already_aligned_input(monkeypatch):
+    positive = [[torch.randn(1, 2, 8), {}]]
+    negative = [[torch.randn(1, 2, 8), {}]]
+    calls = {}
+
+    class VAE:
+        @staticmethod
+        def encode(image):
+            calls["vae"] = image
+            return torch.zeros(1, 128, 4, 4)
+
+    class Model:
+        dtype = torch.float32
+
+        @staticmethod
+        def encode_sigvq(pixel_values=None, token_ids=None):
+            return torch.zeros(1, 16, 10), None
+
+    monkeypatch.setattr(
+        llada_nodes,
+        "_encode_prompts",
+        lambda clip, prompt, negative_prompt: (positive, negative),
+    )
+    monkeypatch.setattr(
+        llada_nodes, "_load_llada_clip", lambda clip: (Model(), torch.device("cpu"))
+    )
+
+    def unexpected_resize(*args, **kwargs):
+        raise AssertionError("an already aligned image must not be resampled")
+
+    monkeypatch.setattr(llada_nodes.comfy.utils, "common_upscale", unexpected_resize)
+    image = torch.linspace(0.0, 1.0, 64 * 64 * 3).reshape(1, 64, 64, 3)
+
+    LLaDAImageEditConditioning.execute(object(), VAE(), image, "edit", "")
+
+    assert torch.equal(calls["vae"], image)
