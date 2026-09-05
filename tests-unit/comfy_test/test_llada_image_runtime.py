@@ -50,6 +50,22 @@ def test_initial_noise_matches_official_dtype_roundtrip(inference_dtype):
     assert torch.equal(second, expected)
 
 
+def test_patchify_pads_and_unpatchify_crops_nondivisible_latents():
+    model = make_model(layers=0, refiners=0)
+    image = torch.arange(4 * 3 * 5 * 7, dtype=torch.float32).reshape(4, 3, 5, 7)
+
+    patches, image_size, token_grid_size = model.patchify_image(image, 2, 2)
+    padding = (-len(patches)) % 32
+    hidden_states = torch.cat(
+        (patches, patches.new_zeros(padding, patches.shape[-1])), dim=0
+    ).unsqueeze(0)
+    restored = model.unpatchify(hidden_states, [image_size], 2, 2)[0]
+
+    assert token_grid_size == (2, 3, 4)
+    assert restored.shape == image.shape
+    assert torch.equal(restored, image)
+
+
 @pytest.mark.parametrize(
     ("editing", "semantic_length"),
     [(False, 0), (False, 3), (True, 0), (True, 3)],

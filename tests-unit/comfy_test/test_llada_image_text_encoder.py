@@ -84,7 +84,12 @@ def parity_device():
 
 
 def assert_bfloat16_parity(actual, expected):
-    absolute_error = (actual.float() - expected.float()).abs()
+    assert torch.equal(torch.isnan(actual), torch.isnan(expected))
+    assert torch.equal(torch.isposinf(actual), torch.isposinf(expected))
+    assert torch.equal(torch.isneginf(actual), torch.isneginf(expected))
+    finite = torch.isfinite(actual)
+    assert finite.any()
+    absolute_error = (actual.float() - expected.float()).abs()[finite]
     assert float(absolute_error.max()) <= 1.0 / 64.0
     assert float(absolute_error.mean()) <= 1.0 / 256.0
 

@@ -14,6 +14,7 @@ from torch import nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 
+import comfy.ldm.common_dit
 from comfy.ldm.flux.math import apply_rope
 from comfy.ldm.modules.attention import optimized_attention
 
@@ -432,6 +433,10 @@ class LLaDAImage(nn.Module):
         return torch.stack(torch.meshgrid(axes, indexing="ij"), dim=-1)
 
     def patchify_image(self, image, patch_size, f_patch_size):
+        original_size = tuple(image.shape[1:])
+        image = comfy.ldm.common_dit.pad_to_patch_size(
+            image.unsqueeze(0), (f_patch_size, patch_size, patch_size)
+        ).squeeze(0)
         channels, frames, height, width = image.shape
         frame_tokens = frames // f_patch_size
         height_tokens = height // patch_size
@@ -451,7 +456,7 @@ class LLaDAImage(nn.Module):
         )
         return (
             image,
-            (frames, height, width),
+            (original_size, (frames, height, width)),
             (frame_tokens, height_tokens, width_tokens),
         )
 
@@ -542,16 +547,17 @@ class LLaDAImage(nn.Module):
                 image_hidden_states = batch_hidden_states[start:end]
 
             current_offset = 0
-            for frames, height, width in batch_sizes:
-                original_length = (
-                    (frames // f_patch_size)
+            for original_size, padded_size in batch_sizes:
+                frames, height, width = padded_size
+                token_count = (
+                    frames // f_patch_size
                     * (height // patch_size)
                     * (width // patch_size)
                 )
-                padding_length = (-original_length) % SEQUENCE_MULTIPLE
+                padding_length = (-token_count) % SEQUENCE_MULTIPLE
                 output = (
                     image_hidden_states[
-                        current_offset : current_offset + original_length
+                        current_offset : current_offset + token_count
                     ]
                     .view(
                         frames // f_patch_size,
@@ -565,7 +571,10 @@ class LLaDAImage(nn.Module):
                     .permute(6, 0, 3, 1, 4, 2, 5)
                     .reshape(self.out_channels, frames, height, width)
                 )
-                current_offset += original_length + padding_length
+                output = output[
+                    :, : original_size[0], : original_size[1], : original_size[2]
+                ]
+                current_offset += token_count + padding_length
             outputs.append(output)
         return outputs
 
