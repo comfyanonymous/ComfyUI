@@ -1652,6 +1652,7 @@ def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_
     fp8_compute = comfy.model_management.supports_fp8_compute(load_device) # TODO: if we support more ops this needs to be more granular
     nvfp4_compute = comfy.model_management.supports_nvfp4_compute(load_device)
     mxfp8_compute = comfy.model_management.supports_mxfp8_compute(load_device)
+    int8_compute = comfy.model_management.supports_int8_compute(load_device)
 
     if model_config and hasattr(model_config, 'quant_config') and model_config.quant_config:
         logging.info("Using mixed precision operations")
@@ -1663,6 +1664,10 @@ def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_
         if not fp8_compute:
             disabled.add("float8_e4m3fn")
             disabled.add("float8_e5m2")
+        if not int8_compute:
+            disabled.add("int8_tensorwise")
+            disabled.add("convrot_w4a4")
+            disabled.add("asym_w4a8_int8")
         logging.info("Native ops: {} {}".format(", ".join(QUANT_ALGOS.keys() - disabled), ", emulated ops: {}".format(", ".join(disabled)) if len(disabled) > 0 else ""))
         return mixed_precision_ops(model_config.quant_config, compute_dtype, disabled=disabled)
 

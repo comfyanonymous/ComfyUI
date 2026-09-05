@@ -3,6 +3,7 @@ import torch
 import sys
 import os
 import json
+from types import SimpleNamespace
 
 # Add comfy to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -283,6 +284,48 @@ class TestMixedPrecisionOps(unittest.TestCase):
         saved = model.state_dict()
         saved_conf = json.loads(saved["layer.comfy_quant"].numpy().tobytes())
         self.assertTrue(saved_conf["convrot"])
+
+    def test_int8_disabled_on_unsupported_device_falls_back_to_full_precision(self):
+        """On a device that can't run comfy_kitchen's fast int8 matmul (e.g. MPS,
+        which lacks aten::_int_mm), pick_operations must mark int8 formats as
+        disabled so layers dequantize instead of taking the fast quantized path."""
+        import comfy.model_management as mm
+
+        orig_supports_int8 = mm.supports_int8_compute
+        mm.supports_int8_compute = lambda device=None: False
+        try:
+            model_config = SimpleNamespace(quant_config={"layer": {"format": "int8_tensorwise"}})
+            operations = ops.pick_operations(torch.bfloat16, torch.bfloat16, model_config=model_config)
+
+            torch.manual_seed(789)
+            weight = torch.randn(16, 256, dtype=torch.bfloat16)
+            bias = torch.randn(16, dtype=torch.bfloat16)
+            q_weight = QuantizedTensor.from_float(weight, "TensorWiseINT8Layout", per_channel=True)
+            state_dict = {
+                "layer.weight": q_weight._qdata,
+                "layer.bias": bias,
+                "layer.weight_scale": q_weight._params.scale,
+            }
+            layer_quant_config = {"layer": {"format": "int8_tensorwise"}}
+            state_dict, _ = comfy.utils.convert_old_quants(
+                state_dict,
+                metadata={"_quantization_metadata": json.dumps({"layers": layer_quant_config})},
+            )
+
+            model = torch.nn.Module()
+            model.layer = operations.Linear(256, 16, device="cpu", dtype=torch.bfloat16)
+            model.load_state_dict(state_dict, strict=False)
+
+            self.assertIsInstance(model.layer.weight, QuantizedTensor)
+            # The layer must be forced onto the full-precision (dequantized)
+            # path since the fast int8 path isn't usable on this device.
+            self.assertTrue(model.layer._full_precision_mm)
+
+            input_tensor = torch.randn(4, 256, dtype=torch.bfloat16)
+            output = model.layer(input_tensor)
+            self.assertEqual(output.shape, (4, 16))
+        finally:
+            mm.supports_int8_compute = orig_supports_int8
 
     def test_convrot_w4a4_loads_into_params(self):
         """ConvRot W4A4 checkpoints must load as the dedicated kitchen layout."""
