@@ -280,7 +280,8 @@ class PromptServer():
             # Store WebSocket for backward compatibility
             self.sockets[sid] = ws
             # Store metadata separately
-            self.sockets_metadata[sid] = {"feature_flags": {}}
+            connection_metadata = {"feature_flags": {}}
+            self.sockets_metadata[sid] = connection_metadata
 
             try:
                 if old_socket is not None:
@@ -311,7 +312,13 @@ class PromptServer():
                             if first_message and data.get("type") == "feature_flags":
                                 # Store client feature flags
                                 client_flags = data.get("data", {})
-                                self.sockets_metadata[sid]["feature_flags"] = client_flags
+                                if not feature_flags.try_set_connection_feature_flags(
+                                    self.sockets_metadata,
+                                    sid,
+                                    connection_metadata,
+                                    client_flags,
+                                ):
+                                    break
 
                                 # Send server feature flags in response
                                 await self.send(
