@@ -6,6 +6,7 @@ from comfy.cli_args import args
 args.cpu = True
 
 import comfy.ops
+from comfy.model_base import LLaDAImageSampling
 from comfy.ldm.llada_image.model import LLaDAImage
 
 
@@ -30,6 +31,23 @@ def make_model(dtype=torch.float32, device=torch.device("cpu"), layers=1, refine
         for parameter in model.parameters():
             torch.nn.init.normal_(parameter, std=0.02)
     return model
+
+
+@pytest.mark.parametrize("inference_dtype", (torch.float32, torch.bfloat16))
+def test_initial_noise_matches_official_dtype_roundtrip(inference_dtype):
+    class ModelConfig:
+        sampling_settings = {"shift": 1.0, "multiplier": 1.0}
+
+    sampling = LLaDAImageSampling(ModelConfig(), inference_dtype)
+    noise = torch.tensor([0.1234567, -0.9876543]).reshape(1, 1, 1, 2)
+    latent = torch.tensor([0.25, -0.5]).reshape(1, 1, 1, 2)
+    expected = noise.to(inference_dtype).float() + latent
+
+    first = sampling.noise_scaling(torch.tensor(0.9999), noise, latent)
+    second = sampling.noise_scaling(torch.tensor(0.5), noise, latent)
+
+    assert torch.equal(first, expected)
+    assert torch.equal(second, expected)
 
 
 @pytest.mark.parametrize(

@@ -1097,6 +1097,20 @@ class Flux2(Flux):
         return out
 
 
+class LLaDAImageSampling(
+    comfy.model_sampling.ModelSamplingDiscreteFlow, comfy.model_sampling.CONST
+):
+    def __init__(self, model_config, inference_dtype):
+        super().__init__(model_config)
+        self.inference_dtype = inference_dtype
+
+    def noise_scaling(self, sigma, noise, latent_image, max_denoise=False):
+        # The reference creates full-strength FP32 noise, quantizes it through the
+        # transformer dtype, then returns it to FP32 before the first model call.
+        noise = noise.to(dtype=self.inference_dtype).to(dtype=torch.float32)
+        return noise + latent_image
+
+
 class LLaDAImage(BaseModel):
     def __init__(self, model_config, device=None):
         super().__init__(
@@ -1104,6 +1118,9 @@ class LLaDAImage(BaseModel):
             ModelType.FLOW,
             device=device,
             unet_model=comfy.ldm.llada_image.model.LLaDAImage,
+        )
+        self.model_sampling = LLaDAImageSampling(
+            model_config, self.get_dtype_inference()
         )
         self.model_sampling.llada_image_variant = model_config.unet_config["variant"]
         self.memory_usage_factor_conds = ("source_latents", "semantic_features")
