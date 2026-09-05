@@ -1,12 +1,13 @@
 import pytest
 import torch
+from types import SimpleNamespace
 
 from comfy.cli_args import args
 
 args.cpu = True
 
 import comfy.ops
-from comfy.model_base import LLaDAImageSampling
+from comfy.model_base import LLaDAImage as LLaDAImageBase, LLaDAImageSampling
 from comfy.ldm.llada_image.conditioning import QueryFormer
 from comfy.ldm.llada_image.model import LLaDAImage
 
@@ -49,6 +50,21 @@ def test_initial_noise_matches_official_dtype_roundtrip(inference_dtype):
 
     assert torch.equal(first, expected)
     assert torch.equal(second, expected)
+
+
+@pytest.mark.parametrize("inference_dtype", (torch.float32, torch.bfloat16))
+def test_timestep_rounds_before_transformer_scaling(inference_dtype):
+    model = SimpleNamespace(get_dtype_inference=lambda: inference_dtype)
+    sigma = torch.tensor([0.9998922348, 0.35123456])
+    original = sigma.clone()
+
+    timestep = LLaDAImageBase.process_timestep(model, sigma, x=torch.empty(1))
+
+    assert timestep.dtype == inference_dtype
+    assert torch.equal(timestep * 1000.0, sigma.to(inference_dtype) * 1000.0)
+    assert torch.equal(sigma, original)
+    if inference_dtype == torch.bfloat16:
+        assert not torch.equal(timestep.float() * 1000.0, sigma * 1000.0)
 
 
 def test_patchify_pads_and_unpatchify_crops_nondivisible_latents():

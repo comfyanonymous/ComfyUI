@@ -1125,6 +1125,10 @@ class LLaDAImage(BaseModel):
         self.model_sampling.llada_image_variant = model_config.unet_config["variant"]
         self.memory_usage_factor_conds = ("source_latents", "semantic_features")
 
+    def process_timestep(self, timestep, **kwargs):
+        # The upstream pipeline rounds t before the transformer's t_scale multiply.
+        return timestep.to(dtype=self.get_dtype_inference())
+
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
         cross_attn = kwargs.get("cross_attn")
