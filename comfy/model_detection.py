@@ -416,6 +416,11 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             "n_layers": detected_layers,
             "n_refiner_layers": detected_refiners,
         }
+        if inferred_values["in_channels"] != 128:
+            raise ValueError(
+                "LLaDA-Image requires 128 transformer input channels for the "
+                "Flux2 latent format"
+            )
         for name, value in inferred_values.items():
             if name in transformer_config and transformer_config[name] != value:
                 raise ValueError(

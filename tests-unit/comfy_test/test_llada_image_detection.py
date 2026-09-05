@@ -22,8 +22,8 @@ PREFIX = "model.diffusion_model."
 
 def make_state_dict():
     return {
-        f"{PREFIX}all_x_embedder.1-1.weight": torch.empty(32, 4),
-        f"{PREFIX}all_final_layer.1-1.linear.weight": torch.empty(4, 32),
+        f"{PREFIX}all_x_embedder.1-1.weight": torch.empty(32, 128),
+        f"{PREFIX}all_final_layer.1-1.linear.weight": torch.empty(128, 32),
         f"{PREFIX}noise_refiner.0.attention.to_q.weight": torch.empty(32, 32),
         f"{PREFIX}sigvq_refiner.0.attention.to_q.weight": torch.empty(32, 32),
         f"{PREFIX}context_refiner.0.attention.to_q.weight": torch.empty(32, 32),
@@ -108,7 +108,7 @@ def test_detection_uses_shapes_and_checkpoint_config():
         "variant": "turbo",
         "all_patch_size": (1,),
         "all_f_patch_size": (1,),
-        "in_channels": 4,
+        "in_channels": 128,
         "dim": 32,
         "n_layers": 2,
         "n_refiner_layers": 1,
@@ -148,6 +148,17 @@ def test_detection_rejects_config_shape_disagreement():
     with pytest.raises(ValueError, match="state dict implies 32"):
         comfy.model_detection.detect_unet_config(
             make_state_dict(), PREFIX, {"config": json.dumps(config)}
+        )
+
+
+def test_detection_rejects_incompatible_flux2_latent_channels():
+    state_dict = make_state_dict()
+    state_dict[f"{PREFIX}all_x_embedder.1-1.weight"] = torch.empty(32, 4)
+    state_dict[f"{PREFIX}all_final_layer.1-1.linear.weight"] = torch.empty(4, 32)
+
+    with pytest.raises(ValueError, match="requires 128 transformer input channels"):
+        comfy.model_detection.detect_unet_config(
+            state_dict, PREFIX, make_metadata("base")
         )
 
 
@@ -262,7 +273,7 @@ def test_complete_tiny_aio_loads_and_runs_native_generation_and_editing(
     native_model = LLaDAImage(
         all_patch_size=(1,),
         all_f_patch_size=(1,),
-        in_channels=4,
+        in_channels=128,
         dim=32,
         n_layers=2,
         n_refiner_layers=1,
@@ -330,7 +341,7 @@ def test_complete_tiny_aio_loads_and_runs_native_generation_and_editing(
         @staticmethod
         def encode(image):
             return torch.zeros(
-                image.shape[0], 4, image.shape[1] // 16, image.shape[2] // 16
+                image.shape[0], 128, image.shape[1] // 16, image.shape[2] // 16
             )
 
     monkeypatch.setattr(comfy.sd, "VAE", TestVAE)
@@ -365,9 +376,12 @@ def test_complete_tiny_aio_loads_and_runs_native_generation_and_editing(
     conditioning = clip.encode_from_tokens_scheduled(
         clip.tokenize("a tiny blue square"), show_pbar=False
     )
+    negative_conditioning = clip.encode_from_tokens_scheduled(
+        clip.tokenize(""), show_pbar=False
+    )
     context, conditioning_values = conditioning[0]
     attention_mask = conditioning_values["attention_mask"]
-    latent = torch.randn(1, 4, 2, 3)
+    latent = torch.randn(1, 128, 2, 3)
     sigma = torch.tensor([0.5])
 
     with torch.inference_mode():
@@ -397,24 +411,71 @@ def test_complete_tiny_aio_loads_and_runs_native_generation_and_editing(
         )
 
         edit_positive, edit_negative, edit_target = (
-            LLaDAImageEditConditioning.execute(
-                clip,
-                vae,
-                torch.rand(1, 32, 32, 3),
-                "make the square red",
-                "",
+                LLaDAImageEditConditioning.execute(
+                    clip,
+                    vae,
+                    torch.rand(2, 32, 32, 3),
+                    "make the square red",
+                    "",
+                )
             )
-        )
         edit_context, edit_values = edit_positive[0]
+        edit_batch_size = edit_target["samples"].shape[0]
         edited = model.model.apply_model(
             edit_target["samples"],
             sigma,
-            c_crossattn=edit_context,
-            attention_mask=edit_values["attention_mask"],
+            c_crossattn=edit_context.repeat(edit_batch_size, 1, 1),
+            attention_mask=edit_values["attention_mask"].repeat(edit_batch_size, 1),
             semantic_features=edit_values["semantic_features"],
             semantic_mask=edit_values["semantic_mask"],
             source_latents=edit_values["source_latents"],
         )
+
+        from comfy_extras.nodes_custom_sampler import (
+            CFGGuider,
+            KSamplerSelect,
+            RandomNoise,
+            SamplerCustomAdvanced,
+        )
+        from comfy_extras.nodes_llada_image import (
+            LLaDAImageScheduler,
+            SamplerLLaDAImageTurbo,
+        )
+
+        sampled_modes = {}
+        for mode_index, (mode, positive, negative, target) in enumerate(
+            (
+                (
+                    "text",
+                    conditioning,
+                    negative_conditioning,
+                    {"samples": torch.zeros_like(latent)},
+                ),
+                (
+                    "vq",
+                    vq_positive,
+                    vq_negative,
+                    {"samples": torch.zeros_like(latent)},
+                ),
+                ("editing", edit_positive, edit_negative, edit_target),
+            )
+        ):
+            noise = RandomNoise.execute(79 + mode_index)[0]
+            guider = CFGGuider.execute(
+                model,
+                positive,
+                negative,
+                5.0 if variant == "base" else 1.0,
+            )[0]
+            sampler = (
+                KSamplerSelect.execute("euler")[0]
+                if variant == "base"
+                else SamplerLLaDAImageTurbo.execute()[0]
+            )
+            sigmas = LLaDAImageScheduler.execute(model, 2)[0]
+            sampled_modes[mode] = SamplerCustomAdvanced.execute(
+                noise, guider, sampler, sigmas, target
+            )[0]
 
     assert generated.shape == latent.shape
     assert vq_generated.shape == latent.shape
@@ -422,7 +483,14 @@ def test_complete_tiny_aio_loads_and_runs_native_generation_and_editing(
     assert torch.isfinite(generated).all()
     assert torch.isfinite(vq_generated).all()
     assert torch.isfinite(edited).all()
+    assert sampled_modes["text"]["samples"].shape == latent.shape
+    assert sampled_modes["vq"]["samples"].shape == latent.shape
+    assert sampled_modes["editing"]["samples"].shape == edit_target["samples"].shape
+    assert all(
+        torch.isfinite(result["samples"]).all()
+        for result in sampled_modes.values()
+    )
     assert vq_positive[0][1]["semantic_features"].shape == (1, 16, 10)
     assert vq_negative[0][1]["semantic_features"].shape == (1, 0, 10)
-    assert edit_positive[0][1]["source_latents"].shape == (1, 4, 2, 2)
-    assert edit_negative[0][1]["source_latents"].shape == (1, 4, 2, 2)
+    assert edit_positive[0][1]["source_latents"].shape == (2, 128, 2, 2)
+    assert edit_negative[0][1]["source_latents"].shape == (2, 128, 2, 2)
