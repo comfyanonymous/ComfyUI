@@ -21,6 +21,7 @@ from dataclasses import dataclass, fields
 import torch
 from torch import nn
 import torch.nn.functional as F
+from tokenizers import Tokenizer
 
 import comfy.ops
 from comfy import sd1_clip
@@ -96,21 +97,6 @@ def _require_config_values(component, config, expected):
                 f"Unsupported LLaDA-Image {component} configuration: "
                 f"expected {key}={value!r}, got {config[key]!r}"
             )
-
-
-class LLaDA2RMSNorm(nn.Module):
-    def __init__(self, hidden_size, eps, dtype=None, device=None):
-        super().__init__()
-        self.weight = nn.Parameter(torch.empty(hidden_size, dtype=dtype, device=device))
-        self.eps = eps
-
-    def forward(self, hidden_states):
-        input_dtype = hidden_states.dtype
-        normalized = hidden_states.float()
-        variance = normalized.square().mean(-1, keepdim=True)
-        normalized = normalized * torch.rsqrt(variance + self.eps)
-        weight = comfy.ops.cast_to_input(self.weight, hidden_states, copy=False)
-        return weight * normalized.to(input_dtype)
 
 
 class LLaDA2MLP(nn.Module):
@@ -323,7 +309,7 @@ def _repeat_kv(hidden_states, repeats):
     )
 
 
-def _attention_bias(attention_mask, batch, sequence, dtype, device):
+def _attention_bias(attention_mask, sequence, dtype, device):
     minimum = torch.finfo(dtype).min
     if attention_mask is None:
         return None
@@ -355,11 +341,11 @@ class LLaDA2Attention(nn.Module):
             dtype=dtype,
             device=device,
         )
-        self.query_layernorm = LLaDA2RMSNorm(
-            self.head_dim, config.rms_norm_eps, dtype, device
+        self.query_layernorm = operations.RMSNorm(
+            self.head_dim, eps=config.rms_norm_eps, dtype=dtype, device=device
         )
-        self.key_layernorm = LLaDA2RMSNorm(
-            self.head_dim, config.rms_norm_eps, dtype, device
+        self.key_layernorm = operations.RMSNorm(
+            self.head_dim, eps=config.rms_norm_eps, dtype=dtype, device=device
         )
         self.dense = operations.Linear(
             self.num_heads * self.head_dim,
@@ -393,9 +379,7 @@ class LLaDA2Attention(nn.Module):
         key = _repeat_kv(key, key_value_groups)
         value = _repeat_kv(value, key_value_groups)
 
-        mask = _attention_bias(
-            attention_mask, batch, sequence, query.dtype, query.device
-        )
+        mask = _attention_bias(attention_mask, sequence, query.dtype, query.device)
         hidden_states = optimized_attention(
             query,
             key,
@@ -420,11 +404,17 @@ class LLaDA2DecoderLayer(nn.Module):
             self.mlp = LLaDA2MLP(
                 config.hidden_size, config.intermediate_size, dtype, device, operations
             )
-        self.input_layernorm = LLaDA2RMSNorm(
-            config.hidden_size, config.rms_norm_eps, dtype, device
+        self.input_layernorm = operations.RMSNorm(
+            config.hidden_size,
+            eps=config.rms_norm_eps,
+            dtype=dtype,
+            device=device,
         )
-        self.post_attention_layernorm = LLaDA2RMSNorm(
-            config.hidden_size, config.rms_norm_eps, dtype, device
+        self.post_attention_layernorm = operations.RMSNorm(
+            config.hidden_size,
+            eps=config.rms_norm_eps,
+            dtype=dtype,
+            device=device,
         )
 
     def forward(
@@ -458,8 +448,11 @@ class LLaDA2LanguageModel(nn.Module):
                 for index in range(config.num_hidden_layers)
             ]
         )
-        self.norm = LLaDA2RMSNorm(
-            config.hidden_size, config.rms_norm_eps, dtype, device
+        self.norm = operations.RMSNorm(
+            config.hidden_size,
+            eps=config.rms_norm_eps,
+            dtype=dtype,
+            device=device,
         )
 
     def get_input_embeddings(self):
@@ -513,8 +506,6 @@ class LLaDA2Backbone(nn.Module):
 
 class _LLaDARawTokenizer:
     def __init__(self, tokenizer_json_bytes=None, **kwargs):
-        from tokenizers import Tokenizer
-
         if isinstance(tokenizer_json_bytes, torch.Tensor):
             if (
                 tokenizer_json_bytes.dtype != torch.uint8
@@ -640,7 +631,6 @@ class LLaDAImageClipModel(nn.Module):
                 dtype,
                 full_precision_mm=True,
             )
-        self.operations = operations
         self.dtype = dtype
         self.execution_device = None
         _require_config_values(

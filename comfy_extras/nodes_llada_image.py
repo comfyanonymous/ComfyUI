@@ -8,6 +8,7 @@ import comfy.model_management
 import comfy.utils
 import node_helpers
 import nodes
+from comfy.text_encoders.llada_image import LLaDAImageTEModel
 from comfy_api.latest import ComfyExtension, io
 
 
@@ -133,13 +134,12 @@ def _set_semantic_conditioning(
 
 
 def _load_llada_clip(clip):
+    if not isinstance(clip.cond_stage_model, LLaDAImageTEModel):
+        raise ValueError("The connected CLIP is not an LLaDA-Image AIO text encoder")
     clip.load_model()
     device = clip.patcher.load_device
     clip.cond_stage_model.set_clip_options({"execution_device": device})
-    model = getattr(clip.cond_stage_model, "llada2", None)
-    if model is None:
-        raise ValueError("The connected CLIP is not an LLaDA-Image AIO text encoder")
-    return model, device
+    return clip.cond_stage_model.llada2, device
 
 
 class LLaDAImageVQConditioning(io.ComfyNode):

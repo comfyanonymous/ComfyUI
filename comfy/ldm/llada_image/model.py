@@ -6,7 +6,6 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 
-import math
 from dataclasses import dataclass
 
 import torch
@@ -16,6 +15,7 @@ from torch.nn.utils.rnn import pad_sequence
 
 import comfy.ldm.common_dit
 from comfy.ldm.flux.math import apply_rope
+from comfy.ldm.flux.layers import timestep_embedding
 from comfy.ldm.modules.attention import optimized_attention
 
 
@@ -58,18 +58,9 @@ class TimestepEmbedder(nn.Module):
         self.frequency_embedding_dim = frequency_embedding_dim
 
     def forward(self, timestep, hidden_dtype):
-        half_dim = self.frequency_embedding_dim // 2
-        frequencies = torch.exp(
-            -math.log(10000)
-            * torch.arange(half_dim, dtype=torch.float32, device=timestep.device)
-            / half_dim
+        embedding = timestep_embedding(
+            timestep, self.frequency_embedding_dim, time_factor=1.0
         )
-        arguments = timestep[:, None].float() * frequencies[None]
-        embedding = torch.cat((torch.cos(arguments), torch.sin(arguments)), dim=-1)
-        if self.frequency_embedding_dim % 2:
-            embedding = torch.cat(
-                (embedding, torch.zeros_like(embedding[:, :1])), dim=-1
-            )
         return self.mlp(embedding.to(dtype=hidden_dtype))
 
 
@@ -361,7 +352,6 @@ class LLaDAImage(nn.Module):
     ):
         super().__init__()
         self.dtype = dtype
-        self.in_channels = in_channels
         self.out_channels = in_channels
         self.all_patch_size = all_patch_size
         self.all_f_patch_size = all_f_patch_size
@@ -500,7 +490,9 @@ class LLaDAImage(nn.Module):
         features = torch.cat(features, dim=0)
         inner_padding_mask = torch.cat(inner_padding_masks).unsqueeze(-1)
         features = torch.where(
-            inner_padding_mask, pad_token.to(dtype=features.dtype), features
+            inner_padding_mask,
+            comfy.ops.cast_to_input(pad_token, features, copy=False),
+            features,
         )
         features = pad_sequence(
             list(features.split(sequence_lengths, dim=0)),

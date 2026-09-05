@@ -121,6 +121,21 @@ def test_semantic_conditioning_matches_cfg_and_edit_contract():
     assert torch.equal(negative[0][1]["source_latents"], source)
 
 
+def test_load_llada_clip_rejects_wrong_encoder_before_loading():
+    class Clip:
+        cond_stage_model = object()
+        load_called = False
+
+        def load_model(self):
+            self.load_called = True
+
+    clip = Clip()
+    with pytest.raises(ValueError, match="not an LLaDA-Image AIO text encoder"):
+        llada_nodes._load_llada_clip(clip)
+
+    assert not clip.load_called
+
+
 def test_vq_conditioning_generates_expected_token_count(monkeypatch):
     positive = [[torch.randn(1, 2, 8), {}]]
     negative = [[torch.randn(1, 2, 8), {}]]

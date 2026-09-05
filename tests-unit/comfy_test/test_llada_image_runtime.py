@@ -7,6 +7,7 @@ args.cpu = True
 
 import comfy.ops
 from comfy.model_base import LLaDAImageSampling
+from comfy.ldm.llada_image.conditioning import QueryFormer
 from comfy.ldm.llada_image.model import LLaDAImage
 
 
@@ -64,6 +65,41 @@ def test_patchify_pads_and_unpatchify_crops_nondivisible_latents():
     assert token_grid_size == (2, 3, 4)
     assert restored.shape == image.shape
     assert torch.equal(restored, image)
+
+
+def test_raw_conditioning_parameters_follow_input_dtype():
+    model = QueryFormer(
+        num_queries=2,
+        hidden_size=4,
+        num_hidden_layers=0,
+        dtype=torch.float32,
+        device=torch.device("cpu"),
+        operations=comfy.ops.disable_weight_init,
+    )
+    torch.nn.init.normal_(model.meta_queries)
+    inputs = torch.randn(3, 5, 4, dtype=torch.bfloat16)
+
+    output = model(inputs, torch.ones(3, 5, dtype=torch.bool))
+
+    assert output.dtype == inputs.dtype
+    assert torch.equal(output, model.meta_queries.to(inputs).unsqueeze(0).expand(3, -1, -1))
+
+
+def test_sequence_pad_tokens_follow_feature_dtype():
+    model = make_model(layers=0, refiners=0)
+    features = [
+        torch.randn(2, 32, dtype=torch.bfloat16),
+        torch.randn(1, 32, dtype=torch.bfloat16),
+    ]
+    positions = [torch.zeros(2, 3, dtype=torch.int32), torch.zeros(1, 3, dtype=torch.int32)]
+    inner_padding = [torch.tensor([False, True]), torch.tensor([False])]
+
+    batched, _, _, _, _ = model.batch_sequences(
+        features, positions, inner_padding, model.x_pad_token
+    )
+
+    assert batched.dtype == features[0].dtype
+    assert torch.equal(batched[0, 1], model.x_pad_token[0].to(batched))
 
 
 @pytest.mark.parametrize(

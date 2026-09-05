@@ -166,9 +166,9 @@ class QueryFormer(nn.Module):
         )
 
     def forward(self, inputs_embeds, attention_mask, transformer_options={}):
-        query_embeds = self.meta_queries.unsqueeze(0).expand(
-            inputs_embeds.shape[0], -1, -1
-        )
+        query_embeds = comfy.ops.cast_to_input(
+            self.meta_queries, inputs_embeds, copy=False
+        ).unsqueeze(0).expand(inputs_embeds.shape[0], -1, -1)
         for block in self.query_blocks:
             query_embeds = block(
                 query_embeds, inputs_embeds, attention_mask.bool(), transformer_options
