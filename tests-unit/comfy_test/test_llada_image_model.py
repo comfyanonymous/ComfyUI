@@ -1,4 +1,6 @@
+import hashlib
 import importlib.util
+import os
 from pathlib import Path
 
 import torch
@@ -20,6 +22,9 @@ UPSTREAM_MODEL = (
     / "models"
     / "transformer_llada_image.py"
 )
+UPSTREAM_MODEL_SHA256 = (
+    "1460e875568f80c3c153ff07888a1b855bd1f5c290db3d16bad5288d29fcbbf2"
+)
 pytestmark = pytest.mark.skipif(
     not UPSTREAM_MODEL.is_file(),
     reason="optional parity test requires a sibling LLaDA-Image checkout",
@@ -27,6 +32,12 @@ pytestmark = pytest.mark.skipif(
 
 
 def load_reference_class():
+    actual_sha256 = hashlib.sha256(UPSTREAM_MODEL.read_bytes()).hexdigest()
+    if actual_sha256 != UPSTREAM_MODEL_SHA256:
+        raise ValueError(
+            "upstream transformer fixture hash mismatch: expected "
+            f"{UPSTREAM_MODEL_SHA256}, got {actual_sha256}"
+        )
     spec = importlib.util.spec_from_file_location(
         "llada_image_reference", UPSTREAM_MODEL
     )
@@ -35,7 +46,7 @@ def load_reference_class():
     return module.LLaDAImageTransformer2DModel
 
 
-def make_models():
+def make_models(dtype=torch.float32, device=torch.device("cpu")):
     config = {
         "all_patch_size": (1,),
         "all_f_patch_size": (1,),
@@ -53,8 +64,17 @@ def make_models():
         "axes_dims": (4, 6, 6),
     }
     torch.manual_seed(1)
-    reference = load_reference_class()(**config, axes_lens=(512, 32, 32)).eval()
-    model = LLaDAImage(**config, operations=comfy.ops.disable_weight_init).eval()
+    reference = (
+        load_reference_class()(**config, axes_lens=(512, 32, 32))
+        .to(device=device, dtype=dtype)
+        .eval()
+    )
+    model = LLaDAImage(
+        **config,
+        dtype=dtype,
+        device=device,
+        operations=comfy.ops.disable_weight_init,
+    ).eval()
     incompatible = model.load_state_dict(reference.state_dict(), strict=True)
     assert not incompatible.missing_keys
     assert not incompatible.unexpected_keys
@@ -64,7 +84,9 @@ def make_models():
 def pad_features(features):
     length = max(len(value) for value in features)
     output = features[0].new_zeros((len(features), length, features[0].shape[-1]))
-    mask = torch.zeros((len(features), length), dtype=torch.bool)
+    mask = torch.zeros(
+        (len(features), length), dtype=torch.bool, device=features[0].device
+    )
     for index, value in enumerate(features):
         output[index, : len(value)] = value
         mask[index, : len(value)] = True
@@ -116,3 +138,60 @@ def test_editing_matches_reference():
     )
 
     torch.testing.assert_close(actual, expected, atol=2e-5, rtol=2e-5)
+
+
+@pytest.mark.parametrize("editing", (False, True))
+def test_bfloat16_matches_reference(editing):
+    device = torch.device(os.environ.get("LLADA_IMAGE_PARITY_DEVICE", "cpu"))
+    if device.type == "cuda" and not torch.cuda.is_available():
+        pytest.skip("LLADA_IMAGE_PARITY_DEVICE=cuda requires a CUDA PyTorch build")
+    reference, model = make_models(torch.bfloat16, device)
+    torch.manual_seed(101)
+    x = torch.randn(2, 4, 4, 4, dtype=torch.bfloat16, device=device)
+    timestep = torch.tensor([0.7, 0.2], dtype=torch.bfloat16, device=device)
+    captions = [
+        torch.randn(3, 8, dtype=torch.bfloat16, device=device),
+        torch.randn(5, 8, dtype=torch.bfloat16, device=device),
+    ]
+    context, attention_mask = pad_features(captions)
+    reference_kwargs = {}
+    native_kwargs = {}
+    if editing:
+        semantics = [
+            torch.randn(2, 10, dtype=torch.bfloat16, device=device),
+            torch.randn(4, 10, dtype=torch.bfloat16, device=device),
+        ]
+        semantic_features, semantic_mask = pad_features(semantics)
+        source = torch.randn_like(x)
+        reference_kwargs = {
+            "glm_cap_feats": semantics,
+            "source_latents": [value.unsqueeze(1) for value in source],
+        }
+        native_kwargs = {
+            "semantic_features": semantic_features,
+            "semantic_mask": semantic_mask,
+            "source_latents": source,
+        }
+
+    with torch.inference_mode():
+        expected = reference(
+            x=[value.unsqueeze(1) for value in x],
+            t=timestep,
+            cap_feats=captions,
+            **reference_kwargs,
+        ).sample
+        expected = -torch.stack([value.squeeze(1) for value in expected])
+        actual = model(
+            x,
+            timestep,
+            context=context,
+            attention_mask=attention_mask,
+            **native_kwargs,
+        )
+
+    absolute_error = (actual.float() - expected.float()).abs()
+    # Diffusers and Core dispatch different BF16 attention kernels. Keep the
+    # tolerance bounded to two BF16 quanta around unit-scale activations and also
+    # constrain aggregate drift; this was measured on both CPU and RTX 5090 CUDA.
+    assert float(absolute_error.max()) <= 1.0 / 64.0
+    assert float(absolute_error.mean()) <= 1.0 / 256.0

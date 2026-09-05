@@ -25,7 +25,7 @@ import torch.nn.functional as F
 import comfy.ops
 from comfy import sd1_clip
 from comfy.ldm.llada_image.conditioning import QueryFormer, SigVQ, TextProjection
-from comfy.ldm.modules.attention import optimized_attention_for_device
+from comfy.ldm.modules.attention import attention_pytorch
 
 
 @dataclass
@@ -312,6 +312,17 @@ def _apply_partial_rope(query, key, cos, sin):
     )
 
 
+def _repeat_kv(hidden_states, repeats):
+    if repeats == 1:
+        return hidden_states
+    batch, heads, sequence, head_dim = hidden_states.shape
+    return (
+        hidden_states[:, :, None, :, :]
+        .expand(batch, heads, repeats, sequence, head_dim)
+        .reshape(batch, heads * repeats, sequence, head_dim)
+    )
+
+
 def _attention_bias(attention_mask, batch, sequence, dtype, device):
     minimum = torch.finfo(dtype).min
     if attention_mask is None:
@@ -378,19 +389,23 @@ class LLaDA2Attention(nn.Module):
             position_ids, self.rope_dim, self.rope_theta, query.dtype
         )
         query, key = _apply_partial_rope(query, key, cos, sin)
+        key_value_groups = self.num_heads // self.num_key_value_heads
+        key = _repeat_kv(key, key_value_groups)
+        value = _repeat_kv(value, key_value_groups)
 
         mask = _attention_bias(
             attention_mask, batch, sequence, query.dtype, query.device
         )
-        attention = optimized_attention_for_device(query.device, mask=mask is not None)
-        hidden_states = attention(
+        # This path feeds discrete VQ generation. Keep the pinned upstream
+        # PyTorch SDPA evaluation order: alternate optimized kernels can move
+        # BF16 logits across an argmax boundary and change generated token IDs.
+        hidden_states = attention_pytorch(
             query,
             key,
             value,
             self.num_heads,
             mask=mask,
             skip_reshape=True,
-            enable_gqa=True,
             transformer_options={}
             if transformer_options is None
             else transformer_options,

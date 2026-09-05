@@ -76,6 +76,13 @@ def load_official_text_encoder_module():
     return module
 
 
+def parity_device():
+    device = torch.device(os.environ.get("LLADA_IMAGE_PARITY_DEVICE", "cpu"))
+    if device.type == "cuda" and not torch.cuda.is_available():
+        pytest.skip("LLADA_IMAGE_PARITY_DEVICE=cuda requires a CUDA PyTorch build")
+    return device
+
+
 def small_backbone():
     config = LLaDA2Config(
         vocab_size=64,
@@ -126,9 +133,7 @@ def small_backbone():
 def test_bfloat16_moe_matches_pinned_official_eager_path(monkeypatch):
     official = load_official_text_encoder_module()
     monkeypatch.setenv("LLADA_MOE_BACKEND", "eager")
-    device = torch.device(os.environ.get("LLADA_IMAGE_PARITY_DEVICE", "cpu"))
-    if device.type == "cuda" and not torch.cuda.is_available():
-        pytest.skip("LLADA_IMAGE_PARITY_DEVICE=cuda requires a CUDA PyTorch build")
+    device = parity_device()
     values = {
         "vocab_size": 64,
         "hidden_size": 16,
@@ -209,9 +214,13 @@ def test_bfloat16_moe_matches_pinned_official_eager_path(monkeypatch):
     torch.testing.assert_close(actual, expected, rtol=0, atol=0)
 
 
-def test_text_backbone_matches_pinned_official_eager_path(monkeypatch):
+@pytest.mark.parametrize(
+    "dtype", (torch.float32, torch.bfloat16), ids=("float32", "bfloat16")
+)
+def test_text_backbone_matches_pinned_official_eager_path(monkeypatch, dtype):
     official = load_official_text_encoder_module()
     monkeypatch.setenv("LLADA_MOE_BACKEND", "eager")
+    device = torch.device("cpu") if dtype == torch.float32 else parity_device()
     values = {
         "vocab_size": 64,
         "hidden_size": 16,
@@ -244,15 +253,17 @@ def test_text_backbone_matches_pinned_official_eager_path(monkeypatch):
         output_router_logits=False,
     )
     native_config = LLaDA2Config(**values)
-    operations = comfy.ops.mixed_precision_ops(
-        {}, torch.float32, full_precision_mm=True
-    )
+    operations = comfy.ops.mixed_precision_ops({}, dtype, full_precision_mm=True)
     torch.manual_seed(38)
-    expected_model = official.LLaDA2MoeBackbone(official_config).eval()
+    expected_model = (
+        official.LLaDA2MoeBackbone(official_config)
+        .to(device=device, dtype=dtype)
+        .eval()
+    )
     actual_model = LLaDA2Backbone(
         native_config,
-        torch.float32,
-        torch.device("cpu"),
+        dtype,
+        device,
         operations,
     ).eval()
     state_dict = {}
@@ -268,10 +279,12 @@ def test_text_backbone_matches_pinned_official_eager_path(monkeypatch):
     assert not incompatible.unexpected_keys
 
     input_ids = torch.tensor(
-        [[1, 2, 3, 4, 5, 0, 0], [8, 7, 6, 5, 4, 3, 2]], dtype=torch.long
+        [[1, 2, 3, 4, 5, 0, 0], [8, 7, 6, 5, 4, 3, 2]],
+        dtype=torch.long,
+        device=device,
     )
     key_valid = input_ids != 0
-    causal = torch.ones(7, 7, dtype=torch.bool).tril()
+    causal = torch.ones(7, 7, dtype=torch.bool, device=device).tril()
     attention_mask = key_valid[:, None, None, :] & causal[None, None]
     position_ids = key_valid.long().cumsum(dim=1) - 1
     position_ids.clamp_min_(0)
@@ -289,7 +302,10 @@ def test_text_backbone_matches_pinned_official_eager_path(monkeypatch):
             position_ids=position_ids,
         )
 
-    torch.testing.assert_close(actual, expected, rtol=2e-5, atol=2e-5)
+    if dtype == torch.bfloat16:
+        torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+    else:
+        torch.testing.assert_close(actual, expected, rtol=2e-5, atol=2e-5)
 
 
 def test_vq_block_diffusion_matches_pinned_official_logic():
