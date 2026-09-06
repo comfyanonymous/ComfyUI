@@ -18,6 +18,7 @@ from aiohttp.client_exceptions import ClientError, ContentTypeError
 from pydantic import BaseModel
 
 from comfy import utils
+from comfy.model_management import InterruptProcessingException, interrupt_current_processing
 from comfy_api.latest import IO
 from server import PromptServer
 
@@ -378,7 +379,11 @@ async def poll_op_raw(
                 if estimate_bar is not None:
                     pct = _estimate_progress_pct(now - state.started, state.estimated_duration, state.estimated_p90)
                     if pct != last_estimate_pct:
-                        estimate_bar.update_absolute(pct, total=100)
+                        try:
+                            estimate_bar.update_absolute(pct, total=100)
+                        except InterruptProcessingException:
+                            interrupt_current_processing()
+                            break
                         last_estimate_pct = pct
                 _display_time_progress(
                     cls,
@@ -437,14 +442,25 @@ async def poll_op_raw(
                 status = None
 
             if price_extractor:
-                new_price = price_extractor(resp_json)
+                try:
+                    new_price = price_extractor(resp_json)
+                except Exception as e:
+                    logging.error("Price extraction failed: %s", e)
+                    new_price = None
                 if new_price is not None:
                     state.price = new_price
 
             if progress_extractor:
-                new_progress = progress_extractor(resp_json)
+                try:
+                    new_progress = progress_extractor(resp_json)
+                except Exception as e:
+                    logging.error("Progress extraction failed: %s", e)
+                    new_progress = None
                 if new_progress is not None and last_progress != new_progress:
-                    progress_bar.update_absolute(new_progress, total=100)
+                    try:
+                        progress_bar.update_absolute(new_progress, total=100)
+                    except InterruptProcessingException:
+                        interrupt_current_processing()
                     last_progress = new_progress
 
             now_ts = time.monotonic()
@@ -468,10 +484,13 @@ async def poll_op_raw(
                 with contextlib.suppress(Exception):
                     await ticker_task
 
-                if progress_bar and last_progress != 100:
-                    progress_bar.update_absolute(100, total=100)
-                if estimate_bar is not None:
-                    estimate_bar.update_absolute(100, total=100)
+                try:
+                    if progress_bar and last_progress != 100:
+                        progress_bar.update_absolute(100, total=100)
+                    if estimate_bar is not None:
+                        estimate_bar.update_absolute(100, total=100)
+                except InterruptProcessingException:
+                    logging.info("Interrupt raced task completion; returning the finished result")
 
                 _display_time_progress(
                     cls,
