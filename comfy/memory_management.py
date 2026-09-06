@@ -1,4 +1,5 @@
 import math
+import logging
 import ctypes
 import dataclasses
 import torch
@@ -185,3 +186,25 @@ def extra_ram_release(target, free_active=False):
     if extra_ram_release_callback is None:
         return 0
     return extra_ram_release_callback(target, free_active=free_active)
+
+
+# Software outside ComfyUI holding memory on the same device: another
+# framework in this process, a sibling process, an external cache. A holder is
+# asked to release when ComfyUI releases its own models. Nothing is registered
+# by default and none of this runs while the list is empty.
+memory_holders = []
+
+def register_memory_holder(holder):
+    if holder not in memory_holders:
+        memory_holders.append(holder)
+
+def unregister_memory_holder(holder):
+    if holder in memory_holders:
+        memory_holders.remove(holder)
+
+def holders_release_memory(device):
+    for holder in memory_holders:
+        try:
+            holder.release_memory(device)
+        except Exception as e:
+            logging.warning("Memory holder {} failed release_memory on {}: {}".format(holder.__class__.__name__, device, e))
