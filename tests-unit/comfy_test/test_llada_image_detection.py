@@ -428,98 +428,97 @@ def test_complete_tiny_aio_loads_and_runs_native_generation_and_editing(
     latent = torch.randn(1, 128, 2, 3)
     sigma = torch.tensor([0.5])
 
-    with torch.inference_mode():
-        generated = model.model.apply_model(
-            latent,
-            sigma,
-            c_crossattn=context,
-            attention_mask=attention_mask,
-        )
+    generated = model.model.apply_model(
+        latent,
+        sigma,
+        c_crossattn=context,
+        attention_mask=attention_mask,
+    )
 
-        from comfy_extras.nodes_llada_image import (
-            LLaDAImageEditConditioning,
-            LLaDAImageVQConditioning,
-        )
+    from comfy_extras.nodes_llada_image import (
+        LLaDAImageEditConditioning,
+        LLaDAImageVQConditioning,
+    )
 
-        vq_positive, vq_negative = LLaDAImageVQConditioning.execute(
-            clip, "a tiny blue square", "", 64, 64
-        )
-        vq_context, vq_values = vq_positive[0]
-        vq_generated = model.model.apply_model(
-            latent,
-            sigma,
-            c_crossattn=vq_context,
-            attention_mask=vq_values["attention_mask"],
-            semantic_features=vq_values["semantic_features"],
-            semantic_mask=vq_values["semantic_mask"],
-        )
+    vq_positive, vq_negative = LLaDAImageVQConditioning.execute(
+        clip, "a tiny blue square", "", 64, 64
+    )
+    vq_context, vq_values = vq_positive[0]
+    vq_generated = model.model.apply_model(
+        latent,
+        sigma,
+        c_crossattn=vq_context,
+        attention_mask=vq_values["attention_mask"],
+        semantic_features=vq_values["semantic_features"],
+        semantic_mask=vq_values["semantic_mask"],
+    )
 
-        edit_positive, edit_negative, edit_target = (
-                LLaDAImageEditConditioning.execute(
-                    clip,
-                    vae,
-                    torch.rand(2, 32, 32, 3),
-                    "make the square red",
-                    "",
-                )
+    edit_positive, edit_negative, edit_target = (
+            LLaDAImageEditConditioning.execute(
+                clip,
+                vae,
+                torch.rand(2, 32, 32, 3),
+                "make the square red",
+                "",
             )
-        edit_context, edit_values = edit_positive[0]
-        edit_batch_size = edit_target["samples"].shape[0]
-        edited = model.model.apply_model(
-            edit_target["samples"],
-            sigma,
-            c_crossattn=edit_context.repeat(edit_batch_size, 1, 1),
-            attention_mask=edit_values["attention_mask"].repeat(edit_batch_size, 1),
-            semantic_features=edit_values["semantic_features"],
-            semantic_mask=edit_values["semantic_mask"],
-            source_latents=edit_values["source_latents"],
         )
+    edit_context, edit_values = edit_positive[0]
+    edit_batch_size = edit_target["samples"].shape[0]
+    edited = model.model.apply_model(
+        edit_target["samples"],
+        sigma,
+        c_crossattn=edit_context.repeat(edit_batch_size, 1, 1),
+        attention_mask=edit_values["attention_mask"].repeat(edit_batch_size, 1),
+        semantic_features=edit_values["semantic_features"],
+        semantic_mask=edit_values["semantic_mask"],
+        source_latents=edit_values["source_latents"],
+    )
 
-        from comfy_extras.nodes_custom_sampler import (
-            CFGGuider,
-            KSamplerSelect,
-            RandomNoise,
-            SamplerCustomAdvanced,
-        )
-        from comfy_extras.nodes_llada_image import (
-            LLaDAImageScheduler,
-            SamplerLLaDAImageTurbo,
-        )
+    from comfy_extras.nodes_custom_sampler import (
+        CFGGuider,
+        KSamplerSelect,
+        RandomNoise,
+        SamplerCustomAdvanced,
+    )
+    from comfy_extras.nodes_llada_image import (
+        LLaDAImageScheduler,
+        SamplerLLaDAImageTurbo,
+    )
 
-        sampled_modes = {}
-        for mode_index, (mode, positive, negative, target) in enumerate(
+    sampled_modes = {}
+    for mode_index, (mode, positive, negative, target) in enumerate(
+        (
             (
-                (
-                    "text",
-                    conditioning,
-                    negative_conditioning,
-                    {"samples": torch.zeros_like(latent)},
-                ),
-                (
-                    "vq",
-                    vq_positive,
-                    vq_negative,
-                    {"samples": torch.zeros_like(latent)},
-                ),
-                ("editing", edit_positive, edit_negative, edit_target),
-            )
-        ):
-            noise = RandomNoise.execute(79 + mode_index)[0]
-            guider = CFGGuider.execute(
-                model,
-                positive,
-                negative,
-                5.0 if variant == "base" else 1.0,
-            )[0]
-            sampler = (
-                KSamplerSelect.execute("euler")[0]
-                if variant == "base"
-                else SamplerLLaDAImageTurbo.execute()[0]
-            )
-            sigmas = LLaDAImageScheduler.execute(model, 2)[0]
-            sampled_modes[mode] = SamplerCustomAdvanced.execute(
-                noise, guider, sampler, sigmas, target
-            )[0]
+                "text",
+                conditioning,
+                negative_conditioning,
+                {"samples": torch.zeros_like(latent)},
+            ),
+            (
+                "vq",
+                vq_positive,
+                vq_negative,
+                {"samples": torch.zeros_like(latent)},
+            ),
+            ("editing", edit_positive, edit_negative, edit_target),
+        )
+    ):
+        noise = RandomNoise.execute(79 + mode_index)[0]
+        guider = CFGGuider.execute(
+            model,
+            positive,
+            negative,
+            5.0 if variant == "base" else 1.0,
+        )[0]
+        sampler = (
+            KSamplerSelect.execute("euler")[0]
+            if variant == "base"
+            else SamplerLLaDAImageTurbo.execute()[0]
+        )
+        sigmas = LLaDAImageScheduler.execute(model, 2)[0]
+        sampled_modes[mode] = SamplerCustomAdvanced.execute(
+            noise, guider, sampler, sigmas, target
+        )[0]
 
     assert generated.shape == latent.shape
     assert vq_generated.shape == latent.shape
