@@ -10,6 +10,7 @@ import comfy_kitchen as ck
 import torch
 
 import comfy.model_management
+import comfy.model_prefetch
 import comfy.patcher_extension
 from comfy.ldm.minimax.model import MiniMaxH3Model
 from comfy_api.latest import ComfyExtension, io
@@ -252,9 +253,22 @@ def h3_sparse_attention(attn, x, rope_freqs, transformer_options, patch: SparseA
     kw = comfy.model_management.cast_to(attn.k_norm.weight, device=x.device)
     extra, plan, gate = {}, None, None
     n, freqs = n_tokens, rope_freqs
+    with comfy.model_prefetch.pause_malloc_graph():
+        if patch.vsa:
+            plan = patch.vsa_plan(transformer_options["minimax_h3_layout"], x.device)
+            n = plan["n"]
+
+        key = (block_index, n, tuple(transformer_options.get("uuids", ())))   # statistics per conditioning branch
+        pooled = patch.pooled.get(key)
+        first = pooled is None
+        if first:
+            pooled = (
+                torch.empty((heads, head_dim), dtype=torch.float32, device=x.device),
+                torch.empty((heads, head_dim), dtype=torch.float32, device=x.device),
+            )
+
     if patch.vsa:
-        plan = patch.vsa_plan(transformer_options["minimax_h3_layout"], x.device)
-        n, freqs = plan["n"], patch.vsa_rope_freqs(rope_freqs, plan)
+        freqs = patch.vsa_rope_freqs(rope_freqs, plan)
         sink = sink_q = (0, plan["n_prefix"])
         extra = {"tail": False, "block_len": plan["block_len"]}
         gate = attn.to_gate_compress
@@ -274,16 +288,16 @@ def h3_sparse_attention(attn, x, rope_freqs, transformer_options, patch: SparseA
                 extra["coarse_gate"].view(n, heads * head_dim)[i:i + xc.shape[0]] = gate(xc)
             yield attn.qkv_proj(xc)
 
-    key = (block_index, n, tuple(transformer_options.get("uuids", ())))   # statistics per conditioning branch
-    pooled = patch.pooled.get(key)
     out, kmean, vscale = ck.sol_attn_chunked(
         chunks, n, heads, freqs, (qw, kw),
-        kmean=None if pooled is None else pooled[0],
-        vscale=None if pooled is None else pooled[1],
+        kmean=None if first else pooled[0],
+        vscale=None if first else pooled[1],
         tau=patch.tau, topk_ratio=patch.topk_ratio, token_aug=patch.extra_tokens,
         sink_blocks=list(sink), sink_q=list(sink_q),
         rope_eps=attn.q_norm.eps, **extra)
-    patch.pooled[key] = (kmean, vscale)
+    pooled[0].copy_(kmean)
+    pooled[1].copy_(vscale)
+    patch.pooled[key] = pooled
     mode = f"VSA tiles ({n} padded rows, {sink[1]} prefix tiles)" if plan is not None else f"sinks {sink}/{sink_q}"
     patch.log_once(("producer", n), f"sparse producer path: {n_tokens} tokens, {mode}")
     out = out.view(n, heads * head_dim)
