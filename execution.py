@@ -2,7 +2,6 @@ import copy
 import heapq
 import inspect
 import logging
-import psutil
 import sys
 import threading
 import time
@@ -13,11 +12,14 @@ import asyncio
 
 import torch
 
-from comfy.cli_args import args
+from comfy.cli_args import args, get_console_log_level
 import comfy.memory_management
 import comfy.model_management
+import comfy.model_patcher
 import comfy.model_prefetch
+import comfy.system_memory
 import comfy_aimdo.model_vbar
+from comfy.internal_logging import detail
 
 from latent_preview import set_preview_method
 import nodes
@@ -543,10 +545,10 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                 output_data, output_ui, has_subgraph, has_pending_tasks = await get_output_data(prompt_id, unique_id, obj, input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb, v3_data=v3_data)
             finally:
                 if comfy.memory_management.aimdo_enabled:
-                    if args.verbose == "DEBUG":
+                    if get_console_log_level(args.verbose) == "DEBUG":
                         comfy_aimdo.control.analyze()
-                    comfy.model_management.reset_cast_buffers()
                     comfy.model_prefetch.cleanup_prefetch_queues()
+                    comfy.model_management.reset_cast_buffers()
                     comfy_aimdo.model_vbar.vbars_reset_watermark_limits()
 
             if has_pending_tasks:
@@ -664,6 +666,7 @@ class PromptExecutor:
         self.cache_args = cache_args
         self.cache_type = cache_type
         self.server = server
+        self.prompt_model_tracker = comfy.model_patcher.PromptModelTracker()
         self.reset()
 
     def reset(self):
@@ -728,6 +731,7 @@ class PromptExecutor:
         set_preview_method(extra_data.get("preview_method"))
 
         nodes.interrupt_processing(False)
+        self.prompt_model_tracker.start()
 
         if "client_id" in extra_data:
             self.server.client_id = extra_data["client_id"]
@@ -770,7 +774,7 @@ class PromptExecutor:
                 pending_async_nodes = {} # TODO - Unify this with pending_subgraph_results
                 ui_node_outputs = {}
                 executed = set()
-                execution_list = ExecutionList(dynamic_prompt, self.caches.outputs)
+                execution_list = ExecutionList(dynamic_prompt, self.caches.outputs, self.prompt_model_tracker.add)
                 current_outputs = self.caches.outputs.all_node_ids()
                 for node_id in list(execute_outputs):
                     execution_list.add_node(node_id)
@@ -794,7 +798,7 @@ class PromptExecutor:
 
                     if self.cache_type == CacheType.RAM_PRESSURE:
                         ram_release_callback(ram_inactive_headroom)
-                        ram_shortfall = ram_headroom - psutil.virtual_memory().available
+                        ram_shortfall = ram_headroom - comfy.system_memory.virtual_memory_available()
                         if ram_shortfall > 0:
                             freed = ram_release_callback(ram_headroom, free_active=True, min_entry_size=RAM_CACHE_LARGE_INTERMEDIATE)
                             ram_shortfall -= freed
@@ -832,7 +836,10 @@ class PromptExecutor:
                 if comfy.model_management.DISABLE_SMART_MEMORY:
                     comfy.model_management.unload_all_models()
         finally:
+            if self.cache_type == CacheType.RAM_PRESSURE:
+                detail("RAM cache evictions: prompt=%s active=%s full=%s", prompt_id, self.caches.outputs.active_evictions, self.caches.outputs.full_evictions)
             comfy.memory_management.set_ram_cache_release_state(None, 0)
+            self.prompt_model_tracker.end()
             self._notify_prompt_lifecycle("end", prompt_id)
 
 
