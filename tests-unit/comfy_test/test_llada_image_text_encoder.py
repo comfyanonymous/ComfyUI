@@ -17,6 +17,8 @@ args.cpu = True
 
 import comfy.ops
 import comfy.supported_models
+import comfy.ldm.modules.attention
+import comfy.text_encoders.llada_image as llada_image
 from comfy.text_encoders.llada_image import (
     LLaDA2Backbone,
     LLaDA2Config,
@@ -274,6 +276,10 @@ def test_bfloat16_moe_matches_pinned_official_eager_path(monkeypatch):
 def test_text_backbone_matches_pinned_official_eager_path(monkeypatch, dtype):
     official = load_official_text_encoder_module()
     monkeypatch.setenv("LLADA_MOE_BACKEND", "eager")
+    # Compare the same SDPA contract, independent of Core's ambient CPU backend.
+    monkeypatch.setattr(
+        llada_image, "optimized_attention", comfy.ldm.modules.attention.attention_pytorch
+    )
     device = torch.device("cpu") if dtype == torch.float32 else parity_device()
     values = {
         "vocab_size": 64,
@@ -306,6 +312,7 @@ def test_text_backbone_matches_pinned_official_eager_path(monkeypatch, dtype):
         use_qk_norm=True,
         output_router_logits=False,
     )
+    official_config._attn_implementation = "sdpa"
     native_config = LLaDA2Config(**values)
     operations = comfy.ops.mixed_precision_ops({}, dtype, full_precision_mm=True)
     torch.manual_seed(38)
