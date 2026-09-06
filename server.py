@@ -130,6 +130,46 @@ def create_cors_middleware(allowed_origin: str):
     return cors_middleware
 
 
+# The mask editor uploads every save as four sibling files named
+# clipspace-{mask,paint,painted,painted-masked}-<timestamp>.png. Masked layers
+# produced from the browser canvas bitmap have premultiplied alpha, so fully
+# masked pixels lose their RGB and the Load Image node ends up with a black
+# background under the painted mask (#16139). The painted sibling is an opaque
+# copy of the same pixels, so the masked image is rebuilt from it, keeping only
+# the alpha channel of the upload. This mirrors the composite /upload/mask
+# performs for clients that send an original_ref.
+CLIPSPACE_PAINTED_MASKED_PREFIX = "clipspace-painted-masked-"
+
+def repair_clipspace_painted_masked(image, filename, output_folder):
+    """Rebuild a mask editor painted-masked upload from its opaque painted
+    sibling so the original pixels survive under the mask.
+
+    Returns the PNG bytes to save, or None when no repair applies and the
+    upload should be written as-is."""
+    if not filename.startswith(CLIPSPACE_PAINTED_MASKED_PREFIX):
+        return None
+    sibling_name = "clipspace-painted-" + filename[len(CLIPSPACE_PAINTED_MASKED_PREFIX):]
+    sibling_path = os.path.join(output_folder, sibling_name)
+    if not os.path.isfile(sibling_path):
+        return None
+    try:
+        with Image.open(image.file) as masked_img:
+            image.file.seek(0)
+            if masked_img.format != "PNG" or "A" not in masked_img.getbands():
+                return None
+            with Image.open(sibling_path) as painted_img:
+                if painted_img.size != masked_img.size:
+                    return None
+                rebuilt = painted_img.convert("RGBA")
+                rebuilt.putalpha(masked_img.convert("RGBA").getchannel("A"))
+                buffer = BytesIO()
+                rebuilt.save(buffer, format="PNG", compress_level=4)
+                return buffer.getvalue()
+    except Exception:
+        logging.warning("Failed to rebuild masked image %s from painted layer", filename, exc_info=True)
+        return None
+
+
 def is_loopback(host):
     if host is None:
         return False
@@ -435,8 +475,12 @@ class PromptServer():
                     if image_save_function is not None:
                         image_save_function(image, post, filepath)
                     else:
+                        data = repair_clipspace_painted_masked(image, filename, full_output_folder)
+                        image.file.seek(0)
+                        if data is None:
+                            data = image.file.read()
                         with open(filepath, "wb") as f:
-                            f.write(image.file.read())
+                            f.write(data)
 
                 resp = {"name" : filename, "subfolder": subfolder, "type": image_upload_type}
 
