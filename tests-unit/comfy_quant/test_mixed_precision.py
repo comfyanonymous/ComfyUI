@@ -340,6 +340,20 @@ class TestMixedPrecisionOps(unittest.TestCase):
         finally:
             mm.supports_int8_compute = orig_supports_int8
 
+    def test_supports_int8_compute_treats_mps_mode_as_unsupported_when_device_is_none(self):
+        """Call sites (like pick_operations' default) may omit load_device. On an
+        MPS machine that must still report int8 as unsupported instead of
+        silently defaulting to True, matching supports_fp64's handling of the
+        same device=None case (see Comfy-Org/ComfyUI#16136)."""
+        import comfy.model_management as mm
+
+        orig_cpu_state = mm.cpu_state
+        mm.cpu_state = mm.CPUState.MPS
+        try:
+            self.assertFalse(mm.supports_int8_compute(None))
+        finally:
+            mm.cpu_state = orig_cpu_state
+
     def test_convrot_w4a4_loads_into_params(self):
         """ConvRot W4A4 checkpoints must load as the dedicated kitchen layout."""
         if "convrot_w4a4" not in QUANT_ALGOS:

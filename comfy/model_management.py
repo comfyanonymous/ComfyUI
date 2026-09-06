@@ -2026,7 +2026,7 @@ def supports_int8_compute(device=None):
     # The eager comfy_kitchen backend implements int8 weight-only quantized
     # matmul via torch._int_mm, which PyTorch does not implement for MPS.
     # https://github.com/pytorch/pytorch/issues/141287
-    if is_device_mps(device):
+    if (device is not None and is_device_mps(device)) or mps_mode():
         return False
 
     if is_intel_xpu():
