@@ -145,8 +145,9 @@ def repair_clipspace_painted_masked(image, filename, output_folder):
     sibling so the original pixels survive under the mask.
 
     Returns the PNG bytes to save, or None when no repair applies and the
-    upload should be written as-is."""
-    if not filename.startswith(CLIPSPACE_PAINTED_MASKED_PREFIX):
+    upload should be written as-is. On a decode or I/O failure the upload
+    falls back to its original bytes; unrelated errors propagate."""
+    if not filename.startswith(CLIPSPACE_PAINTED_MASKED_PREFIX) or not filename.lower().endswith(".png"):
         return None
     sibling_name = "clipspace-painted-" + filename[len(CLIPSPACE_PAINTED_MASKED_PREFIX):]
     sibling_path = os.path.join(output_folder, sibling_name)
@@ -158,14 +159,14 @@ def repair_clipspace_painted_masked(image, filename, output_folder):
             if masked_img.format != "PNG" or "A" not in masked_img.getbands():
                 return None
             with Image.open(sibling_path) as painted_img:
-                if painted_img.size != masked_img.size:
+                if painted_img.format != "PNG" or painted_img.size != masked_img.size:
                     return None
                 rebuilt = painted_img.convert("RGBA")
                 rebuilt.putalpha(masked_img.convert("RGBA").getchannel("A"))
                 buffer = BytesIO()
                 rebuilt.save(buffer, format="PNG", compress_level=4)
                 return buffer.getvalue()
-    except Exception:
+    except (OSError, ValueError):
         logging.warning("Failed to rebuild masked image %s from painted layer", filename, exc_info=True)
         return None
 
@@ -459,12 +460,40 @@ class PromptServer():
 
                 split = os.path.splitext(filename)
 
+                # Resolve the bytes this plain upload will save before the
+                # duplicate and collision handling below: a mask editor
+                # painted-masked upload is rebuilt from its opaque sibling
+                # (#16139), and both the duplicate hash comparison and the
+                # write must see the repaired bytes, under the original
+                # filename the sibling lookup depends on. Custom savers keep
+                # receiving the untouched upload stream.
+                data = None
+                if image_save_function is None:
+                    repaired = repair_clipspace_painted_masked(image, filename, full_output_folder)
+                    image.file.seek(0)
+                    data = repaired if repaired is not None else image.file.read()
+
+                def compare_file_hash(existing_path, expected_bytes):
+                    hasher = node_helpers.hasher()
+                    if os.path.exists(existing_path):
+                        a = hasher()
+                        b = hasher()
+                        with open(existing_path, "rb") as f:
+                            a.update(f.read())
+                        b.update(expected_bytes)
+                        return a.hexdigest() == b.hexdigest()
+                    return False
+
                 if overwrite is not None and (overwrite == "true" or overwrite == "1"):
                     pass
                 else:
                     i = 1
                     while os.path.exists(filepath):
-                        if compare_image_hash(filepath, image): #compare hash to prevent saving of duplicates with same name, fix for #3465
+                        if data is not None:
+                            if compare_file_hash(filepath, data): #compare hash to prevent saving of duplicates with same name, fix for #3465
+                                image_is_duplicate = True
+                                break
+                        elif compare_image_hash(filepath, image): #compare hash to prevent saving of duplicates with same name, fix for #3465
                             image_is_duplicate = True
                             break
                         filename = f"{split[0]} ({i}){split[1]}"
@@ -475,10 +504,6 @@ class PromptServer():
                     if image_save_function is not None:
                         image_save_function(image, post, filepath)
                     else:
-                        data = repair_clipspace_painted_masked(image, filename, full_output_folder)
-                        image.file.seek(0)
-                        if data is None:
-                            data = image.file.read()
                         with open(filepath, "wb") as f:
                             f.write(data)
 
