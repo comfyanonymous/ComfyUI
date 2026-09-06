@@ -17,6 +17,7 @@ if not torch.cuda.is_available():
     args.cpu = True
 
 import comfy.model_base  # noqa: E402
+import comfy.model_management  # noqa: E402
 import comfy.model_detection  # noqa: E402
 import comfy.ops as comfy_ops  # noqa: E402
 from comfy.ldm.hunyuan3d.paint.unet import UNet2p5DConditionModel, PaintReferenceBank  # noqa: E402
@@ -380,13 +381,15 @@ def test_view_scale_pre_cfg_matches_reference_composition():
 def _sampling_setup(patcher, V, H, dino=True, seed=0):
     """Hand-build the conditioning the cond-prep node produces (random geometry)."""
     base = patcher.model
+    comfy.model_management.load_models_gpu([patcher])
+    device = patcher.load_device
     dm = base.diffusion_model
     n_pbr = len(dm.pbr_setting)
     g = torch.Generator().manual_seed(seed)
     normal = torch.randn(V, 4, H, H, generator=g)
     position = torch.randn(V, 4, H, H, generator=g)
     geo = torch.cat([normal, position], dim=1).movedim(0, 1).unsqueeze(0).repeat(1, 1, n_pbr, 1, 1)
-    ref = torch.randn(1, 1, 4, H, H, generator=g)
+    ref = torch.randn(1, 1, 4, H, H, generator=g).to(device)
     with torch.no_grad():
         bank = PaintReferenceBank(dm.compute_reference_bank(base.process_latent_in(ref)))
         context = dm.material_context(1).detach().float()
