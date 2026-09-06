@@ -9,12 +9,6 @@ import re
 import comfy_kitchen as ck
 import torch
 
-# TODO: ck.sol_attn_chunked once comfy_kitchen exports it; the HIP backend only loads under a ROCm torch
-if torch.version.hip:
-    from comfy_kitchen.backends.hip import sol_attn_chunked
-else:
-    from comfy_kitchen.backends.cuda import sol_attn_chunked
-
 import comfy.model_management
 import comfy.patcher_extension
 from comfy.ldm.minimax.model import MiniMaxH3Model
@@ -282,7 +276,7 @@ def h3_sparse_attention(attn, x, rope_freqs, transformer_options, patch: SparseA
 
     key = (block_index, n, tuple(transformer_options.get("uuids", ())))   # statistics per conditioning branch
     pooled = patch.pooled.get(key)
-    out, kmean, vscale = sol_attn_chunked(
+    out, kmean, vscale = ck.sol_attn_chunked(
         chunks, n, heads, freqs, (qw, kw),
         kmean=None if pooled is None else pooled[0],
         vscale=None if pooled is None else pooled[1],
