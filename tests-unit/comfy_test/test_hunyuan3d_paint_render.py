@@ -423,7 +423,7 @@ def test_glb_textures_round_trip_without_gamma_shift(tmp_path):
     path = str(tmp_path / "roundtrip.glb")
     save_glb(nv, nf, path, uvs=uv,
              texture_image=Image.fromarray(albedo_arr, mode="RGB"),
-             mr_texture_image=Image.fromarray(mr_arr, mode="RGB"))
+             metallic_roughness_image=Image.fromarray(mr_arr, mode="RGB"))
 
     gltf, binary = _read_glb(path)
     albedo_png = np.array(_decode_glb_image(gltf, binary, 0))
@@ -518,6 +518,40 @@ def test_bake_node_uses_existing_mesh_uvs():
     assert torch.allclose(out_mesh.uvs[0], uvs)
 
 
+def test_mesh_metallic_roughness_adapter_preserves_paint_texture_mr():
+    from comfy_api.latest import Types
+
+    mr = torch.rand(2, 8, 8, 3)
+    from_legacy = Types.MESH(torch.zeros(2, 3, 3), torch.zeros(2, 1, 3, dtype=torch.long), texture_mr=mr)
+    from_current = Types.MESH(torch.zeros(2, 3, 3), torch.zeros(2, 1, 3, dtype=torch.long), metallic_roughness=mr)
+    assert from_legacy.metallic_roughness is mr
+    assert from_legacy.texture_mr is mr
+    assert from_current.metallic_roughness is mr
+    assert from_current.texture_mr is mr
+
+
+def test_mesh_item_glb_uses_matching_batched_mr_texture(tmp_path):
+    from comfy_api.latest import Types
+    from comfy_extras.nodes_save_3d import mesh_item_to_glb_bytes
+
+    v, f = _cube()
+    packed_v, packed_f, packed_uv = R.pack_per_triangle_uv(v, f)
+    vertices = packed_v.unsqueeze(0).repeat(2, 1, 1)
+    faces = packed_f.unsqueeze(0).repeat(2, 1, 1)
+    uvs = packed_uv.unsqueeze(0).repeat(2, 1, 1)
+    albedo = torch.ones(2, 32, 32, 3)
+    mr = torch.zeros(2, 32, 32, 3)
+    mr[0, ..., 1] = 0.1
+    mr[1, ..., 1] = 0.9
+    mesh = Types.MESH(vertices, faces, uvs=uvs, texture=albedo, metallic_roughness=mr)
+    path = str(tmp_path / "batch_1.glb")
+    with open(path, "wb") as fh:
+        fh.write(mesh_item_to_glb_bytes(mesh, 1))
+    gltf, binary = _read_glb(path)
+    image = np.array(_decode_glb_image(gltf, binary, 1))
+    assert int(image[0, 0, 1]) == int(0.9 * 255)
+
+
 def test_save_glb_writes_metallic_roughness_texture(tmp_path):
     from comfy_extras.nodes_save_3d import save_glb
     v, f = _cube()
@@ -525,7 +559,7 @@ def test_save_glb_writes_metallic_roughness_texture(tmp_path):
     base = Image.new("RGB", (32, 32), (0, 255, 0))
     mrimg = Image.new("RGB", (32, 32), (255, 200, 40))
     path = str(tmp_path / "out.glb")
-    save_glb(nv, nf, path, uvs=uv, texture_image=base, mr_texture_image=mrimg)
+    save_glb(nv, nf, path, uvs=uv, texture_image=base, metallic_roughness_image=mrimg)
 
     with open(path, "rb") as fh:
         data = fh.read()

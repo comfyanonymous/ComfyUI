@@ -30,7 +30,7 @@ CAMERAS = IO.Custom("HY3D_CAMERAS")
 
 def _first_mesh(mesh):
     """Return (vertices (N,3), faces (M,3) long) for batch item 0 of a MESH."""
-    vertices, faces, _colors, uvs = get_mesh_batch_item(mesh, 0)
+    vertices, faces, _colors, uvs, _normals = get_mesh_batch_item(mesh, 0)
     return vertices.float(), faces.long(), uvs
 
 
