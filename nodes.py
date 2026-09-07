@@ -7,6 +7,7 @@ import json
 import glob
 import hashlib
 import inspect
+import re
 
 import traceback
 import math
@@ -2221,6 +2222,50 @@ EXTENSION_WEB_DIRS = {}
 LOADED_MODULE_DIRS = {}
 
 
+#: Routes declared by extensions through ComfyExtension.get_routes(),
+#: consumed by server.add_routes(). Entries are (namespace, method, path,
+#: handler); the server mounts each at /ext/<namespace><path>.
+EXTENSION_ROUTES = []
+
+ROUTE_METHODS = ("get", "post", "put", "delete", "patch", "head")
+ROUTE_NAMESPACE = re.compile(r"[A-Za-z0-9._-]+")
+
+
+def collect_extension_routes(routes, namespace):
+    """Record an extension's declared endpoints for server.add_routes().
+
+    Only checks what the server cannot: that the namespace and path are plain
+    URL segments, and that the handler can actually be awaited. Conflicts
+    between two routes are the router's business, not this function's.
+
+    A bad declaration is skipped with a warning rather than taken as a reason
+    to reject the extension, which is how every other failure here behaves.
+    """
+    if not ROUTE_NAMESPACE.fullmatch(namespace):
+        logging.warning("Cannot serve routes for {}: its name is not a plain URL segment.".format(namespace))
+        return
+    if not isinstance(routes, list):
+        logging.warning("get_routes() in {} did not return a list, skipping its routes.".format(namespace))
+        return
+    for route in routes:
+        method = getattr(route, "method", None)
+        path = getattr(route, "path", None)
+        handler = getattr(route, "handler", None)
+        if not isinstance(method, str) or not isinstance(path, str) or handler is None:
+            logging.warning("{} declared a route that is not an ExtensionRoute, skipping it.".format(namespace))
+            continue
+        if method.lower() not in ROUTE_METHODS:
+            logging.warning("{} declared route {} with unsupported method {}, skipping it.".format(namespace, path, method))
+            continue
+        if not path.startswith("/") or any(c in path for c in "{}%") or ".." in path or any(c.isspace() for c in path):
+            logging.warning("{} declared route {} that is not a literal path, skipping it.".format(namespace, path))
+            continue
+        if not inspect.iscoroutinefunction(handler):
+            logging.warning("{} declared route {} whose handler is not a coroutine, skipping it.".format(namespace, path))
+            continue
+        EXTENSION_ROUTES.append((namespace, method.lower(), path, handler))
+
+
 def get_module_name(module_path: str) -> str:
     """
     Returns the module name based on the given module path.
@@ -2327,6 +2372,15 @@ async def load_custom_node(module_path: str, ignore=set(), module_parent="custom
                         node_cls.RELATIVE_PYTHON_MODULE = "{}.{}".format(module_parent, get_module_name(module_path))
                     if schema.display_name is not None:
                         NODE_DISPLAY_NAME_MAPPINGS[schema.node_id] = schema.display_name
+                try:
+                    routes = extension.get_routes()
+                    if inspect.isawaitable(routes):
+                        routes = await routes
+                    collect_extension_routes(routes, get_module_name(module_path))
+                except Exception as e:
+                    # The nodes are already registered; a bad route list must
+                    # not turn this into a failed import.
+                    logging.warning(f"Error while collecting routes from {module_path}: {e}")
                 return True
             except Exception as e:
                 logging.warning(f"Error while calling comfy_entrypoint in {module_path}: {e}")
