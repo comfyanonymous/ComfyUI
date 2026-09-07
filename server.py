@@ -1221,7 +1221,10 @@ class PromptServer():
 
     async def setup(self):
         timeout = aiohttp.ClientTimeout(total=None) # no timeout
-        self.client_session = aiohttp.ClientSession(timeout=timeout)
+        self.client_session = aiohttp.ClientSession(
+            timeout=timeout,
+            cookie_jar=aiohttp.DummyCookieJar(),
+        )
 
     def add_routes(self):
         self.user_manager.add_routes(self.routes)

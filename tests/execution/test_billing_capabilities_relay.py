@@ -104,7 +104,10 @@ def comfy_server(upstream_port: int, base_directory, *extra_args: str):
         "--listen", "127.0.0.1",
         "--port", str(port),
         "--base-directory", str(base_directory),
-        "--comfy-api-base", f"http://127.0.0.1:{upstream_port}",
+        # Use a hostname because aiohttp deliberately rejects cookies from IP
+        # hosts by default. This lets the test catch accidental cookie-jar
+        # persistence against the real comfy.org hostname.
+        "--comfy-api-base", f"http://localhost:{upstream_port}",
         *extra_args,
     ])
     try:
@@ -162,6 +165,12 @@ class TestBillingCapabilitiesRelay:
         assert headers["Cache-Control"] == UPSTREAM_CACHE_CONTROL
         assert headers["Vary"] == UPSTREAM_VARY
         assert "Set-Cookie" not in headers
+
+    def test_upstream_cookie_is_not_replayed(self, relay_port, upstream):
+        _get(relay_port, CAPABILITIES_ROUTE)
+        _get(relay_port, CAPABILITIES_ROUTE)
+
+        assert [request["headers"].get("cookie") for request in upstream.received] == [None, None]
 
     def test_upstream_receives_allowlisted_headers_and_core_owned_context(self, relay_port, upstream):
         status, _body, _headers = _get(relay_port, CAPABILITIES_ROUTE, {
