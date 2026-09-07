@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import threading
 import warnings
@@ -27,6 +28,17 @@ def _malloc_graph_break():
 
 def malloc_graph_enabled(device):
     return not args.disable_comfy_compiler and comfy.memory_management.aimdo_enabled and comfy.model_management.is_device_cuda(device)
+
+@contextlib.contextmanager
+def pause_malloc_graph(sync=False):
+    graph = ACTIVE_MALLOC_GRAPHS.get(threading.get_ident())
+    if graph is not None:
+        graph.pause(sync=sync)
+    try:
+        yield
+    finally:
+        if graph is not None:
+            graph.resume(sync=sync)
 
 def malloc_graph_begin(module, device):
     global MALLOC_GRAPH_USED
