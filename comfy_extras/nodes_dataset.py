@@ -692,6 +692,7 @@ class ImageProcessingNode(io.ComfyNode):
             category=cls.category,
             description=cls.description,
             is_experimental=True,
+            is_deprecated=cls.is_deprecated,
             is_input_list=is_group,  # True for group, False for individual
             inputs=inputs,
             outputs=[
@@ -861,9 +862,12 @@ class TextProcessingNode(io.ComfyNode):
 
         return io.Schema(
             node_id=cls.node_id,
+            search_aliases=cls.search_aliases,
             display_name=cls.display_name or cls.node_id,
             category="text",
+            description=cls.description,
             is_experimental=True,
+            is_deprecated=cls.is_deprecated,
             is_input_list=is_group,  # True for group, False for individual
             inputs=inputs,
             outputs=[
@@ -1412,7 +1416,7 @@ class ShuffleVideoTextDatasetNode(io.ComfyNode):
             node_id="ShuffleVideoTextDataset",
             search_aliases=["shuffle", "randomize", "mix"],
             display_name="Shuffle Pairs of Video-Text",
-            category="dataset/video",
+            category="video/batch",
             description="Randomly shuffle the order of pairs of video-text in a list.",
             is_experimental=True,
             is_input_list=True,
