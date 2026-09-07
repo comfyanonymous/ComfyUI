@@ -12,6 +12,9 @@ from comfy.cli_args import args
 
 _STAGING_API_HOST = "stagingapi.comfy.org"
 _TESTENV_HOST_SUFFIX = ".testenvs.comfy.org"
+_PROD_API_HOST = "api.comfy.org"
+_PROD_CLOUD_BASE_URL = "https://cloud.comfy.org"
+_STAGING_CLOUD_BASE_URL = "https://testcloud.comfy.org"
 _STAGING_PLATFORM_BASE_URL = "https://stagingplatform.comfy.org"
 
 
@@ -29,6 +32,22 @@ def normalize_comfy_api_base(url: str) -> str:
     if label.endswith("-registry"):
         return url
     return f"{parsed.scheme or 'https'}://{label}-registry{_TESTENV_HOST_SUFFIX}"
+
+
+def comfy_cloud_base_for_api_base(url: str) -> str:
+    """Resolve the Ingest host paired with a configured Comfy API base."""
+    parsed = urlparse(url)
+    host = parsed.hostname or ""
+    if host == _PROD_API_HOST:
+        return _PROD_CLOUD_BASE_URL
+    if host == _STAGING_API_HOST:
+        return _STAGING_CLOUD_BASE_URL
+    if host.endswith(_TESTENV_HOST_SUFFIX):
+        label = host[: -len(_TESTENV_HOST_SUFFIX)]
+        if label.endswith("-registry"):
+            label = label.removesuffix("-registry")
+        return f"{parsed.scheme or 'https'}://{label}{_TESTENV_HOST_SUFFIX}"
+    return url
 
 
 def environment_overrides_for_base(base_url: str) -> dict[str, Any] | None:

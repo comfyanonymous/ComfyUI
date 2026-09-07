@@ -24,10 +24,29 @@ import pytest
 CAPABILITIES_ROUTE = "/api/billing/capabilities"
 UNPREFIXED_CAPABILITIES_ROUTE = "/billing/capabilities"
 UPSTREAM_ROUTE = "/api/billing/capabilities"
-UPSTREAM_BODY = {"can_manage_subscription": True, "can_top_up": False}
-UPSTREAM_REVISION = "rev-42"
+UPSTREAM_BODY = {
+    "resolved_for": {"user_id": "user-1", "workspace_id": "workspace-1"},
+    "capabilities": {
+        "can_subscribe_self_serve": True,
+        "can_top_up": False,
+        "can_cancel": False,
+        "can_reactivate": False,
+        "can_change_seats": False,
+        "can_invite_members": True,
+        "can_downgrade_to_personal": False,
+    },
+    "rollout_defaults_applied": {
+        "can_downgrade_to_personal": False,
+        "can_subscribe_self_serve": False,
+        "can_top_up": False,
+    },
+    "revision": 42,
+    "expires_at": "2026-09-08T00:00:00Z",
+}
+UPSTREAM_REVISION = "42"
 UPSTREAM_CACHE_CONTROL = "private, max-age=30"
-UPSTREAM_VARY = "Authorization, X-API-Key"
+UPSTREAM_VARY = "Authorization"
+RELAY_VARY = "Authorization, X-API-Key"
 CALLER_SUPPLIED = "caller-supplied"
 SERVER_READY_TIMEOUT = 300
 
@@ -49,10 +68,14 @@ class UpstreamStub:
             protocol_version = "HTTP/1.1"
 
             def do_GET(self):
-                received.append({
-                    "path": self.path,
-                    "headers": {name.lower(): value for name, value in self.headers.items()},
-                })
+                received.append(
+                    {
+                        "path": self.path,
+                        "headers": {
+                            name.lower(): value for name, value in self.headers.items()
+                        },
+                    }
+                )
                 body = json.dumps(UPSTREAM_BODY).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
@@ -85,31 +108,44 @@ def _wait_until_serving(process: subprocess.Popen, port: int) -> None:
     deadline = time.monotonic() + SERVER_READY_TIMEOUT
     while time.monotonic() < deadline:
         if process.poll() is not None:
-            raise RuntimeError(f"ComfyUI exited with code {process.returncode} before serving")
+            raise RuntimeError(
+                f"ComfyUI exited with code {process.returncode} before serving"
+            )
         try:
-            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/system_stats", timeout=5):
+            with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/system_stats", timeout=5
+            ):
                 return
         except (urllib.error.URLError, OSError):
             time.sleep(1)
-    raise RuntimeError(f"ComfyUI did not start serving on port {port} within {SERVER_READY_TIMEOUT}s")
+    raise RuntimeError(
+        f"ComfyUI did not start serving on port {port} within {SERVER_READY_TIMEOUT}s"
+    )
 
 
 @contextmanager
 def comfy_server(upstream_port: int, base_directory, *extra_args: str):
     port = _free_port()
-    process = subprocess.Popen([
-        sys.executable, "main.py",
-        "--cpu",
-        "--disable-all-custom-nodes",
-        "--listen", "127.0.0.1",
-        "--port", str(port),
-        "--base-directory", str(base_directory),
-        # Use the configured localhost hostname because aiohttp deliberately
-        # rejects cookies from IP hosts by default. This makes cookie-jar
-        # persistence observable against the loopback upstream.
-        "--comfy-api-base", f"http://localhost:{upstream_port}",
-        *extra_args,
-    ])
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "main.py",
+            "--cpu",
+            "--disable-all-custom-nodes",
+            "--listen",
+            "127.0.0.1",
+            "--port",
+            str(port),
+            "--base-directory",
+            str(base_directory),
+            # Use the configured localhost hostname because aiohttp deliberately
+            # rejects cookies from IP hosts by default. This makes cookie-jar
+            # persistence observable against the loopback upstream.
+            "--comfy-api-base",
+            f"http://localhost:{upstream_port}",
+            *extra_args,
+        ]
+    )
     try:
         _wait_until_serving(process, port)
         yield port
@@ -123,9 +159,11 @@ def comfy_server(upstream_port: int, base_directory, *extra_args: str):
 
 
 def _request(port: int, route: str, headers: dict | None = None, method: str = "GET"):
+    request_headers = {"Authorization": "Bearer relay-test-token"}
+    request_headers.update(headers or {})
     request = urllib.request.Request(
         f"http://127.0.0.1:{port}{route}",
-        headers=headers or {},
+        headers=request_headers,
         method=method,
     )
     try:
@@ -154,7 +192,9 @@ def clear_upstream_history(upstream):
 
 @pytest.mark.execution
 class TestBillingCapabilitiesRelay:
-    @pytest.mark.parametrize("route", [CAPABILITIES_ROUTE, UNPREFIXED_CAPABILITIES_ROUTE])
+    @pytest.mark.parametrize(
+        "route", [CAPABILITIES_ROUTE, UNPREFIXED_CAPABILITIES_ROUTE]
+    )
     def test_route_relays_upstream_payload(self, relay_port, upstream, route):
         status, body, headers = _request(relay_port, route)
 
@@ -167,24 +207,33 @@ class TestBillingCapabilitiesRelay:
         _status, _body, headers = _request(relay_port, CAPABILITIES_ROUTE)
 
         assert headers["Cache-Control"] == UPSTREAM_CACHE_CONTROL
-        assert headers["Vary"] == UPSTREAM_VARY
+        assert headers["Vary"] == RELAY_VARY
         assert "Set-Cookie" not in headers
 
     def test_upstream_cookie_is_not_replayed(self, relay_port, upstream):
         _request(relay_port, CAPABILITIES_ROUTE)
         _request(relay_port, CAPABILITIES_ROUTE)
 
-        assert [request["headers"].get("cookie") for request in upstream.received] == [None, None]
+        assert [request["headers"].get("cookie") for request in upstream.received] == [
+            None,
+            None,
+        ]
 
-    def test_upstream_receives_allowlisted_headers_and_core_owned_context(self, relay_port, upstream):
-        status, _body, _headers = _request(relay_port, CAPABILITIES_ROUTE, {
-            "Authorization": "Bearer relay-test-token",
-            "X-API-Key": "relay-test-key",
-            "Cookie": "session=must-not-leak",
-            "X-Forwarded-Host": "attacker.example",
-            "Comfy-Env": CALLER_SUPPLIED,
-            "Comfy-Core-Version": CALLER_SUPPLIED,
-        })
+    def test_upstream_receives_allowlisted_headers_and_core_owned_context(
+        self, relay_port, upstream
+    ):
+        status, _body, _headers = _request(
+            relay_port,
+            CAPABILITIES_ROUTE,
+            {
+                "Authorization": "Bearer relay-test-token",
+                "X-API-Key": "relay-test-key",
+                "Cookie": "session=must-not-leak",
+                "X-Forwarded-Host": "attacker.example",
+                "Comfy-Env": CALLER_SUPPLIED,
+                "Comfy-Core-Version": CALLER_SUPPLIED,
+            },
+        )
 
         assert status == 200
         forwarded = upstream.received[-1]["headers"]

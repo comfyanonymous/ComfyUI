@@ -1223,6 +1223,8 @@ class PromptServer():
         timeout = aiohttp.ClientTimeout(total=None) # no timeout
         self.client_session = aiohttp.ClientSession(
             timeout=timeout,
+            # The billing capabilities relay shares this process-wide session
+            # across users, so upstream cookies must never persist between calls.
             cookie_jar=aiohttp.DummyCookieJar(),
         )
 

@@ -2758,7 +2758,7 @@ paths:
                 - node
     /api/billing/capabilities:
         get:
-            description: Relays the authenticated request to the configured Comfy API billing capabilities endpoint
+            description: Relays the authenticated request to the configured Comfy Cloud API billing capabilities endpoint
             operationId: getBillingCapabilities
             responses:
                 "200":
@@ -2789,6 +2789,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Workspace not found
+                "429":
+                    description: Upstream rate limit reached
                 "502":
                     content:
                         application/json:
@@ -2796,10 +2798,11 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Upstream capability resolution failed
+                "503":
+                    description: Upstream capability service unavailable
             security:
                 - ApiKeyAuth: []
                 - BearerAuth: []
-                - {}
             summary: Get server-resolved billing capabilities
             tags:
                 - billing
