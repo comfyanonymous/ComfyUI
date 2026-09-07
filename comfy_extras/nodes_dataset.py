@@ -1063,7 +1063,6 @@ class NormalizeImagesNode(ImageProcessingNode):
             min=0.0,
             max=1.0,
             tooltip="Mean value for normalization.",
-            advanced=True,
         ),
         io.Float.Input(
             "std",
@@ -1071,7 +1070,6 @@ class NormalizeImagesNode(ImageProcessingNode):
             min=0.001,
             max=1.0,
             tooltip="Standard deviation for normalization.",
-            advanced=True,
         ),
     ]
 
