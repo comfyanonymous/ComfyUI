@@ -1948,6 +1948,8 @@ class ImageInvert:
 
     def invert(self, image):
         s = 1.0 - image
+        if image.shape[-1] == 4:  # alpha stores transparency, not color
+            s[..., 3] = image[..., 3]
         return (s,)
 
 class ImageBatch:
