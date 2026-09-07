@@ -1217,12 +1217,27 @@ class PromptServer():
         timeout = aiohttp.ClientTimeout(total=None) # no timeout
         self.client_session = aiohttp.ClientSession(timeout=timeout)
 
+    def add_extension_routes(self, extension_routes):
+        """Mount endpoints declared through ComfyExtension.get_routes().
+
+        Everything lands under /ext/<extension name>/, so an extension cannot
+        take a top level path or shadow a core route. These go into
+        self.routes with everything else, so the /api mirror below serves
+        them at /api/ext/... too, which is the form the frontend dev server
+        forwards.
+        """
+        for namespace, method, path, handler in extension_routes:
+            full_path = "/ext/{}{}".format(namespace, path)
+            getattr(self.routes, method)(full_path)(handler)
+            logging.info("Registered extension route {} {}".format(method.upper(), full_path))
+
     def add_routes(self):
         self.user_manager.add_routes(self.routes)
         self.model_file_manager.add_routes(self.routes)
         self.custom_node_manager.add_routes(self.routes, self.app, nodes.LOADED_MODULE_DIRS.items())
         self.subgraph_manager.add_routes(self.routes, nodes.LOADED_MODULE_DIRS.items())
         self.node_replace_manager.add_routes(self.routes)
+        self.add_extension_routes(nodes.EXTENSION_ROUTES)
         self.app.add_subapp('/internal', self.internal_routes.get_app())
 
         # Prefix every route with /api for easier matching for delegation.

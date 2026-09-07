@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Awaitable, Callable
 from comfy_api.internal import ComfyAPIBase
 from comfy_api.internal.singleton import ProxiedSingleton
 from comfy_api.internal.async_to_sync import create_sync_class
@@ -113,6 +114,31 @@ class ComfyAPI_latest(ComfyAPIBase):
             from comfy_execution.cache_provider import unregister_cache_provider
             unregister_cache_provider(provider)
 
+if TYPE_CHECKING:
+    from aiohttp import web
+
+    RouteHandler = Callable[["web.Request"], Awaitable["web.StreamResponse"]]
+else:
+    RouteHandler = Callable
+
+
+@dataclass(frozen=True)
+class ExtensionRoute:
+    """One HTTP endpoint an extension serves.
+
+    ``path`` is a literal path relative to the extension, starting with a
+    slash. ComfyUI mounts it under a fixed prefix and the extension's own
+    name, so an extension does not choose where it lands in the URL space.
+
+    Deliberately not an aiohttp type: an extension declares what it serves,
+    and ComfyUI decides how to register it. The handler itself is an aiohttp
+    handler, and must be a coroutine, since it runs on the server event loop.
+    """
+    method: str
+    path: str
+    handler: RouteHandler
+
+
 class ComfyExtension(ABC):
     async def on_load(self) -> None:
         """
@@ -125,6 +151,16 @@ class ComfyExtension(ABC):
         """
         Returns a list of nodes that this extension provides.
         """
+
+    async def get_routes(self) -> list[ExtensionRoute]:
+        """
+        Returns the HTTP endpoints that this extension provides.
+
+        Only reached for extensions loaded through comfy_entrypoint. A module
+        that defines NODE_CLASS_MAPPINGS is handled by the V1 path, which
+        returns before the extension is constructed.
+        """
+        return []
 
 class Input:
     Image = ImageInput
@@ -164,6 +200,7 @@ UI = ui
 
 __all__ = [
     "ComfyAPI",
+    "ExtensionRoute",
     "ComfyAPISync",
     "Input",
     "InputImpl",
