@@ -35,6 +35,7 @@ import os
 
 import comfy.utils
 import comfy.ops
+import comfy.model_prefetch
 
 from . import clip_vision
 from . import gligen
@@ -1227,7 +1228,8 @@ class VAE:
         with model_management.cuda_device_context(self.device):
             try:
                 memory_used = self.memory_used_decode(samples_in.shape, self.vae_dtype)
-                model_management.load_models_gpu([self.patcher], memory_required=memory_used, force_full_load=self.disable_offload)
+                with comfy.model_prefetch.pause_malloc_graph():
+                    model_management.load_models_gpu([self.patcher], memory_required=memory_used, force_full_load=self.disable_offload)
                 free_memory = self.patcher.get_free_memory(self.device)
                 batch_number = int(free_memory / memory_used)
                 batch_number = max(1, batch_number)
