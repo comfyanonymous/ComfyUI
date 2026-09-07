@@ -1,9 +1,9 @@
-import contextlib
 import logging
 import threading
 import warnings
 import weakref
 
+import comfy_kitchen as ck
 import torch
 
 import comfy_aimdo.malloc_graph
@@ -29,16 +29,22 @@ def _malloc_graph_break():
 def malloc_graph_enabled(device):
     return not args.disable_comfy_compiler and comfy.memory_management.aimdo_enabled and comfy.model_management.is_device_cuda(device)
 
-@contextlib.contextmanager
-def pause_malloc_graph(sync=False):
-    graph = MALLOC_GRAPHS.get(threading.get_ident())
-    if graph is not None and graph._comfy_active:
-        graph.pause(sync=sync)
-    try:
-        yield
-    finally:
+class _PauseMallocGraph:
+    def __init__(self, sync=False):
+        self.sync = sync
+
+    def __enter__(self):
+        graph = MALLOC_GRAPHS.get(threading.get_ident())
         if graph is not None and graph._comfy_active:
-            graph.resume(sync=sync)
+            graph.pause(sync=self.sync)
+
+    def __exit__(self, *args):
+        graph = MALLOC_GRAPHS.get(threading.get_ident())
+        if graph is not None and graph._comfy_active:
+            graph.resume(sync=self.sync)
+
+def pause_malloc_graph(sync=False):
+    return _PauseMallocGraph(sync)
 
 def malloc_graph_begin(device):
     global MALLOC_GRAPH_USED
@@ -54,6 +60,7 @@ def malloc_graph_begin(device):
         MALLOC_GRAPHS[thread_id] = graph
     else:
         graph.push()
+    ck.set_allocation_context(pause_malloc_graph())
     graph._comfy_active = True
     MALLOC_GRAPH_USED = True
 
