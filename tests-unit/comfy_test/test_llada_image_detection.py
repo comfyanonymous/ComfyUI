@@ -15,6 +15,18 @@ import comfy.sd
 import comfy.supported_models
 import comfy.utils
 import nodes
+from comfy_extras.nodes_custom_sampler import (
+    CFGGuider,
+    KSamplerSelect,
+    RandomNoise,
+    SamplerCustomAdvanced,
+)
+from comfy_extras.nodes_llada_image import (
+    LLaDAImageEditConditioning,
+    LLaDAImageScheduler,
+    LLaDAImageVQConditioning,
+    SamplerLLaDAImageTurbo,
+)
 from comfy.ldm.llada_image.model import LLaDAImage
 from comfy.text_encoders.llada_image import LLaDAImageTEModel
 
@@ -435,11 +447,6 @@ def test_complete_tiny_aio_loads_and_runs_native_generation_and_editing(
         attention_mask=attention_mask,
     )
 
-    from comfy_extras.nodes_llada_image import (
-        LLaDAImageEditConditioning,
-        LLaDAImageVQConditioning,
-    )
-
     vq_positive, vq_negative = LLaDAImageVQConditioning.execute(
         clip, "a tiny blue square", "", 64, 64
     )
@@ -472,17 +479,6 @@ def test_complete_tiny_aio_loads_and_runs_native_generation_and_editing(
         semantic_features=edit_values["semantic_features"],
         semantic_mask=edit_values["semantic_mask"],
         source_latents=edit_values["source_latents"],
-    )
-
-    from comfy_extras.nodes_custom_sampler import (
-        CFGGuider,
-        KSamplerSelect,
-        RandomNoise,
-        SamplerCustomAdvanced,
-    )
-    from comfy_extras.nodes_llada_image import (
-        LLaDAImageScheduler,
-        SamplerLLaDAImageTurbo,
     )
 
     sampled_modes = {}
