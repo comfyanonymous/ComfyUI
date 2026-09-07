@@ -40,6 +40,14 @@ def pause_malloc_graph(sync=False):
         if graph is not None:
             graph.resume(sync=sync)
 
+@contextlib.contextmanager
+def malloc_graph_scope(module, device):
+    malloc_graph_begin(module, device)
+    try:
+        yield
+    finally:
+        malloc_graph_end()
+
 def malloc_graph_begin(module, device):
     global MALLOC_GRAPH_USED
     if not malloc_graph_enabled(device):

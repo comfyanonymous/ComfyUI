@@ -1068,6 +1068,18 @@ class BaseLlama:
     def forward(self, input_ids, *args, **kwargs):
         return self.model(input_ids, *args, **kwargs)
 
+def penalty_active(repetition_penalty, presence_penalty):
+    return repetition_penalty != 1.0 or (presence_penalty is not None and presence_penalty != 0.0)
+
+
+def apply_penalty(logits, repetition_penalty, presence_penalty):
+    if repetition_penalty != 1.0:
+        logits = torch.where(logits < 0, logits * repetition_penalty, logits / repetition_penalty)
+    if presence_penalty is not None and presence_penalty != 0.0:
+        logits = logits - presence_penalty
+    return logits
+
+
 class BaseGenerate:
     def logits(self, x):
         input = x[:, -1:]
@@ -1113,6 +1125,8 @@ class BaseGenerate:
 
         compile_allocations = self.model.graph_dynamic_vbar_blocks and comfy.model_prefetch.malloc_graph_enabled(device)
         decode_tokens = torch.empty((embeds.shape[0], 1), dtype=torch.long, device=device)
+        penalize = penalty_active(repetition_penalty, presence_penalty)
+        penalty_mask = None
 
         # Generation loop
         current_input_ids = initial_input_ids
@@ -1131,9 +1145,16 @@ class BaseGenerate:
                 extra["visual_pos_masks"] = visual_pos_masks
             x, _, past_key_values = self.model.forward(None, embeds=embeds, attention_mask=None, past_key_values=past_key_values, input_ids=current_input_ids, position_ids=position_ids, **extra, embeds_info=(embeds_info if step == 0 else None))
             logits = self.logits(x)[:, -1]
-            next_token = self.sample_token(logits, temperature, top_k, top_p, min_p, repetition_penalty, initial_tokens + generated_token_ids, generator, do_sample=do_sample, presence_penalty=presence_penalty)
+            if penalty_mask is None and do_sample and penalize:
+                # allocated on the (unbracketed) first step; later steps only index_fill_ it
+                penalty_mask = torch.zeros((logits.shape[-1],), dtype=torch.bool, device=device)
+                if len(initial_tokens) > 0:
+                    penalty_mask.index_fill_(0, torch.tensor(initial_tokens, device=device), True)
+            next_token = self.sample_token(logits, temperature, top_k, top_p, min_p, repetition_penalty, [], generator, do_sample=do_sample, presence_penalty=presence_penalty, penalty_mask=penalty_mask)
 
             decode_tokens.copy_(next_token)
+            if penalty_mask is not None:
+                penalty_mask.index_fill_(0, decode_tokens[0], True)
             del next_token, logits, x, embeds, position_ids
             if step > 0 and compile_allocations:
                 comfy.model_prefetch.malloc_graph_end()
@@ -1150,17 +1171,15 @@ class BaseGenerate:
 
         return generated_token_ids
 
-    def processed_probs(self, logits, temperature, top_k, top_p, min_p, repetition_penalty, token_history, presence_penalty=0.0):
-        # full sampling processing chain; returns (probs, indices) where indices
-        # maps prob columns back to vocab ids (None = probs cover the full vocab)
-        if len(token_history) > 0 and (repetition_penalty != 1.0 or (presence_penalty is not None and presence_penalty != 0.0)):
-            token_ids = torch.tensor(list(set(token_history)), device=logits.device)
-            token_logits = logits[:, token_ids]
-            if repetition_penalty != 1.0:
-                token_logits = torch.where(token_logits < 0, token_logits * repetition_penalty, token_logits / repetition_penalty)
-            if presence_penalty is not None and presence_penalty != 0.0:
-                token_logits = token_logits - presence_penalty
-            logits[:, token_ids] = token_logits
+    def processed_probs(self, logits, temperature, top_k, top_p, min_p, repetition_penalty, token_history, presence_penalty=0.0, penalty_mask=None):
+        # returns (probs, indices); indices None = probs cover the full vocab.
+        # penalty_mask [vocab] bool is a fixed-size stand-in for token_history
+        if penalty_active(repetition_penalty, presence_penalty):
+            if penalty_mask is not None:
+                logits = torch.where(penalty_mask.unsqueeze(0), apply_penalty(logits, repetition_penalty, presence_penalty), logits)
+            elif len(token_history) > 0:
+                token_ids = torch.tensor(list(set(token_history)), device=logits.device)
+                logits[:, token_ids] = apply_penalty(logits[:, token_ids], repetition_penalty, presence_penalty)
 
         if temperature != 1.0:
             logits = logits / temperature
@@ -1188,12 +1207,12 @@ class BaseGenerate:
 
         return torch.nn.functional.softmax(logits, dim=-1), top_indices
 
-    def sample_token(self, logits, temperature, top_k, top_p, min_p, repetition_penalty, token_history, generator, do_sample=True, presence_penalty=0.0):
+    def sample_token(self, logits, temperature, top_k, top_p, min_p, repetition_penalty, token_history, generator, do_sample=True, presence_penalty=0.0, penalty_mask=None):
 
         if not do_sample or temperature == 0.0:
             return torch.argmax(logits, dim=-1, keepdim=True)
 
-        probs, top_indices = self.processed_probs(logits, temperature, top_k, top_p, min_p, repetition_penalty, token_history, presence_penalty=presence_penalty)
+        probs, top_indices = self.processed_probs(logits, temperature, top_k, top_p, min_p, repetition_penalty, token_history, presence_penalty=presence_penalty, penalty_mask=penalty_mask)
         next_token = torch.multinomial(probs, num_samples=1, generator=generator)
         if top_indices is not None:
             return top_indices.gather(1, next_token)
