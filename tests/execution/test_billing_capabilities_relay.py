@@ -104,9 +104,9 @@ def comfy_server(upstream_port: int, base_directory, *extra_args: str):
         "--listen", "127.0.0.1",
         "--port", str(port),
         "--base-directory", str(base_directory),
-        # Use a hostname because aiohttp deliberately rejects cookies from IP
-        # hosts by default. This lets the test catch accidental cookie-jar
-        # persistence against the real comfy.org hostname.
+        # Use the configured localhost hostname because aiohttp deliberately
+        # rejects cookies from IP hosts by default. This makes cookie-jar
+        # persistence observable against the loopback upstream.
         "--comfy-api-base", f"http://localhost:{upstream_port}",
         *extra_args,
     ])
@@ -122,8 +122,12 @@ def comfy_server(upstream_port: int, base_directory, *extra_args: str):
             process.wait(timeout=60)
 
 
-def _get(port: int, route: str, headers: dict | None = None):
-    request = urllib.request.Request(f"http://127.0.0.1:{port}{route}", headers=headers or {})
+def _request(port: int, route: str, headers: dict | None = None, method: str = "GET"):
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{port}{route}",
+        headers=headers or {},
+        method=method,
+    )
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
             return response.status, response.read(), dict(response.headers)
@@ -152,7 +156,7 @@ def clear_upstream_history(upstream):
 class TestBillingCapabilitiesRelay:
     @pytest.mark.parametrize("route", [CAPABILITIES_ROUTE, UNPREFIXED_CAPABILITIES_ROUTE])
     def test_route_relays_upstream_payload(self, relay_port, upstream, route):
-        status, body, headers = _get(relay_port, route)
+        status, body, headers = _request(relay_port, route)
 
         assert status == 200
         assert json.loads(body) == UPSTREAM_BODY
@@ -160,20 +164,20 @@ class TestBillingCapabilitiesRelay:
         assert [request["path"] for request in upstream.received] == [UPSTREAM_ROUTE]
 
     def test_core_middleware_preserves_relayed_cache_headers(self, relay_port):
-        _status, _body, headers = _get(relay_port, CAPABILITIES_ROUTE)
+        _status, _body, headers = _request(relay_port, CAPABILITIES_ROUTE)
 
         assert headers["Cache-Control"] == UPSTREAM_CACHE_CONTROL
         assert headers["Vary"] == UPSTREAM_VARY
         assert "Set-Cookie" not in headers
 
     def test_upstream_cookie_is_not_replayed(self, relay_port, upstream):
-        _get(relay_port, CAPABILITIES_ROUTE)
-        _get(relay_port, CAPABILITIES_ROUTE)
+        _request(relay_port, CAPABILITIES_ROUTE)
+        _request(relay_port, CAPABILITIES_ROUTE)
 
         assert [request["headers"].get("cookie") for request in upstream.received] == [None, None]
 
     def test_upstream_receives_allowlisted_headers_and_core_owned_context(self, relay_port, upstream):
-        status, _body, _headers = _get(relay_port, CAPABILITIES_ROUTE, {
+        status, _body, _headers = _request(relay_port, CAPABILITIES_ROUTE, {
             "Authorization": "Bearer relay-test-token",
             "X-API-Key": "relay-test-key",
             "Cookie": "session=must-not-leak",
@@ -191,13 +195,39 @@ class TestBillingCapabilitiesRelay:
         assert forwarded["comfy-env"] != CALLER_SUPPLIED
         assert forwarded["comfy-core-version"] != CALLER_SUPPLIED
 
+    def test_cors_preflight_allows_api_key(self, upstream, tmp_path_factory):
+        with comfy_server(
+            upstream.port,
+            tmp_path_factory.mktemp("relay-cors"),
+            "--enable-cors-header",
+            "https://frontend.example",
+        ) as port:
+            status, _body, headers = _request(
+                port,
+                CAPABILITIES_ROUTE,
+                headers={
+                    "Origin": "https://frontend.example",
+                    "Access-Control-Request-Method": "GET",
+                    "Access-Control-Request-Headers": "X-API-Key",
+                },
+                method="OPTIONS",
+            )
+
+        allowed_headers = {
+            header.strip().lower()
+            for header in headers["Access-Control-Allow-Headers"].split(",")
+        }
+        assert status == 200
+        assert "x-api-key" in allowed_headers
+        assert upstream.received == []
+
     def test_disable_api_nodes_removes_route(self, upstream, tmp_path_factory):
         with comfy_server(
             upstream.port,
             tmp_path_factory.mktemp("relay-disabled"),
             "--disable-api-nodes",
         ) as port:
-            status, _body, _headers = _get(port, CAPABILITIES_ROUTE)
+            status, _body, _headers = _request(port, CAPABILITIES_ROUTE)
 
         assert status == 404
         assert upstream.received == []
