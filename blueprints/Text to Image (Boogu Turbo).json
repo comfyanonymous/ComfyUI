@@ -932,7 +932,7 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Image generation and editing/Text to image",
+        "category": "Image generation/Text to image",
         "description": "Generates images from text using Boogu-Image-0.1-Turbo, a four-step distilled 10B unified generation model with Qwen3-VL text encoder."
       }
     ]

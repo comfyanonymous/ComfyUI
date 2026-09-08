@@ -3353,7 +3353,8 @@
           }
         ],
         "extra": {},
-        "category": "Video generation and editing"
+        "category": "Video generation/Conditioned",
+        "description": "Transfers motion from a driving video onto a reference character using Wan Animate 2, preserving identity and generating a new background from the text prompt."
       }
     ]
   },

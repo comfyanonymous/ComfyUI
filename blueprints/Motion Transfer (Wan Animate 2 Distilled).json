@@ -3300,7 +3300,8 @@
           }
         ],
         "extra": {},
-        "category": "Video generation and editing"
+        "category": "Video generation/Conditioned",
+        "description": "Transfers motion from a driving video onto a reference character using the distilled Wan Animate 2 checkpoint, without pose extraction."
       }
     ]
   },

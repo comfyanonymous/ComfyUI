@@ -3650,7 +3650,7 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Video generation and editing/Inpaint video",
+        "category": "Video editing/Inpaint video",
         "description": "Removes objects from video by inpainting masked regions using Wan 2.1 VACE, with SAM3 text-guided segmentation and optional Lightning LoRA turbo mode."
       },
       {

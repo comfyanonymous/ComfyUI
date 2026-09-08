@@ -4634,7 +4634,8 @@
           }
         ],
         "extra": {},
-        "category": "Video generation and editing/Image to video"
+        "category": "Video generation/Image to video",
+        "description": "Generates video from a first-frame image using LTX-2.5, with optional prompt enhancement, spatial upscaling, and synchronized audio."
       }
     ]
   },

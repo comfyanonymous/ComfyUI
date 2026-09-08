@@ -2461,7 +2461,8 @@
           }
         ],
         "extra": {},
-        "category": "Image generation and editing"
+        "category": "Image generation/Conditioned",
+        "description": "Generates images from text using Krea 2 Turbo while matching the style of uploaded reference images, with optional LLM prompt enhancement."
       }
     ]
   },

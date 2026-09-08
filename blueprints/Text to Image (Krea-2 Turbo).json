@@ -2118,7 +2118,7 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Image generation and editing/Text to image",
+        "category": "Image generation/Text to image",
         "description": "Generates images from text using Krea 2 Turbo with optional LLM prompt enhancement and LoRA style switching."
       }
     ]

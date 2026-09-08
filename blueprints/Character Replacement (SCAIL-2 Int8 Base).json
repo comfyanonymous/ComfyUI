@@ -4303,7 +4303,8 @@
           }
         ],
         "extra": {},
-        "category": "Video generation and editing/Video Edit"
+        "category": "Video editing/Video Edit",
+        "description": "Replaces a character in a video with a reference image using the INT8 SCAIL-2 checkpoint for end-to-end animation without intermediate pose maps."
       }
     ]
   },

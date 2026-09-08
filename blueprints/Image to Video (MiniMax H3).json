@@ -2120,7 +2120,8 @@
           }
         ],
         "extra": {},
-        "category": "Video generation and editing/Image to video"
+        "category": "Video generation/Image to video",
+        "description": "Generates video with native stereo audio from a first frame and optional last frame using MiniMax H3, with optional turbo LoRA."
       }
     ]
   },

@@ -2626,7 +2626,7 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Video generation and editing/FLF2V",
+        "category": "Video generation/FLF2V",
         "description": "Generates a video interpolating between first and last keyframes using Wan 2.1 VACE, with optional Lightning LoRA turbo mode."
       },
       {

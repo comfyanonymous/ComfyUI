@@ -4123,7 +4123,8 @@
           }
         ],
         "extra": {},
-        "category": "Image generation and editing"
+        "category": "Video generation/Text to video",
+        "description": "Generates video from text prompts using LTX-2.5, with optional prompt enhancement, spatial upscaling, and synchronized audio."
       }
     ]
   },

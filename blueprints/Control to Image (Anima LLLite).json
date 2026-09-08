@@ -2055,7 +2055,8 @@
           }
         ],
         "extra": {},
-        "category": "Image generation and editing/Conditioned"
+        "category": "Image generation/Conditioned",
+        "description": "Generates anime-style images from a control image using Anima with an LLLite patch for structure-guided generation."
       }
     ]
   },

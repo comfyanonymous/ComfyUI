@@ -1751,7 +1751,8 @@
           }
         ],
         "extra": {},
-        "category": "Image generation and editing/Edit image"
+        "category": "Image editing/Edit image",
+        "description": "Edits images from natural-language instructions using Microsoft Mage-Flow-Edit Turbo, a distilled 4-step checkpoint."
       }
     ]
   },

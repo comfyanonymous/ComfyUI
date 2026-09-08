@@ -940,7 +940,8 @@
           }
         ],
         "extra": {},
-        "category": "Image generation and editing/Text to image"
+        "category": "Image generation/Text to image",
+        "description": "Generates images from text using Microsoft Mage-Flow Turbo, a distilled 4-step 4B native-resolution model."
       }
     ]
   },

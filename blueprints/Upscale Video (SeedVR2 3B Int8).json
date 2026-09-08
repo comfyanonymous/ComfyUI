@@ -2026,7 +2026,8 @@
           }
         ],
         "extra": {},
-        "category": "Video Tools"
+        "category": "Video Tools/Upscale",
+        "description": "Upscales and restores video using ByteDance SeedVR2 3B INT8, a one-step diffusion restoration model."
       }
     ]
   },

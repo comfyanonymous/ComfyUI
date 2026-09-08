@@ -940,7 +940,8 @@
           }
         ],
         "extra": {},
-        "category": "Image generation and editing"
+        "category": "Image generation/Text to image",
+        "description": "Generates images from text using Microsoft Mage-Flow, a compact 4B native-resolution model that supports any aspect ratio up to 2K."
       }
     ]
   },

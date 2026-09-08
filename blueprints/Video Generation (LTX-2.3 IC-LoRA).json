@@ -3472,7 +3472,8 @@
           }
         ],
         "extra": {},
-        "category": "Video generation and editing"
+        "category": "Video generation/Conditioned",
+        "description": "Generates LTX-2.3 video with IC-LoRA structural guidance from aligned control images such as depth, pose, or edges."
       }
     ]
   },

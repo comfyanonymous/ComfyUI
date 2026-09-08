@@ -1505,7 +1505,8 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Image generation and editing/Edit image"
+        "category": "Image editing/Edit image",
+        "description": "Edits images via text instructions using Joy Image Edit, with optional extra reference images for multi-image conditioning."
       }
     ]
   },

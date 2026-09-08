@@ -4182,7 +4182,8 @@
           }
         ],
         "extra": {},
-        "category": "Video generation and editing/FLF2V"
+        "category": "Video generation/FLF2V",
+        "description": "Generates a video interpolating between first and last keyframes using LTX-2.5, with optional prompt enhancement and synchronized audio."
       }
     ]
   },

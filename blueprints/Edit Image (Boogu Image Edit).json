@@ -1164,7 +1164,7 @@
         "extra": {
           "workflowRendererVersion": "LG"
         },
-        "category": "Image generation and editing/Edit image",
+        "category": "Image editing/Edit image",
         "description": "Edits images from text instructions using Boogu-Image-0.1-Edit and TextEncodeBooguEdit, preserving reference identity via dual conditioning."
       }
     ]

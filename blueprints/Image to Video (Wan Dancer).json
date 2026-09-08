@@ -6145,7 +6145,8 @@
           }
         ],
         "extra": {},
-        "category": "Video generation and editing"
+        "category": "Video generation/Image to video",
+        "description": "Generates a dance video from a character image and music using Wan Dancer hierarchical global and local models, with style and motion amplitude controls."
       },
       {
         "id": "dfd0a05c-c3fb-488e-bb0d-1be528acd335",
@@ -6593,7 +6594,9 @@
         "extra": {
           "ue_links": [],
           "links_added_by_ue": []
-        }
+        },
+        "category": "Text Tools",
+        "description": "Selects one dance-style prompt by index from a list of prompt options."
       },
       {
         "id": "d78651e5-09df-42bf-b768-6ed91cd8089a",
@@ -7041,7 +7044,9 @@
         "extra": {
           "ue_links": [],
           "links_added_by_ue": []
-        }
+        },
+        "category": "Text Tools",
+        "description": "Selects one dance-style prompt by index from a list of prompt options."
       }
     ]
   },
