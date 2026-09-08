@@ -580,14 +580,14 @@
               "Node name for S&R": "TextEncodeMageFlowEdit"
             },
             "widgets_values": [
-              "photorealistic cinematic shot, massive classic flying saucer UFO hovering in foggy sky, ring of warm glowing cabin lights on the saucer, bright neon green tractor beam shooting downward from the bottom of the UFO, a cow suspended mid-air inside the green light beam, old weathered wooden farm houses along muddy country path, warm yellow light glowing from cottage windows, bare leafless trees, old wooden utility pole, thick hazy grey-green mist, overcast gloomy atmosphere, retro sci-fi aesthetic, eerie mysterious mood, soft atmospheric haze, muted desaturated color grading, depth of field, detailed textures, 8k, shot on 35mm film\n",
+              "",
               "",
               1024,
               1024,
               1
             ],
             "widgets_values_named": {
-              "prompt": "photorealistic cinematic shot, massive classic flying saucer UFO hovering in foggy sky, ring of warm glowing cabin lights on the saucer, bright neon green tractor beam shooting downward from the bottom of the UFO, a cow suspended mid-air inside the green light beam, old weathered wooden farm houses along muddy country path, warm yellow light glowing from cottage windows, bare leafless trees, old wooden utility pole, thick hazy grey-green mist, overcast gloomy atmosphere, retro sci-fi aesthetic, eerie mysterious mood, soft atmospheric haze, muted desaturated color grading, depth of field, detailed textures, 8k, shot on 35mm film\n",
+              "prompt": "",
               "negative_prompt": "",
               "width": 1024,
               "height": 1024,

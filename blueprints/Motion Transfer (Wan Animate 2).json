@@ -976,10 +976,10 @@
               "Node name for S&R": "CLIPTextEncode"
             },
             "widgets_values": [
-              "Character Description: Cartoon character lost\nBackground description: The background is an empty white room"
+              ""
             ],
             "widgets_values_named": {
-              "text": "Character Description: Cartoon character lost\nBackground description: The background is an empty white room"
+              "text": ""
             },
             "color": "#232",
             "bgcolor": "#353"
@@ -1135,10 +1135,10 @@
               "Node name for S&R": "CLIPTextEncode"
             },
             "widgets_values": [
-              "一只穿着制服的小猫做动作的参考视频"
+              ""
             ],
             "widgets_values_named": {
-              "text": "一只穿着制服的小猫做动作的参考视频"
+              "text": ""
             },
             "color": "#232",
             "bgcolor": "#353"
