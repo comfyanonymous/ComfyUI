@@ -1097,7 +1097,7 @@
                 ]
               }
             ],
-            "title": "TextEncodeJoyImageEdit (Positive)",
+            "title": "TextEncodeJoyImageEdit (Negative)",
             "properties": {
               "Node name for S&R": "TextEncodeJoyImageEdit"
             },
