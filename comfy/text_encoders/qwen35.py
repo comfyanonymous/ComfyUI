@@ -997,7 +997,7 @@ class Qwen35(BaseLlama, BaseGenerate, torch.nn.Module):
             if use_graph and len(ids) < max_length and ids[-1] not in stop_tokens:
                 draft_capture()
             while len(ids) < max_length and ids[-1] not in stop_tokens:
-                with (comfy.model_prefetch.malloc_graph_scope(self, device) if compile_allocations else contextlib.nullcontext()):
+                with (comfy.model_prefetch.malloc_graph_scope(device) if compile_allocations else contextlib.nullcontext()):
                     accepts, commit = step()
                 ids.extend(commit)
                 update_progress(accepts + 1)
