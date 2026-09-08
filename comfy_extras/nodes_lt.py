@@ -391,7 +391,7 @@ class LTXVAddGuide(io.ComfyNode):
 
             if guide_mask.shape[3] == 1 or guide_mask.shape[4] == 1:
                 guide_mask = guide_mask.expand(-1, -1, -1, target_h, target_w)
-            mask = guide_mask - strength
+            mask = guide_mask - min(strength, 1.0)
         else:
             mask = torch.full(
                 (noise_mask.shape[0], 1, guiding_latent.shape[2], noise_mask.shape[3], noise_mask.shape[4]),
@@ -559,12 +559,9 @@ class LTXVAddLatentGuide(io.ComfyNode):
                     "strength",
                     default=1.0,
                     min=0.0,
-                    max=1.0,
+                    max=10.0,
                     step=0.01,
-                    tooltip="Capped at 1.0. A dilated guide marks its padding positions with a "
-                            "negative denoise mask so the model drops them; above 1.0 the kept "
-                            "positions would go negative too and the whole guide would be dropped. "
-                            "Amplify beyond 1.0 with attention_mask instead.",
+                    tooltip="Guide strength. 1.0 is a hard pin; lower values relax it.",
                 ),
                 io.Mask.Input(
                     "attention_mask",
@@ -639,7 +636,10 @@ class LTXVAddLatentGuide(io.ComfyNode):
             attention_mask=attention_mask,
         )
 
-        return io.NodeOutput(positive, negative, {"samples": latent_image, "noise_mask": noise_mask})
+        out = latent.copy()
+        out["samples"] = latent_image
+        out["noise_mask"] = noise_mask
+        return io.NodeOutput(positive, negative, out)
 
 
 class LTXVCropGuides(io.ComfyNode):

@@ -23,6 +23,7 @@ import torch
 # use the real one. Same shape as tests-unit/comfy_extras_test/image_stitch_test.py.
 _stubs = {"nodes": MagicMock(MAX_RESOLUTION=16384), "server": MagicMock()}
 _saved = {name: sys.modules.get(name) for name in _stubs}
+_saved_nodes_lt = sys.modules.pop("comfy_extras.nodes_lt", None)
 sys.modules.update(_stubs)
 try:
     import comfy_extras.nodes_lt as nodes_lt
@@ -32,6 +33,10 @@ finally:
             sys.modules.pop(_name, None)
         else:
             sys.modules[_name] = _original
+    if _saved_nodes_lt is None:
+        sys.modules.pop("comfy_extras.nodes_lt", None)
+    else:
+        sys.modules["comfy_extras.nodes_lt"] = _saved_nodes_lt
 
 LATENT_CHANNELS = 128
 SCALE_FACTORS = (8, 32, 32)
@@ -180,6 +185,33 @@ def test_attention_mask_reaches_the_guide_entry():
     assert len(negative[0][1]["guide_attention_entries"]) == 1
 
 
+@pytest.mark.parametrize("guide_hw", [(4, 4), (2, 2)])
+def test_strength_above_one_keeps_the_guide_pinned(guide_hw):
+    positive, _, latent = nodes_lt.LTXVAddLatentGuide.execute(
+        _cond(), _cond(), _vae(), _latent(3, 4, 4), _latent(1, *guide_hw), 0, 2.0
+    )
+
+    guide_mask = latent["noise_mask"][:, :, -1]
+    if guide_hw == (4, 4):
+        assert torch.all(guide_mask == 0)
+    else:
+        assert torch.all(guide_mask[..., ::2, ::2] == 0)
+        assert torch.all(guide_mask[..., 1::2, :] < 0)
+        assert torch.all(guide_mask[..., :, 1::2] < 0)
+    assert positive[0][1]["guide_attention_entries"][0]["strength"] == 2.0
+
+
+def test_target_latent_metadata_is_preserved():
+    latent = _latent(3, 4, 4)
+    latent["batch_index"] = [7]
+
+    _, _, output = nodes_lt.LTXVAddLatentGuide.execute(
+        _cond(), _cond(), _vae(), latent, _latent(1, 4, 4), 0, 1.0
+    )
+
+    assert output["batch_index"] == [7]
+
+
 def test_node_is_registered_with_a_loadable_schema():
     """Both failure modes here are invisible to every other test in this file.
 
@@ -192,7 +224,7 @@ def test_node_is_registered_with_a_loadable_schema():
     inputs = {inp.id: inp for inp in schema.inputs}
 
     assert schema.node_id == "LTXVAddLatentGuide"
-    assert inputs["strength"].max == 1.0
+    assert inputs["strength"].max == 10.0
     assert inputs["attention_mask"].optional is True
 
     node_list = asyncio.run(nodes_lt.LtxvExtension().get_node_list())
