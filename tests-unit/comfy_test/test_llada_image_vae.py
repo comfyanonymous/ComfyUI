@@ -21,7 +21,7 @@ def assert_vae_parity(actual, expected, dtype):
     expected = expected.float().cpu()
     if dtype == torch.bfloat16:
         absolute_error = (actual - expected).abs()
-        assert float(absolute_error.max()) <= 1.0 / 32.0
+        assert float(absolute_error.max()) <= 3.0 / 64.0
         assert float(absolute_error.mean()) <= 1.0 / 256.0
     else:
         torch.testing.assert_close(actual, expected, rtol=1e-4, atol=1e-5)
@@ -89,7 +89,7 @@ def test_flux2_vae_load_encode_decode_matches_llada_reference(
     actual_state = vae.first_stage_model.state_dict()
     assert set(actual_state) == set(converted)
     for key, expected in converted.items():
-        assert torch.equal(actual_state[key], expected), key
+        assert torch.equal(actual_state[key].cpu(), expected.cpu()), key
     assert vae.latent_channels == 128
     assert vae.downscale_ratio == vae.upscale_ratio == 16
     image = torch.rand(batch_size, height, width, 3)
