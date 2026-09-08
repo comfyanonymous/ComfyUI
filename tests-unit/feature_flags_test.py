@@ -215,7 +215,8 @@ class TestComfyApiEnv:
         "url, expected",
         [
             ("https://api.comfy.org", "https://cloud.comfy.org"),
-            ("https://stagingapi.comfy.org", "https://testcloud.comfy.org"),
+            ("https://stagingapi.comfy.org", "https://stagingcloud.comfy.org"),
+            ("https://testapi.comfy.org", "https://testcloud.comfy.org"),
             ("https://pr-4398.testenvs.comfy.org", "https://pr-4398.testenvs.comfy.org"),
             ("https://pr-4398-registry.testenvs.comfy.org", "https://pr-4398.testenvs.comfy.org"),
             ("http://localhost:8189", "http://localhost:8189"),

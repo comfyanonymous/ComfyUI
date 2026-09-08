@@ -12,10 +12,12 @@ from comfy.cli_args import args
 
 _STAGING_API_HOST = "stagingapi.comfy.org"
 _TESTENV_HOST_SUFFIX = ".testenvs.comfy.org"
-_PROD_API_HOST = "api.comfy.org"
-_PROD_CLOUD_BASE_URL = "https://cloud.comfy.org"
-_STAGING_CLOUD_BASE_URL = "https://testcloud.comfy.org"
 _STAGING_PLATFORM_BASE_URL = "https://stagingplatform.comfy.org"
+_CLOUD_BASE_BY_API_HOST = {
+    "api.comfy.org": "https://cloud.comfy.org",
+    "stagingapi.comfy.org": "https://stagingcloud.comfy.org",
+    "testapi.comfy.org": "https://testcloud.comfy.org",
+}
 
 
 def _is_staging_tier(host: str) -> bool:
@@ -38,10 +40,8 @@ def comfy_cloud_base_for_api_base(url: str) -> str:
     """Resolve the Ingest host paired with a configured Comfy API base."""
     parsed = urlparse(url)
     host = parsed.hostname or ""
-    if host == _PROD_API_HOST:
-        return _PROD_CLOUD_BASE_URL
-    if host == _STAGING_API_HOST:
-        return _STAGING_CLOUD_BASE_URL
+    if cloud_base := _CLOUD_BASE_BY_API_HOST.get(host):
+        return cloud_base
     if host.endswith(_TESTENV_HOST_SUFFIX):
         label = host[: -len(_TESTENV_HOST_SUFFIX)]
         if label.endswith("-registry"):
