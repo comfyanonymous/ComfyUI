@@ -965,11 +965,8 @@ def _eager_input_act(x, input_act, act_weight=None, act_eps=0.0):
 
 
 def _fp16_linear_wanted(x):
-    """Whether kitchen's fp16-accumulate GEMM may replace a plain linear: the
-    user opted into fp16 accumulation and the activation is fp16 on CUDA. The
-    weights come through cast_bias_weight, so offloaded (dynamic VRAM) layers
-    and patch hooks are handled like the INT8 path. (Shapes too small to fill
-    the GPU are handed back to cuBLAS by the op itself.)"""
+    """kitchen's fp16-accumulate GEMM replaces a plain linear when the user opted into
+        fp16 accumulation and the activation is fp16 on CUDA; weights come through cast_bias_weight."""
     return (getattr(torch.backends.cuda.matmul, "allow_fp16_accumulation", False)
             and x.dtype == torch.float16 and x.is_cuda)
 

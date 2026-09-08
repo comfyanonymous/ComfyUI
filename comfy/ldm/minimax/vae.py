@@ -39,19 +39,19 @@ LATENTS_STD = [
 # 3D causal CNN encoder
 
 def _kitchen_ndhwc(x):
-    # the encoder runs in NDHWC (cuDNN's native fp16/bf16 layout) when the kitchen pad kernel can feed it
+    # NDHWC when the kitchen pad kernel can feed it
     ck = getattr(comfy.quant_ops, "ck", None)
     return ck is not None and hasattr(ck, "group_norm_silu_pad3d") and x.is_cuda and x.dtype in (torch.float16, torch.bfloat16)
 
 
 def _fused_norm_pad(x, norm, spatial_pad, front):
-    # comfy-kitchen kernel: per-frame GroupNorm + SiLU + both paddings in one pass, output in NDHWC
+    # per-frame GroupNorm + SiLU + padding in one kitchen pass, NDHWC out
     if not _kitchen_ndhwc(x) or x.shape[1] % 8:
         return None
     ck = comfy.quant_ops.ck
     if norm is None:
         return ck.group_norm_silu_pad3d(x, None, None, 1, 0.0, (*spatial_pad, front), silu=False)
-    # the affine params come through cast_bias_weight so offloaded (dynamic VRAM) layers work too
+    # cast_bias_weight: works for offloaded (dynamic VRAM) layers
     weight, bias, offload_stream = comfy.ops.cast_bias_weight(norm, x, offloadable=True)
     try:
         return ck.group_norm_silu_pad3d(x, weight, bias, norm.num_groups, norm.eps, (*spatial_pad, front), silu=True)
@@ -60,7 +60,7 @@ def _fused_norm_pad(x, norm, spatial_pad, front):
 
 
 def _fp16_accum_conv(conv, x, weight, bias, residual):
-    # kitchen fp16-accumulate conv (bias + residual in the epilogue), same opt-in as the fp16 GEMMs
+    # kitchen fp16-accumulate conv, same opt-in as the fp16 GEMMs
     ck = comfy.quant_ops.ck
     if not hasattr(ck, "fp16_conv3d") or not comfy.ops._fp16_linear_wanted(x):
         return None
@@ -74,8 +74,7 @@ class CausalConv3d(ops.Conv3d):
         self.causal_padding = (padding,) * 3 if isinstance(padding, int) else tuple(padding)
 
     def forward(self, x, pre_norm=None, spatial_pad=None, residual=None):
-        # pre_norm (GroupNorm + SiLU), spatial_pad (l, r, t, b reflect override) and residual
-        # fold into the kitchen padding pass and conv epilogue
+        # pre_norm, spatial_pad and residual fold into the kitchen pad pass and conv epilogue
         pad_t, pad_h, pad_w = self.causal_padding
         if spatial_pad is None:
             spatial_pad = (pad_w, pad_w, pad_h, pad_h)
@@ -83,7 +82,6 @@ class CausalConv3d(ops.Conv3d):
 
         ndhwc = _kitchen_ndhwc(x)
         if ndhwc and self.weight.is_cuda and not self.weight.is_contiguous(memory_format=torch.channels_last_3d):
-            # a resident channels_last weight makes the per-call layout check below a no-op
             self.weight.data = self.weight.data.contiguous(memory_format=torch.channels_last_3d)
 
         if pre_norm is not None or front or any(spatial_pad):  # the 1x1 shortcut has nothing to fold
@@ -102,8 +100,7 @@ class CausalConv3d(ops.Conv3d):
             # single frame: the causal front padding is all zeros truncate the temporal taps instead of convolving zero frames
             out = super().forward(x, autopad="causal_zero")
         elif ndhwc:
-            # the weight comes through cast_bias_weight so offloaded (dynamic VRAM) layers work too;
-            # channels_last keeps cuDNN's output NDHWC without a layout conversion of the activation
+            # cast_bias_weight handles offloaded layers; channels_last keeps cuDNN's output NDHWC
             weight, bias, offload_stream = comfy.ops.cast_bias_weight(self, x, offloadable=True)
             try:
                 weight_cl = weight.contiguous(memory_format=torch.channels_last_3d)
@@ -269,8 +266,7 @@ class FeedForward(nn.Module):
         self.w2 = operations.Linear(inner_dim, dim, bias=bias)
 
     def forward(self, x, pre_norm, residual, residual_scale):
-        # the norm, gated silu, and residual addcmul fold into the INT8
-        # kernels when w1/w2 are quantized
+        # norm, gated silu and residual addcmul fold into the INT8 kernels
         h = comfy.ops.linear_input_act(self.w1, x, "rms_norm", pre_norm.weight, pre_norm.eps)
         return comfy.ops.linear_input_act(
             self.w2, h, "swiglu", residual=residual, residual_scale=residual_scale)
@@ -308,8 +304,7 @@ class Attention(nn.Module):
             key = comfy.rmsnorm.rms_norm(key, self.norm_k.weight, self.norm_k.eps)
 
         query, key, value = (t.transpose(1, 2) for t in (query, key, value))
-        # an int8-quantized decoder already accepted int8 numerics, so its
-        # attention runs the int8 QK/V kernel too (fp16 keeps exact flash)
+        # an int8 decoder already accepts int8 numerics; fp16 keeps exact flash
         if isinstance(self.to_qkv.weight, comfy.ops.QuantizedTensor) and COMFY_KITCHEN_INT8_ATTENTION_IS_AVAILABLE:
             out = comfy.quant_ops.ck.int8_attention(query, key, value)
             out = out.transpose(1, 2).reshape(batch_size, seq_len, -1)
@@ -332,7 +327,7 @@ class TransformerBlock(nn.Module):
         self.scale2 = nn.Parameter(torch.empty(dim))
 
     def _residual_scale(self, scale, x):
-        # cast_to_input always copies, which would defeat the kernels' identity-keyed cast caches
+        # cast_to_input always copies, defeating the kernels' identity-keyed caches
         if scale.dtype == x.dtype and scale.device == x.device:
             return scale
         return comfy.ops.cast_to_input(scale, x)
