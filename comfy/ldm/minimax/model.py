@@ -573,7 +573,7 @@ class MiniMaxH3Model(nn.Module):
         compile_allocations = comfy.model_prefetch.malloc_graph_enabled(x[0].device)
         if compile_allocations:
             out = [torch.empty_like(x[0]), torch.empty_like(x[1])]
-            comfy.model_prefetch.malloc_graph_begin(self, x[0].device)
+            comfy.model_prefetch.malloc_graph_begin(x[0].device)
         graph_out = comfy.patcher_extension.WrapperExecutor.new_class_executor(
             self._forward,
             self,
