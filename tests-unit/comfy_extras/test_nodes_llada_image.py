@@ -62,6 +62,11 @@ def test_scheduler_zero_uses_variant_default_steps():
     assert len(turbo) == 5
 
 
+def test_scheduler_rejects_non_llada_model():
+    with pytest.raises(ValueError, match="requires an LLaDA-Image AIO model"):
+        LLaDAImageScheduler.execute(_Model(None), 4)
+
+
 def test_turbo_sampler_uses_denoised_interpolation_and_is_seeded():
     sigmas = torch.tensor([1.0, 0.5, 0.0])
     latent = torch.ones((1, 1, 2, 2))

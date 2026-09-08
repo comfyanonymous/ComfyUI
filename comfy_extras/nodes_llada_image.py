@@ -79,7 +79,11 @@ class LLaDAImageScheduler(io.ComfyNode):
     @classmethod
     def execute(cls, model, steps) -> io.NodeOutput:
         model_sampling = model.get_model_object("model_sampling")
-        variant = model_sampling.llada_image_variant
+        variant = getattr(model_sampling, "llada_image_variant", None)
+        if variant is None:
+            raise ValueError(
+                "LLaDA-Image Scheduler requires an LLaDA-Image AIO model."
+            )
         if steps == 0:
             steps = 50 if variant == "base" else 4
         return io.NodeOutput(llada_image_sigmas(steps, variant))

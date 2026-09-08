@@ -1110,6 +1110,10 @@ class LLaDAImageSampling(
         noise = noise.to(dtype=self.inference_dtype).to(dtype=torch.float32)
         return noise + latent_image
 
+    def inpaint_noise_scaling(self, sigma, noise, latent_image):
+        noise = noise.to(dtype=self.inference_dtype).to(dtype=torch.float32)
+        return super().noise_scaling(sigma, noise, latent_image)
+
 
 class LLaDAImage(BaseModel):
     def __init__(self, model_config, device=None):
@@ -1128,6 +1132,10 @@ class LLaDAImage(BaseModel):
     def process_timestep(self, timestep, **kwargs):
         # The upstream pipeline rounds t before the transformer's t_scale multiply.
         return timestep.to(dtype=self.get_dtype_inference())
+
+    def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
+        sigma = sigma.reshape([sigma.shape[0]] + [1] * (len(noise.shape) - 1))
+        return self.model_sampling.inpaint_noise_scaling(sigma, noise, latent_image)
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)

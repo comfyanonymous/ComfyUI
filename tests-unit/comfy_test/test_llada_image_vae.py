@@ -15,8 +15,28 @@ import comfy.sd
 import comfy.utils
 
 
-@pytest.mark.parametrize("official_weights", (False, True), ids=("random", "official"))
-def test_flux2_vae_load_encode_decode_matches_llada_reference(official_weights, monkeypatch):
+def assert_vae_parity(actual, expected, dtype):
+    actual = actual.float().cpu()
+    expected = expected.float().cpu()
+    if dtype == torch.bfloat16:
+        absolute_error = (actual - expected).abs()
+        assert float(absolute_error.max()) <= 1.0 / 32.0
+        assert float(absolute_error.mean()) <= 1.0 / 256.0
+    else:
+        torch.testing.assert_close(actual, expected, rtol=1e-4, atol=1e-5)
+
+
+@pytest.mark.parametrize(
+    ("official_weights", "dtype", "batch_size", "height", "width"),
+    (
+        pytest.param(False, torch.float32, 1, 32, 64, id="random-fp32"),
+        pytest.param(False, torch.bfloat16, 2, 32, 48, id="random-bf16-batch2"),
+        pytest.param(True, torch.float32, 1, 32, 64, id="official-fp32"),
+    ),
+)
+def test_flux2_vae_load_encode_decode_matches_llada_reference(
+    official_weights, dtype, batch_size, height, width, monkeypatch
+):
     diffusers = pytest.importorskip("diffusers")
     device = torch.device(os.environ.get("LLADA_IMAGE_PARITY_DEVICE", "cpu"))
     if device.type == "cuda" and not torch.cuda.is_available():
@@ -61,10 +81,9 @@ def test_flux2_vae_load_encode_decode_matches_llada_reference(official_weights, 
         reference.bn.running_var.copy_(torch.linspace(0.5, 1.5, 128))
     else:
         reference.load_state_dict(weights, strict=True)
+    reference.to(device=device, dtype=dtype)
     source_state = reference.state_dict()
-    vae = comfy.sd.VAE(
-        sd=dict(source_state), device=device, dtype=torch.float32
-    )
+    vae = comfy.sd.VAE(sd=dict(source_state), device=device, dtype=dtype)
     converted = comfy.diffusers_convert.convert_vae_state_dict(dict(source_state))
     actual_state = vae.first_stage_model.state_dict()
     assert set(actual_state) == set(converted)
@@ -72,36 +91,52 @@ def test_flux2_vae_load_encode_decode_matches_llada_reference(official_weights, 
         assert torch.equal(actual_state[key], expected), key
     assert vae.latent_channels == 128
     assert vae.downscale_ratio == vae.upscale_ratio == 16
-    reference.to(device)
-
-    image = torch.rand(1, 32, 64, 3)
+    image = torch.rand(batch_size, height, width, 3)
     try:
         with torch.inference_mode():
-            unpatched = reference.encode(image.movedim(-1, 1).to(device) * 2 - 1).latent_dist.mode()
-            batch, channels, height, width = unpatched.shape
+            unpatched = reference.encode(
+                image.movedim(-1, 1).to(device=device, dtype=dtype) * 2 - 1
+            ).latent_dist.mode()
+            batch, channels, latent_height, latent_width = unpatched.shape
             patched = (
-                unpatched.reshape(batch, channels, height // 2, 2, width // 2, 2)
+                unpatched.reshape(
+                    batch,
+                    channels,
+                    latent_height // 2,
+                    2,
+                    latent_width // 2,
+                    2,
+                )
                 .permute(0, 1, 3, 5, 2, 4)
-                .reshape(batch, channels * 4, height // 2, width // 2)
+                .reshape(batch, channels * 4, latent_height // 2, latent_width // 2)
             )
             mean = reference.bn.running_mean.view(1, -1, 1, 1)
             std = (reference.bn.running_var.view(1, -1, 1, 1) + 1e-4).sqrt()
             expected_latent = (patched - mean) / std
             actual_latent = vae.encode(image)
-            torch.testing.assert_close(actual_latent.cpu(), expected_latent.cpu(), rtol=1e-4, atol=1e-5)
+            assert_vae_parity(actual_latent, expected_latent, dtype)
+
+            comfy.model_management.unload_all_models()
 
             # Decode identical normalized latents to isolate the reverse adapter.
             # Keep the fixture identical across CPU and CUDA execution.
-            normalized = torch.randn(expected_latent.shape, dtype=torch.float32).to(device)
+            normalized = torch.randn(expected_latent.shape, dtype=dtype, device=device)
             patched = normalized * std + mean
             unpatched = (
-                patched.reshape(batch, channels, 2, 2, height // 2, width // 2)
+                patched.reshape(
+                    batch,
+                    channels,
+                    2,
+                    2,
+                    latent_height // 2,
+                    latent_width // 2,
+                )
                 .permute(0, 1, 4, 2, 5, 3)
-                .reshape(batch, channels, height, width)
+                .reshape(batch, channels, latent_height, latent_width)
             )
             expected_image = reference.decode(unpatched).sample
             expected_image = ((expected_image + 1) / 2).clamp(0, 1).movedim(1, -1)
             actual_image = vae.decode(normalized)
-            torch.testing.assert_close(actual_image.cpu(), expected_image.cpu(), rtol=1e-4, atol=1e-5)
+            assert_vae_parity(actual_image, expected_image, dtype)
     finally:
         comfy.model_management.unload_all_models()

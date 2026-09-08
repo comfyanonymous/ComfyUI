@@ -396,6 +396,24 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             checkpoint_config = json.loads(metadata["config"])
         transformer_config = checkpoint_config.get("transformer", {})
         llada_config = checkpoint_config.get("llada_image", {})
+        component_configs = {
+            "llada2_config": checkpoint_config.get("text_encoder"),
+            "queryformer_config": checkpoint_config.get("queryformer"),
+            "text_projection_config": checkpoint_config.get("text_projection"),
+            "sigvq_config": checkpoint_config.get("sigvq"),
+        }
+        text_projection_config = component_configs["text_projection_config"]
+        sigvq_config = component_configs["sigvq_config"]
+        default_cap_feat_dim = (
+            text_projection_config.get("projection_dim", 2560)
+            if text_projection_config is not None
+            else 2560
+        )
+        default_semantic_feat_dim = (
+            sigvq_config.get("semantic_embed_dim", 4096)
+            if sigvq_config is not None
+            else 4096
+        )
         variant = llada_config.get("variant")
         if variant not in ("base", "turbo"):
             raise ValueError("LLaDA-Image AIO checkpoint metadata must identify the base or turbo variant")
@@ -439,8 +457,10 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             "n_heads": transformer_config.get("n_heads", 30),
             "norm_eps": transformer_config.get("norm_eps", 1e-5),
             "qk_norm": transformer_config.get("qk_norm", True),
-            "cap_feat_dim": transformer_config.get("cap_feat_dim", 2560),
-            "semantic_feat_dim": transformer_config.get("semantic_feat_dim", 4096),
+            "cap_feat_dim": transformer_config.get("cap_feat_dim", default_cap_feat_dim),
+            "semantic_feat_dim": transformer_config.get(
+                "semantic_feat_dim", default_semantic_feat_dim
+            ),
             "rope_theta": transformer_config.get("rope_theta", 256.0),
             "t_scale": transformer_config.get("t_scale", 1000.0),
             "axes_dims": tuple(transformer_config.get("axes_dims", [32, 48, 48])),
@@ -449,16 +469,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             raise ValueError("LLaDA-Image hidden dimension must be divisible by its attention heads")
         if sum(dit_config["axes_dims"]) != dit_config["dim"] // dit_config["n_heads"]:
             raise ValueError("LLaDA-Image RoPE axis dimensions must sum to the attention head dimension")
-        component_configs = {
-            "llada2_config": checkpoint_config.get("text_encoder"),
-            "queryformer_config": checkpoint_config.get("queryformer"),
-            "text_projection_config": checkpoint_config.get("text_projection"),
-            "sigvq_config": checkpoint_config.get("sigvq"),
-        }
         text_config = component_configs["llada2_config"]
         queryformer_config = component_configs["queryformer_config"]
-        text_projection_config = component_configs["text_projection_config"]
-        sigvq_config = component_configs["sigvq_config"]
 
         def require_matching_config(
             left_name, left_config, left_key, right_name, right_config, right_key

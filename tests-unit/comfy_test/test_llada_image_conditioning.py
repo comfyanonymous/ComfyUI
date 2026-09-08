@@ -24,7 +24,7 @@ UPSTREAM_MODEL = (
 UPSTREAM_MODEL_SHA256 = (
     "1460e875568f80c3c153ff07888a1b855bd1f5c290db3d16bad5288d29fcbbf2"
 )
-pytestmark = pytest.mark.skipif(
+requires_upstream = pytest.mark.skipif(
     not UPSTREAM_MODEL.is_file(),
     reason="optional parity test requires a sibling LLaDA-Image checkout",
 )
@@ -58,6 +58,7 @@ def assert_bfloat16_parity(actual, expected):
     assert float(absolute_error.mean()) <= 1.0 / 256.0
 
 
+@requires_upstream
 def test_queryformer_matches_reference():
     reference_class = load_reference_module().LLaDAImageQueryFormerModel
     config = {
@@ -87,6 +88,7 @@ def test_queryformer_matches_reference():
     torch.testing.assert_close(actual, expected, atol=2e-5, rtol=2e-5)
 
 
+@requires_upstream
 def test_text_projection_matches_reference():
     reference_class = load_reference_module().LLaDAImageTextProjectionModel
     config = {
@@ -113,6 +115,7 @@ def test_text_projection_matches_reference():
     torch.testing.assert_close(actual, expected, atol=2e-5, rtol=2e-5)
 
 
+@requires_upstream
 def test_sigvq_image_and_token_paths_match_reference():
     reference_class = load_reference_module().LLaDAImageSigVQModel
     config = {
@@ -155,6 +158,7 @@ def test_sigvq_image_and_token_paths_match_reference():
     assert torch.equal(actual_tokens, token_ids)
 
 
+@requires_upstream
 def test_queryformer_bfloat16_matches_reference():
     device = parity_device()
     reference_class = load_reference_module().LLaDAImageQueryFormerModel
@@ -190,6 +194,7 @@ def test_queryformer_bfloat16_matches_reference():
     assert_bfloat16_parity(actual, expected)
 
 
+@requires_upstream
 def test_text_projection_bfloat16_matches_reference():
     device = parity_device()
     reference_class = load_reference_module().LLaDAImageTextProjectionModel
@@ -224,6 +229,7 @@ def test_text_projection_bfloat16_matches_reference():
     assert_bfloat16_parity(actual, expected)
 
 
+@requires_upstream
 def test_sigvq_bfloat16_image_and_token_paths_match_reference():
     device = parity_device()
     reference_class = load_reference_module().LLaDAImageSigVQModel

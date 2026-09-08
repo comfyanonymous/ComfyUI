@@ -360,8 +360,6 @@ class LLaDA2Attention(nn.Module):
         self.num_heads = config.num_attention_heads
         self.num_key_value_heads = config.num_key_value_heads
         self.head_dim = config.head_dim
-        self.rope_dim = int(config.head_dim * config.partial_rotary_factor)
-        self.rope_theta = config.rope_theta
         self.query_key_value = operations.Linear(
             config.hidden_size,
             (self.num_heads + 2 * self.num_key_value_heads) * self.head_dim,
@@ -384,7 +382,7 @@ class LLaDA2Attention(nn.Module):
         )
 
     def forward(
-        self, hidden_states, attention_mask, position_ids, transformer_options=None
+        self, hidden_states, rotary_embeddings, attention_bias, transformer_options=None
     ):
         batch, sequence, _ = hidden_states.shape
         qkv = self.query_key_value(hidden_states).view(
@@ -399,21 +397,18 @@ class LLaDA2Attention(nn.Module):
         query = _rms_norm(query.transpose(1, 2), self.query_layernorm)
         key = _rms_norm(key.transpose(1, 2), self.key_layernorm)
         value = value.transpose(1, 2)
-        cos, sin = _rotary_embeddings(
-            position_ids, self.rope_dim, self.rope_theta, query.dtype
-        )
+        cos, sin = rotary_embeddings
         query, key = _apply_partial_rope(query, key, cos, sin)
         key_value_groups = self.num_heads // self.num_key_value_heads
         key = _repeat_kv(key, key_value_groups)
         value = _repeat_kv(value, key_value_groups)
 
-        mask = _attention_bias(attention_mask, sequence, query.dtype, query.device)
         hidden_states = optimized_attention(
             query,
             key,
             value,
             self.num_heads,
-            mask=mask,
+            mask=attention_bias,
             skip_reshape=True,
             transformer_options={}
             if transformer_options is None
@@ -446,13 +441,13 @@ class LLaDA2DecoderLayer(nn.Module):
         )
 
     def forward(
-        self, hidden_states, attention_mask, position_ids, transformer_options=None
+        self, hidden_states, rotary_embeddings, attention_bias, transformer_options=None
     ):
         residual = hidden_states
         hidden_states = self.attention(
             _rms_norm(hidden_states, self.input_layernorm),
-            attention_mask,
-            position_ids,
+            rotary_embeddings,
+            attention_bias,
             transformer_options,
         )
         hidden_states = residual + hidden_states
@@ -463,6 +458,8 @@ class LLaDA2LanguageModel(nn.Module):
     def __init__(self, config, dtype=None, device=None, operations=None):
         super().__init__()
         self.config = config
+        self.rope_dim = int(config.head_dim * config.partial_rotary_factor)
+        self.rope_theta = config.rope_theta
         self.word_embeddings = operations.Embedding(
             config.vocab_size,
             config.hidden_size,
@@ -505,10 +502,16 @@ class LLaDA2LanguageModel(nn.Module):
                 .unsqueeze(0)
                 .expand(batch, -1)
             )
+        rotary_embeddings = _rotary_embeddings(
+            position_ids, self.rope_dim, self.rope_theta, inputs_embeds.dtype
+        )
+        attention_bias = _attention_bias(
+            attention_mask, sequence, inputs_embeds.dtype, inputs_embeds.device
+        )
         hidden_states = inputs_embeds
         for layer in self.layers:
             hidden_states = layer(
-                hidden_states, attention_mask, position_ids, transformer_options
+                hidden_states, rotary_embeddings, attention_bias, transformer_options
             )
         return _rms_norm(hidden_states, self.norm)
 

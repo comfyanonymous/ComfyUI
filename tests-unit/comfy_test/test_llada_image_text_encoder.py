@@ -521,6 +521,32 @@ def test_backbone_bool_mask_blocks_padded_tokens_from_valid_outputs():
     assert torch.isfinite(output).all()
 
 
+def test_language_model_builds_shared_rope_and_attention_bias_once(monkeypatch):
+    model = small_backbone()
+    calls = {"rope": 0, "bias": 0}
+    original_rope = llada_image._rotary_embeddings
+    original_bias = llada_image._attention_bias
+
+    def tracked_rope(*values, **kwargs):
+        calls["rope"] += 1
+        return original_rope(*values, **kwargs)
+
+    def tracked_bias(*values, **kwargs):
+        calls["bias"] += 1
+        return original_bias(*values, **kwargs)
+
+    monkeypatch.setattr(llada_image, "_rotary_embeddings", tracked_rope)
+    monkeypatch.setattr(llada_image, "_attention_bias", tracked_bias)
+
+    with torch.inference_mode():
+        model.language_model(
+            torch.tensor([[1, 2, 3, 4]]),
+            attention_mask=torch.ones(1, 4, dtype=torch.bool),
+        )
+
+    assert calls == {"rope": 1, "bias": 1}
+
+
 def test_aio_clip_processing_adapts_official_expert_tensor_names():
     config = comfy.supported_models.LLaDAImage(
         {"image_model": "llada_image", "variant": "base"}

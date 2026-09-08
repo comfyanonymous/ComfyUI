@@ -848,6 +848,7 @@ class LLaDAImage(supported_models_base.BASE):
     unet_extra_config = {}
     latent_format = latent_formats.Flux2
     supported_inference_dtypes = [torch.bfloat16, torch.float32]
+    memory_usage_factor = 2.0
     vae_key_prefix = ["vae."]
     text_encoder_key_prefix = ["text_encoders."]
 

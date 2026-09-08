@@ -53,6 +53,26 @@ def test_initial_noise_matches_official_dtype_roundtrip(inference_dtype):
 
 
 @pytest.mark.parametrize("inference_dtype", (torch.float32, torch.bfloat16))
+def test_inpaint_noise_follows_sigma_while_preserving_dtype_roundtrip(inference_dtype):
+    class ModelConfig:
+        sampling_settings = {"shift": 1.0, "multiplier": 1.0}
+
+    sampling = LLaDAImageSampling(ModelConfig(), inference_dtype)
+    model = SimpleNamespace(model_sampling=sampling)
+    noise = torch.tensor([0.1234567, -0.9876543]).reshape(1, 1, 1, 2)
+    latent = torch.tensor([0.25, -0.5]).reshape(1, 1, 1, 2)
+    sigma = torch.tensor([0.25])
+    rounded_noise = noise.to(inference_dtype).float()
+    expected = sigma.reshape(1, 1, 1, 1) * rounded_noise + (1.0 - sigma).reshape(
+        1, 1, 1, 1
+    ) * latent
+
+    actual = LLaDAImageBase.scale_latent_inpaint(model, sigma, noise, latent)
+
+    assert torch.equal(actual, expected)
+
+
+@pytest.mark.parametrize("inference_dtype", (torch.float32, torch.bfloat16))
 def test_timestep_rounds_before_transformer_scaling(inference_dtype):
     model = SimpleNamespace(get_dtype_inference=lambda: inference_dtype)
     sigma = torch.tensor([0.9998922348, 0.35123456])

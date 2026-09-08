@@ -25,7 +25,7 @@ UPSTREAM_MODEL = (
 UPSTREAM_MODEL_SHA256 = (
     "1460e875568f80c3c153ff07888a1b855bd1f5c290db3d16bad5288d29fcbbf2"
 )
-pytestmark = pytest.mark.skipif(
+requires_upstream = pytest.mark.skipif(
     not UPSTREAM_MODEL.is_file(),
     reason="optional parity test requires a sibling LLaDA-Image checkout",
 )
@@ -47,7 +47,22 @@ def load_reference_class():
 
 
 def make_models(dtype=torch.float32, device=torch.device("cpu")):
-    config = {
+    config = model_config()
+    torch.manual_seed(1)
+    reference = (
+        load_reference_class()(**config, axes_lens=(512, 32, 32))
+        .to(device=device, dtype=dtype)
+        .eval()
+    )
+    model = make_native_model(dtype, device)
+    incompatible = model.load_state_dict(reference.state_dict(), strict=True)
+    assert not incompatible.missing_keys
+    assert not incompatible.unexpected_keys
+    return reference, model
+
+
+def model_config():
+    return {
         "all_patch_size": (1,),
         "all_f_patch_size": (1,),
         "in_channels": 4,
@@ -63,22 +78,15 @@ def make_models(dtype=torch.float32, device=torch.device("cpu")):
         "t_scale": 1000.0,
         "axes_dims": (4, 6, 6),
     }
-    torch.manual_seed(1)
-    reference = (
-        load_reference_class()(**config, axes_lens=(512, 32, 32))
-        .to(device=device, dtype=dtype)
-        .eval()
-    )
-    model = LLaDAImage(
-        **config,
+
+
+def make_native_model(dtype=torch.float32, device=torch.device("cpu")):
+    return LLaDAImage(
+        **model_config(),
         dtype=dtype,
         device=device,
         operations=comfy.ops.disable_weight_init,
     ).eval()
-    incompatible = model.load_state_dict(reference.state_dict(), strict=True)
-    assert not incompatible.missing_keys
-    assert not incompatible.unexpected_keys
-    return reference, model
 
 
 def pad_features(features):
@@ -93,22 +101,36 @@ def pad_features(features):
     return output, mask
 
 
+@requires_upstream
 def test_text_to_image_matches_reference():
     reference, model = make_models()
     x = torch.randn(2, 4, 4, 4)
     timestep = torch.tensor([0.8, 0.35])
     captions = [torch.randn(3, 8), torch.randn(5, 8)]
+    semantics = [torch.randn(3, 10), torch.randn(5, 10)]
     context, attention_mask = pad_features(captions)
+    semantic_features, semantic_mask = pad_features(semantics)
 
     expected = reference(
-        x=[value.unsqueeze(1) for value in x], t=timestep, cap_feats=captions
+        x=[value.unsqueeze(1) for value in x],
+        t=timestep,
+        cap_feats=captions,
+        glm_cap_feats=semantics,
     ).sample
     expected = -torch.stack([value.squeeze(1) for value in expected])
-    actual = model(x, timestep, context=context, attention_mask=attention_mask)
+    actual = model(
+        x,
+        timestep,
+        context=context,
+        attention_mask=attention_mask,
+        semantic_features=semantic_features,
+        semantic_mask=semantic_mask,
+    )
 
     torch.testing.assert_close(actual, expected, atol=2e-5, rtol=2e-5)
 
 
+@requires_upstream
 def test_editing_matches_reference():
     reference, model = make_models()
     x = torch.randn(2, 4, 4, 4)
@@ -141,6 +163,7 @@ def test_editing_matches_reference():
 
 
 @pytest.mark.parametrize("editing", (False, True))
+@requires_upstream
 def test_bfloat16_matches_reference(editing):
     device = torch.device(os.environ.get("LLADA_IMAGE_PARITY_DEVICE", "cpu"))
     if device.type == "cuda" and not torch.cuda.is_available():
@@ -226,7 +249,7 @@ def test_transformer_matches_official_config_validation():
 
 
 def test_transformer_matches_official_conditioning_validation():
-    _, model = make_models()
+    model = make_native_model()
     latent = torch.randn(1, 4, 2, 2)
     timestep = torch.tensor([0.5])
 

@@ -158,6 +158,20 @@ def test_detection_uses_shapes_and_checkpoint_config():
     }
 
 
+def test_detection_derives_omitted_transformer_conditioning_dimensions():
+    metadata = make_metadata(component_configs=make_component_configs())
+    config = json.loads(metadata["config"])
+    del config["transformer"]["cap_feat_dim"]
+    del config["transformer"]["semantic_feat_dim"]
+
+    detected = comfy.model_detection.detect_unet_config(
+        make_state_dict(), PREFIX, {"config": json.dumps(config)}
+    )
+
+    assert detected["cap_feat_dim"] == 8
+    assert detected["semantic_feat_dim"] == 10
+
+
 def test_supported_model_sets_exact_flow_sampling_contract():
     model_config = comfy.model_detection.model_config_from_unet(
         make_state_dict(), PREFIX, metadata=make_metadata("base")
@@ -166,6 +180,7 @@ def test_supported_model_sets_exact_flow_sampling_contract():
     assert isinstance(model_config, comfy.supported_models.LLaDAImage)
     assert model_config.sampling_settings == {"multiplier": 1.0, "shift": 1.0}
     assert model_config.latent_format.latent_channels == 128
+    assert model_config.memory_usage_factor == 2.0
 
 
 def test_detection_rejects_missing_variant_metadata():

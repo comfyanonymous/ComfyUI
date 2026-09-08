@@ -432,25 +432,7 @@ class SigVQPatchEmbed(nn.Module):
         )
 
     def forward(self, pixel_values):
-        batch_size, channels, height, width = pixel_values.shape
-        grid_height = height // self.patch_size
-        grid_width = width // self.patch_size
-        patches = pixel_values.reshape(
-            batch_size,
-            channels,
-            grid_height,
-            self.patch_size,
-            grid_width,
-            self.patch_size,
-        )
-        patches = patches.permute(0, 2, 4, 1, 3, 5).reshape(
-            batch_size * grid_height * grid_width,
-            channels,
-            self.patch_size,
-            self.patch_size,
-        )
-        hidden_states = self.proj(patches).flatten(1)
-        return hidden_states.reshape(batch_size, grid_height * grid_width, -1)
+        return self.proj(pixel_values).flatten(2).transpose(1, 2)
 
 
 class SigVQEmbeddings(nn.Module):
