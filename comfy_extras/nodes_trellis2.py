@@ -3,7 +3,6 @@ from comfy_api.latest import ComfyExtension, IO, Types, io
 from comfy.ldm.trellis2.vae import SparseTensor
 from comfy.ldm.trellis2.model import build_proj_transform_matrix, compute_stage_proj_feats
 
-from comfy_extras.nodes_images import _crop_image_with_mask
 from comfy_extras.nodes_mesh_postprocess import pack_variable_mesh_batch
 import comfy.latent_formats
 import comfy.model_management
@@ -767,7 +766,7 @@ class Pixal3DConditioning(IO.ComfyNode):
 
 
 _VIEW_AZIMUTHS = {"front": 0.0, "left": 90.0, "back": 180.0, "right": 270.0}
-_VIEW_PAD = 1.1  # unit cube spans 1/1.1 of the frame
+_VIEW_PAD = 1.1  # unit cube spans 1/1.1 of the frame, upstream's example rig
 
 
 def _orbit_camera_to_world(azimuths_deg, elevations_deg, distance):
@@ -782,47 +781,25 @@ def _orbit_camera_to_world(azimuths_deg, elevations_deg, distance):
     return c2w
 
 
-def _view_mask(view):
-    """Alpha channel when present, else everything that is not black."""
-    if view.shape[-1] == 4:
-        return view[..., 3]
-    return (view.amax(dim=-1) > 0.05).float()
-
-
-def _frame_views(views, crop):
-    """Views [H, W, 3|4] -> 1024 composites on black. With crop, all views are cropped to their object at one shared
-    scale (largest silhouette spans 1/pad of the frame); returns them with the crop width as a fraction of the view width."""
-    items = [(view[..., :3], _view_mask(view)) for view in views]
-    scale = 1.0
-    if crop:
-        extents = [_crop_image_with_mask(image, mask, pad_factor=_VIEW_PAD)[1:] for image, mask in items]
-        scale = max((bbox[2] - bbox[0]) / size[0] for bbox, size in extents)
-        crops = [_crop_image_with_mask(image, mask, pad_factor=_VIEW_PAD, crop_size=round(scale * size[0]))[0]
-                 for (image, mask), (_, size) in zip(items, extents)]
-    else:
-        crops = [(image * mask.unsqueeze(-1)).movedim(-1, 0).unsqueeze(0) for image, mask in items]
-    return [comfy.utils.common_upscale(c, 1024, 1024, "lanczos", "disabled").movedim(1, -1) for c in crops], scale
-
-
 class Pixal3DMultiViewConditioning(IO.ComfyNode):
-    """Fixed orbit rig: front, left, back and right views 90 degrees apart; views cropped to the object at a shared scale."""
+    """Fixed orbit rig: front, left, back and right views 90 degrees apart, used as framed."""
 
     @classmethod
     def define_schema(cls):
         views = [IO.Image.Input(name, optional=True,
-                                tooltip=f"View of the object's {name} side, with alpha or on a black background. The first "
-                                        "connected view (front, left, back, right order) is the front the mesh is posed to.")
+                                tooltip=f"Square view of the object's {name} side, with alpha or on a black background, "
+                                        "framed like the rig: the object spans about 1/1.1 of the frame at its widest, "
+                                        "the same scale in every view. The first connected view (front, left, back, "
+                                        "right order) is the front the mesh is posed to.")
                  for name in _VIEW_AZIMUTHS]
         return IO.Schema(
             node_id="Pixal3DMultiViewConditioning",
             display_name="Pixal3D Multi-View Conditioning",
             category="model/conditioning/trellis2",
             inputs=[IO.ClipVision.Input("clip_vision_model", tooltip="DINOv3 ViT-L/16 ClipVision with bundled NAF weights."),
-                    IO.Boolean.Input("crop", default=False,
-                                     tooltip="Crop the views to the object at one shared scale."),
                     IO.Float.Input("fov", default=20.0, min=1.0, max=170.0, step=0.01, round=False,
-                                   tooltip="Horizontal FOV in degrees of the views as given: 20 for most multi-view generators and "
-                                           "rig renders, or MoGeGeometryToFOV on one photo.")]
+                                   tooltip="Horizontal FOV in degrees of the views as framed: 20 for rig renders and most "
+                                           "multi-view generators, or MoGeGeometryToFOV on one of the views for photos.")]
                    + views,
             outputs=[
                 IO.Conditioning.Output(display_name="positive"),
@@ -831,7 +808,7 @@ class Pixal3DMultiViewConditioning(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, clip_vision_model, crop, fov, front=None, left=None, back=None, right=None) -> IO.NodeOutput:
+    def execute(cls, clip_vision_model, fov, front=None, left=None, back=None, right=None) -> IO.NodeOutput:
         views = {"front": front, "left": left, "back": back, "right": right}
         names = [name for name in _VIEW_AZIMUTHS if views[name] is not None]
         if not names:
@@ -842,16 +819,20 @@ class Pixal3DMultiViewConditioning(IO.ComfyNode):
         if names[0] != "front":
             logging.warning(f"Pixal3DMultiViewConditioning: no front view, the mesh will be posed with the {names[0]} view as its front")
         azimuths = [_VIEW_AZIMUTHS[name] - _VIEW_AZIMUTHS[names[0]] for name in names]
-        fov = math.radians(fov)
-        composites, cams, rigs = [], [], []
+        items = []
         for b in range(batch_size):
-            framed, crop_frac = _frame_views([views[name][b % views[name].shape[0]] for name in names], crop)
-            composites += framed
-            crop_fov = 2.0 * math.atan(crop_frac * math.tan(fov / 2.0))
-            cams += [crop_fov] * num_views
-            rigs.append(_orbit_camera_to_world(azimuths, [0.0] * num_views, _VIEW_PAD * 0.5 / math.tan(crop_fov / 2.0)))
-        return _build_pixal3d_conditioning(clip_vision_model, torch.cat(composites, dim=0), torch.cat(rigs, dim=0),
-                                           torch.tensor(cams), torch.ones(batch_size), num_views=num_views)
+            for name in names:
+                view = views[name][b % views[name].shape[0]][None]
+                if view.shape[-1] == 4:
+                    view = view[..., :3] * view[..., 3:4]
+                if view.shape[1:3] != (1024, 1024):
+                    view = comfy.utils.common_upscale(view.movedim(-1, 1), 1024, 1024, "lanczos", "disabled").movedim(1, -1)
+                items.append(view)
+        fov = math.radians(fov)
+        c2w = _orbit_camera_to_world(azimuths, [0.0] * num_views, _VIEW_PAD * 0.5 / math.tan(fov / 2.0))
+        return _build_pixal3d_conditioning(clip_vision_model, torch.cat(items, dim=0), c2w.repeat(batch_size, 1, 1),
+                                           torch.full((batch_size * num_views,), fov), torch.ones(batch_size),
+                                           num_views=num_views)
 
 
 class Trellis2Extension(ComfyExtension):
