@@ -998,10 +998,10 @@
               "Node name for S&R": "TextEncodeJoyImageEdit"
             },
             "widgets_values": [
-              "Change the background to a glacial scene."
+              ""
             ],
             "widgets_values_named": {
-              "prompt": "Change the background to a glacial scene."
+              "prompt": ""
             },
             "color": "#232",
             "bgcolor": "#353"

@@ -713,14 +713,14 @@
               "Node name for S&R": "TextEncodeMageFlowEdit"
             },
             "widgets_values": [
-              "Keep the woman, pose, pink dress, chair, and reading unchanged. Replace the background with a wide, flat grassland prairie under soft golden sunlight, open sky, endless green fields.",
+              "",
               "",
               0,
               0,
               1
             ],
             "widgets_values_named": {
-              "prompt": "Keep the woman, pose, pink dress, chair, and reading unchanged. Replace the background with a wide, flat grassland prairie under soft golden sunlight, open sky, endless green fields.",
+              "prompt": "",
               "negative_prompt": "",
               "width": 0,
               "height": 0,

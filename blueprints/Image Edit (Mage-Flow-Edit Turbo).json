@@ -713,14 +713,14 @@
               "Node name for S&R": "TextEncodeMageFlowEdit"
             },
             "widgets_values": [
-              "Remove all hot air balloons",
+              "",
               "",
               0,
               0,
               1
             ],
             "widgets_values_named": {
-              "prompt": "Remove all hot air balloons",
+              "prompt": "",
               "negative_prompt": "",
               "width": 0,
               "height": 0,
