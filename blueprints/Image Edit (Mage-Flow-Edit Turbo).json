@@ -1383,12 +1383,12 @@
               "Node name for S&R": "ImageScaleToTotalPixels"
             },
             "widgets_values": [
-              "nearest-exact",
+              "lanczos",
               1,
               16
             ],
             "widgets_values_named": {
-              "upscale_method": "nearest-exact",
+              "upscale_method": "lanczos",
               "megapixels": 1,
               "resolution_steps": 16
             }
