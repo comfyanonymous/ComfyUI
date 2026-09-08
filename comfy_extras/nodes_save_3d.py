@@ -876,18 +876,19 @@ class GetMeshInfo(IO.ComfyNode):
         return IO.NodeOutput(mesh, info, ui=UI.PreviewText(info))
 
 
-def _save_file3d_to_output(model_3d: Types.File3D, filename_prefix: str) -> str:
+def _save_file3d_to_output(model_3d: Types.File3D, filename_prefix: str) -> UI.SavedResult:
     full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
         filename_prefix, folder_paths.get_output_directory()
     )
     ext = model_3d.format or "glb"
     saved_filename = f"{filename}_{counter:05}.{ext}"
     model_3d.save_to(os.path.join(full_output_folder, saved_filename))
-    return f"{subfolder}/{saved_filename}" if subfolder else saved_filename
+    return UI.SavedResult(saved_filename, subfolder, IO.FolderType.output)
 
 
 def execute_save_3d_advanced(model_3d, viewport_state, width, height, filename_prefix, kwargs) -> IO.NodeOutput:
-    model_file = _save_file3d_to_output(model_3d, filename_prefix)
+    saved = _save_file3d_to_output(model_3d, filename_prefix)
+    model_file = f"{saved.subfolder}/{saved.filename}" if saved.subfolder else saved.filename
     viewport_state = viewport_state if isinstance(viewport_state, dict) else {}
     camera_info_input = kwargs.get("camera_info", None)
     camera_info = camera_info_input if camera_info_input is not None else viewport_state.get('camera_info')
@@ -899,7 +900,7 @@ def execute_save_3d_advanced(model_3d, viewport_state, width, height, filename_p
         camera_info,
         width,
         height,
-        ui=UI.PreviewUI3DAdvanced(model_file, camera_info, model_3d_info),
+        ui=UI.PreviewUI3DAdvanced(model_file, camera_info, model_3d_info, saved_result=saved),
     )
 
 
