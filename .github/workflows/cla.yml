@@ -98,7 +98,7 @@ jobs:
             ✅ All contributors have signed the CLA. Thank you! This PR is ready to be merged.
 
       - name: Lock PR containing a CLA signature or bot approval
-        if: github.event_name == 'pull_request_target' && github.event.action == 'closed'
+        if: github.event_name == 'pull_request_target' && github.event.action == 'closed' && github.event.pull_request.merged == true
         uses: actions/github-script@v7
         with:
           retries: 3
