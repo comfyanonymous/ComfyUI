@@ -639,7 +639,10 @@ class LTXVAddLatentGuide(io.ComfyNode):
             attention_mask=attention_mask,
         )
 
-        return io.NodeOutput(positive, negative, {"samples": latent_image, "noise_mask": noise_mask})
+        out = latent.copy()
+        out["samples"] = latent_image
+        out["noise_mask"] = noise_mask
+        return io.NodeOutput(positive, negative, out)
 
 
 class LTXVCropGuides(io.ComfyNode):
