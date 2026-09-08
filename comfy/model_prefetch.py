@@ -60,7 +60,8 @@ def malloc_graph_begin(device):
         MALLOC_GRAPHS[thread_id] = graph
     else:
         graph.push()
-    ck.set_allocation_context(pause_malloc_graph())
+    if hasattr(ck, "set_allocation_context"):
+        ck.set_allocation_context(pause_malloc_graph())
     graph._comfy_active = True
     MALLOC_GRAPH_USED = True
 
