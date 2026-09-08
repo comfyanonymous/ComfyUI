@@ -18,6 +18,7 @@ GRAPH_WARMED_MODULES = weakref.WeakSet()
 GRAPH_CAPTURE_STREAMS = {}
 MALLOC_GRAPHS = {}
 MALLOC_GRAPH_BREAKS = 0
+MALLOC_GRAPH_ROGUES = 0
 MALLOC_GRAPH_USED = False
 
 def _malloc_graph_break():
@@ -65,6 +66,8 @@ def malloc_graph_end():
         graph._comfy_active = False
 
 def cleanup_malloc_graph():
+    global MALLOC_GRAPH_ROGUES
+
     graph = MALLOC_GRAPHS.pop(threading.get_ident(), None)
     if graph is not None:
         if graph._comfy_active:
@@ -72,6 +75,7 @@ def cleanup_malloc_graph():
             graph._comfy_active = False
         for module in graph._comfy_cuda_graph_modules:
             _drop_graph(module)
+        MALLOC_GRAPH_ROGUES += graph.rogue_count
         del graph
 
 def cleanup_prefetched_modules(module, comfy_modules):
@@ -105,6 +109,7 @@ def _drop_graph(module):
 def cleanup_prefetch_queues():
     global PREFETCH_QUEUES
     global MALLOC_GRAPH_BREAKS
+    global MALLOC_GRAPH_ROGUES
     global MALLOC_GRAPH_USED
 
     cleanup_malloc_graph()
@@ -119,8 +124,9 @@ def cleanup_prefetch_queues():
     PREFETCH_QUEUES = []
     GRAPH_WARMED_MODULES.clear()
     if MALLOC_GRAPH_USED:
-        logging.info("Comfy model compiler graph breaks: %d", MALLOC_GRAPH_BREAKS)
+        logging.info("Comfy model compiler graph breaks: %d, rogues: %d", MALLOC_GRAPH_BREAKS, MALLOC_GRAPH_ROGUES)
     MALLOC_GRAPH_BREAKS = 0
+    MALLOC_GRAPH_ROGUES = 0
     MALLOC_GRAPH_USED = False
 
 def prefetch_queue_pop(queue, device, module, dtype=None, core=None, enable_graph=False, generator=None, malloc_scope=None):
