@@ -1,4 +1,6 @@
 import json
+from collections.abc import Mapping
+
 import comfy.memory_management
 import comfy.supported_models
 import comfy.supported_models_base
@@ -396,23 +398,37 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             checkpoint_config = json.loads(metadata["config"])
         transformer_config = checkpoint_config.get("transformer", {})
         llada_config = checkpoint_config.get("llada_image", {})
+
+        def component_config(name):
+            config = checkpoint_config.get(name)
+            if config is not None and not isinstance(config, Mapping):
+                raise ValueError(f"LLaDA-Image {name} config must be a mapping")
+            return config
+
         component_configs = {
-            "llada2_config": checkpoint_config.get("text_encoder"),
-            "queryformer_config": checkpoint_config.get("queryformer"),
-            "text_projection_config": checkpoint_config.get("text_projection"),
-            "sigvq_config": checkpoint_config.get("sigvq"),
+            "llada2_config": component_config("text_encoder"),
+            "queryformer_config": component_config("queryformer"),
+            "text_projection_config": component_config("text_projection"),
+            "sigvq_config": component_config("sigvq"),
         }
         text_projection_config = component_configs["text_projection_config"]
         sigvq_config = component_configs["sigvq_config"]
-        default_cap_feat_dim = (
-            text_projection_config.get("projection_dim", 2560)
-            if text_projection_config is not None
-            else 2560
+
+        def component_dimension(config, component, key, default):
+            if config is None:
+                return default
+            value = config.get(key)
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise ValueError(
+                    f"LLaDA-Image {component}.{key} must be a positive integer"
+                )
+            return value
+
+        default_cap_feat_dim = component_dimension(
+            text_projection_config, "text_projection", "projection_dim", 2560
         )
-        default_semantic_feat_dim = (
-            sigvq_config.get("semantic_embed_dim", 4096)
-            if sigvq_config is not None
-            else 4096
+        default_semantic_feat_dim = component_dimension(
+            sigvq_config, "sigvq", "semantic_embed_dim", 4096
         )
         variant = llada_config.get("variant")
         if variant not in ("base", "turbo"):

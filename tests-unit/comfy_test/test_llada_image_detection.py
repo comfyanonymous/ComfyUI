@@ -172,6 +172,47 @@ def test_detection_derives_omitted_transformer_conditioning_dimensions():
     assert detected["semantic_feat_dim"] == 10
 
 
+@pytest.mark.parametrize(
+    ("component", "value"),
+    (
+        ("text_encoder", []),
+        ("queryformer", "invalid"),
+        ("text_projection", []),
+        ("sigvq", "invalid"),
+    ),
+)
+def test_detection_rejects_nonmapping_component_config(component, value):
+    with pytest.raises(ValueError, match=rf"{component} config must be a mapping"):
+        comfy.model_detection.detect_unet_config(
+            make_state_dict(), PREFIX, make_metadata(component_configs={component: value})
+        )
+
+
+@pytest.mark.parametrize(
+    ("component", "key", "value"),
+    (
+        ("text_projection", "projection_dim", None),
+        ("text_projection", "projection_dim", 0),
+        ("text_projection", "projection_dim", -1),
+        ("text_projection", "projection_dim", 8.0),
+        ("text_projection", "projection_dim", True),
+        ("sigvq", "semantic_embed_dim", None),
+        ("sigvq", "semantic_embed_dim", 0),
+        ("sigvq", "semantic_embed_dim", -1),
+        ("sigvq", "semantic_embed_dim", 10.0),
+        ("sigvq", "semantic_embed_dim", True),
+    ),
+)
+def test_detection_rejects_invalid_component_dimension(component, key, value):
+    component_configs = make_component_configs()
+    component_configs[component][key] = value
+
+    with pytest.raises(ValueError, match=rf"{component}.{key} must be a positive integer"):
+        comfy.model_detection.detect_unet_config(
+            make_state_dict(), PREFIX, make_metadata(component_configs=component_configs)
+        )
+
+
 def test_supported_model_sets_exact_flow_sampling_contract():
     model_config = comfy.model_detection.model_config_from_unet(
         make_state_dict(), PREFIX, metadata=make_metadata("base")
