@@ -4,10 +4,14 @@ ComfyUI loads `user/output-policy.json` on startup after applying `--user-direct
 Use `--output-policy PATH` to load an explicit policy file instead. Missing user
 policies preserve the legacy prefix-based folder layout.
 
-Policies can set an absolute `output_directory` and choose relative subfolders
-beneath it. An explicit `--output-directory` takes precedence over the policy.
-The policy does not change ComfyUI's temporary root; previews use the existing
-`--temp-directory` setting or ComfyUI default.
+Policies can set `output_directory` and choose relative subfolders beneath it.
+An absolute policy path is used as written. A relative policy path is resolved
+under ComfyUI's already configured output directory; with the normal standalone
+defaults, `"output_directory": "_Output"` resolves to
+`<ComfyUI base>\\output\\_Output`. Relative policy paths cannot contain `..` or a
+drive qualifier. An explicit `--output-directory` takes precedence over the
+policy entirely. The policy does not change ComfyUI's temporary root; previews
+use the existing `--temp-directory` setting or ComfyUI default.
 Each profile has a required `folder_template` and an optional `filename_template`.
 Folder templates cannot use an absolute path or `..`.
 
@@ -57,8 +61,8 @@ Start it with:
 Start ComfyUI.bat --output-policy "%CD%\output-policy.metadata-example.json"
 ```
 
-Do not also pass `--date-based-output` with this sample: the policy supplies the
-date hierarchy itself.
+The policy itself supplies the date hierarchy; no date-specific command-line
+option is needed.
 
 ## PR test procedure
 
@@ -87,8 +91,7 @@ is the command for zsh, Git Bash, or another POSIX-style shell on Windows:
   into the filename stem, confirms counter continuity, and rejects unsafe or
   unsupported templates.
 - `folder_path_test.py` is the regression test for ComfyUI's existing save-path
-  behavior, including the separate `--date-based-output` option. It ensures the
-  routing work has not changed legacy save behavior.
+  behavior. It ensures the routing work has not changed legacy save behavior.
 - `system_stats_test.py` is the `/system_stats` response contract test. It checks
   that the server continues to expose the configured output, temporary, input,
   user, base, and current-working directories.
@@ -111,8 +114,8 @@ from `folder_paths.get_save_image_path()`. It verifies:
 - unsafe paths, unsupported placeholders, extensions, and counter placeholders
   are rejected.
 
-The date-output and `/system_stats` tests run alongside it to protect the
-existing date option and the output-directory server contract.
+The save-path and `/system_stats` tests run alongside it to protect the existing
+save behavior and the output-directory server contract.
 
 ### Manual Save Image execution check
 
@@ -150,5 +153,6 @@ model-specific graph test.
    ```
 
 The test passes when the actual files, the UI/history relative `subfolder`, and
-the incremented counter all agree with these paths. Do not use
-`--date-based-output` or `--output-directory` during this check.
+the incremented counter all agree with these paths. Do not pass
+`--output-directory` during this check, because it intentionally overrides the
+policy's sample root.

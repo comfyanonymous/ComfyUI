@@ -59,11 +59,11 @@ compatibility path. It does not yet create `OutputRequest`, `OutputContext`, or
 resolved-route objects, select a profile per workflow/API request, or reserve names
 atomically.
 
-The policy may set an absolute host-owned `output_directory`. An explicit
-`--output-directory` has higher precedence. The selected profile contributes a
-relative subfolder below the resolved root and may contribute a filename stem. A
-policy is loaded at startup from `user/output-policy.json` or from the explicit
-`--output-policy PATH` option.
+The policy may set an absolute host-owned `output_directory` or a relative
+directory below ComfyUI's configured output root. An explicit `--output-directory`
+has higher precedence. The selected profile contributes a relative subfolder below
+the resolved root and may contribute a filename stem. A policy is loaded at startup
+from `user/output-policy.json` or from the explicit `--output-policy PATH` option.
 
 ### Available routing fields
 
@@ -234,8 +234,8 @@ An additional manual Save Image execution check confirms that the standard PNG
 saver appends its unchanged counter and extension to the routed stem and returns
 the expected UI/history subfolder. The runnable commands and expected paths are
 maintained in `OUTPUT-ROUTING-POLICY.md` under **PR test procedure**. The targeted
-test command also includes the date-output regression tests and `/system_stats`
-contract test.
+test command also includes the existing save-path regression tests and
+`/system_stats` contract test.
 
 ## Implementation options
 

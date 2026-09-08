@@ -1,4 +1,5 @@
 import os
+import ntpath
 import time
 import mimetypes
 import logging
@@ -164,7 +165,18 @@ def configure_output_routing(policy_path: str | None = None) -> None:
             return
     output_routing_policy = output_routing.load_policy(policy_path)
     if output_routing_policy.output_directory is not None and args.output_directory is None:
-        set_output_directory(os.path.abspath(output_routing_policy.output_directory))
+        set_output_directory(_resolve_policy_output_directory(output_routing_policy.output_directory))
+
+
+def _resolve_policy_output_directory(policy_output_directory: str) -> str:
+    if os.path.isabs(policy_output_directory) or ntpath.isabs(policy_output_directory):
+        return os.path.abspath(policy_output_directory)
+
+    configured_output_directory = get_output_directory()
+    resolved_output_directory = os.path.abspath(os.path.join(configured_output_directory, policy_output_directory))
+    if not is_within_directory(configured_output_directory, resolved_output_directory):
+        raise output_routing.OutputRoutingError("Output routing policy relative output_directory must stay within the configured output directory")
+    return resolved_output_directory
 
 
 def _get_output_routing_type(output_dir: str) -> str | None:
@@ -568,13 +580,10 @@ def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, im
             digits = 0
         return digits, prefix
 
-    now = time.localtime() if args.date_based_output else None
-
-    def compute_vars(input: str, image_width: int, image_height: int, now: time.struct_time | None = None) -> str:
+    def compute_vars(input: str, image_width: int, image_height: int) -> str:
         input = input.replace("%width%", str(image_width))
         input = input.replace("%height%", str(image_height))
-        if now is None:
-            now = time.localtime()
+        now = time.localtime()
         input = input.replace("%year%", str(now.tm_year))
         input = input.replace("%month%", str(now.tm_mon).zfill(2))
         input = input.replace("%day%", str(now.tm_mday).zfill(2))
@@ -584,16 +593,10 @@ def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, im
         return input
 
     if "%" in filename_prefix:
-        filename_prefix = compute_vars(filename_prefix, image_width, image_height, now)
+        filename_prefix = compute_vars(filename_prefix, image_width, image_height)
 
     subfolder = os.path.dirname(os.path.normpath(filename_prefix))
     filename = os.path.basename(os.path.normpath(filename_prefix))
-
-    if args.date_based_output:
-        date_subfolder = time.strftime(args.date_output_format, now)
-        if date_subfolder in ("", "."):
-            raise ValueError("--date-output-format must produce a directory name.")
-        subfolder = os.path.join(date_subfolder, subfolder) if subfolder else date_subfolder
 
     subfolder, filename_stem = _get_routed_output_path(output_dir, subfolder, filename, image_width, image_height)
 

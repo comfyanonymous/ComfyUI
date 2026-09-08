@@ -100,13 +100,25 @@ def _parse_policy(data: object) -> OutputRoutingPolicy:
     profiles.update(_parse_profiles(policy.get("profiles", {})))
     output_directory = policy.get("output_directory")
     if output_directory is not None:
-        if not isinstance(output_directory, str) or not (os.path.isabs(output_directory) or ntpath.isabs(output_directory)):
-            raise OutputRoutingError("Output routing policy output_directory must be an absolute path")
+        _validate_output_directory(output_directory)
 
     for output_type, profile_name in defaults.items():
         if profile_name not in profiles:
             raise OutputRoutingError(f"Output routing default for '{output_type}' references unknown profile '{profile_name}'")
     return OutputRoutingPolicy(MappingProxyType(defaults), MappingProxyType(profiles), output_directory)
+
+
+def _validate_output_directory(output_directory: object) -> None:
+    if not isinstance(output_directory, str) or not output_directory:
+        raise OutputRoutingError("Output routing policy output_directory must be a non-empty path")
+    if "\0" in output_directory:
+        raise OutputRoutingError("Output routing policy output_directory must not contain a null byte")
+    if os.path.isabs(output_directory) or ntpath.isabs(output_directory):
+        return
+    if ntpath.splitdrive(output_directory)[0]:
+        raise OutputRoutingError("Output routing policy output_directory must not be drive-qualified unless it is absolute")
+    if any(part == ".." for part in output_directory.replace("\\", "/").split("/")):
+        raise OutputRoutingError("Output routing policy relative output_directory must not contain parent-directory segments")
 
 
 def _parse_defaults(data: object) -> dict[str, str]:
