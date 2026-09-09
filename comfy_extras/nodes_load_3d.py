@@ -359,7 +359,7 @@ class Load3DAdvanced(IO.ComfyNode):
                 IO.Int.Input("height", default=1024, min=1, max=4096, step=1, tooltip="Render height of the viewport in pixels."),
             ],
             outputs=[
-                IO.File3DAny.Output(display_name="model_3d", tooltip="3D model file (glb/obj/stl/etc.) from an upstream 3D node."),
+                IO.File3DAny.Output(display_name="model_3d", tooltip="Loaded 3D model file (glb/obj/stl/etc.)."),
                 IO.Load3DModelInfo.Output(display_name="model_3d_info", tooltip="Placement of each model in the scene: position, rotation, and scale (Y-up world space)."),
                 IO.Load3DCamera.Output(display_name="camera_info", tooltip="Viewport camera information: position, look-at target, zoom, and type."),
                 IO.Int.Output(display_name="width", tooltip="Render width of the viewport in pixels."),
