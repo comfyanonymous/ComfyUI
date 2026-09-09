@@ -629,11 +629,11 @@ class MiniMaxH3VideoVAE(nn.Module):
             part_frames = part.shape[2]
             if part_frames <= 0:
                 return
-            part = self._finalize_pixels(part)
             copy_frames = min(part_frames, max(0, dec.shape[2] - write_pos))
             if copy_frames > 0:
+                part = self._finalize_pixels(part[:, :, :copy_frames, :, :])
                 dec[:, :, write_pos:write_pos + copy_frames, :, :].copy_(
-                    part[:, :, :copy_frames, :, :]
+                    part
                 )
                 write_pos += copy_frames
 
