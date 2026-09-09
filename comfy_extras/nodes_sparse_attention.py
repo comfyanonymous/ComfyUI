@@ -303,7 +303,7 @@ def h3_sparse_attention(attn, x, rope_freqs, transformer_options, patch: SparseA
     patch.log_once(("producer", n), f"sparse producer path: {n_tokens} tokens, {mode}")
     out = out.view(n, heads * head_dim)
     if plan is not None:
-        out = out[plan["inv"]]
+        out = torch.index_select(out, 0, plan["inv"])
     return attn.out_proj(out)
 
 
