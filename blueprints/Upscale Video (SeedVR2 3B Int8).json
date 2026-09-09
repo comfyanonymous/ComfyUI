@@ -1,14 +1,14 @@
 {
   "revision": 0,
-  "last_node_id": "124",
+  "last_node_id": "125",
   "last_link_id": 0,
   "nodes": [
     {
-      "id": 124,
-      "type": "143f3788-a310-4435-aa34-b84c0b5950d4",
+      "id": 125,
+      "type": "c076cb36-3581-4288-b284-6681dd511fa8",
       "pos": [
-        700,
-        620
+        -1700,
+        6900
       ],
       "size": [
         450,
@@ -190,17 +190,18 @@
   "definitions": {
     "subgraphs": [
       {
-        "id": "143f3788-a310-4435-aa34-b84c0b5950d4",
+        "id": "c076cb36-3581-4288-b284-6681dd511fa8",
         "version": 1,
         "state": {
-          "lastGroupId": 1,
-          "lastNodeId": 124,
-          "lastLinkId": 126,
+          "lastGroupId": 10,
+          "lastNodeId": 125,
+          "lastLinkId": 160,
           "lastRerouteId": 0
         },
         "revision": 0,
         "config": {},
         "name": "Upscale Video (SeedVR2 3B Int8)",
+        "description": "Upscales and restores video using ByteDance SeedVR2 3B INT8, a one-step diffusion restoration model.",
         "inputNode": {
           "id": -10,
           "bounding": [
@@ -1085,7 +1086,7 @@
             ],
             "size": [
               230,
-              130
+              140
             ],
             "flags": {},
             "order": 9,
@@ -1135,7 +1136,9 @@
                 "localized_name": "color_space",
                 "name": "color_space",
                 "type": "COMBO",
-                "links": null
+                "links": [
+                  160
+                ]
               }
             ],
             "properties": {
@@ -1153,7 +1156,7 @@
             ],
             "size": [
               270,
-              140
+              170
             ],
             "flags": {},
             "order": 10,
@@ -1199,7 +1202,7 @@
                 "widget": {
                   "name": "color_space"
                 },
-                "link": null
+                "link": 160
               }
             ],
             "outputs": [
@@ -1610,7 +1613,7 @@
             ],
             "size": [
               270,
-              80
+              90
             ],
             "flags": {},
             "order": 17,
@@ -2023,11 +2026,18 @@
             "target_id": 107,
             "target_slot": 0,
             "type": "COMBO"
+          },
+          {
+            "id": 160,
+            "origin_id": 115,
+            "origin_slot": 4,
+            "target_id": 116,
+            "target_slot": 4,
+            "type": "COMBO"
           }
         ],
         "extra": {},
-        "category": "Video Tools/Upscale",
-        "description": "Upscales and restores video using ByteDance SeedVR2 3B INT8, a one-step diffusion restoration model."
+        "category": "Video Tools/Upscale"
       }
     ]
   },
