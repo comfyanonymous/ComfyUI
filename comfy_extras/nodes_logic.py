@@ -95,9 +95,9 @@ class BranchNode(io.ComfyNode):
             category="logic",
             is_experimental=True,
             inputs=[
-                io.String.Input("branch"),
-                io.Array.Input("branch_names"),
                 _io.Autogrow.Input("autogrow", template=template),
+                io.String.Input("branch", extra_dict={"widgetType": "COMFY_BRANCH_SELECTOR"}),
+                io.Array.Input("branch_names", extra_dict={"widgetType": "COMFY_BRANCH_INPUT_NAMES", "socketless": True}),
             ],
             outputs=[
                 io.MatchType.Output(template=mtemplate, display_name="output"),
