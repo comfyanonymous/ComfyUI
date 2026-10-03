@@ -106,10 +106,14 @@ class BranchNode(io.ComfyNode):
 
     @classmethod
     def check_lazy_status(cls, branch, branch_names, autogrow):
+        if branch not in branch_names:
+            raise ValueError(f"{branch} is not included in available inputs: {branch_names}")
         return ['autogrow.' + list(autogrow.keys())[branch_names.index(branch)]]
 
     @classmethod
     def execute(cls, branch, branch_names, autogrow) -> io.NodeOutput:
+        if branch not in branch_names:
+            raise ValueError(f"{branch} is not included in available inputs: {branch_names}")
         return list(autogrow.values())[branch_names.index(branch)],
 
 
