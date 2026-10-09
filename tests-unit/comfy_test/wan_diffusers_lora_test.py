@@ -120,6 +120,22 @@ def test_rank2_factors_and_bias_apply_with_alpha_scaling(prefix, alpha):
             torch.testing.assert_close(updated - base, expected[key])
 
 
+def test_fp16_bias_scaled_by_alpha_does_not_overflow():
+    # 40000 * (alpha 4 / rank 2) = 80000 is past fp16; scaled in fp32 and applied at 0.1 it is 8000.
+    model = t2v()
+    key = "diffusion_model.head.head.bias"
+    out_dim, in_dim = model.state_dict()["diffusion_model.head.head.weight"].shape
+    lora = {
+        "proj_out.lora_A.weight": torch.zeros(2, in_dim, dtype=torch.float16),
+        "proj_out.lora_B.weight": torch.zeros(out_dim, 2, dtype=torch.float16),
+        "proj_out.lora_B.bias": torch.full((out_dim,), 40000.0, dtype=torch.float16),
+        "proj_out.alpha": torch.tensor(4.0),
+    }
+    patches = comfy.lora.load_lora(lora, comfy.lora.model_lora_keys_unet(model, {}))
+    base = torch.zeros(out_dim, dtype=torch.float32)
+    torch.testing.assert_close(apply(patches[key], base, key, 0.1) - base, torch.full((out_dim,), 8000.0))
+
+
 def test_diffusers_wan_names_stay_wan_only():
     config = comfy.supported_models.WAN21_T2V({"image_model": "wan2.1", "model_type": "i2v", **SMALL})
     other = comfy.model_base.BaseModel(config, unet_model=comfy.ldm.wan.model.WanModel)

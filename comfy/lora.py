@@ -86,7 +86,7 @@ def load_lora(lora, to_load, log_missing=True):
             lora_bias = lora[lora_bias_name]
             lora_down = lora.get("{}.lora_A.weight".format(x), None)
             if alpha is not None and lora_down is not None: # PEFT scales the lora_B bias like the weight delta
-                lora_bias = lora_bias * (alpha / lora_down.shape[0])
+                lora_bias = lora_bias.float() * (alpha / lora_down.shape[0]) # scale in fp32: an fp16 bias can overflow
             patch_dict[to_load[lora_bias_name]] = ("diff", (lora_bias,))
             loaded_keys.add(lora_bias_name)
 
