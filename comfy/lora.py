@@ -81,6 +81,15 @@ def load_lora(lora, to_load, log_missing=True):
             patch_dict["{}.bias".format(to_load[x][:-len(".weight")])] = ("diff", (diff_bias,))
             loaded_keys.add(diff_bias_name)
 
+        lora_bias_name = "{}.lora_B.bias".format(x) # PEFT lora_bias, only for models whose key map lists it
+        if lora_bias_name in to_load and lora_bias_name in lora:
+            lora_bias = lora[lora_bias_name]
+            lora_down = lora.get("{}.lora_A.weight".format(x), None)
+            if alpha is not None and lora_down is not None: # PEFT scales the lora_B bias like the weight delta
+                lora_bias = lora_bias * (alpha / lora_down.shape[0])
+            patch_dict[to_load[lora_bias_name]] = ("diff", (lora_bias,))
+            loaded_keys.add(lora_bias_name)
+
         set_weight_name = "{}.set_weight".format(x)
         set_weight = lora.get(set_weight_name, None)
         if set_weight is not None:
@@ -308,8 +317,11 @@ def model_lora_keys_unet(model, key_map={}):
                     key_lora = other_keys[key]
                 else:
                     continue
-                key_map[key_lora] = k
-                key_map["transformer.{}".format(key_lora)] = k
+                bias = "{}.bias".format(k[:-len(".weight")])
+                for p in ("", "transformer."):
+                    key_map["{}{}".format(p, key_lora)] = k
+                    if bias in sd:
+                        key_map["{}{}.lora_B.bias".format(p, key_lora)] = bias # diffusers' WAN conversion emits these
 
     if isinstance(model, comfy.model_base.HunyuanVideo):
         for k in sdk:
