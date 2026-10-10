@@ -57,11 +57,12 @@ class ListingWalk(NamedTuple):
     listings: DirListings
     dirs_listed: int
     # file path -> its stat, taken while its directory was listed; absent when that stat failed
+    # or the walk was asked not to stat
     stats: dict[str, os.stat_result] = {}
 
 
 def _list_visible_entries(
-    dirpath: str, interrupted: Callable[[], bool] | None = None
+    dirpath: str, interrupted: Callable[[], bool] | None = None, stat_files: bool = False
 ) -> tuple[list[str], list[str], list[os.stat_result | None]] | None:
     """One directory's visible (file names, subdir names, file stats), classified as os.walk does:
     anything whose is_dir() is false or raises is a file. The exception is a symlink
@@ -73,7 +74,7 @@ def _list_visible_entries(
     returns None: an open directory handle stops Windows renaming or moving any folder
     above it.
 
-    Each file is stat'ed as it is listed: Windows answers from the listing itself, and a
+    With ``stat_files``, each file is stat'ed as it is listed: Windows answers from the listing itself, and a
     network share's client from the attributes the listing just brought back, where a
     later stat goes back to the server."""
     files: list[str] = []
@@ -95,7 +96,7 @@ def _list_visible_entries(
             elif not _is_dangling(entry):
                 files.append(entry.name)
                 try:
-                    stats.append(entry.stat())
+                    stats.append(entry.stat() if stat_files else None)
                 except OSError:
                     stats.append(None)
     return files, subdirs, stats
@@ -127,9 +128,10 @@ def walk_listings(
     should_stop: Callable[[], bool] | None = None,
     interrupted: Callable[[], bool] | None = None,
     cancelled: Callable[[], bool] | None = None,
+    stat_files: bool = False,
 ) -> ListingWalk:
-    """Every visible file under ``base_dir``, following symlinks, each file's stat, and
-    every directory listing read on the way.
+    """Every visible file under ``base_dir``, following symlinks, every directory listing
+    read on the way, and with ``stat_files`` each file's stat.
 
     The traversal is os.walk's (top-down, depth-first in listing order, following
     symlinked directories), with a device/inode guard against symlink cycles and hidden
@@ -167,7 +169,9 @@ def walk_listings(
         if dir_id in seen_dirs:
             continue
         try:
-            listing = _list_visible_entries(dirpath, cancelled if dirpath == relist else interrupted)
+            listing = _list_visible_entries(
+                dirpath, cancelled if dirpath == relist else interrupted, stat_files
+            )
         except OSError:
             continue
         if listing is None:

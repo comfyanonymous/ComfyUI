@@ -81,12 +81,12 @@ def _write(path: Path, payload: bytes = b"model-bytes") -> Path:
     return path
 
 
-def _startup_scan(caplog: pytest.LogCaptureFixture) -> dict:
+def _startup_scan(caplog: pytest.LogCaptureFixture, roots: tuple = ALL_ROOTS) -> dict:
     """One startup scan (prune first, then a fast scan); returns its scan_completed fields."""
     seeder = seeder_module._AssetSeeder()
     seeder._state = seeder_module.State.RUNNING
     seeder._scan_state = seeder_module._ScanState()
-    seeder._roots = ALL_ROOTS
+    seeder._roots = roots
     seeder._phase = seeder_module.ScanPhase.FAST
     seeder._prune_first = True
     seeder._run_gate.set()
@@ -203,7 +203,7 @@ def test_a_rescan_of_an_unchanged_library_stats_no_file(layout, session, caplog)
 
 def test_a_fresh_scan_stats_each_new_file_once(layout, caplog):
     """The walk's stat is admission's first, so each new file costs admission's second stat
-    and enrichment's stat only."""
+    and the seed's observation stat only."""
     _write(layout["shared"] / "a.safetensors")
     _write(layout["late"] / "b.safetensors")
     _write(layout["input"] / "photo.png", b"png")
@@ -211,3 +211,17 @@ def test_a_fresh_scan_stats_each_new_file_once(layout, caplog):
     completed = _startup_scan(caplog)
 
     assert (completed["created"], completed["files_statted_count"]) == (3, 6)
+
+
+def test_the_output_rescan_stats_only_its_new_files(layout, session, caplog):
+    """The rescan queued after a prompt doesn't check every row, so its walk takes no stats:
+    each new file costs admission's two and the seed's one, and existing outputs none."""
+    _seed(layout, session, caplog)
+    for i in range(3):
+        _write(layout["output"] / f"old_{i}.png", b"png")
+    _startup_scan(caplog, ("output",))
+    _write(layout["output"] / "new.png", b"png")
+
+    completed = _startup_scan(caplog, ("output",))
+
+    assert (completed["created"], completed["files_statted_count"]) == (1, 3)

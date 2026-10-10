@@ -7,12 +7,8 @@ import os
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
-
 import folder_paths
 from app.assets import scanner
-from app.assets.database.models import Base
 from app.assets.database.queries import create_content
 from app.assets.scanner import build_asset_specs, observe_references_on_filesystem
 from app.assets.scanner_admission import _WATCH_LIST
@@ -72,6 +68,10 @@ def models(tmp_path, monkeypatch) -> dict[str, Path]:
     _write(dirs["ckpt_a"] / ".dotfile.safetensors")
     _write(dirs["ckpt_b"] / "same.safetensors", b"from b")
     _write(dirs["ckpt_b"] / "only_b.safetensors")
+    _write(dirs["ckpt_a"] / "UPPER.SAFETENSORS")
+    os.mkfifo(dirs["ckpt_a"] / "piped.safetensors")  # not a file: the later folder's one counts
+    _write(dirs["ckpt_b"] / "piped.safetensors")
+    _write(tmp_path / "datasets" / "anything.bin")
     _write(dirs["shared"] / "same.safetensors", b"shared")
     _write(dirs["shared"] / "lora.pt")
     _write(dirs["shared"] / "readme.md")
@@ -85,6 +85,7 @@ def models(tmp_path, monkeypatch) -> dict[str, Path]:
         "classifiers": ([str(dirs["classifiers"])], {""}),
         "diffusers": ([str(dirs["shared"])], ["folder"]),
         "missing": ([str(tmp_path / "not-there")], exts),
+        "datasets": ([str(tmp_path / "datasets")], set()),
     })
     monkeypatch.setattr(folder_paths, "filename_list_cache", {})
     return dirs
@@ -98,6 +99,9 @@ def test_the_walk_finds_exactly_the_files_master_resolves(models):
     assert str(models["classifiers"] / "noext") in walk.files
     assert str(models["classifiers"] / "with.pt") not in walk.files
     assert str(models["shared"] / "readme.md") not in walk.files
+    assert str(models["ckpt_a"] / "UPPER.SAFETENSORS") in walk.files
+    assert str(models["ckpt_b"] / "piped.safetensors") in walk.files
+    assert str(models["ckpt_a"].parent / "datasets" / "anything.bin") in walk.files
 
 
 def test_a_name_in_an_earlier_folder_of_the_category_shadows_the_later_one(models):
@@ -111,13 +115,13 @@ def test_each_folder_is_walked_once_and_every_listed_file_has_its_stat(models, m
     walked: list[str] = []
     real = scanner.walk_listings
 
-    def counting(base, *args):
+    def counting(base, *args, **kwargs):
         walked.append(base)
-        return real(base, *args)
+        return real(base, *args, **kwargs)
 
     monkeypatch.setattr(scanner, "walk_listings", counting)
     walk = scanner.list_root("models")
-    folders = [*models.values(), models["ckpt_a"].parent / "not-there"]
+    folders = [*models.values(), *(models["ckpt_a"].parent / n for n in ("not-there", "datasets"))]
     assert sorted(walked) == sorted(os.path.abspath(p) for p in folders)
     for path in walk.files:
         assert walk.stats[path].st_size == os.stat(path).st_size
@@ -155,17 +159,9 @@ def test_the_walk_records_no_stat_for_a_file_it_could_not_stat(tmp_path, monkeyp
             self._it.close()
 
     monkeypatch.setattr(file_utils.os, "scandir", _Listing)
-    walk = file_utils.walk_listings(str(tmp_path))
+    walk = file_utils.walk_listings(str(tmp_path), stat_files=True)
     assert sorted(walk.files) == sorted([str(good), str(bad)])
     assert set(walk.stats) == {str(good)}
-
-
-@pytest.fixture
-def session():
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    with Session(engine) as database_session:
-        yield database_session
 
 
 class _Counter:
@@ -189,7 +185,7 @@ def test_a_row_listed_unchanged_is_not_stated_again(tmp_path, session):
         _row(session, path)
     os.utime(changed, ns=(0, changed.stat().st_mtime_ns + 5_000_000_000))
     gone.unlink()
-    walk = file_utils.walk_listings(str(tmp_path))
+    walk = file_utils.walk_listings(str(tmp_path), stat_files=True)
     counter = _Counter()
 
     observations, survivors = observe_references_on_filesystem(
@@ -207,7 +203,9 @@ def test_a_listed_mtime_that_differs_is_decided_by_a_fresh_stat(tmp_path, sessio
     and shares served from it). The scan's change decision is the fresh stat's."""
     path = _write(tmp_path / "model.safetensors")
     _row(session, path)
-    stale = os.stat_result((0,) * 6 + (0, 1, 1, 1))  # an mtime the catalogue doesn't have
+    other = _write(tmp_path / "other.bin")
+    os.utime(other, ns=(0, path.stat().st_mtime_ns - 60_000_000_000))
+    stale = other.stat()  # a real stat, with an mtime the catalogue doesn't have
     counter = _Counter()
 
     observations, survivors = observe_references_on_filesystem(
@@ -222,7 +220,7 @@ def test_a_listed_mtime_that_differs_is_decided_by_a_fresh_stat(tmp_path, sessio
 def test_admission_takes_the_listed_stat_as_its_first(tmp_path, monkeypatch):
     monkeypatch.setattr(folder_paths, "get_input_directory", lambda: str(tmp_path))
     paths = [str(_write(tmp_path / f"f{i}.png")) for i in range(3)]
-    walk = file_utils.walk_listings(str(tmp_path))
+    walk = file_utils.walk_listings(str(tmp_path), stat_files=True)
     counter = _Counter()
 
     specs, _tags, _skipped = build_asset_specs(
@@ -245,3 +243,68 @@ def test_a_listing_frozen_while_a_writer_holds_the_file_sends_it_to_the_watch_li
     )
 
     assert specs == []
+
+
+def test_a_name_differing_only_in_case_is_shadowed_where_names_ignore_case(tmp_path, monkeypatch):
+    """On a case-insensitive filesystem (Windows), the loader resolves case.safetensors to
+    the first folder's Case.safetensors, so the second folder's file is not catalogued."""
+    first = _write(tmp_path / "a" / "Case.safetensors")
+    second = _write(tmp_path / "b" / "case.safetensors")
+    monkeypatch.setattr(folder_paths, "folder_names_and_paths", {
+        "checkpoints": ([str(first.parent), str(second.parent)], {".safetensors"}),
+    })
+    monkeypatch.setattr(scanner.os.path, "normcase", str.lower)
+    assert scanner.list_root("models").files == [str(first)]
+
+
+def test_a_folder_reached_twice_inside_one_model_folder_is_catalogued_once(models):
+    """Unlike the loader's listing, the walk lists a directory once per model folder, so a
+    second symlink to it adds no second path for the same file."""
+    os.symlink(models["ckpt_a"] / "sub", models["ckpt_a"] / "alias")
+    files = scanner.list_root("models").files
+    deep = [p for p in files if p.endswith("deep.safetensors")]
+    assert len(deep) == 1
+    assert len([p for p in _master_collect_models_files() if p.endswith("deep.safetensors")]) == 2
+
+
+def test_a_stopped_scan_lists_no_model_folder(models, monkeypatch):
+    listed: list[str] = []
+    real_scandir = file_utils.os.scandir
+    monkeypatch.setattr(file_utils.os, "scandir", lambda p: listed.append(p) or real_scandir(p))
+    walk = scanner.list_root("models", lambda: True, lambda: True, lambda: True)
+    assert (walk.files, listed) == ([], [])
+
+
+def test_only_a_scan_that_checks_every_row_stats_while_listing(tmp_path, monkeypatch):
+    _write(tmp_path / "out.png")
+    monkeypatch.setattr(folder_paths, "get_output_directory", lambda: str(tmp_path))
+    assert scanner.list_root("output").stats == {}
+    assert set(scanner.list_root("output", stat_files=True).stats) == {str(tmp_path / "out.png")}
+
+
+def test_admission_stats_a_file_the_walk_has_no_stat_for(tmp_path, monkeypatch):
+    monkeypatch.setattr(folder_paths, "get_input_directory", lambda: str(tmp_path))
+    paths = [str(_write(tmp_path / f"f{i}.png")) for i in range(3)]
+    stats = file_utils.walk_listings(str(tmp_path), stat_files=True).stats
+    del stats[paths[0]]
+    counter = _Counter()
+
+    specs, _tags, _skipped = build_asset_specs(
+        paths, set(), enable_metadata_extraction=False, progress=counter, listed_stats=stats
+    )
+
+    assert len(specs) == 3
+    assert counter.files_statted == 4  # one first stat, three second
+
+
+def test_a_file_listed_empty_and_filled_since_is_admitted(tmp_path, monkeypatch):
+    monkeypatch.setattr(folder_paths, "get_input_directory", lambda: str(tmp_path))
+    path = _write(tmp_path / "late.png", b"")
+    listed = os.stat(path)
+    _write(path, b"filled")
+
+    specs, _tags, _skipped = build_asset_specs(
+        [str(path)], set(), enable_metadata_extraction=False, listed_stats={str(path): listed}
+    )
+
+    assert [s["size_bytes"] for s in specs] == [6]

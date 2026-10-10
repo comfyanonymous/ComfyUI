@@ -932,7 +932,9 @@ class _AssetSeeder:
             if r not in roots:
                 continue
             live_references = {} if verify else live_references_safely(r)
-            walk = list_root(r, should_stop, self._pause_or_cancel_requested, self._cancel_event.is_set)
+            walk = list_root(
+                r, should_stop, self._pause_or_cancel_requested, self._cancel_event.is_set, verify
+            )
             # A cancel during the walk leaves it partial.
             if should_stop():
                 return total_created, skipped_existing, 0

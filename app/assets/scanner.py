@@ -11,6 +11,7 @@ so the rows it never reached are selected again when the scan resumes.
 import enum
 import logging
 import os
+import stat
 import time
 from dataclasses import dataclass
 from itertools import islice
@@ -396,17 +397,18 @@ def list_root(
     should_stop: ShouldStop = _never_stop,
     interrupted: Callable[[], bool] | None = None,
     cancelled: Callable[[], bool] | None = None,
+    stat_files: bool = False,
 ) -> ListingWalk:
-    """Every file under ``root``, with the stats and directory listings read on the way.
+    """Every file under ``root``, with the directory listings read on the way and, with
+    ``stat_files`` or for models, each file's stat.
 
     Once ``should_stop`` returns True the walk is partial, so callers check it again
     before using the result. ``interrupted`` and ``cancelled`` are walk_listings'.
     """
     if root == "models":
         return _walk_models(should_stop, interrupted, cancelled)
-    if root == "input":
-        return walk_listings(folder_paths.get_input_directory(), should_stop, interrupted, cancelled)
-    return walk_listings(folder_paths.get_output_directory(), should_stop, interrupted, cancelled)
+    directory = folder_paths.get_input_directory() if root == "input" else folder_paths.get_output_directory()
+    return walk_listings(directory, should_stop, interrupted, cancelled, stat_files)
 
 
 def _walk_models(
@@ -416,28 +418,30 @@ def _walk_models(
 ) -> ListingWalk:
     """The model files a loader can resolve, walking each model folder once.
 
-    A file counts when its category accepts its extension and no earlier folder of that
-    category has the same relative path, since folder_paths.get_full_path resolves a name
-    to the first folder that has it."""
+    A regular file counts when its category accepts its extension and no earlier folder
+    of that category has a regular file at the same relative path (compared as the
+    filesystem does), since folder_paths.get_full_path resolves a name to the first
+    folder where it isfile()."""
     walks: dict[str, ListingWalk] = {}
     files: dict[str, None] = {}
     for _name, bases, exts in get_comfy_models_folders():
         resolved: set[str] = set()
         for base in map(os.path.abspath, bases):
             if base not in walks:
-                walks[base] = walk_listings(base, should_stop, interrupted, cancelled)
+                walks[base] = walk_listings(base, should_stop, interrupted, cancelled, stat_files=True)
             for path in walks[base].files:
-                rel = os.path.relpath(path, base)
-                if rel in resolved or (exts and os.path.splitext(path)[1].lower() not in exts):
+                st = walks[base].stats.get(path)
+                rel = os.path.normcase(os.path.relpath(path, base))
+                if st is None or not stat.S_ISREG(st.st_mode) or rel in resolved:
+                    continue
+                if exts and os.path.splitext(path)[1].lower() not in exts:
                     continue
                 resolved.add(rel)
                 files[path] = None
-    listings: DirListings = {}
     stats: dict[str, os.stat_result] = {}
     for walk in walks.values():
-        listings.update(walk.listings)
         stats.update(walk.stats)
-    return ListingWalk(list(files), listings, len(listings), stats)
+    return ListingWalk(list(files), {}, sum(walk.dirs_listed for walk in walks.values()), stats)
 
 
 def live_references_safely(root: RootType) -> dict[str, list[_ReferenceObservation]]:
@@ -602,7 +606,8 @@ def build_asset_specs(
             continue
         try:
             stat_p = listed_stats.get(abs_p) if listed_stats else None
-            if stat_p is None:
+            # Empty when listed may have been filled since; the fresh stat decides.
+            if stat_p is None or not stat_p.st_size:
                 if progress is not None:
                     progress.files_statted += 1
                 stat_p = os.stat(abs_p, follow_symlinks=True)

@@ -100,7 +100,7 @@ def _configure_fast_phase(
     monkeypatch.setattr(
         seeder_module,
         "list_root",
-        lambda root, _should_stop=None, _interrupted=None, _cancelled=None: ListingWalk(
+        lambda root, _should_stop=None, _interrupted=None, _cancelled=None, _stat_files=False: ListingWalk(
             [str(path) for path in paths] if root == "models" else [], {}, 0
         ),
     )
@@ -615,7 +615,7 @@ def test_batch_insert_failure_emits_only_the_exception_type(
     monkeypatch.setattr(
         seeder_module,
         "list_root",
-        lambda root, should_stop=None, interrupted=None, cancelled=None: ListingWalk(
+        lambda root, should_stop=None, interrupted=None, cancelled=None, stat_files=False: ListingWalk(
             ["asset.safetensors"] if root == "models" else [], {}, 0
         ),
     )
