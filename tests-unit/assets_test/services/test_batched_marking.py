@@ -284,8 +284,8 @@ def test_offline_rows_retired_across_batches_recover_when_the_drive_returns(
 ):
     """#16646's hashing-off recovery with the marking split over several batches: files
     that come back while the marking is part way through are retired by the batches
-    that follow, then recovered by the walk that follows in the same scan, every record
-    keeping its id."""
+    that follow (the walk already ran), then recovered by the next scan's walk, every
+    record keeping its id."""
     output = temp_dir / "output"
     (temp_dir / "input").mkdir()
     output.mkdir()
@@ -314,9 +314,11 @@ def test_offline_rows_retired_across_batches_recover_when_the_drive_returns(
 
     with patch("app.assets.scanner.mark_contents_missing", mark):
         instance._run_fast_phase(("input", "output"))
+    assert instance._scan_state.missing_marked == 700
+    instance._scan_state = seeder_module._ScanState()
+    instance._run_fast_phase(("input", "output"))
 
     session.expire_all()
-    assert instance._scan_state.missing_marked == 700
     assert instance._scan_state.recovered == 700
     assert _live_ids(session) == set(ids)
     assert {record.id: record.content_id for record in session.scalars(sa.select(Asset))} == records

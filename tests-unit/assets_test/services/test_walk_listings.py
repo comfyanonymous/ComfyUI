@@ -98,6 +98,9 @@ class _UnreadableEntry:
     def is_symlink(self) -> bool:
         raise OSError(errno.EIO, "I/O error", self.path)
 
+    def stat(self) -> os.stat_result:
+        raise OSError(errno.EIO, "I/O error", self.path)
+
 
 class _OsWithExtraEntry:
     """Stands in for file_utils' os module (only there), appending one _UnreadableEntry

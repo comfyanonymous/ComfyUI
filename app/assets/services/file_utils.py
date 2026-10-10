@@ -56,12 +56,14 @@ class ListingWalk(NamedTuple):
     files: list[str]
     listings: DirListings
     dirs_listed: int
+    # file path -> its stat, taken while its directory was listed; absent when that stat failed
+    stats: dict[str, os.stat_result] = {}
 
 
 def _list_visible_entries(
     dirpath: str, interrupted: Callable[[], bool] | None = None
-) -> tuple[list[str], list[str]] | None:
-    """One directory's visible (file names, subdir names), classified as os.walk does:
+) -> tuple[list[str], list[str], list[os.stat_result | None]] | None:
+    """One directory's visible (file names, subdir names, file stats), classified as os.walk does:
     anything whose is_dir() is false or raises is a file. The exception is a symlink
     whose target is gone: it is left out, so a row for it reads as vanished, as it did
     when the rescan stat'ed every row through the link.
@@ -69,9 +71,14 @@ def _list_visible_entries(
     ``interrupted`` is checked, without blocking, before each entry, so a directory of
     100k entries on a slow share can be left part way. True closes the directory and
     returns None: an open directory handle stops Windows renaming or moving any folder
-    above it."""
+    above it.
+
+    Each file is stat'ed as it is listed: Windows answers from the listing itself, and a
+    network share's client from the attributes the listing just brought back, where a
+    later stat goes back to the server."""
     files: list[str] = []
     subdirs: list[str] = []
+    stats: list[os.stat_result | None] = []
     with os.scandir(dirpath) as entries:
         for entry in entries:
             if interrupted is not None and interrupted():
@@ -87,7 +94,11 @@ def _list_visible_entries(
                 subdirs.append(entry.name)
             elif not _is_dangling(entry):
                 files.append(entry.name)
-    return files, subdirs
+                try:
+                    stats.append(entry.stat())
+                except OSError:
+                    stats.append(None)
+    return files, subdirs, stats
 
 
 def is_gone(path: str) -> bool:
@@ -117,8 +128,8 @@ def walk_listings(
     interrupted: Callable[[], bool] | None = None,
     cancelled: Callable[[], bool] | None = None,
 ) -> ListingWalk:
-    """Every visible file under ``base_dir``, following symlinks, and every directory
-    listing read on the way.
+    """Every visible file under ``base_dir``, following symlinks, each file's stat, and
+    every directory listing read on the way.
 
     The traversal is os.walk's (top-down, depth-first in listing order, following
     symlinked directories), with a device/inode guard against symlink cycles and hidden
@@ -137,6 +148,7 @@ def walk_listings(
     """
     files: list[str] = []
     listings: DirListings = {}
+    stats: dict[str, os.stat_result] = {}
     # No isdir() precheck, so each directory costs exactly one stat: a root that is
     # missing or not a directory fails its stat or scandir below and yields nothing.
     seen_dirs: set[tuple[int, int]] = set()
@@ -162,11 +174,14 @@ def walk_listings(
             stack.append(dirpath)
             relist = dirpath
             continue
-        names, subdirs = listing
+        names, subdirs, name_stats = listing
         seen_dirs.add(dir_id)
         listings[dirpath] = (names, subdirs)
-        for name in names:
+        for name, st in zip(names, name_stats):
             yield_gil(run=RESCAN_YIELD_RUN)
-            files.append(os.path.abspath(os.path.join(dirpath, name)))
+            path = os.path.abspath(os.path.join(dirpath, name))
+            files.append(path)
+            if st is not None:
+                stats[path] = st
         stack.extend(os.path.join(dirpath, name) for name in reversed(subdirs))
-    return ListingWalk(files, listings, len(listings))
+    return ListingWalk(files, listings, len(listings), stats)

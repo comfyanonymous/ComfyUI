@@ -1,6 +1,5 @@
-"""A model category whose folder_paths listing raises (e.g. one of its folders was listed
-earlier and has since gone away) is skipped: the asset scan completes and catalogues
-everything else. Run through the seeder's real scan loop and folder_paths listing on an
+"""A model folder that can't be listed (gone, or raising) is skipped: the asset scan
+completes and catalogues everything else. Run through the seeder's real scan loop on an
 in-memory catalog."""
 
 import errno
@@ -18,6 +17,7 @@ from app.assets import seeder as seeder_module
 from app.assets.database.models import Asset, AssetContent
 from app.assets.event_log import TAG
 from app.assets.scanner_admission import _WATCH_LIST
+from app.assets.services import file_utils
 
 ALL_ROOTS = ("models", "input", "output")
 
@@ -153,18 +153,18 @@ def test_a_model_folder_that_vanishes_after_being_listed_does_not_abort_the_scan
 def test_a_model_category_whose_listing_raises_an_oserror_is_skipped(
     layout, session, caplog, monkeypatch
 ):
-    """Any OSError, e.g. Windows' WinError 433 (device does not exist), that a fresh
-    listing hits too: that category is skipped, the rest catalogued."""
+    """Any OSError listing a folder, e.g. Windows' WinError 433 (device does not exist):
+    that category's folders are skipped, its rows kept, and the rest catalogued."""
     shared_files = _seed(layout, session, caplog)
-    for name in ("get_filename_list", "get_filename_list_"):
-        real = getattr(folder_paths, name)
+    checkpoint_dirs = tuple(str(layout[k]) for k in ("checkpoints", "shared", "late"))
+    real_scandir = file_utils.os.scandir
 
-        def raising(folder_name, real=real):
-            if folder_name == "checkpoints":
-                raise OSError(errno.EINVAL, "A device which does not exist was specified")
-            return real(folder_name)
+    def raising(path):
+        if str(path).startswith(checkpoint_dirs):
+            raise OSError(errno.EINVAL, "A device which does not exist was specified")
+        return real_scandir(path)
 
-        monkeypatch.setattr(folder_paths, name, raising)
+    monkeypatch.setattr(file_utils.os, "scandir", raising)
     added = _add_new_files(layout)
 
     completed = _startup_scan(caplog)
@@ -172,7 +172,6 @@ def test_a_model_category_whose_listing_raises_an_oserror_is_skipped(
     assert completed["created"] == 2
     missing = _missing(session)
     assert all(missing[str(p)] is False for p in [*added, *shared_files])
-    assert any("skipping model category checkpoints" in r.getMessage() for r in caplog.records)
 
 
 def test_a_model_folder_absent_at_startup_still_has_its_rows_marked_missing(

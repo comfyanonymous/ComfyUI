@@ -14,7 +14,6 @@ import os
 import time
 from dataclasses import dataclass
 from itertools import islice
-from pathlib import Path
 from typing import Callable, Literal, NamedTuple, Protocol, TypedDict
 
 import folder_paths
@@ -210,43 +209,18 @@ def get_temp_prefixes() -> list[str]:
     return [temp_dir]
 
 
-def collect_models_files() -> list[str]:
-    out: list[str] = []
-    for folder_name, bases, _exts in get_comfy_models_folders():
-        try:
-            rel_files = folder_paths.get_filename_list(folder_name) or []
-        except OSError:
-            # The cached listing raises on every call once a folder it recorded has gone
-            # away; a fresh listing skips that folder and lists the rest.
-            try:
-                rel_files = folder_paths.get_filename_list_(folder_name)[0]
-            except OSError as e:
-                logging.warning("Asset scan: skipping model category %s, it can't be listed: %s", folder_name, e)
-                continue
-        for rel_path in rel_files:
-            if not all(is_visible(part) for part in Path(rel_path).parts):
-                continue
-            abs_path = folder_paths.get_full_path(folder_name, rel_path)
-            if not abs_path:
-                continue
-            abs_path = os.path.abspath(abs_path)
-            allowed = False
-            abs_p = Path(abs_path)
-            for b in bases:
-                if abs_p.is_relative_to(os.path.abspath(b)):
-                    allowed = True
-                    break
-            if allowed:
-                out.append(abs_path)
-    return out
-
-
 def observe_references_on_filesystem(
-    session: Session, prefixes: list[str], progress: _ScanProgress | None = None
+    session: Session,
+    prefixes: list[str],
+    progress: _ScanProgress | None = None,
+    listed_stats: dict[str, os.stat_result] | None = None,
 ) -> tuple[list[_ReferenceObservation], set[str]]:
     """Stat every live row under ``prefixes`` without writing, so the caller can
     apply the result in a short write transaction. Also returns the paths whose
-    file still exists."""
+    file still exists.
+
+    A row whose file is in ``listed_stats`` with the recorded mtime is unchanged and
+    isn't stat'ed again; any other row is, so every change is decided by a fresh stat."""
     contents = [
         (content.id, content.path, content.size_bytes, content.mtime_ns)
         for content in live_contents_under_prefixes(session, prefixes)
@@ -254,6 +228,10 @@ def observe_references_on_filesystem(
     observations: list[_ReferenceObservation] = []
     survivors: set[str] = set()
     for content_id, path, size_bytes, mtime_ns in contents:
+        listed = listed_stats.get(os.path.abspath(path)) if listed_stats else None
+        if listed is not None and listed.st_mtime_ns == mtime_ns:
+            survivors.add(os.path.abspath(path))
+            continue
         if progress is not None:
             progress.files_statted += 1
         try:
@@ -313,12 +291,13 @@ def _sync_prefixes(
     progress: _ScanProgress | None,
     should_stop: ShouldStop,
     marked: list[int],
+    listed_stats: dict[str, os.stat_result] | None = None,
 ) -> set[str]:
     """Returns the surviving paths; ``marked`` gets each committed batch's count of rows
     marked missing, which a caller still has if a later batch raises."""
     with create_session() as session:
         observations, survivors = observe_references_on_filesystem(
-            session, prefixes, progress
+            session, prefixes, progress, listed_stats
         )
     _write_in_batches(observations, apply_reference_observations, should_stop, marked)
     return survivors
@@ -328,15 +307,17 @@ def sync_root_safely(
     root: RootType,
     progress: _ScanProgress | None = None,
     should_stop: ShouldStop = _never_stop,
+    listed_stats: dict[str, os.stat_result] | None = None,
 ) -> set[str]:
-    """Sync a single root's references with the filesystem.
+    """Sync a single root's references with the filesystem; ``listed_stats`` is the
+    root's walk, as observe_references_on_filesystem takes it.
 
     Returns survivors (existing paths) or empty set on failure.
     """
     marked: list[int] = []
     try:
         survivors = _sync_prefixes(
-            get_scan_prefixes_for_root(root), progress, should_stop, marked
+            get_scan_prefixes_for_root(root), progress, should_stop, marked, listed_stats
         )
     except Exception as exc:
         logging.exception("fast DB scan failed for %s: %s", root, exc)
@@ -416,22 +397,47 @@ def list_root(
     interrupted: Callable[[], bool] | None = None,
     cancelled: Callable[[], bool] | None = None,
 ) -> ListingWalk:
-    """Every file under ``root``, with the directory listings read on the way.
-
-    Input and output are walked by walk_listings. Models come from
-    folder_paths.get_filename_list, the cached listing the loaders use (it walks the
-    model folders on a cache miss and re-checks their mtimes on a hit, none of it counted
-    in ``dirs_listed`` or pausable), with no listings: models are only scanned by scans
-    that verify every row.
+    """Every file under ``root``, with the stats and directory listings read on the way.
 
     Once ``should_stop`` returns True the walk is partial, so callers check it again
     before using the result. ``interrupted`` and ``cancelled`` are walk_listings'.
     """
     if root == "models":
-        return ListingWalk(collect_models_files(), {}, 0)
+        return _walk_models(should_stop, interrupted, cancelled)
     if root == "input":
         return walk_listings(folder_paths.get_input_directory(), should_stop, interrupted, cancelled)
     return walk_listings(folder_paths.get_output_directory(), should_stop, interrupted, cancelled)
+
+
+def _walk_models(
+    should_stop: ShouldStop,
+    interrupted: Callable[[], bool] | None,
+    cancelled: Callable[[], bool] | None,
+) -> ListingWalk:
+    """The model files a loader can resolve, walking each model folder once.
+
+    A file counts when its category accepts its extension and no earlier folder of that
+    category has the same relative path, since folder_paths.get_full_path resolves a name
+    to the first folder that has it."""
+    walks: dict[str, ListingWalk] = {}
+    files: dict[str, None] = {}
+    for _name, bases, exts in get_comfy_models_folders():
+        resolved: set[str] = set()
+        for base in map(os.path.abspath, bases):
+            if base not in walks:
+                walks[base] = walk_listings(base, should_stop, interrupted, cancelled)
+            for path in walks[base].files:
+                rel = os.path.relpath(path, base)
+                if rel in resolved or (exts and os.path.splitext(path)[1].lower() not in exts):
+                    continue
+                resolved.add(rel)
+                files[path] = None
+    listings: DirListings = {}
+    stats: dict[str, os.stat_result] = {}
+    for walk in walks.values():
+        listings.update(walk.listings)
+        stats.update(walk.stats)
+    return ListingWalk(list(files), listings, len(listings), stats)
 
 
 def live_references_safely(root: RootType) -> dict[str, list[_ReferenceObservation]]:
@@ -566,6 +572,7 @@ def build_asset_specs(
     enable_metadata_extraction: bool = True,
     progress: _ScanProgress | None = None,
     should_stop: ShouldStop = _never_stop,
+    listed_stats: dict[str, os.stat_result] | None = None,
 ) -> tuple[list[SeedAssetSpec], set[str], int]:
     """Build asset specs from paths, returning (specs, tag_pool, skipped_count).
 
@@ -576,6 +583,7 @@ def build_asset_specs(
         progress: Optional per-scan state for emit-once bookkeeping
         should_stop: Checked before each path's stats and spec, so a large library
             can pause here; once it returns True, no specs are returned
+        listed_stats: The walk's stats by path, used as a path's first stat
     """
     specs: list[SeedAssetSpec] = []
     tag_pool: set[str] = set()
@@ -592,10 +600,12 @@ def build_asset_specs(
         if abs_p in existing_paths:
             skipped += 1
             continue
-        if progress is not None:
-            progress.files_statted += 1
         try:
-            stat_p = os.stat(abs_p, follow_symlinks=True)
+            stat_p = listed_stats.get(abs_p) if listed_stats else None
+            if stat_p is None:
+                if progress is not None:
+                    progress.files_statted += 1
+                stat_p = os.stat(abs_p, follow_symlinks=True)
         except FileNotFoundError:
             continue
         except OSError as e:

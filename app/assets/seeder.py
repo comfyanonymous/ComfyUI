@@ -917,49 +917,35 @@ class _AssetSeeder:
 
         should_stop = lambda: self._check_pause_and_cancel(_ScanStage.FAST_SCAN)
         # Every scan but the output-only rescan queued after each prompt stats every live row
-        # (sync_root). That rescan retires the rows its listings lack instead, so it misses an
-        # in-place overwrite until the next scan that isn't output-only, such as a page load;
-        # save nodes never overwrite, and their outputs are registered at save time.
+        # the walk didn't see unchanged (sync_root). That rescan retires the rows its listings
+        # lack instead, so it misses an in-place overwrite until the next scan that isn't
+        # output-only, such as a page load; save nodes never overwrite, and their outputs are
+        # registered at save time.
         verify = tuple(roots) != ("output",)
-        live_references: dict[str, list] = {}
         existing_paths: set[str] = set()
-        t_sync = time.perf_counter()
+        listed_stats: dict[str, os.stat_result] = {}
+        paths: list[str] = []
         assert self._scan_state is not None
         scan_state = self._scan_state
-        for r in roots:
-            if self._check_pause_and_cancel(_ScanStage.FAST_SCAN):
-                return total_created, skipped_existing, 0
-            if verify:
-                marked_before = scan_state.missing_marked
-                existing_paths.update(sync_root_safely(r, scan_state, should_stop))
-                self._emit_marked_missing(r, scan_state.missing_marked - marked_before)
-            else:
-                live_references = live_references_safely(r)
-                existing_paths.update(live_references)
-        logging.debug(
-            "Fast scan: sync_root phase took %.3fs (%d existing paths)",
-            time.perf_counter() - t_sync,
-            len(existing_paths),
-        )
-
-        if self._check_pause_and_cancel(_ScanStage.FAST_SCAN):
-            return total_created, skipped_existing, 0
-
         t_collect = time.perf_counter()
-        paths: list[str] = []
         for r in ("models", "input", "output"):
             if r not in roots:
                 continue
+            live_references = {} if verify else live_references_safely(r)
             walk = list_root(r, should_stop, self._pause_or_cancel_requested, self._cancel_event.is_set)
             # A cancel during the walk leaves it partial.
             if should_stop():
                 return total_created, skipped_existing, 0
             paths.extend(walk.files)
+            listed_stats.update(walk.stats)
             scan_state.dirs_listed += walk.dirs_listed
-            if verify:
-                continue
-            vanished, unlisted = unlisted_references(live_references, walk.listings, scan_state)
             marked_before = scan_state.missing_marked
+            if verify:
+                existing_paths.update(sync_root_safely(r, scan_state, should_stop, walk.stats))
+                self._emit_marked_missing(r, scan_state.missing_marked - marked_before)
+                continue
+            existing_paths.update(live_references)
+            vanished, unlisted = unlisted_references(live_references, walk.listings, scan_state)
             mark_unlisted_references_missing_safely("output", vanished, scan_state, should_stop)
             self._emit_marked_missing("output", scan_state.missing_marked - marked_before)
             logging.debug(
@@ -990,6 +976,7 @@ class _AssetSeeder:
             enable_metadata_extraction=False,
             progress=scan_state,
             should_stop=should_stop,
+            listed_stats=listed_stats,
         )
         logging.debug(
             "Fast scan: build_asset_specs took %.3fs (%d specs, %d skipped)",
