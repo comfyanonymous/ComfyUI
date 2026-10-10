@@ -220,8 +220,8 @@ def observe_references_on_filesystem(
     apply the result in a short write transaction. Also returns the paths whose
     file still exists.
 
-    A row whose file is in ``listed_stats`` with the recorded mtime is unchanged and
-    isn't stat'ed again; any other row is, so every change is decided by a fresh stat."""
+    A row whose file is in ``listed_stats`` with the recorded mtime is taken as unchanged
+    and isn't stat'ed again; every other row is, and its change decided by that stat."""
     contents = [
         (content.id, content.path, content.size_bytes, content.mtime_ns)
         for content in live_contents_under_prefixes(session, prefixes)
@@ -419,9 +419,9 @@ def _walk_models(
     """The model files a loader can resolve, walking each model folder once.
 
     A regular file counts when its category accepts its extension and no earlier folder
-    of that category has a regular file at the same relative path (compared as the
-    filesystem does), since folder_paths.get_full_path resolves a name to the first
-    folder where it isfile()."""
+    of that category has a regular file at the same relative path (ignoring case where
+    os.path.normcase does, i.e. on Windows), since folder_paths.get_full_path resolves a
+    name to the first folder where it isfile()."""
     walks: dict[str, ListingWalk] = {}
     files: dict[str, None] = {}
     for _name, bases, exts in get_comfy_models_folders():

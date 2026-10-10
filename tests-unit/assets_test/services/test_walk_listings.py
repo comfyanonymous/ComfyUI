@@ -126,7 +126,8 @@ def test_an_entry_whose_type_cant_be_read_is_kept_and_the_folder_listed(temp_dir
     for name in ("a.png", "b.png"):
         _write(temp_dir / name)
     monkeypatch.setattr(file_utils, "os", _OsWithExtraEntry())
-    walk = walk_listings(str(temp_dir))
+    walk = walk_listings(str(temp_dir), stat_files=True)
     assert str(temp_dir) in walk.listings
+    assert str(temp_dir / "unreadable.png") not in walk.stats
     # Kept as a file, as os.walk keeps an entry whose is_dir() raises; the scan's stat decides.
     assert sorted(walk.files) == sorted(str(temp_dir / n) for n in ("a.png", "b.png", "unreadable.png"))

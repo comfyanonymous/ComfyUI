@@ -166,12 +166,14 @@ def test_a_model_category_whose_listing_raises_an_oserror_is_skipped(
 
     monkeypatch.setattr(file_utils.os, "scandir", raising)
     added = _add_new_files(layout)
+    unlisted = _write(layout["late"] / "unlisted.safetensors")
 
     completed = _startup_scan(caplog)
 
     assert completed["created"] == 2
     missing = _missing(session)
     assert all(missing[str(p)] is False for p in [*added, *shared_files])
+    assert str(unlisted) not in missing
 
 
 def test_a_model_folder_absent_at_startup_still_has_its_rows_marked_missing(
@@ -201,7 +203,7 @@ def test_a_rescan_of_an_unchanged_library_stats_no_file(layout, session, caplog)
     assert all(_missing(session)[str(p)] is False for p in shared_files)
 
 
-def test_a_fresh_scan_stats_each_new_file_once(layout, caplog):
+def test_a_fresh_scan_skips_admissions_first_stat(layout, caplog):
     """The walk's stat is admission's first, so each new file costs admission's second stat
     and the seed's observation stat only."""
     _write(layout["shared"] / "a.safetensors")

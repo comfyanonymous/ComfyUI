@@ -58,7 +58,7 @@ class ListingWalk(NamedTuple):
     dirs_listed: int
     # file path -> its stat, taken while its directory was listed; absent when that stat failed
     # or the walk was asked not to stat
-    stats: dict[str, os.stat_result] = {}
+    stats: dict[str, os.stat_result]
 
 
 def _list_visible_entries(

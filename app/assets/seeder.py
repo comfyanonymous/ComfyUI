@@ -962,6 +962,8 @@ class _AssetSeeder:
             time.perf_counter() - t_collect,
             len(paths),
         )
+        if should_stop():
+            return total_created, skipped_existing, 0
         total_paths = len(paths)
         self._update_progress(total=total_paths)
 

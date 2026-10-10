@@ -548,3 +548,19 @@ def test_a_prompt_or_cancel_mid_rescan_listing_marks_nothing_missing(
     assert result[0] == (0, FILES if action == "pause" else 0, FILES if action == "pause" else 0)
     assert state.missing_marked == 0
     assert _live_rows(catalog) == FILES
+
+
+def test_a_cancel_during_the_sync_ends_the_scan_before_it_starts_seeding(scan, catalog, monkeypatch):
+    instance, events = scan
+    real_sync = seeder_module.sync_root_safely
+
+    def cancelling_sync(root, *args, **kwargs):
+        if root == "output":  # the last root, so no walk follows to notice the cancel
+            instance.cancel()
+        return real_sync(root, *args, **kwargs)
+
+    monkeypatch.setattr(seeder_module, "sync_root_safely", cancelling_sync)
+
+    assert instance._run_fast_phase(("input", "output")) == (0, 0, 0)
+    assert "assets.seed.started" not in events
+    assert _rows(catalog) == 0

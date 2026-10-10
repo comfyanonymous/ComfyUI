@@ -4,6 +4,7 @@ takes the listed stat as its first."""
 
 import logging
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -69,7 +70,8 @@ def models(tmp_path, monkeypatch) -> dict[str, Path]:
     _write(dirs["ckpt_b"] / "same.safetensors", b"from b")
     _write(dirs["ckpt_b"] / "only_b.safetensors")
     _write(dirs["ckpt_a"] / "UPPER.SAFETENSORS")
-    os.mkfifo(dirs["ckpt_a"] / "piped.safetensors")  # not a file: the later folder's one counts
+    if hasattr(os, "mkfifo"):
+        os.mkfifo(dirs["ckpt_a"] / "piped.safetensors")  # not a file: the later folder's one counts
     _write(dirs["ckpt_b"] / "piped.safetensors")
     _write(tmp_path / "datasets" / "anything.bin")
     _write(dirs["shared"] / "same.safetensors", b"shared")
@@ -231,9 +233,12 @@ def test_admission_takes_the_listed_stat_as_its_first(tmp_path, monkeypatch):
     assert counter.files_statted == 3  # the second stats only
 
 
-def test_a_listing_frozen_while_a_writer_holds_the_file_sends_it_to_the_watch_list(tmp_path):
+def test_a_listing_frozen_while_a_writer_holds_the_file_sends_it_to_the_watch_list(
+    tmp_path, monkeypatch
+):
     """The listing kept the size and mtime from before the writer opened the file, while
     the file itself has grown: the second stat disagrees, so it isn't admitted."""
+    monkeypatch.setattr(folder_paths, "get_input_directory", lambda: str(tmp_path))
     path = _write(tmp_path / "resumed.safetensors", b"x" * 10)
     frozen = os.stat(path)
     _write(path, b"x" * 20)
@@ -243,6 +248,7 @@ def test_a_listing_frozen_while_a_writer_holds_the_file_sends_it_to_the_watch_li
     )
 
     assert specs == []
+    assert [entry.path for entry in _WATCH_LIST] == [str(path)]
 
 
 def test_a_name_differing_only_in_case_is_shadowed_where_names_ignore_case(tmp_path, monkeypatch):
@@ -257,6 +263,7 @@ def test_a_name_differing_only_in_case_is_shadowed_where_names_ignore_case(tmp_p
     assert scanner.list_root("models").files == [str(first)]
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privileges on Windows")
 def test_a_folder_reached_twice_inside_one_model_folder_is_catalogued_once(models):
     """Unlike the loader's listing, the walk lists a directory once per model folder, so a
     second symlink to it adds no second path for the same file."""
@@ -267,12 +274,18 @@ def test_a_folder_reached_twice_inside_one_model_folder_is_catalogued_once(model
     assert len([p for p in _master_collect_models_files() if p.endswith("deep.safetensors")]) == 2
 
 
-def test_a_stopped_scan_lists_no_model_folder(models, monkeypatch):
-    listed: list[str] = []
-    real_scandir = file_utils.os.scandir
-    monkeypatch.setattr(file_utils.os, "scandir", lambda p: listed.append(p) or real_scandir(p))
-    walk = scanner.list_root("models", lambda: True, lambda: True, lambda: True)
-    assert (walk.files, listed) == ([], [])
+def test_the_models_walk_takes_the_scans_pause_and_cancel(models, monkeypatch):
+    gates = (lambda: False, lambda: False, lambda: False)
+    passed: list[tuple] = []
+    real = scanner.walk_listings
+
+    def recording(base, *args, **kwargs):
+        passed.append(args)
+        return real(base, *args, **kwargs)
+
+    monkeypatch.setattr(scanner, "walk_listings", recording)
+    scanner.list_root("models", *gates)
+    assert passed and all(args == gates for args in passed)
 
 
 def test_only_a_scan_that_checks_every_row_stats_while_listing(tmp_path, monkeypatch):
