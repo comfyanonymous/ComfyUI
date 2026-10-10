@@ -188,3 +188,26 @@ def test_a_model_folder_absent_at_startup_still_has_its_rows_marked_missing(
     missing = _missing(session)
     assert all(missing[str(p)] is True for p in shared_files)
     assert missing[str(layout["checkpoints"] / "local.safetensors")] is False
+
+
+def test_a_rescan_of_an_unchanged_library_stats_no_file(layout, session, caplog):
+    """The walk's stats answer for every catalogued file, so a rescan with nothing changed
+    makes no per-file stat of its own, and still creates and retires nothing."""
+    shared_files = _seed(layout, session, caplog)
+
+    completed = _startup_scan(caplog)
+
+    assert (completed["created"], completed["files_statted_count"]) == (0, 0)
+    assert all(_missing(session)[str(p)] is False for p in shared_files)
+
+
+def test_a_fresh_scan_stats_each_new_file_once(layout, caplog):
+    """The walk's stat is admission's first, so each new file costs admission's second stat
+    and enrichment's stat only."""
+    _write(layout["shared"] / "a.safetensors")
+    _write(layout["late"] / "b.safetensors")
+    _write(layout["input"] / "photo.png", b"png")
+
+    completed = _startup_scan(caplog)
+
+    assert (completed["created"], completed["files_statted_count"]) == (3, 6)
