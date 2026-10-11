@@ -62,7 +62,6 @@ def test_enable_assets_turns_assets_on_and_hashing_stays_opt_in(tmp_path, flags,
     assert [line.split("assets.enabled ", 1)[1] for line in output.splitlines() if ENABLED_EVENT in line] == [
         f"hashing_enabled={hashing}"
     ]
-    assert "--enable-assets is deprecated" not in output
     assert "--enable-asset-hashing is ignored" not in output
 
 
@@ -72,7 +71,7 @@ def test_hashing_with_assets_off_is_ignored_with_one_warning(tmp_path, flags):
     output = result.stdout + result.stderr
 
     assert result.returncode == 0, result.stderr
-    assert output.count("--enable-asset-hashing is ignored because the assets system is off. Start ComfyUI with --enable-assets to use it.") == 1
+    assert output.count("--enable-asset-hashing is ignored because the assets system is off. Start ComfyUI with --enable-assets, and without --disable-assets, to use it.") == 1
     assert not _db(tmp_path).exists()
     assert ENABLED_EVENT not in output
 

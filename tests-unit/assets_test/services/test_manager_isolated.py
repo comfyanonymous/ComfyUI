@@ -18,7 +18,7 @@ from app.assets import scanner, seeder as seeder_module
 from app.assets.database.models import Asset, AssetContent
 from app.assets.database.queries.records import create_content, create_record
 from app.assets.manager import AssetsEnabled
-from app.assets.seeder import ScanStatus, asset_seeder
+from app.assets.seeder import ScanPhase, ScanStatus, asset_seeder
 from app.database.models import Base
 from app.assets.services.schemas import RegisteredAsset, UploadAssetView
 
@@ -155,6 +155,32 @@ def test_queue_output_scan_does_not_duplicate_declared_output(
     assert len(undeclared_rows) == 1, (
         "the undeclared sibling proves the walk ran, so the declared row's count of 1 is a real skip rather than a silently-failed scan"
     )
+
+
+@pytest.mark.parametrize("hashing", [False, True])
+def test_queue_output_scan_queues_a_full_output_walk_with_the_hashing_setting(
+    monkeypatch: pytest.MonkeyPatch, hashing: bool
+) -> None:
+    enqueue = Mock(return_value=True)
+    monkeypatch.setattr(asset_seeder, "enqueue_scan", enqueue)
+    monkeypatch.setattr(asset_seeder, "is_disabled", lambda: False)
+
+    args = _ArgsStub()
+    args.enable_asset_hashing = hashing
+
+    AssetsEnabled(args).queue_output_scan()
+
+    enqueue.assert_called_once_with(roots=("output",), phase=ScanPhase.FULL, compute_hashes=hashing)
+
+
+def test_queue_output_scan_does_nothing_while_the_seeder_is_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    enqueue = Mock(return_value=True)
+    monkeypatch.setattr(asset_seeder, "enqueue_scan", enqueue)
+    monkeypatch.setattr(asset_seeder, "is_disabled", lambda: True)
+
+    AssetsEnabled(_ArgsStub()).queue_output_scan()
+
+    enqueue.assert_not_called()
 
 
 def test_executed_and_cached_outputs_share_unhashed_content(

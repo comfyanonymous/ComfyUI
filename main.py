@@ -56,7 +56,7 @@ if __name__ == "__main__":
         logging.warning("On windows we are currently forcing single GPU mode in ComfyUI due to a Nvidia related issue, if you want to disable this use: --cuda-device all")
 
     if args.enable_asset_hashing and args.disable_assets:
-        logging.warning("--enable-asset-hashing is ignored because the assets system is off. Start ComfyUI with --enable-assets to use it.")
+        logging.warning("--enable-asset-hashing is ignored because the assets system is off. Start ComfyUI with --enable-assets, and without --disable-assets, to use it.")
 
     if args.disable_api_nodes:
         logging.warning("--disable-api-nodes is deprecated and will be removed in a future version. It currently behaves like --offline. Use --offline to keep the frontend offline, or --disable-partner-nodes to only disable partner nodes.")
