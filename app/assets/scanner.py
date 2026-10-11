@@ -425,6 +425,8 @@ def _walk_models(
     walks: dict[str, ListingWalk] = {}
     files: dict[str, None] = {}
     for _name, bases, exts in get_comfy_models_folders():
+        if exts and not any(ext == "" or ext.startswith(".") for ext in exts):
+            continue  # no file can match, e.g. diffusers' "folder"
         resolved: set[str] = set()
         for base in map(os.path.abspath, bases):
             if base not in walks:

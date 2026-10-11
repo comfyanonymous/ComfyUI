@@ -74,6 +74,7 @@ def models(tmp_path, monkeypatch) -> dict[str, Path]:
         os.mkfifo(dirs["ckpt_a"] / "piped.safetensors")  # not a file: the later folder's one counts
     _write(dirs["ckpt_b"] / "piped.safetensors")
     _write(tmp_path / "datasets" / "anything.bin")
+    _write(tmp_path / "diffusers" / "unet" / "model.safetensors")  # a folder-only category's files
     _write(dirs["shared"] / "same.safetensors", b"shared")
     _write(dirs["shared"] / "lora.pt")
     _write(dirs["shared"] / "readme.md")
@@ -85,7 +86,7 @@ def models(tmp_path, monkeypatch) -> dict[str, Path]:
         "loras": ([str(dirs["shared"]), str(dirs["ckpt_b"])], exts),
         "vae": ([str(dirs["shared"])], {".safetensors"}),
         "classifiers": ([str(dirs["classifiers"])], {""}),
-        "diffusers": ([str(dirs["shared"])], ["folder"]),
+        "diffusers": ([str(dirs["shared"]), str(tmp_path / "diffusers")], ["folder"]),
         "missing": ([str(tmp_path / "not-there")], exts),
         "datasets": ([str(tmp_path / "datasets")], set()),
     })
