@@ -66,12 +66,14 @@ def test_enable_assets_turns_assets_on_and_hashing_stays_opt_in(tmp_path, flags,
 
 
 @pytest.mark.parametrize("flags", [(), ("--disable-assets",), ("--enable-assets", "--disable-assets")])
-def test_hashing_with_assets_off_stops_startup_and_names_the_fix(tmp_path, flags):
+def test_hashing_with_assets_off_is_ignored_with_one_warning(tmp_path, flags):
     result = _quick_start(tmp_path, "--enable-asset-hashing", *flags)
+    output = result.stdout + result.stderr
 
-    assert result.returncode == 2, result.stderr
-    assert "--enable-asset-hashing needs the assets system: add --enable-assets (and leave out --disable-assets)." in result.stderr
+    assert result.returncode == 0, result.stderr
+    assert output.count("--enable-asset-hashing is ignored because the assets system is off. Start ComfyUI with --enable-assets to use it.") == 1
     assert not _db(tmp_path).exists()
+    assert ENABLED_EVENT not in output
 
 
 @pytest.mark.parametrize("flags", [(), ("--disable-assets",), ("--enable-assets", "--disable-assets")])
