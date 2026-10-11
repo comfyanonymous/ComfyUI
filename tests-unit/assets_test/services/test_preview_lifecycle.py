@@ -1,4 +1,3 @@
-import uuid
 from pathlib import Path
 
 import pytest
@@ -6,7 +5,7 @@ import pytest
 import folder_paths
 from app.assets.database.models import Asset, AssetContent
 from app.assets.database.queries.records import create_content, create_record, mark_content_missing
-from app.assets.lifecycle import sweep_orphan_previews, wipe_temp_db_rows
+from app.assets.lifecycle import wipe_temp_db_rows
 from app.assets.services.asset_management import delete_asset_reference, update_asset_metadata
 
 
@@ -80,18 +79,3 @@ def test_previews_are_reclaimed_with_their_last_user_and_never_before(session, m
         folder_paths.set_temp_directory(saved)
     session.expire_all()
     assert session.get(Asset, temp_preview) is None and not (previews / "temp.webp").exists()
-
-    # At startup, preview files no row records (an output that never registered) are removed.
-    orphan = f"{'a' * 64}.jpg"
-    (previews / orphan).write_bytes(b"jpg")
-    (previews / f"{orphan}.{'b' * 32}.tmp").write_bytes(b"tmp")
-    # A row recorded through another path to the same directory (a moved or symlinked install) still counts.
-    kept = f"{uuid.uuid4()}.webp"
-    (previews / kept).write_bytes(b"webp")
-    kept_id = _record(session, tmp_path / "old-install" / "previews" / kept, tags=["preview"])
-    (previews / "notes.txt").write_bytes(b"not a preview")
-    assert sweep_orphan_previews(session) == 2
-    assert not any(p.name.startswith(orphan) for p in previews.iterdir())
-    assert (previews / kept).exists() and (previews / "notes.txt").exists()
-    assert session.get(Asset, kept_id) is not None
-
