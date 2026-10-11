@@ -65,7 +65,7 @@ ALLOWED_EVENTS = frozenset({
     "previews.generated",
     "previews.generation_failed",
 })
-PREVIEW_FAILURE_REASONS = frozenset({"too_large", "decode_failed", "write_failed"})
+PREVIEW_FAILURE_REASONS = frozenset({"too_large", "decode_failed", "decoder_unavailable", "write_failed"})
 
 
 class EventLogError(ValueError):

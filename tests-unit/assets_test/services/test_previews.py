@@ -61,7 +61,8 @@ def test_a_piz_float32_exr_previews_its_pixels(tmp_path):
     assert abs(int(preview.mean()) - 188) <= 1, "0.5 linear is 188 in sRGB"
 
 
-def test_without_openexr_an_upload_gets_no_preview(tmp_path):
-    with patch.dict(comfy_extras.image_formats.LOADERS, clear=True), patch.object(previews, "emit") as emit:
+def test_without_openexr_an_upload_gets_no_preview(tmp_path, caplog):
+    # The real emit, which under pytest raises on a reason outside the event vocabulary.
+    with patch.dict(comfy_extras.image_formats.LOADERS, clear=True), caplog.at_level("INFO"):
         assert asyncio.run(previews.generate_upload_preview("id", str(tmp_path / "a.exr"), None)) is None
-    emit.assert_called_once_with("previews.generation_failed", reason="decoder_unavailable")
+    assert "previews.generation_failed" in caplog.text and "reason=decoder_unavailable" in caplog.text
