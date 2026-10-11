@@ -1,6 +1,7 @@
 import importlib
 import logging
 import os
+import re
 import shutil
 import sqlite3
 import tempfile
@@ -25,7 +26,7 @@ try:
     from alembic.runtime.migration import MigrationContext
     from alembic.script import ScriptDirectory
     from sqlalchemy import create_engine, event
-    from sqlalchemy.engine import URL, make_url
+    from sqlalchemy.engine import URL, Engine, make_url
     from sqlalchemy.exc import OperationalError
     from sqlalchemy.orm import sessionmaker
     from sqlalchemy.pool import StaticPool
@@ -358,24 +359,40 @@ def _schema(conn):
     ))
 
 
+# The tables and indexes a migration statement creates, alters or renames to.
+_MIGRATED_NAME = re.compile(r'(?:CREATE (?:UNIQUE )?(?:TABLE|INDEX) (?:IF NOT EXISTS )?|ALTER TABLE |RENAME TO )"?(\w+)', re.I)
+
+
 def _schema_matches_stamp(path):
-    """Whether a database has exactly the tables, columns and indexes the migrations build up to
-    its stamped revision. True when that can't be told, as for a stamp from a newer ComfyUI."""
+    """Whether a database has every table, column and index the migrations build up to its stamped
+    revision, and none that a later migration creates on its way to head, as one interrupted part way
+    leaves behind. Objects no migration makes are allowed. True when that can't be told, as for a
+    stamp from a newer ComfyUI."""
     try:
         with closing(_connect_existing(path)) as conn:
             stamp = conn.execute("SELECT version_num FROM alembic_version").fetchone()
             actual = _schema(conn)
-        if stamp is None:  # the first migration was interrupted: no tables are expected yet
-            return not actual
         config = get_alembic_config()
-        ScriptDirectory.from_config(config).get_revision(stamp[0])  # fails for an unknown revision
+        migrated = set()
         with tempfile.TemporaryDirectory() as tmp:
             reference = os.path.join(tmp, "reference.db")
             url = URL.create("sqlite", database=reference).render_as_string()
             config.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
-            command.upgrade(config, stamp[0])
+            if stamp is not None:  # none: the first migration was interrupted
+                command.upgrade(config, stamp[0])  # fails for an unknown revision
             with closing(sqlite3.connect(reference)) as conn:
-                return _schema(conn) == actual
+                expected = _schema(conn)
+
+            def record(conn, cursor, statement, *args):
+                if conn.engine.url.database == reference:
+                    migrated.update(name.lower() for name in _MIGRATED_NAME.findall(statement))
+
+            event.listen(Engine, "before_cursor_execute", record)
+            try:
+                command.upgrade(config, "head")
+            finally:
+                event.remove(Engine, "before_cursor_execute", record)
+        return expected <= actual and not any(name.lower() in migrated for _, name, _ in actual - expected)
     except Exception:
         logging.debug(f"Could not compare the schema of '{path}' with its migration stamp", exc_info=True)
         return True

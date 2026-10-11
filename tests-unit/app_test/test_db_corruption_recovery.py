@@ -15,6 +15,7 @@ from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from filelock import FileLock
+from sqlalchemy import create_engine
 
 import app.logger
 from app.assets import lifecycle
@@ -390,8 +391,8 @@ def test_failed_undo_is_reported(default_db, monkeypatch, caplog):
 
 def test_corrupt_daily_backup_is_not_restored(default_db, startup_warnings):
     backup = default_db + ".daily-backup"
-    _make_db(backup, marker="from backup")
-    _overwrite_page_of(backup, "marker")
+    _make_db(backup, tag=FROM_BACKUP)
+    _overwrite_page_of(backup, "assets")
     with open(backup, "rb") as f:
         backup_bytes = f.read()
     _make_db(default_db)
@@ -401,7 +402,7 @@ def test_corrupt_daily_backup_is_not_restored(default_db, startup_warnings):
 
     assert _revision(default_db) == _head()
     with closing(sqlite3.connect(default_db)) as conn:
-        assert conn.execute("SELECT name FROM sqlite_master WHERE name = 'marker'").fetchone() is None
+        assert _tag(conn) == 0
     with open(backup, "rb") as f:
         assert f.read() == backup_bytes
     assert not os.path.exists(default_db + ".restore-tmp")
@@ -419,7 +420,7 @@ def test_corruption_found_by_an_upgrade_is_quarantined(default_db, startup_warni
     assert len(_quarantined(default_db)) == 1
 
 
-def _drop(db_path: str, change: str) -> None:
+def _execute(db_path: str, change: str) -> None:
     with closing(sqlite3.connect(db_path)) as conn:
         conn.execute(change)
         conn.commit()
@@ -428,7 +429,7 @@ def _drop(db_path: str, change: str) -> None:
 def _half_migrate(db_path: str, revision: str, change: str) -> None:
     """A database stamped at revision whose schema change altered, as an interrupted migration leaves it."""
     _make_db(db_path, revision, tag=HALF_MIGRATED)
-    _drop(db_path, change)
+    _execute(db_path, change)
 
 
 @pytest.mark.parametrize("revision, change", [
@@ -448,6 +449,8 @@ def test_schema_that_does_not_match_its_stamp_is_quarantined(default_db, startup
 
     assert _revision(default_db) == _head()
     assert len(_quarantined(default_db)) == 1
+    with closing(sqlite3.connect(default_db)) as conn:
+        assert _tag(conn) == 0  # a new database, not the half-migrated one
     assert any("did not match its migration revision" in w and "recreated empty" in w for w in startup_warnings)
 
 
@@ -501,8 +504,60 @@ def test_missing_column_does_not_match_its_stamp(default_db):
     assert not db_module._schema_matches_stamp(default_db)
 
 
-def test_schema_error_on_a_matching_database_is_not_recovered(default_db):
+def test_backup_with_objects_no_migration_makes_is_restored(default_db, startup_warnings):
+    _make_db(default_db + ".daily-backup", marker="a table no migration makes", tag=FROM_BACKUP)
+    _execute(default_db + ".daily-backup", "CREATE INDEX user_index ON marker (value)")
+    _make_db(default_db)
+    _overwrite_page_of(default_db, "alembic_version")
+
+    _boot()
+
+    with closing(sqlite3.connect(default_db)) as conn:
+        assert _tag(conn) == FROM_BACKUP
+    assert any("restored from the daily backup" in w for w in startup_warnings)
+
+
+def test_failed_upgrade_of_a_matching_database_is_not_recovered(default_db, monkeypatch):
     _make_db(default_db, "0006_add_loader_path")
+
+    def no_room(*args):
+        raise TimeoutError("not an SQLite error")
+
+    monkeypatch.setattr(db_module, "_backup_database", no_room)  # the pre-upgrade copy fails
+
+    with pytest.raises(SystemExit):
+        _boot()
+
+    assert _revision(default_db) == "0006_add_loader_path"
+    assert _quarantined(default_db) == []
+
+
+def test_statements_on_other_databases_are_not_counted_as_migrations(default_db, tmp_path, monkeypatch):
+    _make_db(default_db, marker="a table no migration makes")
+    other = create_engine(f"sqlite:///{tmp_path / 'other.db'}")
+    upgrade = command.upgrade
+
+    def upgrade_while_another_database_changes(config, revision):
+        with other.begin() as conn:
+            conn.exec_driver_sql("CREATE TABLE IF NOT EXISTS marker (value TEXT)")
+        upgrade(config, revision)
+
+    monkeypatch.setattr(db_module.command, "upgrade", upgrade_while_another_database_changes)
+    try:
+        assert db_module._schema_matches_stamp(default_db)
+    finally:
+        other.dispose()
+
+
+def test_empty_stamp_without_tables_matches(default_db):
+    _execute(default_db, "CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)")
+
+    assert db_module._schema_matches_stamp(default_db)
+
+
+def test_schema_error_on_a_matching_database_is_not_recovered(default_db):
+    _make_db(default_db, "0006_add_loader_path", marker="a table no migration makes")
+    _execute(default_db, "CREATE INDEX user_index ON marker (value)")
     db_module.init_db()
 
     assert not db_module.recover_from_corruption(sqlite3.OperationalError("no such table: elsewhere"))
@@ -523,7 +578,7 @@ def test_locked_database_is_not_mistaken_for_corruption(default_db):
     assert os.stat(default_db).st_ino == database_file  # the same file, not recreated
 
 
-@pytest.mark.parametrize("damage", [_overwrite_header, lambda p: _drop(p, "DROP TABLE asset_system_state")])
+@pytest.mark.parametrize("damage", [_overwrite_header, lambda p: _execute(p, "DROP TABLE asset_system_state")])
 def test_explicit_database_url_is_not_quarantined(explicit_db, damage):
     _make_db(explicit_db)
     damage(explicit_db)
