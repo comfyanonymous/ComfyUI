@@ -14,18 +14,16 @@ _NEVER_SELF_EXTENSIONS = frozenset({".exr", ".hdr"})
 _NEVER_SELF_MIME_TYPES = frozenset({"image/x-exr", "image/vnd.radiance"})
 
 
-def own_preview_kind(mime_type: str | None, path: str | None) -> str | None:
-    """The media kind ("image", "video", ...) when the file previews itself, else None.
+def previews_itself(mime_type: str | None, path: str | None) -> bool:
+    """Whether a client can render the file itself as its preview.
 
     ``path`` is the on-disk path, not the caller-editable name, so a rename cannot
     change what previews.
     """
     mime = (mime_type or mimetypes.guess_type(path or "")[0] or "").split(";", 1)[0].strip().lower()
     if not mime.startswith(PREVIEWABLE_MIME_PREFIXES):
-        return None
-    if mime in _NEVER_SELF_MIME_TYPES or os.path.splitext(path or "")[1].lower() in _NEVER_SELF_EXTENSIONS:
-        return None
-    return mime.split("/", 1)[0]
+        return False
+    return mime not in _NEVER_SELF_MIME_TYPES and os.path.splitext(path or "")[1].lower() not in _NEVER_SELF_EXTENSIONS
 
 
 # models is deliberately absent: /api/view has no directory type for it.
@@ -74,10 +72,6 @@ def preview_fields(
         return None, None
     if is_missing or not file_path:
         return None, None
-    kind = own_preview_kind(mime_type, file_path)
-    if kind is None:
+    if not previews_itself(mime_type, file_path):
         return None, None
-    url = view_url(file_path)
-    if url is None:
-        return None, None
-    return (asset_id if kind == "image" else None), url
+    return None, view_url(file_path)
