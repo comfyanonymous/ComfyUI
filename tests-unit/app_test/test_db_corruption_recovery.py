@@ -410,6 +410,87 @@ def test_corruption_found_by_an_upgrade_is_quarantined(default_db, startup_warni
     assert len(_quarantined(default_db)) == 1
 
 
+def _half_migrate(db_path: str, revision: str, change: str) -> None:
+    """A database stamped at revision whose schema change altered, as an interrupted migration leaves it."""
+    _make_db(db_path, revision, marker="lost")
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute(change)
+        conn.commit()
+
+
+@pytest.mark.parametrize("revision, change", [
+    ("0006_add_loader_path", "DROP TABLE asset_reference_meta"),  # a table 0002 creates: "no such table"
+    ("0001_assets", "DROP INDEX ix_asset_info_meta_key_val_bool"),  # 0002 drops it again: "no such index"
+    # 0002 creates it again: "table already exists"
+    ("0001_assets", "CREATE TABLE asset_references (id INTEGER PRIMARY KEY)"),
+])
+def test_schema_that_does_not_match_its_stamp_is_quarantined(default_db, startup_warnings, revision, change):
+    _half_migrate(default_db, revision, change)
+
+    _boot()
+
+    assert _revision(default_db) == _head()
+    assert len(_quarantined(default_db)) == 1
+    assert any("did not match its migration revision" in w and "recreated empty" in w for w in startup_warnings)
+
+
+def test_backup_that_does_not_match_its_stamp_is_not_restored(default_db, startup_warnings):
+    _half_migrate(default_db + ".daily-backup", "0006_add_loader_path", "DROP TABLE asset_reference_meta")
+    _half_migrate(default_db, "0006_add_loader_path", "DROP TABLE asset_reference_meta")
+
+    _boot()
+
+    with closing(sqlite3.connect(default_db)) as conn:
+        assert conn.execute("SELECT name FROM sqlite_master WHERE name = 'marker'").fetchone() is None
+    assert os.path.exists(default_db + ".daily-backup")
+    assert any("recreated empty" in w for w in startup_warnings)
+
+
+def test_matching_backup_is_restored_for_a_schema_that_does_not_match(default_db, startup_warnings):
+    _make_db(default_db + ".daily-backup", "0001_assets", marker="from backup")
+    _half_migrate(default_db, "0006_add_loader_path", "DROP TABLE asset_reference_meta")
+
+    _boot()
+
+    assert _revision(default_db) == _head()
+    with closing(sqlite3.connect(default_db)) as conn:
+        assert conn.execute("SELECT value FROM marker").fetchone() == ("from backup",)
+
+
+def test_database_from_a_newer_comfyui_is_left_in_place(default_db):
+    _half_migrate(default_db, "head", "DROP TABLE asset_system_state")
+    with closing(sqlite3.connect(default_db)) as conn:
+        conn.execute("UPDATE alembic_version SET version_num = '9999_from_a_newer_release'")
+        conn.commit()
+
+    assert db_module._schema_matches_stamp(default_db)
+    with pytest.raises(SystemExit):
+        _boot()
+    assert _quarantined(default_db) == []
+
+
+def test_only_a_schema_error_counts_for_a_database_that_does_not_match(default_db):
+    _half_migrate(default_db, "0006_add_loader_path", "DROP TABLE asset_reference_meta")
+
+    assert db_module.is_recoverable_corruption(sqlite3.OperationalError("no such table: asset_reference_meta"))
+    assert not db_module.is_recoverable_corruption(sqlite3.OperationalError("database is locked"))
+    assert not db_module.is_recoverable_corruption(RuntimeError("no such table: asset_reference_meta"))
+
+
+def test_missing_column_does_not_match_its_stamp(default_db):
+    _half_migrate(default_db, "0006_add_loader_path", "ALTER TABLE asset_references DROP COLUMN loader_path")
+
+    assert not db_module._schema_matches_stamp(default_db)
+
+
+def test_schema_error_on_a_matching_database_is_not_recovered(default_db):
+    _make_db(default_db, "0006_add_loader_path", marker="a table no migration makes")
+    db_module.init_db()
+
+    assert not db_module.recover_from_corruption(sqlite3.OperationalError("no such table: elsewhere"))
+    assert _quarantined(default_db) == []
+
+
 def test_locked_database_is_not_mistaken_for_corruption(default_db):
     _make_db(default_db)
     database_file = os.stat(default_db).st_ino

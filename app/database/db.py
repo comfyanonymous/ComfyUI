@@ -3,6 +3,7 @@ import logging
 import os
 import shutil
 import sqlite3
+import tempfile
 import threading
 import time
 from contextlib import closing, suppress
@@ -302,9 +303,13 @@ def is_recoverable_corruption(error):
     # Only the default database (see _is_default_db).
     # SQLITE_CORRUPT or SQLITE_NOTADB, never "database is locked". The error can come from
     # another file (the pre-upgrade backup), so the live database must fail its check too.
-    if _recovery_attempted or not _is_default_db() or error_kind(error) != "database_corrupt":
+    if _recovery_attempted or not _is_default_db():
         return False
-    return not _passes_integrity_check(get_db_path())
+    if error_kind(error) == "database_corrupt":
+        return not _passes_integrity_check(get_db_path())
+    # A schema error such as "no such table", from a database a half-applied migration left behind.
+    return isinstance(getattr(error, "orig", error), sqlite3.OperationalError) and error_kind(error) == "other" \
+        and not _schema_matches_stamp(get_db_path())
 
 
 def recover_from_corruption(error):
@@ -342,6 +347,41 @@ def _passes_integrity_check(path):
         return error_kind(e) == "database_locked"  # another process has it: not shown to be corrupt
 
 
+def _schema(conn):
+    return set(conn.execute(
+        "SELECT m.type, m.name, c.name FROM sqlite_master AS m LEFT JOIN pragma_table_info(m.name) AS c "
+        "WHERE m.type IN ('table', 'index') AND m.name NOT LIKE 'sqlite%' AND m.name != 'alembic_version'"
+    ))
+
+
+def _schema_matches_stamp(path):
+    """Whether a database has the tables, columns and indexes the migrations build up to its stamped
+    revision, and none the next migration adds, as one interrupted part way leaves behind. True when
+    that can't be told, as for a stamp from a newer ComfyUI."""
+    try:
+        with closing(_connect_existing(path)) as conn:
+            revision = conn.execute("SELECT version_num FROM alembic_version").fetchone()[0]
+            actual = _schema(conn)
+        config = get_alembic_config()
+        script = ScriptDirectory.from_config(config)
+        script.get_revision(revision)  # fails for an unknown revision
+        with tempfile.TemporaryDirectory() as tmp:
+            reference = os.path.join(tmp, "reference.db")
+            url = URL.create("sqlite", database=reference).render_as_string()
+            config.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
+            command.upgrade(config, revision)
+            with closing(sqlite3.connect(reference)) as conn:
+                expected = next_expected = _schema(conn)
+            if revision != script.get_current_head():
+                command.upgrade(config, "+1")
+                with closing(sqlite3.connect(reference)) as conn:
+                    next_expected = _schema(conn)
+        return expected <= actual and not (next_expected - expected) & actual
+    except Exception:
+        logging.debug(f"Could not compare the schema of '{path}' with its migration stamp", exc_info=True)
+        return True
+
+
 def _quarantine_and_restore(db_path, error):
     """Rename a corrupt database aside and restore the daily backup in its place if it is sound.
     With no sound backup, no database file is left, so the caller creates a new one. On a failure,
@@ -352,7 +392,7 @@ def _quarantine_and_restore(db_path, error):
     try:
         try:  # before anything moves: a kill during the slow copy and check leaves it to recover again
             shutil.copyfile(backup_path, restore_path)
-            sound = _passes_integrity_check(restore_path)
+            sound = _passes_integrity_check(restore_path) and _schema_matches_stamp(restore_path)
             taken = time.strftime("%Y-%m-%d %H:%M", time.localtime(os.path.getmtime(backup_path)))
         except FileNotFoundError:
             sound = False  # no backup; any other error stops here, before anything moves
@@ -378,8 +418,9 @@ def _quarantine_and_restore(db_path, error):
     finally:
         with suppress(OSError):  # a leftover copy must not undo a finished restore
             os.remove(restore_path)
+    problem = "was corrupt" if error_kind(error) == "database_corrupt" else "did not match its migration revision"
     log_startup_warning(
-        f"Database quarantined: '{db_path}' was corrupt ({getattr(error, 'orig', error)}) and was "
+        f"Database quarantined: '{db_path}' {problem} ({getattr(error, 'orig', error)}) and was "
         f"moved to '{quarantine_path}'. {outcome}. The asset catalog is rebuilt by rescanning your files."
     )
 
