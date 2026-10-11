@@ -170,3 +170,27 @@ def test_segmented_residual_preserves_custom_forward_gradients():
     torch.testing.assert_close(result, torch.addcmul(residual, layer(x), gate))
     result.sum().backward()
     torch.testing.assert_close(layer.offset.grad, gate[0] * len(x))
+
+
+def test_forced_int8_forward_preserves_indexed_residual():
+    operations = ops.mixed_precision_ops({}, compute_dtype=torch.bfloat16)
+    layer = operations.Linear(256, 128, bias=False, device="cpu", dtype=torch.bfloat16)
+    layer.weight = torch.nn.Parameter(ops.QuantizedTensor.from_float(
+        torch.randn(128, 256, dtype=torch.bfloat16), "TensorWiseINT8Layout",
+        convrot=True, per_channel=True), requires_grad=False)
+    layer.quant_format = "int8_tensorwise"
+    layer.comfy_force_forward = True
+    x = torch.randn(3, 512, dtype=torch.bfloat16)
+    residual = torch.randn(3, 128, dtype=torch.bfloat16)
+    gates = torch.randn(2, 128, dtype=torch.bfloat16)
+    branch = torch.randn_like(residual)
+    segments = [(0, 1, 1), (1, 3, 0)]
+    with torch.no_grad(), \
+            mock.patch.object(layer, "forward", return_value=branch.clone()) as forward, \
+            mock.patch.object(ops.quant_ops.ck, "int8_linear_indexed_gate",
+                              side_effect=AssertionError("forced forward bypassed"), create=True):
+        actual = ops.linear_input_act(layer, x, "swiglu", residual=residual,
+                                      residual_scale=gates, residual_segments=segments)
+    forward.assert_called_once()
+    assert torch.equal(forward.call_args.args[0], ops._swiglu_eager(x))
+    assert torch.equal(actual, torch.addcmul(residual, branch, gates[[1, 0, 0]]))

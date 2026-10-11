@@ -500,6 +500,7 @@ class CastBiasWeightContext:
 
 class CastWeightBiasOp:
     comfy_cast_weights = False
+    comfy_force_forward = False
     weight_function = []
     bias_function = []
 
@@ -1042,7 +1043,8 @@ def linear_input_act(linear, x, input_act, act_weight=None, act_eps=0.0,
             for start, stop, row in residual_segments
         ], dim=0)
 
-    if (comfy.model_management.in_training or getattr(linear, "_full_precision_mm", False)
+    if (comfy.model_management.in_training or getattr(linear, "comfy_force_forward", False)
+            or getattr(linear, "_full_precision_mm", False)
             or (residual_segments is not None and (hooks or needs_grad))
             or not ((quantized and weight._layout_cls == "TensorWiseINT8Layout"
                      and not getattr(weight._params, "transposed", False))
