@@ -63,6 +63,7 @@ def test_enable_assets_turns_assets_on_and_hashing_stays_opt_in(tmp_path, flags,
         f"hashing_enabled={hashing}"
     ]
     assert "--enable-assets is deprecated" not in output
+    assert "--enable-asset-hashing is ignored" not in output
 
 
 @pytest.mark.parametrize("flags", [(), ("--disable-assets",), ("--enable-assets", "--disable-assets")])
