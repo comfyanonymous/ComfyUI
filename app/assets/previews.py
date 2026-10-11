@@ -10,11 +10,11 @@ import os
 import time
 import uuid
 
-import av
 import numpy as np
 import torch
 from PIL import Image
 
+import comfy_extras.image_formats
 import folder_paths
 from app.assets.database.models import Asset
 from app.assets.database.queries.records import create_content, create_record
@@ -33,20 +33,17 @@ class PreviewSkipped(Exception):
 
 
 def _decode_for_preview(path: str) -> Image.Image:
-    """An SDR image of an EXR's display window, at most one megapixel; RGBA if the EXR has alpha."""
+    """An SDR image of an EXR's data window, at most one megapixel; RGBA if the EXR has alpha."""
+    load = comfy_extras.image_formats.LOADERS.get(".exr")
+    if load is None:
+        raise PreviewSkipped("decoder_unavailable")
     windows = read_exr_windows(path)
     if windows is None:
         raise PreviewSkipped("decode_failed")
     if max(w * h for w, h in windows) > PREVIEW_MAX_SOURCE_PIXELS:
         raise PreviewSkipped("too_large")
-    # Name the demuxer: left to probe, FFmpeg picks one from the file's contents.
-    with av.open(path, format="exr_pipe") as container:
-        frame = next(container.decode(video=0))
-    if frame.format.name.startswith("gray"):
-        # Exact; converting half-float gray to gbrpf32le crushes the darks.
-        pixels = np.repeat(frame.to_ndarray(format="grayf32le")[..., None], 3, axis=-1)
-    else:
-        pixels = frame.to_ndarray(format="gbrapf32le" if len(frame.format.components) == 4 else "gbrpf32le")
+    rgb, alpha = load(path)
+    pixels = rgb if alpha is None else np.concatenate((rgb, alpha[..., None]), axis=-1)
     return linear_to_preview(torch.from_numpy(pixels))
 
 
