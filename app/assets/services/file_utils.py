@@ -63,8 +63,9 @@ class ListingWalk(NamedTuple):
 
 def _list_visible_entries(
     dirpath: str, interrupted: Callable[[], bool] | None = None, stat_files: bool = False
-) -> tuple[list[str], list[str], list[os.stat_result | None]] | None:
-    """One directory's visible (file names, subdir names, file stats), classified as os.walk does:
+) -> tuple[list[str], list[str], dict[str, os.stat_result]] | None:
+    """One directory's visible (file names, subdir names, file stats by name), classified
+    as os.walk does:
     anything whose is_dir() is false or raises is a file. The exception is a symlink
     whose target is gone: it is left out, so a row for it reads as vanished, as it did
     when the rescan stat'ed every row through the link.
@@ -74,12 +75,12 @@ def _list_visible_entries(
     returns None: an open directory handle stops Windows renaming or moving any folder
     above it.
 
-    With ``stat_files``, each file is stat'ed as it is listed: Windows answers from the listing itself, and a
-    network share's client from the attributes the listing just brought back, where a
-    later stat goes back to the server."""
+    With ``stat_files``, each file is stat'ed as it is listed (a failed stat is left out):
+    Windows answers from the listing itself, and a network share's client from the
+    attributes the listing just brought back, where a later stat goes back to the server."""
     files: list[str] = []
     subdirs: list[str] = []
-    stats: list[os.stat_result | None] = []
+    stats: dict[str, os.stat_result] = {}
     with os.scandir(dirpath) as entries:
         for entry in entries:
             if interrupted is not None and interrupted():
@@ -95,10 +96,11 @@ def _list_visible_entries(
                 subdirs.append(entry.name)
             elif not _is_dangling(entry):
                 files.append(entry.name)
-                try:
-                    stats.append(entry.stat() if stat_files else None)
-                except OSError:
-                    stats.append(None)
+                if stat_files:
+                    try:
+                        stats[entry.name] = entry.stat()
+                    except OSError:
+                        pass
     return files, subdirs, stats
 
 
@@ -181,11 +183,11 @@ def walk_listings(
         names, subdirs, name_stats = listing
         seen_dirs.add(dir_id)
         listings[dirpath] = (names, subdirs)
-        for name, st in zip(names, name_stats):
+        for name in names:
             yield_gil(run=RESCAN_YIELD_RUN)
             path = os.path.abspath(os.path.join(dirpath, name))
             files.append(path)
-            if st is not None:
-                stats[path] = st
+            if name in name_stats:
+                stats[path] = name_stats[name]
         stack.extend(os.path.join(dirpath, name) for name in reversed(subdirs))
     return ListingWalk(files, listings, len(listings), stats)

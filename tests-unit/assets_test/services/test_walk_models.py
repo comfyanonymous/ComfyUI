@@ -74,6 +74,7 @@ def models(tmp_path, monkeypatch) -> dict[str, Path]:
         os.mkfifo(dirs["ckpt_a"] / "piped.safetensors")  # not a file: the later folder's one counts
     _write(dirs["ckpt_b"] / "piped.safetensors")
     _write(tmp_path / "datasets" / "anything.bin")
+    _write(tmp_path / "mixed" / "weights.bin")  # a category mixing "folder" with a real extension
     _write(tmp_path / "diffusers" / "unet" / "model.safetensors")  # a folder-only category's files
     _write(dirs["shared"] / "same.safetensors", b"shared")
     _write(dirs["shared"] / "lora.pt")
@@ -89,6 +90,7 @@ def models(tmp_path, monkeypatch) -> dict[str, Path]:
         "diffusers": ([str(dirs["shared"]), str(tmp_path / "diffusers")], ["folder"]),
         "missing": ([str(tmp_path / "not-there")], exts),
         "datasets": ([str(tmp_path / "datasets")], set()),
+        "mixed": ([str(tmp_path / "mixed")], ["folder", ".bin"]),
     })
     monkeypatch.setattr(folder_paths, "filename_list_cache", {})
     return dirs
@@ -105,6 +107,7 @@ def test_the_walk_finds_exactly_the_files_master_resolves(models):
     assert str(models["ckpt_a"] / "UPPER.SAFETENSORS") in walk.files
     assert str(models["ckpt_b"] / "piped.safetensors") in walk.files
     assert str(models["ckpt_a"].parent / "datasets" / "anything.bin") in walk.files
+    assert str(models["ckpt_a"].parent / "mixed" / "weights.bin") in walk.files
 
 
 def test_a_name_in_an_earlier_folder_of_the_category_shadows_the_later_one(models):
@@ -124,8 +127,10 @@ def test_each_folder_is_walked_once_and_every_listed_file_has_its_stat(models, m
 
     monkeypatch.setattr(scanner, "walk_listings", counting)
     walk = scanner.list_root("models")
-    folders = [*models.values(), *(models["ckpt_a"].parent / n for n in ("not-there", "datasets"))]
+    folders = [*models.values(), *(models["ckpt_a"].parent / n for n in ("not-there", "datasets", "mixed"))]
     assert sorted(walked) == sorted(os.path.abspath(p) for p in folders)
+    # ckpt_a, ckpt_a/sub, ckpt_b, shared, classifiers, datasets, mixed; hidden and missing ones aren't
+    assert walk.dirs_listed == 7
     for path in walk.files:
         assert walk.stats[path].st_size == os.stat(path).st_size
 
@@ -322,3 +327,26 @@ def test_a_file_listed_empty_and_filled_since_is_admitted(tmp_path, monkeypatch)
     )
 
     assert [s["size_bytes"] for s in specs] == [6]
+
+
+def test_a_file_that_cant_be_stated_at_admission_is_skipped_not_fatal(tmp_path, monkeypatch):
+    """The first stat may be the walk's, taken long before admission's second; an I/O error
+    in between drops that one file, as the discovery stat's errors always did."""
+    monkeypatch.setattr(folder_paths, "get_input_directory", lambda: str(tmp_path))
+    good = str(_write(tmp_path / "good.png"))
+    flaky = str(_write(tmp_path / "flaky.png"))
+    stats = file_utils.walk_listings(str(tmp_path), stat_files=True).stats
+    real_stat = os.stat
+
+    def failing_stat(path, *args, **kwargs):
+        if str(path) == flaky:
+            raise OSError(5, "Input/output error", path)
+        return real_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr("app.assets.scanner_admission.os.stat", failing_stat)
+
+    specs, _tags, _skipped = build_asset_specs(
+        [good, flaky], set(), enable_metadata_extraction=False, listed_stats=stats
+    )
+
+    assert [s["abs_path"] for s in specs] == [good]

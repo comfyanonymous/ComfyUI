@@ -126,12 +126,11 @@ class _ScanState:
     # its own count, and temp retirement is routine, so neither is included.
     missing_marked: int = 0
     recovered: int = 0
-    # Directories the input/output walks (or the output rescan's listing) listed; the
-    # models listing is not counted.
+    # Directories the walks listed, each model folder once.
     dirs_listed: int = 0
     # os.stat calls on files in the reference sync, output-listing check, discovery,
-    # admission, seed, watch-list and enrich loops. Hashing's own stability stats are
-    # not counted.
+    # admission, seed, watch-list and enrich loops. Hashing's own stability stats, and
+    # the stats a verifying scan's walk takes while listing, are not counted.
     files_statted: int = 0
     # Time blocked at the pause gate.
     paused_s: float = 0.0
