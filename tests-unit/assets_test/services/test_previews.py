@@ -10,17 +10,25 @@ import comfy_extras.image_formats
 from app.assets import previews
 
 
-@pytest.mark.parametrize(("height", "skipped"), [(4000, False), (4001, True)])
-def test_upload_decodes_are_bounded(tmp_path, height, skipped):
-    """A decode costs ~30 MB per megapixel, and running out of memory can't be caught."""
-    # Over 17 megapixels is skipped from the header, before decoding.
+@pytest.mark.parametrize(("limit", "skipped"), [(576, False), (575, True)])
+def test_upload_decodes_are_bounded(tmp_path, limit, skipped):
+    """A decode holds every channel of every part, and running out of memory can't be caught."""
+    import OpenEXR
+
+    def part(name, width, height, channels):
+        header = {"type": OpenEXR.scanlineimage, "displayWindow": ((0, 0), (15, 7))}
+        return OpenEXR.Part(header, {c: np.zeros((height, width), np.float32) for c in channels}, name=name)
+
+    # 8x4 with 6 channels plus 16x8 with 3: 576 samples, counted from the headers before decoding.
+    path = str(tmp_path / "layers.exr")
+    OpenEXR.File([part("beauty", 8, 4, ["R", "G", "B", "A", "depth.Z", "N.X"]), part("aov", 16, 8, "RGB")]).write(path)
     with (
-        patch.object(previews, "read_exr_windows", return_value=[(4250, height)]),
+        patch.object(previews, "PREVIEW_MAX_SOURCE_SAMPLES", limit),
         patch.dict(comfy_extras.image_formats.LOADERS, {".exr": MagicMock(side_effect=RuntimeError("decoded"))}),
     ):
         decode = comfy_extras.image_formats.LOADERS[".exr"]
         with pytest.raises(previews.PreviewSkipped if skipped else RuntimeError):
-            previews._decode_for_preview("a.exr")
+            previews._decode_for_preview(path)
         assert decode.called is not skipped
 
     # At most two decode at once, and the rest still get their preview.

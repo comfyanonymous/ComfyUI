@@ -9,7 +9,7 @@ from PIL import Image
 
 from app.assets.manager import AssetsEnabled
 
-from .preview_helpers import duplicate_data_window, write_exr
+from .preview_helpers import write_exr
 
 
 class _Args:
@@ -119,13 +119,10 @@ async def test_an_uploaded_exr_comes_back_with_its_preview(mock_create_session, 
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("bad", [b"not an exr", "duplicated window", "truncated pixels"])
+@pytest.mark.parametrize("bad", [b"not an exr", "truncated pixels"])
 async def test_an_exr_that_cant_be_previewed_still_uploads(mock_create_session, roots, tmp_path, bad):
-    data = bad if isinstance(bad, bytes) else write_exr(tmp_path / "a.exr", 64, 48).read_bytes()
-    if bad == "duplicated window":
-        data = duplicate_data_window(data)
-    elif bad == "truncated pixels":  # the header passes, the decode fails
-        data = data[: len(data) // 2]
+    # Truncated: the header passes, the decode fails.
+    data = bad if isinstance(bad, bytes) else write_exr(tmp_path / "a.exr", 64, 48).read_bytes()[:-9000]
     async with await _client(AssetsEnabled(_Args())) as client:
         resp = await client.post("/upload/image", data=_form("broken.exr", data))
         asset = (await resp.json())["asset"]

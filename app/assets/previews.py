@@ -19,12 +19,12 @@ import folder_paths
 from app.assets.database.models import Asset
 from app.assets.database.queries.records import create_content, create_record
 from app.assets.event_log import emit, error_type
-from app.assets.services.image_dimensions import read_exr_windows
 from app.database.db import create_write_session
 from comfy_execution.preview_tonemap import linear_to_preview
 
-# A decode costs ~30 MB per MP, and running out of memory can't be caught.
-PREVIEW_MAX_SOURCE_PIXELS = 17_000_000
+# A decode holds every channel of every part: ~1.3 GB at this many samples (17 MP of RGBA),
+# and running out of memory can't be caught.
+PREVIEW_MAX_SOURCE_SAMPLES = 68_000_000
 _DECODE_SLOTS = asyncio.Semaphore(2)
 
 
@@ -32,15 +32,24 @@ class PreviewSkipped(Exception):
     """A preview Core declines to make; the argument is the event's reason."""
 
 
+def _source_samples(path: str) -> int:
+    """Samples in every channel of every part, from the headers alone."""
+    import OpenEXR  # installed whenever the EXR loader is
+
+    with OpenEXR.File(path, header_only=True) as exr:
+        total = 0
+        for part in exr.parts:
+            (x0, y0), (x1, y1) = part.header["dataWindow"]
+            total += (int(x1) - int(x0) + 1) * (int(y1) - int(y0) + 1) * len(part.header["channels"])
+    return total
+
+
 def _decode_for_preview(path: str) -> Image.Image:
     """An SDR image of an EXR's data window, at most one megapixel; RGBA if the EXR has alpha."""
     load = comfy_extras.image_formats.LOADERS.get(".exr")
     if load is None:
         raise PreviewSkipped("decoder_unavailable")
-    windows = read_exr_windows(path)
-    if windows is None:
-        raise PreviewSkipped("decode_failed")
-    if max(w * h for w, h in windows) > PREVIEW_MAX_SOURCE_PIXELS:
+    if _source_samples(path) > PREVIEW_MAX_SOURCE_SAMPLES:
         raise PreviewSkipped("too_large")
     rgb, alpha = load(path)
     pixels = rgb if alpha is None else np.concatenate((rgb, alpha[..., None]), axis=-1)
