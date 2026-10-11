@@ -279,7 +279,7 @@ def _init_file_db(db_url):
         try:
             _migrate_and_bind(db_url, db_path, os.path.exists(db_path))
         except Exception as e:
-            if not is_recoverable_corruption(e):
+            if not is_recoverable_corruption(e, migrating=True):
                 raise
             _quarantine_and_restore(db_path, e)
             _migrate_and_bind(db_url, db_path, os.path.exists(db_path))
@@ -299,7 +299,7 @@ def _is_default_db():
         return False
 
 
-def is_recoverable_corruption(error):
+def is_recoverable_corruption(error, migrating=False):
     # Only the default database (see _is_default_db).
     # SQLITE_CORRUPT or SQLITE_NOTADB, never "database is locked". The error can come from
     # another file (the pre-upgrade backup), so the live database must fail its check too.
@@ -307,9 +307,13 @@ def is_recoverable_corruption(error):
         return False
     if error_kind(error) == "database_corrupt":
         return not _passes_integrity_check(get_db_path())
-    # A schema error such as "no such table", from a database a half-applied migration left behind.
-    return isinstance(getattr(error, "orig", error), sqlite3.OperationalError) and error_kind(error) == "other" \
-        and not _schema_matches_stamp(get_db_path())
+    # A migration interrupted part way leaves a schema its stamp doesn't describe, so every upgrade
+    # fails, with "no such table", "already exists" or an error from Alembic itself.
+    if error_kind(error) != "other":
+        return False  # locked, full, unreadable: not the schema
+    if migrating or isinstance(getattr(error, "orig", error), sqlite3.OperationalError):
+        return not _schema_matches_stamp(get_db_path())
+    return False
 
 
 def recover_from_corruption(error):
@@ -355,28 +359,23 @@ def _schema(conn):
 
 
 def _schema_matches_stamp(path):
-    """Whether a database has the tables, columns and indexes the migrations build up to its stamped
-    revision, and none the next migration adds, as one interrupted part way leaves behind. True when
-    that can't be told, as for a stamp from a newer ComfyUI."""
+    """Whether a database has exactly the tables, columns and indexes the migrations build up to
+    its stamped revision. True when that can't be told, as for a stamp from a newer ComfyUI."""
     try:
         with closing(_connect_existing(path)) as conn:
-            revision = conn.execute("SELECT version_num FROM alembic_version").fetchone()[0]
+            stamp = conn.execute("SELECT version_num FROM alembic_version").fetchone()
             actual = _schema(conn)
+        if stamp is None:  # the first migration was interrupted: no tables are expected yet
+            return not actual
         config = get_alembic_config()
-        script = ScriptDirectory.from_config(config)
-        script.get_revision(revision)  # fails for an unknown revision
+        ScriptDirectory.from_config(config).get_revision(stamp[0])  # fails for an unknown revision
         with tempfile.TemporaryDirectory() as tmp:
             reference = os.path.join(tmp, "reference.db")
             url = URL.create("sqlite", database=reference).render_as_string()
             config.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
-            command.upgrade(config, revision)
+            command.upgrade(config, stamp[0])
             with closing(sqlite3.connect(reference)) as conn:
-                expected = next_expected = _schema(conn)
-            if revision != script.get_current_head():
-                command.upgrade(config, "+1")
-                with closing(sqlite3.connect(reference)) as conn:
-                    next_expected = _schema(conn)
-        return expected <= actual and not (next_expected - expected) & actual
+                return _schema(conn) == actual
     except Exception:
         logging.debug(f"Could not compare the schema of '{path}' with its migration stamp", exc_info=True)
         return True

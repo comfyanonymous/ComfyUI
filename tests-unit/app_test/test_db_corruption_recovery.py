@@ -47,14 +47,23 @@ def _revision(db_path: str) -> str:
         return conn.execute("SELECT version_num FROM alembic_version").fetchone()[0]
 
 
-def _make_db(db_path: str, revision: str = "head", marker: str | None = None) -> None:
+FROM_BACKUP, OLD_BACKUP, HALF_MIGRATED = 1, 2, 3
+
+
+def _make_db(db_path: str, revision: str = "head", marker: str | None = None, tag: int = 0) -> None:
+    # A marker table makes the schema differ from its stamp; a tag in the header doesn't.
     command.upgrade(_config(db_path), revision)
     with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute(f"PRAGMA user_version = {tag}")
         if marker:
             conn.execute("CREATE TABLE marker (value TEXT)")
             conn.execute("INSERT INTO marker VALUES (?)", (marker,))
             conn.commit()
         conn.execute("PRAGMA journal_mode=DELETE")  # one self-contained file to corrupt
+
+
+def _tag(conn: sqlite3.Connection) -> int:
+    return conn.execute("PRAGMA user_version").fetchone()[0]
 
 
 def _use_wal(db_path: str) -> None:
@@ -172,18 +181,18 @@ def test_corrupt_database_is_quarantined_and_recreated_at_boot(default_db, start
     assert os.stat(quarantined).st_ino == corrupt_file  # moved aside, not deleted
     with closing(sqlite3.connect(default_db)) as conn:
         assert conn.execute("SELECT name FROM sqlite_master WHERE name = 'marker'").fetchone() is None
-    assert any("Database quarantined" in w and "recreated empty" in w for w in startup_warnings)
+    assert any("Database quarantined" in w and "was corrupt" in w and "recreated empty" in w for w in startup_warnings)
 
 
 def test_sound_daily_backup_is_restored(default_db, startup_warnings):
-    _make_db(default_db + ".daily-backup", marker="from backup")
+    _make_db(default_db + ".daily-backup", tag=FROM_BACKUP)
     _make_db(default_db)
     _overwrite_page_of(default_db, "alembic_version")
 
     _boot()
 
     with closing(sqlite3.connect(default_db)) as conn:
-        assert conn.execute("SELECT value FROM marker").fetchone() == ("from backup",)
+        assert _tag(conn) == FROM_BACKUP
     assert os.path.exists(default_db + ".daily-backup")
     assert not os.path.exists(default_db + ".restore-tmp")
     assert any("restored from the daily backup" in w for w in startup_warnings)
@@ -194,7 +203,7 @@ class _Killed(BaseException):
 
 
 def test_kill_while_checking_the_backup_leaves_the_database_to_recover_again(default_db, monkeypatch, startup_warnings):
-    _make_db(default_db + ".daily-backup", marker="from backup")
+    _make_db(default_db + ".daily-backup", tag=FROM_BACKUP)
     _make_db(default_db)
     _overwrite_page_of(default_db, "alembic_version")
     corrupt_file = os.stat(default_db).st_ino
@@ -215,13 +224,13 @@ def test_kill_while_checking_the_backup_leaves_the_database_to_recover_again(def
     _boot()
 
     with closing(sqlite3.connect(default_db)) as conn:
-        assert conn.execute("SELECT value FROM marker").fetchone() == ("from backup",)
+        assert _tag(conn) == FROM_BACKUP
     assert any("restored from the daily backup" in w for w in startup_warnings)
 
 
 def test_copy_left_by_a_killed_recovery_is_replaced(default_db, startup_warnings):
     # A SIGKILL skips cleanup, so the next recovery finds the old .restore-tmp.
-    _make_db(default_db + ".daily-backup", marker="from backup")
+    _make_db(default_db + ".daily-backup", tag=FROM_BACKUP)
     _make_db(default_db)
     _overwrite_page_of(default_db, "alembic_version")
     with open(default_db + ".restore-tmp", "wb") as f:
@@ -230,7 +239,7 @@ def test_copy_left_by_a_killed_recovery_is_replaced(default_db, startup_warnings
     _boot()
 
     with closing(sqlite3.connect(default_db)) as conn:
-        assert conn.execute("SELECT value FROM marker").fetchone() == ("from backup",)
+        assert _tag(conn) == FROM_BACKUP
     assert not os.path.exists(default_db + ".restore-tmp")
     assert any("restored from the daily backup" in w for w in startup_warnings)
 
@@ -249,7 +258,7 @@ def _refuse_restore(monkeypatch):  # monkeypatch or a monkeypatch.context()
 
 @pytest.mark.parametrize("table", ["alembic_version", "assets"])  # found by init, then by asset startup
 def test_failed_restore_is_undone_and_recovered_on_the_next_launch(default_db, monkeypatch, startup_warnings, table):
-    _make_db(default_db + ".daily-backup", marker="from backup")
+    _make_db(default_db + ".daily-backup", tag=FROM_BACKUP)
     _make_db(default_db)
     _overwrite_page_of(default_db, table)
     corrupt_file = os.stat(default_db).st_ino
@@ -275,7 +284,7 @@ def test_failed_restore_is_undone_and_recovered_on_the_next_launch(default_db, m
     _boot()
 
     with closing(sqlite3.connect(default_db)) as conn:
-        assert conn.execute("SELECT value FROM marker").fetchone() == ("from backup",)
+        assert _tag(conn) == FROM_BACKUP
 
 
 @pytest.mark.parametrize("table", ["alembic_version", "assets"])
@@ -410,12 +419,16 @@ def test_corruption_found_by_an_upgrade_is_quarantined(default_db, startup_warni
     assert len(_quarantined(default_db)) == 1
 
 
-def _half_migrate(db_path: str, revision: str, change: str) -> None:
-    """A database stamped at revision whose schema change altered, as an interrupted migration leaves it."""
-    _make_db(db_path, revision, marker="lost")
+def _drop(db_path: str, change: str) -> None:
     with closing(sqlite3.connect(db_path)) as conn:
         conn.execute(change)
         conn.commit()
+
+
+def _half_migrate(db_path: str, revision: str, change: str) -> None:
+    """A database stamped at revision whose schema change altered, as an interrupted migration leaves it."""
+    _make_db(db_path, revision, tag=HALF_MIGRATED)
+    _drop(db_path, change)
 
 
 @pytest.mark.parametrize("revision, change", [
@@ -423,6 +436,10 @@ def _half_migrate(db_path: str, revision: str, change: str) -> None:
     ("0001_assets", "DROP INDEX ix_asset_info_meta_key_val_bool"),  # 0002 drops it again: "no such index"
     # 0002 creates it again: "table already exists"
     ("0001_assets", "CREATE TABLE asset_references (id INTEGER PRIMARY KEY)"),
+    ("0004_drop_tag_type", "CREATE TABLE tags_new (name TEXT)"),  # 0005's scratch table, left by a kill
+    ("0003_add_metadata_job_id", "DROP TABLE tags"),  # 0004 rebuilds it: Alembic's NoSuchTableError
+    ("0001_assets", "DELETE FROM alembic_version"),  # killed in the first migration: 0001 runs again
+    ("head", "DROP TABLE asset_system_state"),  # first hit by asset startup
 ])
 def test_schema_that_does_not_match_its_stamp_is_quarantined(default_db, startup_warnings, revision, change):
     _half_migrate(default_db, revision, change)
@@ -441,20 +458,20 @@ def test_backup_that_does_not_match_its_stamp_is_not_restored(default_db, startu
     _boot()
 
     with closing(sqlite3.connect(default_db)) as conn:
-        assert conn.execute("SELECT name FROM sqlite_master WHERE name = 'marker'").fetchone() is None
+        assert _tag(conn) == 0
     assert os.path.exists(default_db + ".daily-backup")
     assert any("recreated empty" in w for w in startup_warnings)
 
 
 def test_matching_backup_is_restored_for_a_schema_that_does_not_match(default_db, startup_warnings):
-    _make_db(default_db + ".daily-backup", "0001_assets", marker="from backup")
+    _make_db(default_db + ".daily-backup", "0001_assets", tag=FROM_BACKUP)
     _half_migrate(default_db, "0006_add_loader_path", "DROP TABLE asset_reference_meta")
 
     _boot()
 
     assert _revision(default_db) == _head()
     with closing(sqlite3.connect(default_db)) as conn:
-        assert conn.execute("SELECT value FROM marker").fetchone() == ("from backup",)
+        assert _tag(conn) == FROM_BACKUP
 
 
 def test_database_from_a_newer_comfyui_is_left_in_place(default_db):
@@ -475,6 +492,7 @@ def test_only_a_schema_error_counts_for_a_database_that_does_not_match(default_d
     assert db_module.is_recoverable_corruption(sqlite3.OperationalError("no such table: asset_reference_meta"))
     assert not db_module.is_recoverable_corruption(sqlite3.OperationalError("database is locked"))
     assert not db_module.is_recoverable_corruption(RuntimeError("no such table: asset_reference_meta"))
+    assert db_module.is_recoverable_corruption(RuntimeError("from Alembic"), migrating=True)
 
 
 def test_missing_column_does_not_match_its_stamp(default_db):
@@ -484,7 +502,7 @@ def test_missing_column_does_not_match_its_stamp(default_db):
 
 
 def test_schema_error_on_a_matching_database_is_not_recovered(default_db):
-    _make_db(default_db, "0006_add_loader_path", marker="a table no migration makes")
+    _make_db(default_db, "0006_add_loader_path")
     db_module.init_db()
 
     assert not db_module.recover_from_corruption(sqlite3.OperationalError("no such table: elsewhere"))
@@ -505,9 +523,10 @@ def test_locked_database_is_not_mistaken_for_corruption(default_db):
     assert os.stat(default_db).st_ino == database_file  # the same file, not recreated
 
 
-def test_explicit_database_url_is_not_quarantined(explicit_db):
+@pytest.mark.parametrize("damage", [_overwrite_header, lambda p: _drop(p, "DROP TABLE asset_system_state")])
+def test_explicit_database_url_is_not_quarantined(explicit_db, damage):
     _make_db(explicit_db)
-    _overwrite_header(explicit_db)
+    damage(explicit_db)
 
     with pytest.raises(SystemExit):
         _boot()
@@ -554,7 +573,7 @@ class _NoThread:
 @pytest.mark.parametrize("table", ["asset_system_state", "assets", "asset_contents"])
 def test_corruption_first_hit_by_asset_startup_is_recovered(default_db, boot_events, monkeypatch, table):
     # init_db reads none of these tables; asset startup is the first to.
-    _make_db(default_db + ".daily-backup", marker="from backup")
+    _make_db(default_db + ".daily-backup", tag=FROM_BACKUP)
     _make_db(default_db)
     _overwrite_page_of(default_db, table)
     corrupt_file = os.stat(default_db).st_ino
@@ -573,7 +592,7 @@ def test_corruption_first_hit_by_asset_startup_is_recovered(default_db, boot_eve
     [quarantined] = _quarantined(default_db)
     assert os.stat(quarantined).st_ino == corrupt_file  # kept, not deleted
     with closing(sqlite3.connect(default_db)) as conn:
-        assert conn.execute("SELECT value FROM marker").fetchone() == ("from backup",)
+        assert _tag(conn) == FROM_BACKUP
     assert boot_events == ["startup", "backup"]
     if os.path.isdir("/proc/self/fd"):
         assert open_at_rename == [False]
@@ -612,11 +631,12 @@ def test_healthy_boot_starts_the_backup_after_asset_startup(default_db, boot_eve
     _make_db(default_db)
     checked = []
     monkeypatch.setattr(db_module, "_passes_integrity_check", checked.append)
+    monkeypatch.setattr(db_module, "_schema_matches_stamp", checked.append)
 
     _boot()
 
     assert boot_events == ["startup", "backup"]
-    assert checked == []  # no integrity scan on the startup path
+    assert checked == []  # no integrity scan or schema comparison on the startup path
     assert _quarantined(default_db) == []
 
 
@@ -635,7 +655,7 @@ def test_assets_off_boot_starts_no_backup(default_db, boot_events):
 
 
 def test_older_backup_is_restored_and_upgraded(default_db):
-    _make_db(default_db + ".daily-backup", revision="0006_add_loader_path", marker="old backup")
+    _make_db(default_db + ".daily-backup", revision="0006_add_loader_path", tag=OLD_BACKUP)
     _make_db(default_db)
     _overwrite_header(default_db)
 
@@ -643,7 +663,7 @@ def test_older_backup_is_restored_and_upgraded(default_db):
 
     assert _revision(default_db) == _head()
     with closing(sqlite3.connect(default_db)) as conn:
-        assert conn.execute("SELECT value FROM marker").fetchone() == ("old backup",)
+        assert _tag(conn) == OLD_BACKUP
 
 
 def test_explicit_database_url_with_corrupt_asset_tables_still_boots(explicit_db, boot_events):
@@ -847,7 +867,7 @@ def test_damaged_pre_upgrade_backup_does_not_quarantine_a_sound_database(default
 
 def test_wal_kept_by_another_connection_does_not_reach_the_restored_database(default_db):
     # Another connection (a database browser, say) stops SQLite checkpointing and deleting the WAL.
-    _make_db(default_db + ".daily-backup", marker="from backup")
+    _make_db(default_db + ".daily-backup", tag=FROM_BACKUP)
     _make_db(default_db)
     other = sqlite3.connect(default_db)
     other.execute("PRAGMA journal_mode=WAL")
@@ -874,12 +894,12 @@ def test_wal_kept_by_another_connection_does_not_reach_the_restored_database(def
     [quarantined] = _quarantined(default_db)
     with closing(sqlite3.connect(default_db)) as conn:
         assert conn.execute("PRAGMA integrity_check").fetchone() == ("ok",)
-        assert conn.execute("SELECT value FROM marker").fetchall() == [("from backup",)]
+        assert _tag(conn) == FROM_BACKUP
     assert os.path.exists(quarantined + "-wal") and os.path.exists(quarantined + "-shm")  # kept together
 
 
 def test_journal_of_another_connection_moves_with_the_corrupt_database(default_db):
-    _make_db(default_db + ".daily-backup", marker="from backup")
+    _make_db(default_db + ".daily-backup", tag=FROM_BACKUP)
     _make_db(default_db)
     other = sqlite3.connect(default_db, isolation_level=None)  # rollback-journal mode
     other.execute("BEGIN IMMEDIATE")
@@ -904,7 +924,7 @@ def test_journal_of_another_connection_moves_with_the_corrupt_database(default_d
     assert os.path.exists(quarantined + "-journal")
     with closing(sqlite3.connect(default_db)) as conn:
         assert conn.execute("PRAGMA integrity_check").fetchone() == ("ok",)
-        assert conn.execute("SELECT value FROM marker").fetchall() == [("from backup",)]
+        assert _tag(conn) == FROM_BACKUP
 
 
 @pytest.mark.skipif(not os.path.isdir("/proc/self/fd"), reason="needs /proc")
