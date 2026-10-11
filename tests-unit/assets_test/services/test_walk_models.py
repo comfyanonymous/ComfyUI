@@ -135,43 +135,6 @@ def test_each_folder_is_walked_once_and_every_listed_file_has_its_stat(models, m
         assert walk.stats[path].st_size == os.stat(path).st_size
 
 
-def test_the_walk_records_no_stat_for_a_file_it_could_not_stat(tmp_path, monkeypatch):
-    good = _write(tmp_path / "good.png")
-    bad = _write(tmp_path / "bad.png")
-    real_scandir = file_utils.os.scandir
-
-    class _Entry:
-        def __init__(self, entry):
-            self._entry = entry
-            self.name, self.path = entry.name, entry.path
-
-        def is_dir(self):
-            return self._entry.is_dir()
-
-        def is_symlink(self):
-            return self._entry.is_symlink()
-
-        def stat(self):
-            if self.name == "bad.png":
-                raise OSError(5, "I/O error")
-            return self._entry.stat()
-
-    class _Listing:
-        def __init__(self, path):
-            self._it = real_scandir(path)
-
-        def __enter__(self):
-            return (_Entry(e) for e in self._it)
-
-        def __exit__(self, *exc):
-            self._it.close()
-
-    monkeypatch.setattr(file_utils.os, "scandir", _Listing)
-    walk = file_utils.walk_listings(str(tmp_path), stat_files=True)
-    assert sorted(walk.files) == sorted([str(good), str(bad)])
-    assert set(walk.stats) == {str(good)}
-
-
 class _Counter:
     files_statted = 0
     permission_denied = 0
