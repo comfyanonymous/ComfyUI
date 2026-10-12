@@ -427,7 +427,7 @@ def test_written_backup_is_restored(default_db, startup_warnings):
     assert any("restored from the daily backup" in w for w in startup_warnings)
 
 
-@pytest.mark.parametrize("suffix", ["", "-wal"])
+@pytest.mark.parametrize("suffix", ["", "-wal", "-shm", "-journal"])
 def test_quarantine_never_replaces_an_earlier_one(default_db, monkeypatch, suffix):
     _make_db(default_db)
     _overwrite_header(default_db)
@@ -440,7 +440,7 @@ def test_quarantine_never_replaces_an_earlier_one(default_db, monkeypatch, suffi
 
     with open(earlier + suffix, "rb") as f:
         assert f.read() == b"quarantined before"
-    assert earlier + "-2" in _quarantined(default_db)
+    assert _quarantined(default_db) == ([earlier] if suffix == "" else []) + [earlier + "-2"]
 
 
 def test_corrupt_database_from_a_newer_comfyui_is_left_in_place(default_db):
@@ -449,7 +449,7 @@ def test_corrupt_database_from_a_newer_comfyui_is_left_in_place(default_db):
     _overwrite_page_of(default_db, "assets")
 
     assert not db_module.is_recoverable_corruption(sqlite3.DatabaseError("database disk image is malformed"))
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit):  # the outcome: here the upgrade's own error stops it before the guard
         _boot()
     assert _quarantined(default_db) == []
 

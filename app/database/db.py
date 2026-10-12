@@ -437,11 +437,11 @@ def _quarantine_and_restore(db_path, error):
     """Rename a corrupt database aside and restore the daily backup in its place if it is sound.
     With no sound backup, no database file is left, so the caller creates a new one. On a failure,
     every move is undone, so the corrupt database stays in place to be recovered next time."""
-    quarantine_path = moved_at = f"{db_path}.corrupt-{time.strftime('%Y%m%d-%H%M%S')}"
+    quarantine_path = first_choice = f"{db_path}.corrupt-{time.strftime('%Y%m%d-%H%M%S')}"
     for n in itertools.count(2):  # never over an earlier quarantine, e.g. after the clock moved back
         if not any(os.path.exists(quarantine_path + s) for s in ("", "-wal", "-shm", "-journal")):
             break
-        quarantine_path = f"{moved_at}-{n}"
+        quarantine_path = f"{first_choice}-{n}"
     backup_path, restore_path = db_path + ".daily-backup", db_path + ".restore-tmp"
     outcome = "Database recreated empty: there was no sound daily backup"
     try:
