@@ -61,10 +61,10 @@ def _enrich_in_place(
                 abs_path = _resolve_output_path(entry)
                 if abs_path is None:
                     continue
-                if register is not None and (result := register(abs_path, job_id)) is not None:
-                    entry["id"] = result.id
                 st = os.stat(abs_path)
                 entry["version"] = f"{st.st_mtime_ns:x}-{st.st_size:x}"
+                if register is not None and (result := register(abs_path, job_id)) is not None:
+                    entry["id"] = result.id
             except Exception:
                 logging.warning("Output enrichment failed for output: %s", entry.get("filename"), exc_info=True)
 

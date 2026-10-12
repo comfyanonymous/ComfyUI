@@ -430,6 +430,7 @@ def test_cached_replay_restats_the_file(real_output_dir, assets_on) -> None:
     enriched = register_cached_outputs(wrapper, "job-1", _manager(assets_on))
 
     assert enriched["output"]["images"][0]["version"] == _expected_version(path)
+    assert wrapper["output"]["images"][0]["version"] == "stale"
 
 
 def test_output_through_a_symlinked_subfolder_gets_a_version(real_output_dir, tmp_path_factory) -> None:
@@ -475,6 +476,18 @@ def test_a_bad_entry_does_not_cost_its_siblings_their_version(real_output_dir, a
     expected = _expected_version(real_output_dir / "good.png")
     assert executed["images"][1]["version"] == expected
     assert cached["output"]["images"][1]["version"] == expected
+
+
+def test_a_failed_registration_keeps_the_version(real_output_dir) -> None:
+    path = real_output_dir / "fixed.png"
+    path.write_bytes(b"content")
+    manager = InMemoryAssets()
+
+    with patch.object(manager, "register_executed_output", side_effect=RuntimeError("database is locked")):
+        enriched = register_executed_outputs(_output("fixed.png"), "job-1", manager)
+
+    assert enriched["images"][0]["version"] == _expected_version(path)
+    assert "id" not in enriched["images"][0]
 
 
 def test_size_only_rewrite_changes_the_version(real_output_dir) -> None:
