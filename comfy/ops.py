@@ -304,6 +304,10 @@ def resolve_cast_module_with_vbar(s, dtype, device, bias_dtype, compute_dtype, w
         weight = params[0]
         bias = params[1]
         if prefetch["signature"] is not None:
+            # FIXME: Make this non_gemv_specific.
+            if (isinstance(s, MixedPrecisionOp) and s.comfy_gemv_optimized and isinstance(weight, QuantizedTensor) and not s._full_precision_mm
+                    and s.weight_lowvram_function is None and len(s.weight_function) == 0):
+                weight = weight.optimize_for_gemv(xfer_dest)
             s._v_weight = weight
             s._v_bias = bias
         s._v_signature = prefetch["signature"]
@@ -1392,6 +1396,10 @@ def _quantized_weight_state_dict(module, sd, prefix, extra_quant_conf=None, extr
 
 class MixedPrecisionOp(CastWeightBiasOp):
     quant_format = None
+    # Prefer small-M execution; Kitchen owns the layout and preserves GEMM support.
+    # Keep opt-in until extensive testing allows unconditional relayout and a single
+    # resident layout/kernel path instead of parallel canonical and packed paths.
+    comfy_gemv_optimized = False
 
     def can_use_quantized_matmul(self, disabled_formats):
         return (self.quant_format in QUANT_ALGOS
