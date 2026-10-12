@@ -8,7 +8,6 @@ import time
 import nodes
 import folder_paths
 import execution
-from comfy_execution.asset_enrichment import file_version
 from comfy_execution.jobs import (
     JobStatus,
     get_job,
@@ -501,9 +500,6 @@ class PromptServer():
                             f.write(image.file.read())
 
                 resp = {"name" : filename, "subfolder": subfolder, "type": image_upload_type}
-                version = file_version(filepath)
-                if version is not None:
-                    resp["version"] = version
 
                 view = self.asset_manager.register_upload(
                     abs_path=filepath,
