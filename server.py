@@ -56,6 +56,7 @@ if dependencies_available():
     )
     from app.asset_export import AssetExportManager
 
+from app import agent_host
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
@@ -284,6 +285,9 @@ class PromptServer():
 
         if args.enable_manager:
             middlewares.append(comfyui_manager.create_middleware())
+
+        if args.enable_agent:
+            middlewares.append(agent_host.proxy_middleware)
 
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
         self.app = web.Application(client_max_size=max_upload_size, middlewares=middlewares)

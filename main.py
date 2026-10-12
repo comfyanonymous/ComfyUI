@@ -128,6 +128,12 @@ def handle_comfyui_manager_unavailable():
     args.enable_manager = False
 
 
+if args.enable_agent:
+    logging.info("[agent-event] flag_enabled")
+    import app.agent_host
+    app.agent_host.load()  # a failure stays reported: the agent's paths answer 503 with the reason
+
+
 def apply_custom_paths():
     # extra model paths
     extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
@@ -261,6 +267,7 @@ import nodes
 import comfy.model_management
 import comfyui_version
 import app.logger
+import app.agent_host
 import hook_breaker_ac10a0
 
 import comfy.memory_management
@@ -628,6 +635,14 @@ def start_comfyui(asyncio_loop=None):
             webbrowser.open(f"{scheme}://{address}:{port}")
         call_on_start = startup_server
 
+    if args.enable_agent:
+        launch_browser = call_on_start
+
+        def call_on_start(scheme, address, port):
+            if launch_browser is not None:
+                launch_browser(scheme, address, port)
+            app.agent_host.start(prompt_server, scheme, address, port)
+
     async def start_all():
         await prompt_server.setup()
         await run(prompt_server, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start)
@@ -667,4 +682,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logging.info("\nStopped server")
     finally:
+        app.agent_host.stop()
         prompt_server.asset_manager.shutdown()
