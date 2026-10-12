@@ -3,13 +3,16 @@ result is emitted. Each output is matched to a path inside its declared base
 directory and skipped when it escapes that directory or is not on disk, and a
 run served from cache replays the same registration so cached results still
 yield assets. Registering at emission rather than by inspecting the cache
-afterwards keeps this independent of any cache eviction policy.
+afterwards keeps this independent of any cache eviction policy. With assets on
+or off, each emitted file entry also gets a ``version`` for clients' /view URLs.
 """
 
 import copy
 import logging
 import os
 from typing import TYPE_CHECKING, Callable
+
+from comfy_execution.media_enrichment import resolve_output_entry_path
 
 if TYPE_CHECKING:
     from app.assets.manager import AssetManager
@@ -41,8 +44,8 @@ def _resolve_output_path(entry: dict) -> str | None:
     return abs_path
 
 
-def file_version(abs_path: str) -> str | None:
-    """Changes whenever the file is rewritten, so a /view URL carrying it is never stale."""
+def _file_version(abs_path: str) -> str | None:
+    """Changes when the file's mtime or size changes, so clients can put it in /view URLs."""
     try:
         st = os.stat(abs_path)
     except OSError:
@@ -53,10 +56,9 @@ def file_version(abs_path: str) -> str | None:
 def _add_versions(output_ui: dict) -> None:
     for entries in output_ui.values():
         for entry in entries if isinstance(entries, list) else ():
-            if isinstance(entry, dict) and "filename" in entry and "type" in entry:
-                abs_path = _resolve_output_path(entry)
-                if abs_path is not None and (version := file_version(abs_path)):
-                    entry["version"] = version
+            abs_path = resolve_output_entry_path(entry)
+            if abs_path is not None and (version := _file_version(abs_path)):
+                entry["version"] = version
 
 
 def _enrich_in_place(

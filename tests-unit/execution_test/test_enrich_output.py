@@ -405,20 +405,36 @@ def test_executed_output_carries_a_version_that_changes_with_the_file(real_outpu
     assert first["images"][0]["version"] == _expected_version(path)
 
     path.write_bytes(b"second run")
-    os.utime(path, ns=(os.stat(path).st_atime_ns, os.stat(path).st_mtime_ns + 1_000_000))
     second = register_executed_outputs(_output("fixed.png"), "job-2", manager)
 
     assert second["images"][0]["version"] == _expected_version(path)
     assert first["images"][0]["version"] != second["images"][0]["version"]
 
 
-def test_cached_replay_restats_the_file(real_output_dir) -> None:
+@pytest.mark.parametrize("manager", [NoAssets(_ArgsStub()), InMemoryAssets()], ids=["assets-off", "assets-on"])
+def test_cached_replay_restats_the_file(real_output_dir, manager) -> None:
     path = real_output_dir / "fixed.png"
     path.write_bytes(b"replayed")
+    wrapper = _wrapper("fixed.png")
+    wrapper["output"]["images"][0]["version"] = "stale"
 
-    enriched = register_cached_outputs(_wrapper("fixed.png"), "job-1", NoAssets(_ArgsStub()))
+    enriched = register_cached_outputs(wrapper, "job-1", manager)
 
     assert enriched["output"]["images"][0]["version"] == _expected_version(path)
+
+
+@pytest.mark.parametrize("manager", [NoAssets(_ArgsStub()), InMemoryAssets()], ids=["assets-off", "assets-on"])
+@pytest.mark.parametrize(
+    "entry",
+    [{"filename": None, "subfolder": "", "type": "output"}, {"filename": "a.png", "subfolder": 3, "type": "output"}],
+    ids=["filename-none", "subfolder-int"],
+)
+def test_malformed_entries_pass_through_without_a_version(real_output_dir, manager, entry) -> None:
+    executed = register_executed_outputs({"images": [dict(entry)]}, "job-1", manager)
+    cached = register_cached_outputs({"output": {"images": [dict(entry)]}}, "job-1", manager)
+
+    assert "version" not in executed["images"][0]
+    assert "version" not in cached["output"]["images"][0]
 
 
 def test_missing_output_file_gets_no_version(real_output_dir) -> None:
