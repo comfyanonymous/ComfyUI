@@ -651,8 +651,26 @@ def test_copy_whose_schema_cannot_be_compared_is_not_sound(default_db, monkeypat
     monkeypatch.setattr(db_module.command, "upgrade", no_room)
 
     assert db_module._schema_matches_stamp(default_db) is None
-    assert not db_module._is_sound_copy(default_db)
+    assert db_module._is_sound_copy(default_db) is None
     assert not db_module.is_recoverable_corruption(sqlite3.OperationalError("no such table: tags"), migrating=True)
+
+
+def test_backup_that_cannot_be_checked_stops_recovery_before_anything_moves(default_db, monkeypatch, caplog):
+    # Starting empty would let the next daily backup replace a backup that may be sound.
+    _make_db(default_db + ".daily-backup", tag=FROM_BACKUP)
+    _make_db(default_db)
+    _overwrite_header(default_db)
+    corrupt_file = os.stat(default_db).st_ino
+    taken = os.path.getmtime(default_db + ".daily-backup")
+    monkeypatch.setattr(db_module, "_schema_matches_stamp", lambda path: None)
+
+    with pytest.raises(SystemExit):
+        _boot()
+
+    assert os.stat(default_db).st_ino == corrupt_file
+    assert _quarantined(default_db) == []
+    assert os.path.getmtime(default_db + ".daily-backup") == taken
+    assert f"Could not check the daily backup '{default_db}.daily-backup'" in caplog.text
 
 
 def test_empty_stamp_without_tables_matches(default_db, caplog):
@@ -1159,13 +1177,13 @@ def test_comparison_at_head_is_quiet_and_adds_no_listener(live_db, monkeypatch, 
     listen = event.listen
     monkeypatch.setattr(event, "listen", lambda *a, **kw: (listened.append(a[:3]), listen(*a, **kw))[1])
 
-    level = logging.getLogger("alembic.runtime.migration").level
+    caplog.set_level(logging.INFO, logger="alembic.runtime.migration")  # undone at teardown
     with caplog.at_level(logging.INFO):
         assert db_module._schema_matches_stamp(live_db) is True
 
     assert not [a for a in listened if a[1] == "before_cursor_execute"]
     assert "Running upgrade" not in caplog.text
-    assert logging.getLogger("alembic.runtime.migration").level == level  # a real migration still logs
+    assert logging.getLogger("alembic.runtime.migration").level == logging.INFO  # a real migration still logs
 
 
 def test_corrupt_database_never_replaces_the_backup(live_db):
@@ -1329,15 +1347,13 @@ def test_no_backup_for_an_explicit_database_url(explicit_db, monkeypatch):
 
 
 def test_backup_thread_that_cannot_open_the_database_logs_and_stops(live_db, monkeypatch, caplog):
-    def unreadable(path):
-        raise sqlite3.OperationalError("disk I/O error")
-
-    monkeypatch.setattr(db_module, "_connect_existing", unreadable)
+    # E.g. a corrupt database that couldn't be moved aside: the first statement fails, not the connect.
+    _overwrite_header(live_db)
+    monkeypatch.setattr(db_module.time, "sleep", lambda seconds: pytest.fail("entered the backup loop"))
 
     db_module._keep_daily_backup(live_db, live_db + ".daily-backup")  # returns instead of dying
 
     assert "No daily backup of" in caplog.text and "could not open it" in caplog.text
-    assert not os.path.exists(live_db + ".daily-backup")
 
 
 def test_backup_includes_commits_still_in_the_wal(live_db):

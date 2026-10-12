@@ -421,7 +421,7 @@ def _is_sound_copy(path):
     ComfyUI, and matching its stamp."""
     # No stamp: an empty file, or not ComfyUI's. A newer stamp: this ComfyUI couldn't start on it.
     return (_passes_integrity_check(path) and _stamp(path) is not None and not _from_a_newer_comfyui(path)
-            and _schema_matches_stamp(path) is True)  # a copy must be shown to match
+            and _schema_matches_stamp(path))  # None when its schema can't be compared
 
 
 def _from_a_newer_comfyui(path):
@@ -457,6 +457,9 @@ def _quarantine_and_restore(db_path, error):
             raise
         else:
             sound = _is_sound_copy(restore_path)
+            if sound is None:  # neither shown sound nor unsound: keep both, as for a backup that can't be read
+                logging.error(f"Could not check the daily backup '{backup_path}'; nothing was moved")
+                raise error
             if not sound:
                 with suppress(OSError):  # best effort, e.g. a backup another account wrote
                     os.utime(backup_path, (0, 0))  # due now: the daily backup replaces it once this launch is up
