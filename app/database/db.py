@@ -172,7 +172,7 @@ def _backup_database(source_path, destination_path):
 
 
 _db_lock = None
-_recovery_attempted = False  # once per launch: after that, asset startup logs corruption, as before
+_recovery_attempted = False  # once after init_db: after that, asset startup logs corruption, as before
 _DAILY_BACKUP_INTERVAL_SECONDS = 24 * 60 * 60
 _LOCK_WAIT_SECONDS = 5.0
 
@@ -314,7 +314,7 @@ def is_recoverable_corruption(error, migrating=False):
     if error_kind(error) != "other":
         return False  # locked, full, unreadable: not the schema
     if migrating or isinstance(getattr(error, "orig", error), sqlite3.OperationalError):
-        return not _schema_matches_stamp(get_db_path())
+        return _schema_matches_stamp(get_db_path()) is False  # not when that can't be told
     return False
 
 
@@ -329,10 +329,10 @@ def recover_from_corruption(error):
         session_factory.kw["bind"].dispose()  # Windows refuses to rename an open file
     try:
         _quarantine_and_restore(db_path, error)
-    except Exception:  # e.g. held open on Windows: asset startup now logs the corruption, as before
+    except Exception as e:  # e.g. held open on Windows: asset startup now logs the corruption, as before
         logging.exception(f"Could not recover the corrupt database '{db_path}'; continuing without recovery")
-        if not os.path.exists(db_path):
-            raise  # a move that couldn't be undone: fail rather than run on a new empty file
+        if getattr(e, "files_left_aside", False):
+            raise  # a move that couldn't be undone: fail rather than run without the database or its WAL
         return True
     _migrate_and_bind(get_database_url(), db_path, os.path.exists(db_path))
     return True
@@ -367,8 +367,8 @@ _MIGRATED_NAME = re.compile(r'(?:CREATE (?:UNIQUE )?(?:TABLE|INDEX) (?:IF NOT EX
 def _schema_matches_stamp(path):
     """Whether a database has every table, column and index the migrations build up to its stamped
     revision, and no extra one named like an object a later migration creates or alters,
-    as one interrupted part way leaves behind. Other objects are allowed. True when that can't be
-    told, as for a stamp from a newer ComfyUI."""
+    as one interrupted part way leaves behind. Other objects are allowed. None when that can't be
+    told, as for a stamp from a newer ComfyUI or when the scratch database can't be built."""
     migration_log = logging.getLogger("alembic.runtime.migration")
     level = migration_log.level
     migration_log.setLevel(logging.WARNING)  # its "Running upgrade" lines would read as the user's database
@@ -402,7 +402,7 @@ def _schema_matches_stamp(path):
         return expected <= actual and not any(name.lower() in migrated for _, name, _ in actual - expected)
     except Exception:
         logging.debug(f"Could not compare the schema of '{path}' with its migration stamp", exc_info=True)
-        return True
+        return None
     finally:
         migration_log.setLevel(level)
 
@@ -421,7 +421,7 @@ def _is_sound_copy(path):
     ComfyUI, and matching its stamp."""
     # No stamp: an empty file, or not ComfyUI's. A newer stamp: this ComfyUI couldn't start on it.
     return (_passes_integrity_check(path) and _stamp(path) is not None and not _from_a_newer_comfyui(path)
-            and _schema_matches_stamp(path))
+            and _schema_matches_stamp(path) is True)  # a copy must be shown to match
 
 
 def _from_a_newer_comfyui(path):
@@ -473,11 +473,13 @@ def _quarantine_and_restore(db_path, error):
                 outcome = f"Database restored from the daily backup taken {taken}; later changes are lost"
         except OSError:
             logging.exception(f"Could not move the corrupt database '{db_path}' aside or restore the backup")
+            error.files_left_aside = False
             for src, dst in reversed(moved):
                 try:
                     os.replace(dst, src)
                 except OSError:
                     logging.exception(f"Could not move '{dst}' back to '{src}'")
+                    error.files_left_aside = True
             raise error
     finally:
         with suppress(OSError):  # a leftover copy must not undo a finished restore
@@ -500,10 +502,15 @@ def start_daily_backup():
 
 
 def _keep_daily_backup(db_path, backup_path):
-    with closing(_connect_existing(db_path)) as conn:  # without WAL, copying it would block every write
-        if conn.execute("PRAGMA journal_mode").fetchone()[0] != "wal":
-            logging.warning(f"No daily backup of '{db_path}': it isn't in WAL mode, so a backup would block writes")
-            return
+    try:
+        with closing(_connect_existing(db_path)) as conn:  # without WAL, copying it would block every write
+            wal = conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+    except sqlite3.Error:
+        logging.exception(f"No daily backup of '{db_path}' this launch: could not open it")
+        return
+    if not wal:
+        logging.warning(f"No daily backup of '{db_path}': it isn't in WAL mode, so a backup would block writes")
+        return
     # A daemon thread: exiting mid-backup leaves only a .tmp file, which the next backup removes.
     while True:
         due_in = 0  # no backup yet

@@ -139,6 +139,7 @@ def default_db(tmp_path, monkeypatch):
     """The default database (no --database-url), in a temporary user directory."""
     monkeypatch.setattr(db_module.args, "database_url", None)
     monkeypatch.setattr("folder_paths.get_user_directory", lambda: str(tmp_path))
+    monkeypatch.setattr(db_module, "get_legacy_default_db_path", lambda: None)  # never the checkout's own database
     return str(tmp_path / "comfyui.db")
 
 
@@ -550,7 +551,7 @@ def test_database_from_a_newer_comfyui_is_left_in_place(default_db):
         conn.execute("UPDATE alembic_version SET version_num = '9999_from_a_newer_release'")
         conn.commit()
 
-    assert db_module._schema_matches_stamp(default_db)
+    assert db_module._schema_matches_stamp(default_db) is None
     with pytest.raises(SystemExit):
         _boot()
     assert _quarantined(default_db) == []
@@ -568,7 +569,7 @@ def test_only_a_schema_error_counts_for_a_database_that_does_not_match(default_d
 def test_missing_column_does_not_match_its_stamp(default_db):
     _half_migrate(default_db, "0006_add_loader_path", "ALTER TABLE asset_references DROP COLUMN loader_path")
 
-    assert not db_module._schema_matches_stamp(default_db)
+    assert db_module._schema_matches_stamp(default_db) is False
 
 
 def test_backup_with_objects_no_migration_makes_is_restored(default_db, startup_warnings):
@@ -612,7 +613,7 @@ def test_statements_on_other_databases_are_not_counted_as_migrations(default_db,
     monkeypatch.setattr(db_module.command, "upgrade", upgrade_while_another_database_changes)
     try:
         with caplog.at_level(logging.DEBUG):
-            assert db_module._schema_matches_stamp(default_db)
+            assert db_module._schema_matches_stamp(default_db) is True
     finally:
         other.dispose()
     assert "Could not compare" not in caplog.text
@@ -622,7 +623,7 @@ def test_index_a_later_migration_creates_does_not_match_its_stamp(default_db):
     _make_db(default_db, "0006_add_loader_path")
     _execute(default_db, "CREATE INDEX ix_assets_name ON assets (id)")  # 0007 creates it
 
-    assert not db_module._schema_matches_stamp(default_db)
+    assert db_module._schema_matches_stamp(default_db) is False
 
 
 def test_objects_no_migration_makes_match_below_head(default_db, monkeypatch, caplog):
@@ -633,18 +634,32 @@ def test_objects_no_migration_makes_match_below_head(default_db, monkeypatch, ca
     monkeypatch.setattr(event, "listen", lambda *a, **kw: (listened.append(a[:3]), listen(*a, **kw))[1])
 
     with caplog.at_level(logging.DEBUG):
-        assert db_module._schema_matches_stamp(default_db)
+        assert db_module._schema_matches_stamp(default_db) is True
 
     assert "Could not compare" not in caplog.text  # compared, not given up on
     recorders = [a for a in listened if a[1] == "before_cursor_execute"]
     assert recorders and not any(event.contains(*a) for a in recorders)  # the recorder is removed
 
 
+def test_copy_whose_schema_cannot_be_compared_is_not_sound(default_db, monkeypatch):
+    # E.g. a full temp directory: the live database is left alone, but a copy must be shown to match.
+    _make_db(default_db, "0006_add_loader_path")
+
+    def no_room(*args, **kwargs):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(db_module.command, "upgrade", no_room)
+
+    assert db_module._schema_matches_stamp(default_db) is None
+    assert not db_module._is_sound_copy(default_db)
+    assert not db_module.is_recoverable_corruption(sqlite3.OperationalError("no such table: tags"), migrating=True)
+
+
 def test_empty_stamp_without_tables_matches(default_db, caplog):
     _execute(default_db, "CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)")
 
     with caplog.at_level(logging.DEBUG):
-        assert db_module._schema_matches_stamp(default_db)
+        assert db_module._schema_matches_stamp(default_db) is True
     assert "Could not compare" not in caplog.text
 
 
@@ -923,6 +938,36 @@ def test_failed_quarantine_raises_the_corruption(default_db, monkeypatch, startu
     assert startup_warnings == []
 
 
+def test_sidecar_that_cannot_be_moved_back_is_reported(default_db, monkeypatch):
+    # The database stays, its WAL doesn't: running on would drop the commits still in it.
+    _make_db(default_db)
+    with open(default_db + "-wal", "wb") as f:
+        f.write(b"recent commits")
+    _refuse_replace(monkeypatch, lambda src: os.path.abspath(src) == os.path.abspath(default_db)
+                    or (".corrupt-" in src and src.endswith("-wal")))
+
+    with pytest.raises(sqlite3.DatabaseError) as raised:
+        db_module._quarantine_and_restore(default_db, sqlite3.DatabaseError("database disk image is malformed"))
+
+    assert raised.value.files_left_aside
+    assert os.path.exists(default_db) and not os.path.exists(default_db + "-wal")
+
+
+def test_files_left_aside_after_init_fail_the_launch(default_db, monkeypatch):
+    _make_db(default_db)
+    db_module.init_db()
+    _overwrite_page_of(default_db, "assets")
+
+    def stranded(db_path, error):
+        error.files_left_aside = True
+        raise error
+
+    monkeypatch.setattr(db_module, "_quarantine_and_restore", stranded)
+
+    with pytest.raises(sqlite3.DatabaseError):
+        db_module.recover_from_corruption(sqlite3.DatabaseError("database disk image is malformed"))
+
+
 def test_unmovable_database_found_corrupt_after_init_starts_as_before(default_db, boot_events, monkeypatch):
     # As on Windows when another program has the file open: asset startup logs the corruption and
     # carries on, instead of failing the launch.
@@ -1114,11 +1159,13 @@ def test_comparison_at_head_is_quiet_and_adds_no_listener(live_db, monkeypatch, 
     listen = event.listen
     monkeypatch.setattr(event, "listen", lambda *a, **kw: (listened.append(a[:3]), listen(*a, **kw))[1])
 
+    level = logging.getLogger("alembic.runtime.migration").level
     with caplog.at_level(logging.INFO):
-        assert db_module._schema_matches_stamp(live_db)
+        assert db_module._schema_matches_stamp(live_db) is True
 
     assert not [a for a in listened if a[1] == "before_cursor_execute"]
     assert "Running upgrade" not in caplog.text
+    assert logging.getLogger("alembic.runtime.migration").level == level  # a real migration still logs
 
 
 def test_corrupt_database_never_replaces_the_backup(live_db):
@@ -1279,6 +1326,18 @@ def test_no_backup_for_an_explicit_database_url(explicit_db, monkeypatch):
     db_module.start_daily_backup()
 
     assert started == []
+
+
+def test_backup_thread_that_cannot_open_the_database_logs_and_stops(live_db, monkeypatch, caplog):
+    def unreadable(path):
+        raise sqlite3.OperationalError("disk I/O error")
+
+    monkeypatch.setattr(db_module, "_connect_existing", unreadable)
+
+    db_module._keep_daily_backup(live_db, live_db + ".daily-backup")  # returns instead of dying
+
+    assert "No daily backup of" in caplog.text and "could not open it" in caplog.text
+    assert not os.path.exists(live_db + ".daily-backup")
 
 
 def test_backup_includes_commits_still_in_the_wal(live_db):
