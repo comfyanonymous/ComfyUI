@@ -335,7 +335,7 @@ def test_unreadable_backup_stops_recovery_before_anything_moves(default_db, monk
 
     assert os.stat(default_db).st_ino == corrupt_file
     assert glob.glob(default_db + ".corrupt-*") == []
-    assert f"Could not read the daily backup '{default_db}.daily-backup'" in caplog.text
+    assert f"Could not copy the daily backup '{default_db}.daily-backup' to '{default_db}.restore-tmp'" in caplog.text
 
 
 def test_sidecars_move_before_the_database(default_db, monkeypatch):

@@ -453,7 +453,7 @@ def _quarantine_and_restore(db_path, error):
         except FileNotFoundError:
             sound = False  # no backup
         except OSError:
-            logging.error(f"Could not read the daily backup '{backup_path}' to restore it; nothing was moved")
+            logging.error(f"Could not copy the daily backup '{backup_path}' to '{restore_path}'; nothing was moved")
             raise
         else:
             sound = _is_sound_copy(restore_path)
