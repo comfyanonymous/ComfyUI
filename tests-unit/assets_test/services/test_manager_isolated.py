@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, Mock, call
 import folder_paths
 import pytest
 from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session, Session as SASession
+from sqlalchemy.orm import Session, Session as SASession, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.assets import lifecycle
@@ -76,6 +76,7 @@ def threaded_create_session(
     monkeypatch.setattr(seeder_module, "create_session", _create_session)
     monkeypatch.setattr(scanner, "create_session", _create_session)
     monkeypatch.setattr("app.assets.services.ingest.create_session", _create_session)
+    monkeypatch.setattr("app.database.db.WriteSession", sessionmaker(bind=engine))
     yield _create_session
     engine.dispose()
 
@@ -88,7 +89,7 @@ def output_seeder(monkeypatch: pytest.MonkeyPatch) -> Iterator[_OutputSeeder]:
     _ = seeder.shutdown()
 
 
-def test_queue_output_scan_registers_undeclared_output(
+def test_queue_output_scan_does_not_register_undeclared_output(
     enabled_manager: AssetsEnabled,
     asset_roots: tuple[Path, Path, Path],
     threaded_create_session: Callable[[], AbstractContextManager[Session]],
@@ -109,8 +110,7 @@ def test_queue_output_scan_registers_undeclared_output(
                 .where(AssetContent.path == str(output_path.resolve()))
             )
         )
-        assert rows[0].job_id is None
-    assert len(rows) == 1
+    assert rows == []
 
 
 def test_queue_output_scan_does_not_duplicate_declared_output(
@@ -149,11 +149,8 @@ def test_queue_output_scan_does_not_duplicate_declared_output(
             )
         )
         assert rows[0].job_id == "declared-job"
-        assert undeclared_rows[0].job_id is None
     assert len(rows) == 1
-    assert len(undeclared_rows) == 1, (
-        "the undeclared sibling proves the walk ran, so the declared row's count of 1 is a real skip rather than a silently-failed scan"
-    )
+    assert undeclared_rows == []
 
 
 def test_executed_and_cached_outputs_share_unhashed_content(
@@ -257,7 +254,7 @@ def test_ensure_scan_started_starts_the_lazy_object_info_scan(
 
     enabled_manager.ensure_scan_started()
 
-    seeder_start.assert_called_once_with(roots=("models", "input", "output"))
+    seeder_start.assert_called_once_with(roots=("models", "input"))
 
 
 def test_shutdown_runs_lifecycle_cleanup_when_seeder_shutdown_times_out(
