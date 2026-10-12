@@ -123,11 +123,27 @@ def test_status_reaches_the_flag_and_the_websocket(monkeypatch):
     # session token) must stay in a system user dir the userdata API refuses.
     assert agent_host._host.started == {"comfy_url": "http://127.0.0.1:8188", "data_dir": folder_paths.get_system_user_directory("agent"), "logger": logging.getLogger()}
     assert agent_host.feature_flag() == {"state": "starting", "url": None, "reason": None}
-    agent_host._host.state = {"state": "ready", "url": "http://127.0.0.1:5555", "reason": None}
+    agent_host._host.state = {"state": "ready", "url": None, "reason": None}
     agent_host._host.on_change()
     assert sent == [("agent_status", {"state": "ready", "url": "/api/agent", "reason": None})]
     assert installed_on == [None], "start() hands ComfyUI's loop to the termination handlers"
     assert feature_flags.get_server_features()["agent"] == sent[0][1]
+
+
+@pytest.mark.parametrize(
+    ("url", "published"),
+    [
+        ("http://127.0.0.1:5555", "http://127.0.0.1:5555"),  # direct: the agent serves the page itself
+        ("/agent", "/api/agent"),  # anything else: ComfyUI proxies
+        (None, "/api/agent"),
+    ],
+)
+def test_an_absolute_status_url_is_published_as_is(monkeypatch, url, published):
+    monkeypatch.setattr(agent_host, "_host", FakeHost())
+    agent_host._host.state = {"state": "ready", "url": url, "reason": None}
+    assert agent_host.feature_flag() == {"state": "ready", "url": published, "reason": None}
+    agent_host._host.state = {"state": "starting", "url": url, "reason": None}
+    assert agent_host.feature_flag()["url"] is None
 
 
 @pytest.mark.parametrize(("eps", "installed", "reason"), [({}, False, "not_found"), ({}, True, "not_found"), ({"v1": _raise}, True, "unknown")])
@@ -432,6 +448,14 @@ async def test_a_restarting_agent_is_a_503(proxied):
     assert (resp.status, resp.headers.get("Retry-After")) == (503, "2")
 
 
+
+
+@pytest.mark.asyncio
+async def test_a_host_that_claims_no_paths_is_never_proxied(proxied, monkeypatch):
+    monkeypatch.setattr(agent_host._host, "route", lambda path: None)  # direct mode
+    agent_host._host.state = {"state": "ready", "url": "http://127.0.0.1:5555", "reason": None}
+    assert (await proxied.get("/api/agent/threads")).status == 404  # ComfyUI's own routes answer
+    assert await (await proxied.get("/api/prompt")).json() == {"comfy": True}
 
 
 @pytest.mark.asyncio

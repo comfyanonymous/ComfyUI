@@ -229,7 +229,12 @@ def feature_flag() -> AgentStatus | None:
     try:
         status = _host.status()
         state = status["state"]
-        return {"state": state, "url": FRONTEND_URL if state == "ready" else None, "reason": status.get("reason")}
+        # An absolute URL means the agent serves the page itself (direct mode,
+        # so it handles CORS and its own credential); otherwise ComfyUI proxies it.
+        url = status.get("url") or ""
+        if urllib.parse.urlsplit(url).scheme not in ("http", "https"):
+            url = FRONTEND_URL
+        return {"state": state, "url": url if state == "ready" else None, "reason": status.get("reason")}
     except Exception as e:
         _log_once(f"status:{type(e).__name__}:{e}", "The local agent's status could not be read.", e)
         return {"state": "failed", "url": None, "reason": "unknown"}
