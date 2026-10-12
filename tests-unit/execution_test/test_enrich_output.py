@@ -412,7 +412,7 @@ def test_executed_output_carries_a_version_that_changes_with_the_file(real_outpu
 
     path.write_bytes(b"other")
     st = os.stat(path)
-    os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000))
+    os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns + 2_000_000_000))
     second = register_executed_outputs(_output("fixed.png"), "job-2", manager)
 
     assert second["images"][0]["version"] == _expected_version(path)
@@ -435,7 +435,10 @@ def test_cached_replay_restats_the_file(real_output_dir, assets_on) -> None:
 def test_output_through_a_symlinked_subfolder_gets_a_version(real_output_dir, tmp_path_factory) -> None:
     elsewhere = tmp_path_factory.mktemp("bigger-disk")
     (elsewhere / "fixed.png").write_bytes(b"linked")
-    (real_output_dir / "linked").symlink_to(elsewhere, target_is_directory=True)
+    try:
+        (real_output_dir / "linked").symlink_to(elsewhere, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlinks unavailable")
 
     enriched = register_executed_outputs(_output("fixed.png", subfolder="linked"), "job-1", NoAssets(_ArgsStub()))
 
@@ -458,6 +461,42 @@ def test_malformed_entries_pass_through_without_a_version(real_output_dir, asset
 
     assert "version" not in executed["images"][0]
     assert "version" not in cached["output"]["images"][0]
+
+
+@pytest.mark.parametrize("assets_on", [False, True], ids=["assets-off", "assets-on"])
+def test_a_bad_entry_does_not_cost_its_siblings_their_version(real_output_dir, assets_on) -> None:
+    (real_output_dir / "good.png").write_bytes(b"good")
+    images = [{"filename": None, "type": "output"}, {"filename": "good.png", "subfolder": "", "type": "output"}]
+    other = {"text": [1, "plain"]}
+
+    executed = register_executed_outputs({"images": copy.deepcopy(images), **other}, "job-1", _manager(assets_on))
+    cached = register_cached_outputs({"output": {"images": copy.deepcopy(images), **other}}, "job-1", _manager(assets_on))
+
+    expected = _expected_version(real_output_dir / "good.png")
+    assert executed["images"][1]["version"] == expected
+    assert cached["output"]["images"][1]["version"] == expected
+
+
+def test_size_only_rewrite_changes_the_version(real_output_dir) -> None:
+    path = real_output_dir / "fixed.png"
+    path.write_bytes(b"short")
+    first = register_executed_outputs(_output("fixed.png"), "job-1", NoAssets(_ArgsStub()))
+    st = os.stat(path)
+    path.write_bytes(b"longer content")
+    os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns))
+
+    second = register_executed_outputs(_output("fixed.png"), "job-2", NoAssets(_ArgsStub()))
+
+    assert first["images"][0]["version"] != second["images"][0]["version"]
+
+
+def test_cached_replay_of_a_missing_file_drops_a_stale_version(real_output_dir) -> None:
+    wrapper = _wrapper("gone.png")
+    wrapper["output"]["images"][0]["version"] = "stale"
+
+    enriched = register_cached_outputs(wrapper, "job-1", NoAssets(_ArgsStub()))
+
+    assert "version" not in enriched["output"]["images"][0]
 
 
 def test_missing_output_file_gets_no_version(real_output_dir) -> None:
