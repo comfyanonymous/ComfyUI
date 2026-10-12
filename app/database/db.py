@@ -359,15 +359,15 @@ def _schema(conn):
     ))
 
 
-# The tables and indexes a migration statement creates, alters or renames to.
-_MIGRATED_NAME = re.compile(r'(?:CREATE (?:UNIQUE )?(?:TABLE|INDEX) (?:IF NOT EXISTS )?|ALTER TABLE |RENAME TO )"?(\w+)', re.I)
+# The table or index a migration statement creates or alters.
+_MIGRATED_NAME = re.compile(r'(?:CREATE (?:UNIQUE )?(?:TABLE|INDEX) (?:IF NOT EXISTS )?|ALTER TABLE )"?(\w+)', re.I)
 
 
 def _schema_matches_stamp(path):
     """Whether a database has every table, column and index the migrations build up to its stamped
-    revision, and none that a later migration creates on its way to head, as one interrupted part way
-    leaves behind. Objects no migration makes are allowed. True when that can't be told, as for a
-    stamp from a newer ComfyUI."""
+    revision, and no extra one named like an object a later migration creates or alters,
+    as one interrupted part way leaves behind. Other objects are allowed. True when that can't be
+    told, as for a stamp from a newer ComfyUI."""
     try:
         with closing(_connect_existing(path)) as conn:
             stamp = conn.execute("SELECT version_num FROM alembic_version").fetchone()

@@ -1,4 +1,5 @@
 import glob
+import logging
 import os
 import sqlite3
 import subprocess
@@ -15,7 +16,7 @@ from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from filelock import FileLock
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 
 import app.logger
 from app.assets import lifecycle
@@ -52,7 +53,7 @@ FROM_BACKUP, OLD_BACKUP, HALF_MIGRATED = 1, 2, 3
 
 
 def _make_db(db_path: str, revision: str = "head", marker: str | None = None, tag: int = 0) -> None:
-    # A marker table makes the schema differ from its stamp; a tag in the header doesn't.
+    # A tag in the header leaves the schema as its migrations built it; a marker table is an extra object.
     command.upgrade(_config(db_path), revision)
     with closing(sqlite3.connect(db_path)) as conn:
         conn.execute(f"PRAGMA user_version = {tag}")
@@ -441,6 +442,8 @@ def _half_migrate(db_path: str, revision: str, change: str) -> None:
     ("0003_add_metadata_job_id", "DROP TABLE tags"),  # 0004 rebuilds it: Alembic's NoSuchTableError
     ("0001_assets", "DELETE FROM alembic_version"),  # killed in the first migration: 0001 runs again
     ("head", "DROP TABLE asset_system_state"),  # first hit by asset startup
+    ("0005_allow_case_sensitive_tags", "ALTER TABLE asset_references ADD COLUMN loader_path TEXT"),  # 0006 adds it
+    ("0002_merge_to_asset_references", "ALTER TABLE asset_references ADD COLUMN job_id TEXT"),  # 0003 adds it
 ])
 def test_schema_that_does_not_match_its_stamp_is_quarantined(default_db, startup_warnings, revision, change):
     _half_migrate(default_db, revision, change)
@@ -532,7 +535,7 @@ def test_failed_upgrade_of_a_matching_database_is_not_recovered(default_db, monk
     assert _quarantined(default_db) == []
 
 
-def test_statements_on_other_databases_are_not_counted_as_migrations(default_db, tmp_path, monkeypatch):
+def test_statements_on_other_databases_are_not_counted_as_migrations(default_db, tmp_path, monkeypatch, caplog):
     _make_db(default_db, marker="a table no migration makes")
     other = create_engine(f"sqlite:///{tmp_path / 'other.db'}")
     upgrade = command.upgrade
@@ -544,15 +547,41 @@ def test_statements_on_other_databases_are_not_counted_as_migrations(default_db,
 
     monkeypatch.setattr(db_module.command, "upgrade", upgrade_while_another_database_changes)
     try:
-        assert db_module._schema_matches_stamp(default_db)
+        with caplog.at_level(logging.DEBUG):
+            assert db_module._schema_matches_stamp(default_db)
     finally:
         other.dispose()
+    assert "Could not compare" not in caplog.text
 
 
-def test_empty_stamp_without_tables_matches(default_db):
+def test_index_a_later_migration_creates_does_not_match_its_stamp(default_db):
+    _make_db(default_db, "0006_add_loader_path")
+    _execute(default_db, "CREATE INDEX ix_assets_name ON assets (id)")  # 0007 creates it
+
+    assert not db_module._schema_matches_stamp(default_db)
+
+
+def test_objects_no_migration_makes_match_below_head(default_db, monkeypatch, caplog):
+    _make_db(default_db, "0006_add_loader_path", marker="a table no migration makes")
+    _execute(default_db, "CREATE INDEX user_index ON marker (value)")
+    listened = []
+    listen = event.listen
+    monkeypatch.setattr(event, "listen", lambda *a, **kw: (listened.append(a[:3]), listen(*a, **kw))[1])
+
+    with caplog.at_level(logging.DEBUG):
+        assert db_module._schema_matches_stamp(default_db)
+
+    assert "Could not compare" not in caplog.text  # compared, not given up on
+    recorders = [a for a in listened if a[1] == "before_cursor_execute"]
+    assert recorders and not any(event.contains(*a) for a in recorders)  # the recorder is removed
+
+
+def test_empty_stamp_without_tables_matches(default_db, caplog):
     _execute(default_db, "CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)")
 
-    assert db_module._schema_matches_stamp(default_db)
+    with caplog.at_level(logging.DEBUG):
+        assert db_module._schema_matches_stamp(default_db)
+    assert "Could not compare" not in caplog.text
 
 
 def test_schema_error_on_a_matching_database_is_not_recovered(default_db):
