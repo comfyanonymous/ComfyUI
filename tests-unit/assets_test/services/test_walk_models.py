@@ -233,14 +233,24 @@ def test_a_name_differing_only_in_case_is_shadowed_where_names_ignore_case(tmp_p
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privileges on Windows")
-def test_a_folder_reached_twice_inside_one_model_folder_is_catalogued_once(models):
-    """Unlike the loader's listing, the walk lists a directory once per model folder, so a
-    second symlink to it adds no second path for the same file."""
+def test_a_folder_reached_twice_inside_one_model_folder_is_catalogued_under_both_paths(models):
+    """As the loader's listing does: a second symlink to a folder is a second name a loader
+    can resolve, so its files are catalogued under both paths, whatever the listing order."""
     os.symlink(models["ckpt_a"] / "sub", models["ckpt_a"] / "alias")
     files = scanner.list_root("models").files
-    deep = [p for p in files if p.endswith("deep.safetensors")]
-    assert len(deep) == 1
-    assert len([p for p in _master_collect_models_files() if p.endswith("deep.safetensors")]) == 2
+    assert sorted(files) == sorted(set(_master_collect_models_files()))
+    assert str(models["ckpt_a"] / "alias" / "deep.safetensors") in files
+    assert str(models["ckpt_a"] / "sub" / "deep.safetensors") in files
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privileges on Windows")
+def test_a_symlink_back_up_a_model_folder_is_not_followed_round(models):
+    """Following every alias still stops at a directory that is its own ancestor: the
+    link back up isn't walked, and nothing else is lost."""
+    os.symlink(models["ckpt_a"], models["ckpt_a"] / "sub" / "loop")
+    files = scanner.list_root("models").files
+    assert str(models["ckpt_a"] / "sub" / "deep.safetensors") in files
+    assert not any(os.sep + "loop" + os.sep in p for p in files)
 
 
 def test_the_models_walk_takes_the_scans_pause_and_cancel(models, monkeypatch):

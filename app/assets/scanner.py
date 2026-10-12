@@ -430,7 +430,9 @@ def _walk_models(
         resolved: set[str] = set()
         for base in map(os.path.abspath, bases):
             if base not in walks:
-                walks[base] = walk_listings(base, should_stop, interrupted, cancelled, stat_files=True)
+                walks[base] = walk_listings(
+                    base, should_stop, interrupted, cancelled, stat_files=True, follow_aliases=True
+                )
             for path in walks[base].files:
                 st = walks[base].stats.get(path)
                 rel = os.path.normcase(os.path.relpath(path, base))

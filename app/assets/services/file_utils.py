@@ -131,13 +131,15 @@ def walk_listings(
     interrupted: Callable[[], bool] | None = None,
     cancelled: Callable[[], bool] | None = None,
     stat_files: bool = False,
+    follow_aliases: bool = False,
 ) -> ListingWalk:
     """Every visible file under ``base_dir``, following symlinks, every directory listing
     read on the way, and with ``stat_files`` each file's stat.
 
     The traversal is os.walk's (top-down, depth-first in listing order, following
     symlinked directories), with a device/inode guard against symlink cycles and hidden
-    names left out. ``listings`` holds exactly the directories this walk listed, keyed by
+    names left out. The guard lists each directory once; with ``follow_aliases`` it skips
+    only a directory that is its own ancestor, so a second path to one is walked too. ``listings`` holds exactly the directories this walk listed, keyed by
     normalized absolute path, so it doubles as the record of which directories the walk
     can vouch for.
 
@@ -156,19 +158,19 @@ def walk_listings(
     # No isdir() precheck, so each directory costs exactly one stat: a root that is
     # missing or not a directory fails its stat or scandir below and yields nothing.
     seen_dirs: set[tuple[int, int]] = set()
-    stack = [os.path.abspath(base_dir)]
+    stack: list[tuple[str, frozenset[tuple[int, int]]]] = [(os.path.abspath(base_dir), frozenset())]
     relist: str | None = None
     while stack:
         if should_stop is not None and should_stop():
             break
         yield_gil(run=RESCAN_YIELD_RUN)
-        dirpath = stack.pop()
+        dirpath, ancestors = stack.pop()
         try:
             st = os.stat(dirpath)
         except OSError:
             continue
         dir_id = (st.st_dev, st.st_ino)
-        if dir_id in seen_dirs:
+        if dir_id in (ancestors if follow_aliases else seen_dirs):
             continue
         try:
             listing = _list_visible_entries(
@@ -177,7 +179,7 @@ def walk_listings(
         except OSError:
             continue
         if listing is None:
-            stack.append(dirpath)
+            stack.append((dirpath, ancestors))
             relist = dirpath
             continue
         names, subdirs, name_stats = listing
@@ -189,5 +191,6 @@ def walk_listings(
             files.append(path)
             if name in name_stats:
                 stats[path] = name_stats[name]
-        stack.extend(os.path.join(dirpath, name) for name in reversed(subdirs))
+        inner = ancestors | {dir_id}
+        stack.extend((os.path.join(dirpath, name), inner) for name in reversed(subdirs))
     return ListingWalk(files, listings, len(listings), stats)
