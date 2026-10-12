@@ -140,7 +140,7 @@ def handle_comfy_agent_unavailable():
     logging.info("[agent-event] package_missing")
     # No install path is published yet: `comfy-agent` is not a registered PyPI name, so we
     # can't point users at a pip/uv command or a requirements file without risking a squatted package.
-    logging.warning("\n\n`--enable-agent` was passed but the `comfy-agent` package is not installed, so the agent is disabled.\n")
+    logging.warning("\n\n`--enable-agent` was passed but the `comfy-agent` package is not available, so the agent is disabled.\n")
     args.enable_agent = False
 
 
@@ -262,6 +262,11 @@ if args.enable_agent:
     # A bare comfy_agent directory on sys.path resolves as a namespace package with no origin.
     if agent_spec is None or agent_spec.origin is None:
         handle_comfy_agent_unavailable()
+    else:
+        try:
+            importlib.import_module("comfy_agent")
+        except Exception:
+            handle_comfy_agent_unavailable()
 
 execute_prestartup_script()
 

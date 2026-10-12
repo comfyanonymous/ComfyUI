@@ -21,7 +21,7 @@ def _is_agent_check(node: ast.stmt) -> bool:
     )
 
 
-def _run_agent_check(monkeypatch, caplog, find_spec):
+def _run_agent_check(monkeypatch, caplog, find_spec, import_module=lambda name: None):
     main_path = Path(__file__).resolve().parents[1] / "main.py"
     module = ast.parse(main_path.read_text(), filename=str(main_path))
     handler = next(node for node in module.body if isinstance(node, ast.FunctionDef) and node.name == "handle_comfy_agent_unavailable")
@@ -34,6 +34,7 @@ def _run_agent_check(monkeypatch, caplog, find_spec):
         "logging": logging,
     }
     monkeypatch.setattr(importlib.util, "find_spec", find_spec)
+    monkeypatch.setattr(importlib, "import_module", import_module)
     with caplog.at_level(logging.INFO):
         exec(compiled, namespace)  # noqa: S102 - trusted AST extracted from main.py itself, not external input
     return args
@@ -56,6 +57,20 @@ def test_missing_agent_package_disables_flag_without_install_command(monkeypatch
 
 def test_namespace_agent_package_counts_as_missing(monkeypatch, caplog):
     args = _run_agent_check(monkeypatch, caplog, lambda name: SimpleNamespace(origin=None))
+
+    assert args.enable_agent is False
+
+
+def test_unimportable_agent_package_disables_flag(monkeypatch, caplog):
+    def fail_import(name):
+        raise ImportError("missing package dependency")
+
+    args = _run_agent_check(
+        monkeypatch,
+        caplog,
+        lambda name: SimpleNamespace(origin="comfy_agent/__init__.py"),
+        fail_import,
+    )
 
     assert args.enable_agent is False
 
