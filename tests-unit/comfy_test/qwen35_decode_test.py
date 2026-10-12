@@ -46,6 +46,68 @@ def test_rms_norm_scale_adds_one_without_caching():
     assert plain.scale() is plain.weight
 
 
+@pytest.mark.parametrize("bits", [4, 6, 8, "fp8", "transposed"])
+@pytest.mark.parametrize("activation", ["rms_norm", "swiglu"])
+def test_input_activation_preserves_linear_and_patched_forward(bits, activation):
+    from comfy.quant_ops import QuantizedTensor
+
+    torch.manual_seed(7)
+    w = torch.randn(32, 256, dtype=torch.bfloat16)
+    if bits in (4, 6):
+        weight = QuantizedTensor.from_float(w, "AsymW4A8Int8Layout", bits=bits)
+    elif bits == "fp8":
+        weight = QuantizedTensor.from_float(w, "TensorCoreFP8Layout")
+    elif bits == "transposed":
+        weight = QuantizedTensor.from_float(w.t().contiguous(), "TensorWiseINT8Layout").t()
+    else:
+        weight = QuantizedTensor.from_float(w, "TensorWiseINT8Layout")
+    x = torch.randn(3, 512 if activation == "swiglu" else 256, dtype=torch.bfloat16)
+    norm_weight = torch.randn(256, dtype=torch.bfloat16)
+    bias = torch.randn(32, dtype=torch.bfloat16)
+    residual = torch.randn(3, 32, dtype=torch.bfloat16)
+    scale = torch.linspace(-1, 2, 32, dtype=torch.bfloat16)
+    if activation == "rms_norm":
+        activated = torch.nn.functional.rms_norm(x, (256,), norm_weight, 1e-6)
+    else:
+        gate, up = x.chunk(2, dim=-1)
+        activated = torch.nn.functional.silu(gate) * up
+    linear = torch.nn.functional.linear(activated, weight, bias)
+    expected = torch.addcmul(residual, linear, scale)
+    got = comfy.ops.linear_input_act_(x, weight, bias, activation, norm_weight, 1e-6, residual, scale)
+    assert torch.equal(got, expected)
+
+    layer = comfy.ops.manual_cast.Linear(256, 32, dtype=torch.bfloat16)
+    layer.weight = torch.nn.Parameter(weight, requires_grad=False)
+    layer.bias = torch.nn.Parameter(bias, requires_grad=False)
+    got = comfy.ops.linear_input_act(layer, x, activation, norm_weight, 1e-6, residual, scale)
+    assert torch.equal(got, expected)
+
+    if bits in ("fp8", "transposed"):
+        layer = comfy.ops.mixed_precision_ops(compute_dtype=torch.bfloat16).Linear(256, 32)
+        layer.weight = torch.nn.Parameter(weight, requires_grad=False)
+        layer.bias = torch.nn.Parameter(bias, requires_grad=False)
+        layer.layout_type = weight._layout_cls
+        layer.quant_format = "float8_e4m3fn" if bits == "fp8" else "int8_tensorwise"
+        layer.pre_quant_scale = torch.linspace(0.25, 1.75, 256, dtype=torch.bfloat16)
+        layer.input_scale = torch.tensor(0.01)
+        expected = torch.addcmul(residual, layer(activated), scale)
+        got = comfy.ops.linear_input_act(layer, x, activation, norm_weight, 1e-6, residual, scale)
+        assert torch.equal(got, expected)
+
+    class Patched(torch.nn.Module):
+        comfy_force_forward = True
+
+        def __init__(self):
+            super().__init__()
+            self.weight = weight
+
+        def forward(self, value):
+            return torch.nn.functional.linear(value, self.weight, bias) + 7
+
+    got = comfy.ops.linear_input_act(Patched(), x, activation, norm_weight, 1e-6, residual, scale)
+    assert torch.equal(got, torch.addcmul(residual, linear + 7, scale))
+
+
 def _fake_kitchen(monkeypatch):
     import comfy.text_encoders.llama as llama
     calls = []
