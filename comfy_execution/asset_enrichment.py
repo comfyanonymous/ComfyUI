@@ -12,8 +12,6 @@ import logging
 import os
 from typing import TYPE_CHECKING, Callable
 
-from comfy_execution.media_enrichment import resolve_output_entry_path
-
 if TYPE_CHECKING:
     from app.assets.manager import AssetManager
     from app.assets.services.schemas import RegisteredAsset
@@ -44,21 +42,19 @@ def _resolve_output_path(entry: dict) -> str | None:
     return abs_path
 
 
-def _file_version(abs_path: str) -> str | None:
-    """Changes when the file's mtime or size changes, so clients can put it in /view URLs."""
-    try:
-        st = os.stat(abs_path)
-    except OSError:
-        return None
-    return f"{st.st_mtime_ns:x}-{st.st_size:x}"
-
-
 def _add_versions(output_ui: dict) -> None:
+    """Stamp each file entry with a version that changes with the file's mtime or size."""
     for entries in output_ui.values():
         for entry in entries if isinstance(entries, list) else ():
-            abs_path = resolve_output_entry_path(entry)
-            if abs_path is not None and (version := _file_version(abs_path)):
-                entry["version"] = version
+            if not isinstance(entry, dict) or "filename" not in entry or "type" not in entry:
+                continue
+            try:
+                abs_path = _resolve_output_path(entry)
+                if abs_path is not None:
+                    st = os.stat(abs_path)
+                    entry["version"] = f"{st.st_mtime_ns:x}-{st.st_size:x}"
+            except Exception:
+                logging.warning("Could not version output: %s", entry.get("filename"), exc_info=True)
 
 
 def _enrich_in_place(

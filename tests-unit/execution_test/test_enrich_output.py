@@ -392,46 +392,69 @@ def real_output_dir(tmp_path, monkeypatch: pytest.MonkeyPatch):
     return tmp_path
 
 
+def _manager(assets_on: bool):
+    return InMemoryAssets() if assets_on else NoAssets(_ArgsStub())
+
+
 def _expected_version(path) -> str:
     st = os.stat(path)
     return f"{st.st_mtime_ns:x}-{st.st_size:x}"
 
 
-@pytest.mark.parametrize("manager", [NoAssets(_ArgsStub()), InMemoryAssets()], ids=["assets-off", "assets-on"])
-def test_executed_output_carries_a_version_that_changes_with_the_file(real_output_dir, manager) -> None:
+@pytest.mark.parametrize("assets_on", [False, True], ids=["assets-off", "assets-on"])
+def test_executed_output_carries_a_version_that_changes_with_the_file(real_output_dir, assets_on) -> None:
+    manager = _manager(assets_on)
     path = real_output_dir / "fixed.png"
     path.write_bytes(b"first")
-    first = register_executed_outputs(_output("fixed.png"), "job-1", manager)
+    output_ui = _output("fixed.png")
+    first = register_executed_outputs(output_ui, "job-1", manager)
     assert first["images"][0]["version"] == _expected_version(path)
 
-    path.write_bytes(b"second run")
+    path.write_bytes(b"other")
+    st = os.stat(path)
+    os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000))
     second = register_executed_outputs(_output("fixed.png"), "job-2", manager)
 
     assert second["images"][0]["version"] == _expected_version(path)
     assert first["images"][0]["version"] != second["images"][0]["version"]
+    assert "version" not in output_ui["images"][0]
 
 
-@pytest.mark.parametrize("manager", [NoAssets(_ArgsStub()), InMemoryAssets()], ids=["assets-off", "assets-on"])
-def test_cached_replay_restats_the_file(real_output_dir, manager) -> None:
+@pytest.mark.parametrize("assets_on", [False, True], ids=["assets-off", "assets-on"])
+def test_cached_replay_restats_the_file(real_output_dir, assets_on) -> None:
     path = real_output_dir / "fixed.png"
     path.write_bytes(b"replayed")
     wrapper = _wrapper("fixed.png")
     wrapper["output"]["images"][0]["version"] = "stale"
 
-    enriched = register_cached_outputs(wrapper, "job-1", manager)
+    enriched = register_cached_outputs(wrapper, "job-1", _manager(assets_on))
 
     assert enriched["output"]["images"][0]["version"] == _expected_version(path)
 
 
-@pytest.mark.parametrize("manager", [NoAssets(_ArgsStub()), InMemoryAssets()], ids=["assets-off", "assets-on"])
+def test_output_through_a_symlinked_subfolder_gets_a_version(real_output_dir, tmp_path_factory) -> None:
+    elsewhere = tmp_path_factory.mktemp("bigger-disk")
+    (elsewhere / "fixed.png").write_bytes(b"linked")
+    (real_output_dir / "linked").symlink_to(elsewhere, target_is_directory=True)
+
+    enriched = register_executed_outputs(_output("fixed.png", subfolder="linked"), "job-1", NoAssets(_ArgsStub()))
+
+    assert enriched["images"][0]["version"] == _expected_version(elsewhere / "fixed.png")
+
+
+@pytest.mark.parametrize("assets_on", [False, True], ids=["assets-off", "assets-on"])
 @pytest.mark.parametrize(
     "entry",
-    [{"filename": None, "subfolder": "", "type": "output"}, {"filename": "a.png", "subfolder": 3, "type": "output"}],
-    ids=["filename-none", "subfolder-int"],
+    [
+        {"filename": None, "subfolder": "", "type": "output"},
+        {"filename": "a.png", "subfolder": 3, "type": "output"},
+        {"filename": "a\x00.png", "subfolder": "", "type": "output"},
+    ],
+    ids=["filename-none", "subfolder-int", "filename-nul"],
 )
-def test_malformed_entries_pass_through_without_a_version(real_output_dir, manager, entry) -> None:
-    executed = register_executed_outputs({"images": [dict(entry)]}, "job-1", manager)
-    cached = register_cached_outputs({"output": {"images": [dict(entry)]}}, "job-1", manager)
+def test_malformed_entries_pass_through_without_a_version(real_output_dir, assets_on, entry) -> None:
+    executed = register_executed_outputs({"images": [dict(entry)]}, "job-1", _manager(assets_on))
+    cached = register_cached_outputs({"output": {"images": [dict(entry)]}}, "job-1", _manager(assets_on))
 
     assert "version" not in executed["images"][0]
     assert "version" not in cached["output"]["images"][0]
