@@ -403,8 +403,9 @@ def test_corrupt_daily_backup_is_not_restored(default_db, startup_warnings):
 @pytest.mark.parametrize("make_backup", [
     lambda path: open(path, "wb").close(),  # passes integrity_check, but holds no catalog
     lambda path: _execute(path, "CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)"),  # no stamp row
+    lambda path: (_make_db(path), _execute(path, "UPDATE alembic_version SET version_num = 'ffff_from_a_newer_release'")),
 ])
-def test_empty_daily_backup_is_not_restored(default_db, startup_warnings, make_backup):
+def test_unusable_daily_backup_is_not_restored(default_db, startup_warnings, make_backup):
     make_backup(default_db + ".daily-backup")
     _make_db(default_db)
     _overwrite_header(default_db)
@@ -413,6 +414,7 @@ def test_empty_daily_backup_is_not_restored(default_db, startup_warnings, make_b
 
     assert _revision(default_db) == _head()
     assert any("recreated empty" in w for w in startup_warnings)
+    assert os.path.getmtime(default_db + ".daily-backup") == 0  # due: replaced once this launch is up
 
 
 def test_written_backup_is_restored(default_db, startup_warnings):

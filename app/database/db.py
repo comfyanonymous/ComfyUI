@@ -417,9 +417,11 @@ def _stamp(path):
 
 
 def _is_sound_copy(path):
-    """Whether a backup, or a copy of one, may replace the database: intact, stamped, and matching its stamp."""
-    # No stamp: an empty file, or not ComfyUI's.
-    return _passes_integrity_check(path) and _stamp(path) is not None and _schema_matches_stamp(path)
+    """Whether a backup, or a copy of one, may replace the database: intact, stamped by this or an older
+    ComfyUI, and matching its stamp."""
+    # No stamp: an empty file, or not ComfyUI's. A newer stamp: this ComfyUI couldn't start on it.
+    return (_passes_integrity_check(path) and _stamp(path) is not None and not _from_a_newer_comfyui(path)
+            and _schema_matches_stamp(path))
 
 
 def _from_a_newer_comfyui(path):
