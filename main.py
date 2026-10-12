@@ -265,7 +265,7 @@ if args.enable_agent:
     else:
         try:
             importlib.import_module("comfy_agent")
-        except Exception:
+        except ImportError:
             handle_comfy_agent_unavailable()
 
 execute_prestartup_script()

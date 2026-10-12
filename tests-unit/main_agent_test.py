@@ -75,6 +75,19 @@ def test_unimportable_agent_package_disables_flag(monkeypatch, caplog):
     assert args.enable_agent is False
 
 
+def test_agent_package_initialization_error_propagates(monkeypatch, caplog):
+    def fail_import(name):
+        raise RuntimeError("package initialization failed")
+
+    with pytest.raises(RuntimeError, match="package initialization failed"):
+        _run_agent_check(
+            monkeypatch,
+            caplog,
+            lambda name: SimpleNamespace(origin="comfy_agent/__init__.py"),
+            fail_import,
+        )
+
+
 @pytest.mark.parametrize(
     ("find_spec", "expected"),
     [
