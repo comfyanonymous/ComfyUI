@@ -226,6 +226,8 @@ class ExecutionList(TopologicalSort):
         self.staged_node_id = None
         self.execution_cache = {}
         self.execution_cache_listeners = {}
+        self.consumers = {} # Nodes that read each node's output
+        self.completed = set() # Nodes that have finished executing in this prompt
 
     def is_cached(self, node_id):
         return self.output_cache.get_local(node_id) is not None
@@ -238,6 +240,7 @@ class ExecutionList(TopologicalSort):
         if from_node_id not in self.execution_cache_listeners:
             self.execution_cache_listeners[from_node_id] = set()
         self.execution_cache_listeners[from_node_id].add((to_node_id, from_socket))
+        self.consumers.setdefault(from_node_id, set()).add(to_node_id)
         if value is not None and from_socket is not None and self.output_link_callback is not None:
             self.output_link_callback(value.outputs[from_socket])
 
@@ -368,9 +371,14 @@ class ExecutionList(TopologicalSort):
     def complete_node_execution(self):
         node_id = self.staged_node_id
         self.pop_node(node_id)
-        self.execution_cache.pop(node_id, None)
+        producers = self.execution_cache.pop(node_id, {}) # The nodes whose outputs this node read
         self.execution_cache_listeners.pop(node_id, None)
         self.staged_node_id = None
+        self.completed.add(node_id)
+        # Drop transient outputs, this node's own and those it read, once every consumer has finished with them.
+        for from_node_id in (node_id, *producers):
+            if self.dynprompt.get_node(from_node_id).get("_transient") and self.consumers.get(from_node_id, set()) <= self.completed:
+                self.output_cache.remove_local(from_node_id)
 
     def get_nodes_in_cycle(self):
         # We'll dissolve the graph in reverse topological order to leave only the nodes in the cycle.
