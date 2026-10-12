@@ -58,6 +58,7 @@ def _enrich_in_place(
         for entry in entries:
             if not isinstance(entry, dict) or "filename" not in entry or "type" not in entry:
                 continue
+            entry.pop("version", None)
             try:
                 abs_path = _resolve_output_path(entry)
                 if abs_path is None:
@@ -78,7 +79,6 @@ def _strip_ids(output_ui: dict) -> None:
         for entry in entries:
             if isinstance(entry, dict):
                 entry.pop("id", None)
-                entry.pop("version", None)
 
 
 def register_executed_outputs(output_ui: dict, job_id: str, asset_manager: "AssetManager") -> dict:

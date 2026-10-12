@@ -503,13 +503,17 @@ def test_size_only_rewrite_changes_the_version(real_output_dir) -> None:
     assert first["images"][0]["version"] != second["images"][0]["version"]
 
 
-def test_cached_replay_of_a_missing_file_drops_a_stale_version(real_output_dir) -> None:
+def test_a_missing_file_drops_a_stale_version(real_output_dir) -> None:
     wrapper = _wrapper("gone.png")
     wrapper["output"]["images"][0]["version"] = "stale"
+    output_ui = _output("gone.png")
+    output_ui["images"][0]["version"] = "stale"
 
-    enriched = register_cached_outputs(wrapper, "job-1", NoAssets(_ArgsStub()))
+    cached = register_cached_outputs(wrapper, "job-1", NoAssets(_ArgsStub()))
+    executed = register_executed_outputs(output_ui, "job-1", NoAssets(_ArgsStub()))
 
-    assert "version" not in enriched["output"]["images"][0]
+    assert "version" not in cached["output"]["images"][0]
+    assert "version" not in executed["images"][0]
 
 
 def test_missing_output_file_gets_no_version(real_output_dir) -> None:
