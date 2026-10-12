@@ -407,24 +407,25 @@ def _schema_matches_stamp(path):
         migration_log.setLevel(level)
 
 
-def _is_sound_copy(path):
-    """Whether a backup, or a copy of one, may replace the database: intact, stamped, and matching its stamp."""
-    if not _passes_integrity_check(path):
-        return False
+def _stamp(path):
+    """The database's migration revision, or None when it has none or it can't be read."""
     try:
         with closing(_connect_existing(path)) as conn:
-            stamped = conn.execute("SELECT version_num FROM alembic_version").fetchone() is not None
-    except sqlite3.Error:
-        return False  # no stamp table: an empty file, or not ComfyUI's
-    return stamped and _schema_matches_stamp(path)
+            return conn.execute("SELECT version_num FROM alembic_version").fetchone()[0]
+    except Exception:
+        return None
+
+
+def _is_sound_copy(path):
+    """Whether a backup, or a copy of one, may replace the database: intact, stamped, and matching its stamp."""
+    # No stamp: an empty file, or not ComfyUI's.
+    return _passes_integrity_check(path) and _stamp(path) is not None and _schema_matches_stamp(path)
 
 
 def _from_a_newer_comfyui(path):
-    try:
-        with closing(_connect_existing(path)) as conn:
-            revision = conn.execute("SELECT version_num FROM alembic_version").fetchone()[0]
-    except Exception:
-        return False  # no readable stamp: nothing says it is newer
+    revision = _stamp(path)
+    if revision is None:
+        return False  # nothing says it is newer
     try:
         ScriptDirectory.from_config(get_alembic_config()).get_revision(revision)
     except Exception:
@@ -436,26 +437,27 @@ def _quarantine_and_restore(db_path, error):
     """Rename a corrupt database aside and restore the daily backup in its place if it is sound.
     With no sound backup, no database file is left, so the caller creates a new one. On a failure,
     every move is undone, so the corrupt database stays in place to be recovered next time."""
-    quarantine_path = f"{db_path}.corrupt-{time.strftime('%Y%m%d-%H%M%S')}"
+    quarantine_path = moved_at = f"{db_path}.corrupt-{time.strftime('%Y%m%d-%H%M%S')}"
     for n in itertools.count(2):  # never over an earlier quarantine, e.g. after the clock moved back
         if not any(os.path.exists(quarantine_path + s) for s in ("", "-wal", "-shm", "-journal")):
             break
-        quarantine_path = f"{db_path}.corrupt-{time.strftime('%Y%m%d-%H%M%S')}-{n}"
+        quarantine_path = f"{moved_at}-{n}"
     backup_path, restore_path = db_path + ".daily-backup", db_path + ".restore-tmp"
     outcome = "Database recreated empty: there was no sound daily backup"
     try:
         try:  # before anything moves: a kill during the slow copy and check leaves it to recover again
             shutil.copyfile(backup_path, restore_path)
-            shutil.copymode(db_path, restore_path)  # keep a mode tightened by hand
-            sound = _is_sound_copy(restore_path)
             taken = time.strftime("%Y-%m-%d %H:%M", time.localtime(os.path.getmtime(backup_path)))
-            if not sound:
-                os.utime(backup_path, (0, 0))  # due now: the daily backup replaces it once this launch is up
         except FileNotFoundError:
             sound = False  # no backup
         except OSError:
             logging.error(f"Could not read the daily backup '{backup_path}' to restore it; nothing was moved")
             raise
+        else:
+            sound = _is_sound_copy(restore_path)
+            if not sound:
+                with suppress(OSError):  # best effort, e.g. a backup another account wrote
+                    os.utime(backup_path, (0, 0))  # due now: the daily backup replaces it once this launch is up
         moved = []
         try:
             # With its WAL and journal: when another connection keeps one, SQLite would replay it.
@@ -523,7 +525,6 @@ def _write_daily_backup(db_path, backup_path):
         # only a copy a restore accepts replaces the backup.
         if not _is_sound_copy(tmp_path):
             raise sqlite3.DatabaseError("the new backup is not one a restore would accept")
-        shutil.copymode(db_path, tmp_path)
         os.replace(tmp_path, backup_path)
         logging.info(f"Database daily backup written to '{backup_path}'")
     except Exception:

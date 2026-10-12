@@ -400,8 +400,12 @@ def test_corrupt_daily_backup_is_not_restored(default_db, startup_warnings):
     assert any("recreated empty" in w for w in startup_warnings)
 
 
-def test_empty_daily_backup_is_not_restored(default_db, startup_warnings):
-    open(default_db + ".daily-backup", "wb").close()  # passes integrity_check, but holds no catalog
+@pytest.mark.parametrize("make_backup", [
+    lambda path: open(path, "wb").close(),  # passes integrity_check, but holds no catalog
+    lambda path: _execute(path, "CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)"),  # no stamp row
+])
+def test_empty_daily_backup_is_not_restored(default_db, startup_warnings, make_backup):
+    make_backup(default_db + ".daily-backup")
     _make_db(default_db)
     _overwrite_header(default_db)
 
@@ -423,19 +427,20 @@ def test_written_backup_is_restored(default_db, startup_warnings):
     assert any("restored from the daily backup" in w for w in startup_warnings)
 
 
-def test_quarantine_never_replaces_an_earlier_one(default_db, monkeypatch):
+@pytest.mark.parametrize("suffix", ["", "-wal"])
+def test_quarantine_never_replaces_an_earlier_one(default_db, monkeypatch, suffix):
     _make_db(default_db)
     _overwrite_header(default_db)
     monkeypatch.setattr(db_module.time, "strftime", lambda fmt, *t: "20261011-120000")  # e.g. the clock moved back
     earlier = default_db + ".corrupt-20261011-120000"
-    with open(earlier, "wb") as f:
+    with open(earlier + suffix, "wb") as f:
         f.write(b"quarantined before")
 
     _boot()
 
-    with open(earlier, "rb") as f:
+    with open(earlier + suffix, "rb") as f:
         assert f.read() == b"quarantined before"
-    assert _quarantined(default_db) == [earlier, earlier + "-2"]
+    assert earlier + "-2" in _quarantined(default_db)
 
 
 def test_corrupt_database_from_a_newer_comfyui_is_left_in_place(default_db):
@@ -444,18 +449,27 @@ def test_corrupt_database_from_a_newer_comfyui_is_left_in_place(default_db):
     _overwrite_page_of(default_db, "assets")
 
     assert not db_module.is_recoverable_corruption(sqlite3.DatabaseError("database disk image is malformed"))
+    with pytest.raises(SystemExit):
+        _boot()
+    assert _quarantined(default_db) == []
 
 
-@pytest.mark.skipif(os.name == "nt", reason="POSIX file modes")
-def test_restored_database_keeps_the_mode_of_the_one_it_replaces(default_db):
+def test_recovery_goes_on_when_the_backup_cannot_be_marked_due(default_db, monkeypatch, startup_warnings):
+    # E.g. a backup another account wrote: readable, but its time can't be set.
     _make_db(default_db + ".daily-backup", tag=FROM_BACKUP)
+    _overwrite_page_of(default_db + ".daily-backup", "assets")
     _make_db(default_db)
-    os.chmod(default_db, 0o600)
     _overwrite_header(default_db)
+
+    def _not_owner(*args, **kwargs):
+        raise PermissionError("Operation not permitted")
+
+    monkeypatch.setattr(db_module.os, "utime", _not_owner)
 
     _boot()
 
-    assert os.stat(default_db).st_mode & 0o777 == 0o600
+    assert len(_quarantined(default_db)) == 1
+    assert any("recreated empty" in w for w in startup_warnings)
 
 
 def test_corruption_found_by_an_upgrade_is_quarantined(default_db, startup_warnings):
@@ -1090,15 +1104,6 @@ def test_database_that_does_not_match_its_stamp_never_replaces_the_backup(live_d
 
     with open(backup, "rb") as f:
         assert f.read() == b"previous backup"
-
-
-@pytest.mark.skipif(os.name == "nt", reason="POSIX file modes")
-def test_backup_keeps_the_mode_of_the_database(live_db):
-    os.chmod(live_db, 0o600)
-
-    db_module._write_daily_backup(live_db, live_db + ".daily-backup")
-
-    assert os.stat(live_db + ".daily-backup").st_mode & 0o777 == 0o600
 
 
 def test_comparison_at_head_is_quiet_and_adds_no_listener(live_db, monkeypatch, caplog):
