@@ -41,6 +41,24 @@ def _resolve_output_path(entry: dict) -> str | None:
     return abs_path
 
 
+def file_version(abs_path: str) -> str | None:
+    """Changes whenever the file is rewritten, so a /view URL carrying it is never stale."""
+    try:
+        st = os.stat(abs_path)
+    except OSError:
+        return None
+    return f"{st.st_mtime_ns:x}-{st.st_size:x}"
+
+
+def _add_versions(output_ui: dict) -> None:
+    for entries in output_ui.values():
+        for entry in entries if isinstance(entries, list) else ():
+            if isinstance(entry, dict) and "filename" in entry and "type" in entry:
+                abs_path = _resolve_output_path(entry)
+                if abs_path is not None and (version := file_version(abs_path)):
+                    entry["version"] = version
+
+
 def _enrich_in_place(
     output_ui: dict,
     job_id: str | None,
@@ -75,6 +93,7 @@ def _strip_ids(output_ui: dict) -> None:
 
 def register_executed_outputs(output_ui: dict, job_id: str, asset_manager: "AssetManager") -> dict:
     enriched = copy.deepcopy(output_ui)
+    _add_versions(enriched)
     if not asset_manager.enabled:
         return enriched
 
@@ -91,6 +110,7 @@ def register_cached_outputs(ui_wrapper: dict | None, job_id: str, asset_manager:
     if not isinstance(output_ui, dict):
         return enriched
     _strip_ids(output_ui)
+    _add_versions(output_ui)
 
     if not asset_manager.enabled:
         return enriched

@@ -384,3 +384,44 @@ def test_emit_cached_sends_enriched_output_to_client(output_path_environment) ->
     assert event == "executed"
     assert client_id == "client-1"
     assert payload["output"]["images"][0]["id"] is not None
+
+
+@pytest.fixture
+def real_output_dir(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(folder_paths, "get_directory_by_type", lambda _type: str(tmp_path))
+    return tmp_path
+
+
+def _expected_version(path) -> str:
+    st = os.stat(path)
+    return f"{st.st_mtime_ns:x}-{st.st_size:x}"
+
+
+@pytest.mark.parametrize("manager", [NoAssets(_ArgsStub()), InMemoryAssets()], ids=["assets-off", "assets-on"])
+def test_executed_output_carries_a_version_that_changes_with_the_file(real_output_dir, manager) -> None:
+    path = real_output_dir / "fixed.png"
+    path.write_bytes(b"first")
+    first = register_executed_outputs(_output("fixed.png"), "job-1", manager)
+    assert first["images"][0]["version"] == _expected_version(path)
+
+    path.write_bytes(b"second run")
+    os.utime(path, ns=(os.stat(path).st_atime_ns, os.stat(path).st_mtime_ns + 1_000_000))
+    second = register_executed_outputs(_output("fixed.png"), "job-2", manager)
+
+    assert second["images"][0]["version"] == _expected_version(path)
+    assert first["images"][0]["version"] != second["images"][0]["version"]
+
+
+def test_cached_replay_restats_the_file(real_output_dir) -> None:
+    path = real_output_dir / "fixed.png"
+    path.write_bytes(b"replayed")
+
+    enriched = register_cached_outputs(_wrapper("fixed.png"), "job-1", NoAssets(_ArgsStub()))
+
+    assert enriched["output"]["images"][0]["version"] == _expected_version(path)
+
+
+def test_missing_output_file_gets_no_version(real_output_dir) -> None:
+    enriched = register_executed_outputs(_output("gone.png"), "job-1", NoAssets(_ArgsStub()))
+
+    assert "version" not in enriched["images"][0]
