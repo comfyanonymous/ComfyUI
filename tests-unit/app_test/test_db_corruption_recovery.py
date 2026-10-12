@@ -246,16 +246,25 @@ def test_copy_left_by_a_killed_recovery_is_replaced(default_db, startup_warnings
     assert any("restored from the daily backup" in w for w in startup_warnings)
 
 
-def _refuse_restore(monkeypatch):  # monkeypatch or a monkeypatch.context()
-    # E.g. a virus scanner holding the fresh copy, after the corrupt database has moved aside.
+def _refuse_replace(monkeypatch, refused):  # monkeypatch or a monkeypatch.context()
+    """os.replace fails for each src that refused(src) is true for, as for a file another program holds open."""
     real_replace = os.replace
 
-    def _restore_refused(src, dst):
-        if src.endswith(".restore-tmp"):
+    def _replace(src, dst):
+        if refused(src):
             raise PermissionError("[WinError 32] The process cannot access the file")
         return real_replace(src, dst)
 
-    monkeypatch.setattr(db_module.os, "replace", _restore_refused)
+    monkeypatch.setattr(db_module.os, "replace", _replace)
+
+
+def _refuse_restore(monkeypatch):
+    # E.g. a virus scanner holding the fresh copy, after the corrupt database has moved aside.
+    _refuse_replace(monkeypatch, lambda src: src.endswith(".restore-tmp"))
+
+
+def _refuse_restore_and_undo(monkeypatch):
+    _refuse_replace(monkeypatch, lambda src: src.endswith(".restore-tmp") or ".corrupt-" in src)
 
 
 @pytest.mark.parametrize("table", ["alembic_version", "assets"])  # found by init, then by asset startup
@@ -295,14 +304,7 @@ def test_restore_that_cannot_be_undone_fails_the_launch(default_db, monkeypatch,
     _make_db(default_db + ".daily-backup")
     _make_db(default_db)
     _overwrite_page_of(default_db, table)
-    real_replace = os.replace
-
-    def _restore_and_undo_refused(src, dst):
-        if src.endswith(".restore-tmp") or ".corrupt-" in src:
-            raise PermissionError("[WinError 32] The process cannot access the file")
-        return real_replace(src, dst)
-
-    monkeypatch.setattr(db_module.os, "replace", _restore_and_undo_refused)
+    _refuse_restore_and_undo(monkeypatch)
 
     with pytest.raises(SystemExit):
         _boot()
@@ -333,6 +335,7 @@ def test_unreadable_backup_stops_recovery_before_anything_moves(default_db, monk
 
     assert os.stat(default_db).st_ino == corrupt_file
     assert glob.glob(default_db + ".corrupt-*") == []
+    assert f"Could not read the daily backup '{default_db}.daily-backup'" in caplog.text
 
 
 def test_sidecars_move_before_the_database(default_db, monkeypatch):
@@ -354,14 +357,7 @@ def test_database_that_wont_move_keeps_its_wal(default_db, monkeypatch):
     _make_db(default_db)
     with open(default_db + "-wal", "wb") as f:
         f.write(b"recent commits")
-    real_replace = os.replace
-
-    def _database_held(src, dst):
-        if os.path.abspath(src) == os.path.abspath(default_db):
-            raise PermissionError("[WinError 32] The process cannot access the file")
-        return real_replace(src, dst)
-
-    monkeypatch.setattr(db_module.os, "replace", _database_held)
+    _refuse_replace(monkeypatch, lambda src: os.path.abspath(src) == os.path.abspath(default_db))
 
     with pytest.raises(sqlite3.DatabaseError):
         db_module._quarantine_and_restore(default_db, sqlite3.DatabaseError("database disk image is malformed"))
@@ -374,14 +370,7 @@ def test_database_that_wont_move_keeps_its_wal(default_db, monkeypatch):
 def test_failed_undo_is_reported(default_db, monkeypatch, caplog):
     _make_db(default_db + ".daily-backup")
     _make_db(default_db)
-    real_replace = os.replace
-
-    def _restore_and_undo_refused(src, dst):
-        if src.endswith(".restore-tmp") or ".corrupt-" in src:
-            raise PermissionError("[WinError 32] The process cannot access the file")
-        return real_replace(src, dst)
-
-    monkeypatch.setattr(db_module.os, "replace", _restore_and_undo_refused)
+    _refuse_restore_and_undo(monkeypatch)
 
     with pytest.raises(sqlite3.DatabaseError):
         db_module._quarantine_and_restore(default_db, sqlite3.DatabaseError("database disk image is malformed"))
@@ -406,8 +395,67 @@ def test_corrupt_daily_backup_is_not_restored(default_db, startup_warnings):
         assert _tag(conn) == 0
     with open(backup, "rb") as f:
         assert f.read() == backup_bytes
+    assert os.path.getmtime(backup) == 0  # due: replaced by the next daily backup, not in a day
     assert not os.path.exists(default_db + ".restore-tmp")
     assert any("recreated empty" in w for w in startup_warnings)
+
+
+def test_empty_daily_backup_is_not_restored(default_db, startup_warnings):
+    open(default_db + ".daily-backup", "wb").close()  # passes integrity_check, but holds no catalog
+    _make_db(default_db)
+    _overwrite_header(default_db)
+
+    _boot()
+
+    assert _revision(default_db) == _head()
+    assert any("recreated empty" in w for w in startup_warnings)
+
+
+def test_written_backup_is_restored(default_db, startup_warnings):
+    _make_db(default_db, tag=FROM_BACKUP)
+    db_module._write_daily_backup(default_db, default_db + ".daily-backup")
+    _overwrite_header(default_db)
+
+    _boot()
+
+    with closing(sqlite3.connect(default_db)) as conn:
+        assert _tag(conn) == FROM_BACKUP
+    assert any("restored from the daily backup" in w for w in startup_warnings)
+
+
+def test_quarantine_never_replaces_an_earlier_one(default_db, monkeypatch):
+    _make_db(default_db)
+    _overwrite_header(default_db)
+    monkeypatch.setattr(db_module.time, "strftime", lambda fmt, *t: "20261011-120000")  # e.g. the clock moved back
+    earlier = default_db + ".corrupt-20261011-120000"
+    with open(earlier, "wb") as f:
+        f.write(b"quarantined before")
+
+    _boot()
+
+    with open(earlier, "rb") as f:
+        assert f.read() == b"quarantined before"
+    assert _quarantined(default_db) == [earlier, earlier + "-2"]
+
+
+def test_corrupt_database_from_a_newer_comfyui_is_left_in_place(default_db):
+    _make_db(default_db)
+    _execute(default_db, "UPDATE alembic_version SET version_num = '9999_from_a_newer_release'")
+    _overwrite_page_of(default_db, "assets")
+
+    assert not db_module.is_recoverable_corruption(sqlite3.DatabaseError("database disk image is malformed"))
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file modes")
+def test_restored_database_keeps_the_mode_of_the_one_it_replaces(default_db):
+    _make_db(default_db + ".daily-backup", tag=FROM_BACKUP)
+    _make_db(default_db)
+    os.chmod(default_db, 0o600)
+    _overwrite_header(default_db)
+
+    _boot()
+
+    assert os.stat(default_db).st_mode & 0o777 == 0o600
 
 
 def test_corruption_found_by_an_upgrade_is_quarantined(default_db, startup_warnings):
@@ -536,7 +584,7 @@ def test_failed_upgrade_of_a_matching_database_is_not_recovered(default_db, monk
 
 
 def test_statements_on_other_databases_are_not_counted_as_migrations(default_db, tmp_path, monkeypatch, caplog):
-    _make_db(default_db, marker="a table no migration makes")
+    _make_db(default_db, "0006_add_loader_path", marker="a table no migration makes")
     other = create_engine(f"sqlite:///{tmp_path / 'other.db'}")
     upgrade = command.upgrade
 
@@ -851,10 +899,7 @@ def test_failed_quarantine_raises_the_corruption(default_db, monkeypatch, startu
     _make_db(default_db)
     _overwrite_header(default_db)
 
-    def _refuse(src, dst):
-        raise PermissionError("in use by another process")
-
-    monkeypatch.setattr(db_module.os, "replace", _refuse)
+    _refuse_replace(monkeypatch, lambda src: True)
 
     with pytest.raises(Exception) as raised:
         db_module.init_db()
@@ -869,14 +914,7 @@ def test_unmovable_database_found_corrupt_after_init_starts_as_before(default_db
     _overwrite_page_of(default_db, "assets")
     seeded = []
     monkeypatch.setattr(lifecycle, "start_asset_seeder", lambda: seeded.append(True))
-    real_replace = os.replace
-
-    def _held_open(src, dst):
-        if os.path.abspath(src) == os.path.abspath(default_db):
-            raise PermissionError("[WinError 32] The process cannot access the file")
-        return real_replace(src, dst)
-
-    monkeypatch.setattr(db_module.os, "replace", _held_open)
+    _refuse_replace(monkeypatch, lambda src: os.path.abspath(src) == os.path.abspath(default_db))
     monkeypatch.setattr(db_module, "_recovery_attempted", False)
 
     _boot()
@@ -891,14 +929,7 @@ def test_failed_sidecar_move_leaves_the_database_in_place(default_db, monkeypatc
     with open(default_db + "-wal", "wb") as f:
         f.write(b"held by another program")
     database_file = os.stat(default_db).st_ino
-    real_replace = os.replace
-
-    def _wal_held(src, dst):
-        if src.endswith("-wal"):
-            raise PermissionError("[WinError 32] The process cannot access the file")
-        return real_replace(src, dst)
-
-    monkeypatch.setattr(db_module.os, "replace", _wal_held)
+    _refuse_replace(monkeypatch, lambda src: src.endswith("-wal"))
     error = sqlite3.DatabaseError("database disk image is malformed")
 
     with pytest.raises(sqlite3.DatabaseError):
@@ -1049,6 +1080,40 @@ def test_daily_backup_is_a_sound_copy(live_db):
     assert not os.path.exists(backup + ".tmp")
 
 
+def test_database_that_does_not_match_its_stamp_never_replaces_the_backup(live_db):
+    backup = live_db + ".daily-backup"
+    with open(backup, "wb") as f:
+        f.write(b"previous backup")
+    _execute(live_db, "DROP TABLE asset_system_state")
+
+    db_module._write_daily_backup(live_db, backup)
+
+    with open(backup, "rb") as f:
+        assert f.read() == b"previous backup"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file modes")
+def test_backup_keeps_the_mode_of_the_database(live_db):
+    os.chmod(live_db, 0o600)
+
+    db_module._write_daily_backup(live_db, live_db + ".daily-backup")
+
+    assert os.stat(live_db + ".daily-backup").st_mode & 0o777 == 0o600
+
+
+def test_comparison_at_head_is_quiet_and_adds_no_listener(live_db, monkeypatch, caplog):
+    # The daily backup runs it from its own thread, beside the live engines.
+    listened = []
+    listen = event.listen
+    monkeypatch.setattr(event, "listen", lambda *a, **kw: (listened.append(a[:3]), listen(*a, **kw))[1])
+
+    with caplog.at_level(logging.INFO):
+        assert db_module._schema_matches_stamp(live_db)
+
+    assert not [a for a in listened if a[1] == "before_cursor_execute"]
+    assert "Running upgrade" not in caplog.text
+
+
 def test_corrupt_database_never_replaces_the_backup(live_db):
     backup = live_db + ".daily-backup"
     with open(backup, "wb") as f:
@@ -1067,10 +1132,7 @@ def test_failed_backup_keeps_the_previous_one(live_db, monkeypatch):
     with open(backup, "wb") as f:
         f.write(b"previous backup")
 
-    def _fail(src, dst):
-        raise OSError("disk full")
-
-    monkeypatch.setattr(db_module.os, "replace", _fail)
+    _refuse_replace(monkeypatch, lambda src: True)
 
     db_module._write_daily_backup(live_db, backup)
 

@@ -1,4 +1,5 @@
 import importlib
+import itertools
 import logging
 import os
 import re
@@ -306,8 +307,8 @@ def is_recoverable_corruption(error, migrating=False):
     # another file (the pre-upgrade backup), so the live database must fail its check too.
     if _recovery_attempted or not _is_default_db():
         return False
-    if error_kind(error) == "database_corrupt":
-        return not _passes_integrity_check(get_db_path())
+    if error_kind(error) == "database_corrupt":  # left alone if a newer ComfyUI wrote it
+        return not _passes_integrity_check(get_db_path()) and not _from_a_newer_comfyui(get_db_path())
     # A migration interrupted part way leaves a schema its stamp doesn't describe, so every upgrade
     # fails, with "no such table", "already exists" or an error from Alembic itself.
     if error_kind(error) != "other":
@@ -368,6 +369,9 @@ def _schema_matches_stamp(path):
     revision, and no extra one named like an object a later migration creates or alters,
     as one interrupted part way leaves behind. Other objects are allowed. True when that can't be
     told, as for a stamp from a newer ComfyUI."""
+    migration_log = logging.getLogger("alembic.runtime.migration")
+    level = migration_log.level
+    migration_log.setLevel(logging.WARNING)  # its "Running upgrade" lines would read as the user's database
     try:
         with closing(_connect_existing(path)) as conn:
             stamp = conn.execute("SELECT version_num FROM alembic_version").fetchone()
@@ -387,15 +391,45 @@ def _schema_matches_stamp(path):
                 if conn.engine.url.database == reference:
                     migrated.update(name.lower() for name in _MIGRATED_NAME.findall(statement))
 
-            event.listen(Engine, "before_cursor_execute", record)
-            try:
-                command.upgrade(config, "head")
-            finally:
-                event.remove(Engine, "before_cursor_execute", record)
+            # Only below head, where later migrations are left to record; the daily backup checks a head
+            # copy from its own thread, where adding a listener would race the live engines.
+            if stamp is None or stamp[0] != ScriptDirectory.from_config(config).get_current_head():
+                event.listen(Engine, "before_cursor_execute", record)
+                try:
+                    command.upgrade(config, "head")
+                finally:
+                    event.remove(Engine, "before_cursor_execute", record)
         return expected <= actual and not any(name.lower() in migrated for _, name, _ in actual - expected)
     except Exception:
         logging.debug(f"Could not compare the schema of '{path}' with its migration stamp", exc_info=True)
         return True
+    finally:
+        migration_log.setLevel(level)
+
+
+def _is_sound_copy(path):
+    """Whether a backup, or a copy of one, may replace the database: intact, stamped, and matching its stamp."""
+    if not _passes_integrity_check(path):
+        return False
+    try:
+        with closing(_connect_existing(path)) as conn:
+            stamped = conn.execute("SELECT version_num FROM alembic_version").fetchone() is not None
+    except sqlite3.Error:
+        return False  # no stamp table: an empty file, or not ComfyUI's
+    return stamped and _schema_matches_stamp(path)
+
+
+def _from_a_newer_comfyui(path):
+    try:
+        with closing(_connect_existing(path)) as conn:
+            revision = conn.execute("SELECT version_num FROM alembic_version").fetchone()[0]
+    except Exception:
+        return False  # no readable stamp: nothing says it is newer
+    try:
+        ScriptDirectory.from_config(get_alembic_config()).get_revision(revision)
+    except Exception:
+        return True
+    return False
 
 
 def _quarantine_and_restore(db_path, error):
@@ -403,15 +437,25 @@ def _quarantine_and_restore(db_path, error):
     With no sound backup, no database file is left, so the caller creates a new one. On a failure,
     every move is undone, so the corrupt database stays in place to be recovered next time."""
     quarantine_path = f"{db_path}.corrupt-{time.strftime('%Y%m%d-%H%M%S')}"
+    for n in itertools.count(2):  # never over an earlier quarantine, e.g. after the clock moved back
+        if not any(os.path.exists(quarantine_path + s) for s in ("", "-wal", "-shm", "-journal")):
+            break
+        quarantine_path = f"{db_path}.corrupt-{time.strftime('%Y%m%d-%H%M%S')}-{n}"
     backup_path, restore_path = db_path + ".daily-backup", db_path + ".restore-tmp"
     outcome = "Database recreated empty: there was no sound daily backup"
     try:
         try:  # before anything moves: a kill during the slow copy and check leaves it to recover again
             shutil.copyfile(backup_path, restore_path)
-            sound = _passes_integrity_check(restore_path) and _schema_matches_stamp(restore_path)
+            shutil.copymode(db_path, restore_path)  # keep a mode tightened by hand
+            sound = _is_sound_copy(restore_path)
             taken = time.strftime("%Y-%m-%d %H:%M", time.localtime(os.path.getmtime(backup_path)))
+            if not sound:
+                os.utime(backup_path, (0, 0))  # due now: the daily backup replaces it once this launch is up
         except FileNotFoundError:
-            sound = False  # no backup; any other error stops here, before anything moves
+            sound = False  # no backup
+        except OSError:
+            logging.error(f"Could not read the daily backup '{backup_path}' to restore it; nothing was moved")
+            raise
         moved = []
         try:
             # With its WAL and journal: when another connection keeps one, SQLite would replay it.
@@ -475,9 +519,11 @@ def _write_daily_backup(db_path, backup_path):
             os.remove(tmp_path)  # left by a process that exited mid-backup
         with closing(_connect_existing(db_path)) as conn:  # a deleted database must not back up as empty
             conn.execute("VACUUM INTO ?", (tmp_path,))
-        # VACUUM INTO copies a row that breaks a constraint; only a copy a restore accepts replaces the backup.
-        if not _passes_integrity_check(tmp_path):
-            raise sqlite3.DatabaseError("the new backup failed its integrity check")
+        # VACUUM INTO copies a row that breaks a constraint, or a schema that doesn't match its stamp:
+        # only a copy a restore accepts replaces the backup.
+        if not _is_sound_copy(tmp_path):
+            raise sqlite3.DatabaseError("the new backup is not one a restore would accept")
+        shutil.copymode(db_path, tmp_path)
         os.replace(tmp_path, backup_path)
         logging.info(f"Database daily backup written to '{backup_path}'")
     except Exception:
