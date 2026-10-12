@@ -731,6 +731,12 @@ class Qwen35(BaseLlama, BaseGenerate, torch.nn.Module):
         self.mtp = None
         if config.mtp:
             self.mtp = MTPHead(config, device=device, dtype=dtype, ops=operations)
+        # Prefer small-M execution for autoregressive linears, including the draft/head.
+        decode_units = [self.model.layers] + ([self.mtp] if config.mtp else []) + ([self.model.lm_head] if config.lm_head else [])
+        for unit in decode_units:
+            for m in unit.modules():
+                if isinstance(m, comfy.ops.MixedPrecisionOp):
+                    m.comfy_gemv_optimized = True
         vision_overrides = QWEN35_MODELS.get(self.model_type, {}).get("vision", {})
         vision_config = {**QWEN35_VISION_DEFAULTS, **vision_overrides, "out_hidden_size": config.hidden_size}
         self.visual = Qwen35VisionModel(vision_config, device=device, dtype=dtype, ops=operations)
