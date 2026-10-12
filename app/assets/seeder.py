@@ -166,8 +166,9 @@ INSERT_BATCH_SIZE = 200
 _BUSY_HANDLER_MAX_SLEEP_SECONDS = 0.1
 _TIMER_TICK_ALLOWANCE_SECONDS = 0.02
 INSERT_PAUSE_SECONDS = _BUSY_HANDLER_MAX_SLEEP_SECONDS + _TIMER_TICK_ALLOWANCE_SECONDS
-# NTFS updates a file's directory entry only through the link it was written by, so the
-# walk's stat of a file changed through another hard link stays stale; there os.stat decides.
+# NTFS updates a file's directory entry only through the link it was written by, so on
+# Windows the walk's stat of a file changed through another hard link stays stale, and
+# os.stat decides. (Whether a share served from NTFS does the same to other clients is open.)
 TRUST_LISTED_STATS = os.name != "nt"
 
 

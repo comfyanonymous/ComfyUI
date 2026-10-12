@@ -292,7 +292,7 @@ def test_a_file_listed_empty_and_filled_since_is_admitted(tmp_path, monkeypatch)
     assert [s["size_bytes"] for s in specs] == [6]
 
 
-def test_a_file_that_cant_be_stated_at_admission_is_skipped_not_fatal(tmp_path, monkeypatch):
+def test_a_file_that_cant_be_stated_at_admission_is_skipped_not_fatal(tmp_path, monkeypatch, caplog):
     """The first stat may be the walk's, taken long before admission's second; an I/O error
     in between drops that one file, as the discovery stat's errors always did."""
     monkeypatch.setattr(folder_paths, "get_input_directory", lambda: str(tmp_path))
@@ -308,8 +308,10 @@ def test_a_file_that_cant_be_stated_at_admission_is_skipped_not_fatal(tmp_path, 
 
     monkeypatch.setattr("app.assets.scanner_admission.os.stat", failing_stat)
 
-    specs, _tags, _skipped = build_asset_specs(
-        [good, flaky], set(), enable_metadata_extraction=False, listed_stats=stats
-    )
+    with caplog.at_level(logging.WARNING):
+        specs, _tags, _skipped = build_asset_specs(
+            [good, flaky], set(), enable_metadata_extraction=False, listed_stats=stats
+        )
 
     assert [s["abs_path"] for s in specs] == [good]
+    assert any(flaky in r.getMessage() and "can't be stat'ed" in r.getMessage() for r in caplog.records)

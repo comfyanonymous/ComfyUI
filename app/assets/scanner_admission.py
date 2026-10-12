@@ -67,7 +67,10 @@ def _two_stat_admit(
             counter.files_statted += 1
         try:
             second_stat = os.stat(path)
-        except OSError:  # the first stat may be the walk's, taken long before
+        except FileNotFoundError:
+            continue
+        except OSError as exc:  # the first stat may be the walk's, taken long before
+            logging.warning("Asset scan: skipping %s, it can't be stat'ed: %s", path, exc)
             continue
         if (second_stat.st_mtime_ns, second_stat.st_size) == (first_stat.st_mtime_ns, first_stat.st_size):
             _WATCH_LIST[:] = [entry for entry in _WATCH_LIST if entry.path != path]

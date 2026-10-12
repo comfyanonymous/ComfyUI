@@ -14,6 +14,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session as SASession, sessionmaker
 
 import folder_paths
+from app.assets import scanner as scanner_module
 from app.assets import seeder as seeder_module
 from app.assets.database.models import Asset, AssetContent
 from app.assets.event_log import TAG
@@ -193,9 +194,10 @@ def test_a_model_folder_absent_at_startup_still_has_its_rows_marked_missing(
     assert missing[str(layout["checkpoints"] / "local.safetensors")] is False
 
 
-def test_a_rescan_of_an_unchanged_library_stats_no_file(layout, session, caplog):
+def test_a_rescan_of_an_unchanged_library_stats_no_file(layout, session, caplog, monkeypatch):
     """The walk's stats answer for every catalogued file, so a rescan with nothing changed
     makes no per-file stat of its own, and still creates and retires nothing."""
+    monkeypatch.setattr(seeder_module, "TRUST_LISTED_STATS", True)
     shared_files = _seed(layout, session, caplog)
 
     completed = _startup_scan(caplog)
@@ -204,16 +206,19 @@ def test_a_rescan_of_an_unchanged_library_stats_no_file(layout, session, caplog)
     assert all(_missing(session)[str(p)] is False for p in shared_files)
 
 
-def test_a_fresh_scan_skips_admissions_first_stat(layout, caplog):
-    """The walk's stat is admission's first, so each new file costs admission's second stat
-    and the seed's observation stat only."""
+@pytest.mark.parametrize("trusted,per_file", [(True, 2), (False, 3)])
+def test_a_fresh_scan_skips_admissions_first_stat(layout, caplog, monkeypatch, trusted, per_file):
+    """The walk's stat is admission's first where listings are trusted, so each new file
+    costs admission's second stat and the seed's observation stat only; elsewhere (Windows)
+    admission takes its own first stat as well."""
+    monkeypatch.setattr(seeder_module, "TRUST_LISTED_STATS", trusted)
     _write(layout["shared"] / "a.safetensors")
     _write(layout["late"] / "b.safetensors")
     _write(layout["input"] / "photo.png", b"png")
 
     completed = _startup_scan(caplog)
 
-    assert (completed["created"], completed["files_statted_count"]) == (3, 6)
+    assert (completed["created"], completed["files_statted_count"]) == (3, 3 * per_file)
 
 
 def test_the_output_rescan_stats_only_its_new_files(layout, session, caplog):
@@ -244,7 +249,8 @@ def test_a_model_changed_through_another_hard_link_is_seen_by_the_next_scan(
 ):
     """NTFS updates a directory entry only through the link a file was written by, so a
     listing can show a model changed through another link as unchanged; the rescan must
-    still see the new size."""
+    still see the new size. This guards Windows itself; elsewhere the listing's stat is
+    fresh, and the stale-listing test below covers the rule on every platform."""
     model = _write(layout["checkpoints"] / "linked.safetensors", b"x" * 64)
     _startup_scan(caplog)
     assert _live_size(session, model) == 64
@@ -267,3 +273,29 @@ def test_where_listings_can_be_stale_a_rescan_stats_every_row(layout, session, c
 
     assert completed["created"] == 0
     assert completed["files_statted_count"] == len(shared_files) + 2  # every catalogued row
+
+
+def test_where_listings_can_be_stale_a_stale_listing_does_not_hide_a_change(
+    layout, session, caplog, monkeypatch
+):
+    """A listing that still shows a model's old size and mtime (as NTFS can) is ignored
+    where listings aren't trusted: the rescan's own stat sees the change."""
+    model = _write(layout["checkpoints"] / "stale.safetensors", b"x" * 64)
+    _startup_scan(caplog)
+    stale = os.stat(model)
+    _write(model, b"x" * 80)
+    os.utime(model, ns=(0, stale.st_mtime_ns + 5_000_000_000))
+    real_walk = file_utils.walk_listings
+
+    def stale_walk(base, *args, **kwargs):
+        walk = real_walk(base, *args, **kwargs)
+        if str(model) in walk.stats:
+            walk.stats[str(model)] = stale
+        return walk
+
+    monkeypatch.setattr(scanner_module, "walk_listings", stale_walk)
+    monkeypatch.setattr(seeder_module, "TRUST_LISTED_STATS", False)
+
+    _startup_scan(caplog)
+
+    assert _live_size(session, model) == 80
