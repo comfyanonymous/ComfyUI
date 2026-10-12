@@ -3,6 +3,7 @@ completes and catalogues everything else. Run through the seeder's real scan loo
 in-memory catalog."""
 
 import errno
+import os
 import logging
 from contextlib import contextmanager
 from pathlib import Path
@@ -227,3 +228,42 @@ def test_the_output_rescan_stats_only_its_new_files(layout, session, caplog):
     completed = _startup_scan(caplog, ("output",))
 
     assert (completed["created"], completed["files_statted_count"]) == (1, 3)
+
+
+def _live_size(session, path: Path) -> int | None:
+    session.expire_all()
+    return session.scalar(
+        sa.select(AssetContent.size_bytes).where(
+            AssetContent.path == str(path), AssetContent.is_missing.is_(False)
+        )
+    )
+
+
+def test_a_model_changed_through_another_hard_link_is_seen_by_the_next_scan(
+    layout, session, caplog, temp_dir
+):
+    """NTFS updates a directory entry only through the link a file was written by, so a
+    listing can show a model changed through another link as unchanged; the rescan must
+    still see the new size."""
+    model = _write(layout["checkpoints"] / "linked.safetensors", b"x" * 64)
+    _startup_scan(caplog)
+    assert _live_size(session, model) == 64
+    other = temp_dir / "elsewhere.safetensors"
+    os.link(model, other)
+    with open(other, "ab") as f:
+        f.write(b"y" * 16)
+    os.utime(other, ns=(0, os.stat(other).st_mtime_ns + 5_000_000_000))
+
+    _startup_scan(caplog)
+
+    assert _live_size(session, model) == 80
+
+
+def test_where_listings_can_be_stale_a_rescan_stats_every_row(layout, session, caplog, monkeypatch):
+    shared_files = _seed(layout, session, caplog)
+    monkeypatch.setattr(seeder_module, "TRUST_LISTED_STATS", False)
+
+    completed = _startup_scan(caplog)
+
+    assert completed["created"] == 0
+    assert completed["files_statted_count"] == len(shared_files) + 2  # every catalogued row
