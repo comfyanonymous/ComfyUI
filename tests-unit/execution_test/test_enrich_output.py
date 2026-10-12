@@ -490,6 +490,18 @@ def test_a_failed_registration_keeps_the_version(real_output_dir) -> None:
     assert "id" not in enriched["images"][0]
 
 
+def test_a_failed_cached_registration_keeps_the_version(real_output_dir) -> None:
+    path = real_output_dir / "fixed.png"
+    path.write_bytes(b"content")
+    manager = InMemoryAssets()
+
+    with patch.object(manager, "register_cached_output", side_effect=RuntimeError("database is locked")):
+        enriched = register_cached_outputs(_wrapper("fixed.png"), "job-1", manager)
+
+    assert enriched["output"]["images"][0]["version"] == _expected_version(path)
+    assert "id" not in enriched["output"]["images"][0]
+
+
 def test_size_only_rewrite_changes_the_version(real_output_dir) -> None:
     path = real_output_dir / "fixed.png"
     path.write_bytes(b"short")
