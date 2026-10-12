@@ -131,8 +131,8 @@ def _add_new_files(layout: dict[str, Path]) -> list[Path]:
 def test_a_model_folder_that_vanishes_after_being_listed_does_not_abort_the_scan(
     layout, session, caplog
 ):
-    """folder_paths' cached listing raises once a folder it recorded is gone (and checked
-    before any folder that changed). The category's other folders are still catalogued."""
+    """A model folder that has gone away since the last scan lists nothing; the category's
+    other folders are still catalogued."""
     shared_files = _seed(layout, session, caplog)
     layout["shared"].rename(layout["shared"].with_name("checkpoints-away"))
     added = [*_add_new_files(layout), _write(layout["late"] / "new_checkpoint.safetensors")]

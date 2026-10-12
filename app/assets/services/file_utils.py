@@ -139,9 +139,10 @@ def walk_listings(
     The traversal is os.walk's (top-down, depth-first in listing order, following
     symlinked directories), with a device/inode guard against symlink cycles and hidden
     names left out. The guard lists each directory once; with ``follow_aliases`` it skips
-    only a directory that is its own ancestor, so a second path to one is walked too. ``listings`` holds exactly the directories this walk listed, keyed by
-    normalized absolute path, so it doubles as the record of which directories the walk
-    can vouch for.
+    only a directory that is its own ancestor, so a second path to one is walked too.
+    ``listings`` holds exactly the directories this walk listed, keyed by normalized
+    absolute path, so it doubles as the record of which directories the walk can vouch
+    for.
 
     ``should_stop`` is called before each directory, with none open; it may block, and
     once it returns True the walk ends with a partial result. ``interrupted`` (a pause or
@@ -191,6 +192,6 @@ def walk_listings(
             files.append(path)
             if name in name_stats:
                 stats[path] = name_stats[name]
-        inner = ancestors | {dir_id}
+        inner = ancestors | {dir_id} if follow_aliases else ancestors
         stack.extend((os.path.join(dirpath, name), inner) for name in reversed(subdirs))
     return ListingWalk(files, listings, len(listings), stats)

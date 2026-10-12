@@ -126,7 +126,7 @@ class _ScanState:
     # its own count, and temp retirement is routine, so neither is included.
     missing_marked: int = 0
     recovered: int = 0
-    # Directories the walks listed, each model folder once.
+    # Directory listings the walks read; a model folder reached by two paths counts twice.
     dirs_listed: int = 0
     # os.stat calls on files in the reference sync, output-listing check, discovery,
     # admission, seed, watch-list and enrich loops. Hashing's own stability stats, and

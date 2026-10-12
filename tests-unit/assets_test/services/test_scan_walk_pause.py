@@ -404,15 +404,17 @@ def hooked(scan, entries):
 
 
 # Pause on the 3rd entry the output walk reads (after the empty input root's one listing),
-# or the 3rd file stat'ed (admission's second stat: the first is the walk's, and the
-# reference sync stats nothing on an empty catalog).
+# or the 3rd file stat'ed: admission's second stat where the walk's stat is its first, else
+# admission's own first stat (the reference sync stats nothing on an empty catalog).
+@pytest.mark.parametrize("trusted", [True, False])
 @pytest.mark.parametrize("counter,at,parked_at", [
     ("entries", 3, (1, 0, 3)),
     ("files_statted", 3, (FILES + 2, 3, 2 * FILES)),
 ])
 def test_a_prompt_starting_mid_walk_or_stat_parks_the_scan(
-    scan, catalog, entries, hooked, counter, at, parked_at
+    scan, catalog, entries, hooked, counter, at, parked_at, trusted, monkeypatch
 ):
+    monkeypatch.setattr(seeder_module, "TRUST_LISTED_STATS", trusted)
     instance, events = scan
     state = instance._scan_state
     parked = threading.Event()
