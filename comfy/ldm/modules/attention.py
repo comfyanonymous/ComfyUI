@@ -74,6 +74,26 @@ def get_attention_function(name: str, default: Any=...) -> Union[Callable, None]
     return REGISTERED_ATTENTION_FUNCTIONS[name]
 
 
+# Options forwarded from an attention config to comfy_kitchen.sol_attn; sink_* name row spans the model publishes in
+# transformer_options["attention_spans"] (e.g. MiniMax H3: "prefix", "text", "audio").
+SOL_CONFIG_KEYS = ("tau", "topk_ratio", "tail", "token_aug", "sink_keys", "sink_queries")
+
+
+def _config_function(config, name=""):
+    """Attention function for one config entry, or None to use the default attention."""
+    method = config.get("attention")
+    if method == "comfy_kitchen_int8":
+        if COMFY_KITCHEN_INT8_ATTENTION_IS_AVAILABLE and comfy_kitchen.int8_attention_is_available(model_management.get_torch_device()):
+            return attention_comfy_kitchen_int8
+        return None
+    if method == "comfy_kitchen_sol":
+        if comfy_kitchen.sol_attn_is_available(model_management.get_torch_device()):
+            return functools.partial(attention_comfy_kitchen_sol, **{k: config[k] for k in SOL_CONFIG_KEYS if k in config})
+        return None
+    logging.warning(f"Ignoring unknown attention method {method!r} for {name}")
+    return None
+
+
 class ComfyAttention(ConfigurableModule):
     def __init__(self):
         super().__init__()
@@ -92,16 +112,8 @@ class ComfyAttention(ConfigurableModule):
         if metadata is not None:
             self.config = json.loads(metadata.numpy().tobytes())
             configs = self.config if isinstance(self.config, list) else [self.config]
-            for config in configs:
-                method = config.get("attention")
-                if method == "comfy_kitchen_int8":
-                    if COMFY_KITCHEN_INT8_ATTENTION_IS_AVAILABLE and comfy_kitchen.int8_attention_is_available(model_management.get_torch_device()):
-                        self.function = attention_comfy_kitchen_int8
-                elif method == "comfy_kitchen_sol":
-                    if comfy_kitchen.sol_attn_is_available(model_management.get_torch_device()):
-                        self.function = functools.partial(attention_comfy_kitchen_sol, tau=config.get("tau", 1.0))
-                else:
-                    logging.warning(f"Ignoring unknown attention method {method!r} for {prefix.rstrip('.')}")
+            for config in configs:  # first available entry wins
+                self.function = _config_function(config, prefix.rstrip("."))
                 if self.function is not None:
                     break
         super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
@@ -693,7 +705,8 @@ attention_comfy_kitchen_int8.container_function = _attention_comfy_kitchen_int8_
 
 
 @wrap_attn
-def attention_comfy_kitchen_sol(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, *, tau=1.0, **kwargs):
+def attention_comfy_kitchen_sol(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, *, tau=1.0,
+                                topk_ratio=0.0, tail=True, token_aug=0, sink_keys=None, sink_queries=None, **kwargs):
     if mask is not None:
         return attention_pytorch(q, k, v, heads, mask=mask, attn_precision=attn_precision, skip_reshape=skip_reshape, skip_output_reshape=skip_output_reshape, **kwargs)
 
@@ -703,7 +716,20 @@ def attention_comfy_kitchen_sol(q, k, v, heads, mask=None, attn_precision=None, 
         q, k, v = map(lambda t: t.transpose(1, 2), (q, k, v))
     else:
         q, k, v = _reshape_qkv_to_heads(q, k, v, b, heads, dim_head)
-    out = comfy_kitchen.sol_attn(q, k, v, tau=tau, scale=kwargs.get("scale"))
+    spans = (kwargs.get("transformer_options") or {}).get("attention_spans", {})
+    n_blocks = -(-q.shape[1] // 64)
+
+    def block_range(span_name):
+        # row span -> [start, end) of 64-token blocks covering it; spans this call does not have (other models,
+        # shorter sequences such as a text refiner) are ignored
+        if span_name not in spans:
+            return None
+        a, e = spans[span_name]
+        start, end = a // 64, min(-(-e // 64), n_blocks)
+        return [start, end] if end > start else None
+
+    out = comfy_kitchen.sol_attn(q, k, v, tau=tau, scale=kwargs.get("scale"), sink_blocks=block_range(sink_keys),
+                                 sink_q=block_range(sink_queries), topk_ratio=topk_ratio, tail=tail, token_aug=token_aug)
     if skip_output_reshape:
         return out.transpose(1, 2)
     return out.reshape(b, -1, heads * dim_head)

@@ -469,6 +469,11 @@ class PackedLayout:
             seg_abs.append((off, off + n, kind))
             off += n
         self.segments = seg_abs
+        # named row spans attention configs can protect (SOL sink_keys / sink_queries); video is always last
+        self.attention_spans = {
+            "prefix": (0, seg_abs[-1][0]),  # text, conditioning/references and the target audio
+            **{kind: (a, b) for a, b, kind in seg_abs if kind in ("text", "audio")},
+        }
 
 
 class MiniMaxH3Model(nn.Module):
@@ -665,6 +670,7 @@ class MiniMaxH3Model(nn.Module):
                                   refs=payload.get("refs"))
 
         transformer_options["minimax_h3_layout"] = layout   # segment spans for attention patches
+        transformer_options["attention_spans"] = layout.attention_spans
 
         # model_base passes model_sampling.timestep(sigma) = sigma * 1000
         shift_v = float(transformer_options.get("minimax_h3_sigma_shift_video", self.sigma_shift_video))
