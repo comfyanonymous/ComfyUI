@@ -27,12 +27,12 @@ def test_thin_panorama_does_not_divide_by_zero(thin):
 
 
 def test_extreme_aspect_is_cropped_not_stretched():
-    # 4000x20 used to land on a 5408-wide target before the aspect crop.
+    # 4000x20 used to land on a 5408-tall target before the aspect crop.
     out = resize_tensor(torch.rand(1, 3, 4000, 20), 384, 32)
-    assert out.shape[-1] < 2000
+    assert out.shape[-2] < 2000
 
 
 def test_wide_orientation_crops_width():
     out = resize_tensor(torch.rand(1, 3, 20, 4000), 384, 32)
-    assert out.shape[-2] < 2000
+    assert out.shape[-1] < 2000
     assert out.shape[-1] % 32 == 0 and out.shape[-2] % 32 == 0
