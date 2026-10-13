@@ -68,8 +68,29 @@ def _enrich_in_place(
                     entry["version"] = f"{st.st_mtime_ns:x}-{st.st_size:x}"
                 if register is not None and (result := register(abs_path, job_id)) is not None:
                     entry["id"] = result.id
+                    if result.preview_id:
+                        entry["preview_id"] = result.preview_id
             except Exception:
                 logging.warning("Output enrichment failed for output: %s", entry.get("filename"), exc_info=True)
+
+
+def take_asset_previews(output_ui: dict) -> dict[str, dict]:
+    """Pop the previews save nodes named for their outputs, by output path, so none reaches clients or the cache."""
+    previews: dict[str, dict] = {}
+    for entries in output_ui.values():
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if not isinstance(entry, dict) or "asset_preview" not in entry:
+                continue
+            preview = entry.pop("asset_preview")
+            try:
+                abs_path = _resolve_output_path(entry)
+            except Exception:
+                continue
+            if abs_path is not None:
+                previews[abs_path] = preview
+    return previews
 
 
 def _strip_ids(output_ui: dict) -> None:
@@ -79,11 +100,19 @@ def _strip_ids(output_ui: dict) -> None:
         for entry in entries:
             if isinstance(entry, dict):
                 entry.pop("id", None)
+                entry.pop("preview_id", None)
 
 
-def register_executed_outputs(output_ui: dict, job_id: str, asset_manager: "AssetManager") -> dict:
+def register_executed_outputs(output_ui: dict, job_id: str, asset_manager: "AssetManager", asset_previews: dict[str, dict] | None = None) -> dict:
     enriched = copy.deepcopy(output_ui)
-    _enrich_in_place(enriched, job_id, asset_manager.register_executed_output if asset_manager.enabled else None)
+    previews = asset_previews or {}
+    _enrich_in_place(
+        enriched,
+        job_id,
+        (lambda path, job: asset_manager.register_executed_output(path, job, preview_ref=previews.get(path)))
+        if asset_manager.enabled
+        else None,
+    )
     return enriched
 
 
