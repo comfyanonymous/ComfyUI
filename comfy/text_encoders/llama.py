@@ -1039,7 +1039,95 @@ class Llama2_(nn.Module):
 
             # DeepStack: add per-layer visual features into the first len() decoder layers at image positions (Qwen3-VL)
             if deepstack_embeds is not None and i < len(deepstack_embeds):
-                x[visual_pos_masks] = x[visual_pos_masks] + deepstack_embeds[i].to(x)
+                if (
+                    x.device.type == "xpu"
+                    and visual_pos_masks is not None
+                    and visual_pos_masks.ndim == 2
+                    and visual_pos_masks.shape[0] == 1
+                ):
+                    # JR-XPU-DEEPSTACK-SLICE-V2
+                    # Compute contiguous visual spans on CPU.
+                    # Avoid XPU nonzero and index_copy_ for multi-span masks.
+
+                    mask_cpu = visual_pos_masks[0].detach().to(
+                        device="cpu", dtype=torch.int8
+                    )
+
+                    padded = torch.cat((
+                        mask_cpu.new_zeros(1),
+                        mask_cpu,
+                        mask_cpu.new_zeros(1)
+                    ))
+
+                    edges = torch.diff(padded)
+
+                    starts = (
+                        (edges == 1)
+                        .nonzero(as_tuple=True)[0]
+                        .tolist()
+                    )
+
+                    ends = (
+                        (edges == -1)
+                        .nonzero(as_tuple=True)[0]
+                        .tolist()
+                    )
+
+                    if len(starts) <= 1:
+                        # Preserve the original working single-image path.
+                        x[visual_pos_masks] = x[visual_pos_masks] + deepstack_embeds[i].to(x)
+                    else:
+                        if (
+                            x.ndim != 3
+                            or x.shape[0] != 1
+                            or tuple(visual_pos_masks.shape) != tuple(x.shape[:2])
+                            or len(starts) != len(ends)
+                        ):
+                            raise RuntimeError(
+                                "Unexpected XPU DeepStack shape"
+                            )
+
+                        features = deepstack_embeds[i].to(x)
+
+                        total = sum(
+                            end - start
+                            for start, end in zip(starts, ends)
+                        )
+
+                        if (
+                            features.ndim != 2
+                            or features.shape[0] != total
+                            or features.shape[1] != x.shape[-1]
+                        ):
+                            raise RuntimeError(
+                                "DeepStack feature/span mismatch: "
+                                f"features={tuple(features.shape)}, "
+                                f"tokens={total}"
+                            )
+
+                        cursor = 0
+
+                        for start, end in zip(starts, ends):
+                            count = end - start
+
+                            x[:, start:end, :] = (
+                                x[:, start:end, :]
+                                + features[
+                                    cursor:cursor + count
+                                ].unsqueeze(0)
+                            )
+
+                            cursor += count
+
+                        if i == 0:
+                            print(
+                                "[Q3VL-XPU-SLICE-V2] "
+                                f"spans={list(zip(starts, ends))} "
+                                f"tokens={total}",
+                                flush=True
+                            )
+                else:
+                    x[visual_pos_masks] = x[visual_pos_masks] + deepstack_embeds[i].to(x)
 
             if i == intermediate_output:
                 intermediate = x.clone()
