@@ -35,6 +35,7 @@ from app.assets.helpers import to_stored_hash
 from app.assets.services import ingest as ingest_module
 from app.assets.services.hashing import compute_blake3_hash
 from app.assets.services.ingest import register_file_in_place
+from app.database import db as db_module
 
 
 _PRODUCTION_RETRY_PAUSE_SECONDS = manager_module._LOCKED_RETRY_PAUSE_SECONDS
@@ -315,6 +316,9 @@ async def test_mask_upload_registers_the_composited_file(client, db_path, input_
 @pytest.mark.asyncio
 async def test_upload_with_assets_disabled_returns_200_without_an_asset(input_dir, monkeypatch):
     monkeypatch.setattr(manager_module, "asset_seeder", MagicMock())
+    # Without the database packages, the default database URL can't be built.
+    monkeypatch.setattr(args, "database_url", None)
+    monkeypatch.delattr(db_module, "URL")
     async with await _serve(NoAssets(_ArgsStub())) as test_client:
         resp = await _upload(test_client, b"no assets")
         body = await resp.json()

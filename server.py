@@ -528,9 +528,11 @@ class PromptServer():
                     content_written=not image_is_duplicate,
                 )
                 try:
-                    # Off the event loop, since a locked database makes this wait seconds. The in-memory
-                    # database shares one connection between all sessions and has nothing to wait for.
-                    view = register() if is_memory_db() else await asyncio.to_thread(register)
+                    # Off the event loop, since a locked database makes this wait seconds. With assets off
+                    # there is no database, and the in-memory one shares one connection between all sessions:
+                    # neither has anything to wait for.
+                    inline = not self.asset_manager.enabled or is_memory_db()
+                    view = register() if inline else await asyncio.to_thread(register)
                 except AssetRegistrationError as e:
                     view = None
                     # A temp file is read back by name, so it is usable without an asset.
