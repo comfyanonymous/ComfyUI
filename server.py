@@ -13,6 +13,7 @@ from comfy_execution.jobs import (
     JobStatus,
     get_job,
     get_all_jobs,
+    get_job_create_times,
     validate_job_id,
     cancel_job,
     CANCEL_PENDING,
@@ -50,7 +51,15 @@ from app.assets.manager import AssetRegistrationError
 from app.database.db import dependencies_available, is_memory_db
 
 if dependencies_available():
-    from app.assets.services.asset_management import resolve_hash_to_path
+    from app.assets.previews import generate_upload_preview
+    from app.assets.services.asset_management import (
+        get_export_file,
+        get_preview_file_paths,
+        list_job_export_files,
+        resolve_hash_to_path,
+    )
+    from app.assets.services.preview_rules import preview_fields
+    from app.asset_export import AssetExportManager
 
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
@@ -69,6 +78,37 @@ from middleware.cache_middleware import cache_control
 
 if args.enable_manager:
     import comfyui_manager
+
+
+def valid_workflow_metadata(json_data: dict) -> Optional[dict]:
+    """The metadata a client may attach to a prompt's websocket messages.
+
+    Returns None when absent, not a dict, or over 256 bytes serialised. The
+    value is merged into outgoing messages, so it is validated here rather
+    than at the point of use.
+    """
+    metadata = json_data.get("workflow_metadata")
+    if isinstance(metadata, dict) and len(json.dumps(metadata)) <= 256:
+        return metadata
+    return None
+
+
+def workflow_metadata_from_prompt(extra_data: dict) -> Optional[dict]:
+    """Fallback for a client that sends a workflow but no explicit metadata.
+
+    Reads the same id /api/jobs reports, so the websocket messages of a prompt
+    carry it whether or not the client knows about workflow_metadata.
+    """
+    extra_pnginfo = extra_data.get("extra_pnginfo")
+    if not isinstance(extra_pnginfo, dict):
+        return None
+    workflow = extra_pnginfo.get("workflow")
+    if not isinstance(workflow, dict):
+        return None
+    workflow_id = workflow.get("id")
+    if isinstance(workflow_id, str) and workflow_id:
+        return valid_workflow_metadata({"workflow_metadata": {"workflow_id": workflow_id}})
+    return None
 
 
 def _remove_sensitive_from_queue(queue: list) -> list:
@@ -211,7 +251,7 @@ def create_block_external_middleware():
         else:
             response = await handler(request)
 
-        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' data:; frame-src 'self'; object-src 'self';"
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self'; connect-src 'self' data: blob:; frame-src 'self'; object-src 'self';"
         return response
 
     return block_external_middleware
@@ -262,12 +302,33 @@ class PromptServer():
         logging.info(f"[Prompt Server] web root: {self.web_root}")
         self.asset_manager.register_routes(self.app, self.user_manager)
         self.asset_manager.set_event_sink(self.send_sync)
+
+        def _job_create_times(prompt_ids):
+            """Creation times of the given jobs, from the queue and history."""
+            running, queued = self.prompt_queue.get_current_queue_volatile()
+            history = {}
+            for prompt_id in prompt_ids:
+                history.update(
+                    self.prompt_queue.get_history(prompt_id=prompt_id, map_function=lambda item: item)
+                )
+            return get_job_create_times(prompt_ids, running, queued, history)
+
+        if dependencies_available():
+            self.asset_export_manager = AssetExportManager(
+                list_job_files=list_job_export_files,
+                get_asset_file=get_export_file,
+                get_job_create_times=_job_create_times,
+                event_sink=self.send_sync,
+                get_user_id=self.user_manager.get_request_user_id,
+            )
+            self.asset_export_manager.register_routes(self.app)
         if self.asset_manager.enabled:
             emit("assets.enabled", hashing_enabled=args.enable_asset_hashing)
         routes = web.RouteTableDef()
         self.routes = routes
         self.last_node_id = None
         self.client_id = None
+        self.workflow_metadata = {}
 
         self.on_prompt_handlers = []
 
@@ -404,10 +465,15 @@ class PromptServer():
         upload_lock = asyncio.Lock()
 
         async def image_upload(post, image_save_function=None):
-            async with upload_lock:
-                return await _image_upload(post, image_save_function)
+            resp, _, _ = await store_image_upload(post, image_save_function)
+            return resp if isinstance(resp, web.Response) else web.json_response(resp)
 
-        async def _image_upload(post, image_save_function=None):
+        async def store_image_upload(post, image_save_function=None):
+            """(response dict or error Response, registered asset view or None, file path)."""
+            async with upload_lock:
+                return await _store_image_upload(post, image_save_function)
+
+        async def _store_image_upload(post, image_save_function=None):
             image = post.get("image")
             overwrite = post.get("overwrite")
             image_is_duplicate = False
@@ -418,14 +484,14 @@ class PromptServer():
             if image and image.file:
                 filename = image.filename
                 if not filename:
-                    return web.Response(status=400)
+                    return web.Response(status=400), None, None
 
                 subfolder = post.get("subfolder", "")
                 full_output_folder = os.path.join(upload_dir, os.path.normpath(subfolder))
                 filepath = os.path.abspath(os.path.join(full_output_folder, filename))
 
                 if os.path.commonpath((upload_dir, filepath)) != upload_dir:
-                    return web.Response(status=400)
+                    return web.Response(status=400), None, None
 
                 if not os.path.exists(full_output_folder):
                     os.makedirs(full_output_folder)
@@ -474,7 +540,7 @@ class PromptServer():
                             status, code, message = 503, "DATABASE_BUSY", "Saved, but couldn't add it to the library because the database is busy. Upload again to finish."
                         else:
                             status, code, message = 500, "ASSET_REGISTRATION_FAILED", "Asset registration failed"
-                        return web.json_response({"code": code, "message": message, "details": resp}, status=status, reason=message)
+                        return web.json_response({"code": code, "message": message, "details": resp}, status=status, reason=message), None, None
                 if view is not None:
                     resp["asset"] = {
                         "id": view.asset.id,
@@ -485,14 +551,25 @@ class PromptServer():
                         "tags": view.tags,
                     }
 
-                return web.json_response(resp)
+                return resp, view, filepath
             else:
-                return web.Response(status=400)
+                return web.Response(status=400), None, None
 
         @routes.post("/upload/image")
         async def upload_image(request):
             post = await request.post()
-            return await image_upload(post)
+            resp, view, filepath = await store_image_upload(post)
+            if view is not None:
+                preview_id = await generate_upload_preview(view.asset.id, filepath, view.asset.preview_id)
+                live_previews = get_preview_file_paths([preview_id]) if preview_id else {}
+                preview_id, preview_url = preview_fields(
+                    view.asset.id, preview_id, view.mime_type, filepath, False, live_previews
+                )
+                if preview_url is not None:
+                    resp["asset"]["preview_url"] = preview_url
+                if preview_id is not None:
+                    resp["asset"]["preview_id"] = preview_id
+            return resp if isinstance(resp, web.Response) else web.json_response(resp)
 
 
         @routes.post("/upload/mask")
@@ -1150,6 +1227,13 @@ class PromptServer():
                 if "client_id" in json_data:
                     extra_data["client_id"] = json_data["client_id"]
 
+                extra_data.pop("workflow_metadata", None)
+                metadata = valid_workflow_metadata(json_data)
+                if metadata is None:
+                    metadata = workflow_metadata_from_prompt(extra_data)
+                if metadata is not None:
+                    extra_data["workflow_metadata"] = metadata
+
                 if "comfy_usage_source" not in extra_data:
                     usage_source = request.headers.get("Comfy-Usage-Source")
                     if usage_source:
@@ -1423,6 +1507,22 @@ class PromptServer():
             await send_socket_catch_exception(self.sockets[sid].send_json, message)
 
     def send_sync(self, event, data, sid=None):
+        if self.workflow_metadata:
+            if isinstance(data, dict) and "prompt_id" in data:
+                data = {**self.workflow_metadata, **data}
+            elif (
+                event == BinaryEventTypes.PREVIEW_IMAGE_WITH_METADATA
+                and isinstance(data, tuple)
+                and len(data) == 2
+                and isinstance(data[1], dict)
+                and "prompt_id" in data[1]
+            ):
+                # Merged here rather than at publication: messages wait in the
+                # queue, so by the time publish_loop sends a preview the next
+                # prompt may already have replaced workflow_metadata, and the
+                # frame would carry the wrong workflow.
+                data = (data[0], {**self.workflow_metadata, **data[1]})
+
         self.loop.call_soon_threadsafe(
             self.messages.put_nowait, (event, data, sid))
 

@@ -32,6 +32,7 @@ from app.assets.database.queries import (
 from app.assets.database.models import Asset, AssetContent
 from app.assets.helpers import (
     PREFIX_BATCH_SIZE,
+    mtime_ns_to_utc,
     path_prefix_matcher,
     sql_path_under_prefix,
     sql_path_under_prefix_batches,
@@ -67,7 +68,7 @@ from app.assets.services.file_utils import (
     walk_listings,
 )
 from app.assets.services.gil import yield_gil
-from app.assets.services.image_dimensions import extract_image_dimensions
+from app.assets.services.media_metadata import extract_media_metadata
 from app.assets.services.metadata_extract import ExtractedMetadata, extract_file_metadata
 from app.assets.services.path_utils import (
     compute_loader_path,
@@ -199,7 +200,8 @@ def get_owned_prefixes() -> list[str]:
     """Every directory an asset may live in; references outside these are marked missing."""
     scan_roots: tuple[RootType, ...] = ("models", "input", "output")
     prefixes = [p for root in scan_roots for p in get_scan_prefixes_for_root(root)]
-    return prefixes + get_temp_prefixes()
+    # Owned but never scanned: previews are only ever registered by Core or an upload.
+    return prefixes + get_temp_prefixes() + [os.path.abspath(folder_paths.get_previews_directory())]
 
 
 def get_temp_prefixes() -> list[str]:
@@ -410,21 +412,26 @@ def content_ids_outside_prefixes(session: Session, prefixes: list[str]) -> list[
 
 
 def collect_paths_for_roots(
-    roots: tuple[RootType, ...], progress: _ScanProgress | None = None
+    roots: tuple[RootType, ...],
+    progress: _ScanProgress | None = None,
+    should_stop: ShouldStop = _never_stop,
 ) -> list[str]:
     """Collect all file paths for the given roots.
 
     ``progress.dirs_listed`` counts the input and output walks only. Models are
     listed through folder_paths.get_filename_list, which walks the model folders
     on a cache miss and re-checks their mtimes on a hit; none of that is counted.
+
+    ``should_stop`` is checked before each input or output directory; once it returns
+    True the list is partial, so callers check it again before using the result.
     """
     paths: list[str] = []
     if "models" in roots:
         paths.extend(collect_models_files())
     if "input" in roots:
-        paths.extend(list_files_recursively(folder_paths.get_input_directory(), progress))
+        paths.extend(list_files_recursively(folder_paths.get_input_directory(), progress, should_stop))
     if "output" in roots:
-        paths.extend(list_files_recursively(folder_paths.get_output_directory(), progress))
+        paths.extend(list_files_recursively(folder_paths.get_output_directory(), progress, should_stop))
     return paths
 
 
@@ -589,6 +596,7 @@ def build_asset_specs(
     existing_paths: set[str],
     enable_metadata_extraction: bool = True,
     progress: _ScanProgress | None = None,
+    should_stop: ShouldStop = _never_stop,
 ) -> tuple[list[SeedAssetSpec], set[str], int]:
     """Build asset specs from paths, returning (specs, tag_pool, skipped_count).
 
@@ -597,6 +605,8 @@ def build_asset_specs(
         existing_paths: Set of paths that already exist in the database
         enable_metadata_extraction: If True, extract tier 1 & 2 metadata
         progress: Optional per-scan state for emit-once bookkeeping
+        should_stop: Checked before each path's stats and spec, so a large library
+            can pause here; once it returns True, no specs are returned
     """
     specs: list[SeedAssetSpec] = []
     tag_pool: set[str] = set()
@@ -604,6 +614,8 @@ def build_asset_specs(
     candidates: list[tuple[str, os.stat_result]] = []
 
     for p in paths:
+        if should_stop():
+            return [], set(), skipped
         abs_p = os.path.abspath(p)
         if _should_skip_extension(abs_p):
             skipped += 1
@@ -634,9 +646,11 @@ def build_asset_specs(
             continue
         candidates.append((abs_p, stat_p))
 
-    admitted_paths, _ = _two_stat_admit(candidates, progress)
+    admitted_paths, _ = _two_stat_admit(candidates, progress, should_stop)
     candidate_stats = dict(candidates)
     for abs_p in admitted_paths:
+        if should_stop():
+            return [], set(), skipped
         yield_gil()
         stat_p = candidate_stats[abs_p]
         name, tags = get_name_and_tags_from_asset_path(abs_p)
@@ -783,6 +797,8 @@ def seed_asset_specs(
                     job_id=spec["job_id"],
                     loader_path=spec["fname"],
                     tags=spec["tags"],
+                    # Sorts files already on disk by when they were made, not by walk order.
+                    created_at=mtime_ns_to_utc(get_mtime_ns(stat_result), stat_result.st_ctime_ns),
                 )
                 created += 1
         except IntegrityError as error:
@@ -1029,10 +1045,9 @@ def enrich_asset(
 
     if extract_metadata and metadata:
         system_metadata = metadata.to_user_metadata()
-        if mime_type and mime_type.startswith("image/"):
-            dims = extract_image_dimensions(file_path, mime_type=mime_type)
-            if dims:
-                system_metadata.update(dims)
+        dims = extract_media_metadata(file_path, mime_type=mime_type)
+        if dims:
+            system_metadata.update(dims)
         record.system_metadata = {**(record.system_metadata or {}), **system_metadata}
 
     if stored_hash:
