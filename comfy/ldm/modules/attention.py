@@ -82,6 +82,8 @@ SOL_CONFIG_KEYS = ("tau", "topk_ratio", "tail", "token_aug", "sink_keys", "sink_
 def _config_function(config, name=""):
     """Attention function for one config entry, or None to use the default attention."""
     method = config.get("attention")
+    if method == "dense":
+        return None
     if method == "comfy_kitchen_int8":
         if COMFY_KITCHEN_INT8_ATTENTION_IS_AVAILABLE and comfy_kitchen.int8_attention_is_available(model_management.get_torch_device()):
             return attention_comfy_kitchen_int8
@@ -92,6 +94,27 @@ def _config_function(config, name=""):
         return None
     logging.warning(f"Ignoring unknown attention method {method!r} for {name}")
     return None
+
+
+def _per_step_function(entries, fallback):
+    """Dispatch on the current sigma (transformer_options["sigmas"]); entries are (sigma_lo, sigma_hi, function), first match wins.
+
+    The sigma is read on the host once per step: every layer of a step shares the same sigmas tensor object.
+    """
+    cache = {"tensor": None, "value": None}
+
+    def dispatch(*args, **kwargs):
+        sigmas = (kwargs.get("transformer_options") or {}).get("sigmas")
+        fn = fallback
+        if sigmas is not None:
+            if cache["tensor"] is not sigmas:
+                cache["tensor"], cache["value"] = sigmas, float(sigmas.reshape(-1)[0])
+            fn = next((f for lo, hi, f in entries if lo <= cache["value"] <= hi), fallback)  # None: default attention
+        if fn is None:
+            return optimized_attention(*args, **kwargs)
+        return fn(*args, **kwargs)
+
+    return dispatch
 
 
 class ComfyAttention(ConfigurableModule):
@@ -112,10 +135,24 @@ class ComfyAttention(ConfigurableModule):
         if metadata is not None:
             self.config = json.loads(metadata.numpy().tobytes())
             configs = self.config if isinstance(self.config, list) else [self.config]
-            for config in configs:  # first available entry wins
-                self.function = _config_function(config, prefix.rstrip("."))
-                if self.function is not None:
-                    break
+            name = prefix.rstrip(".")
+            if any("sigma_range" in config for config in configs):
+                # per-step: entries with a sigma_range are picked by the current sigma; entries without one are the fallback.
+                # An explicit "dense" entry selects the default attention; entries whose kernel is unavailable are dropped.
+                ranged = []
+                for config in (c for c in configs if "sigma_range" in c):
+                    if len(config["sigma_range"]) != 2:
+                        raise ValueError(f"{name}: sigma_range must be [sigma_lo, sigma_hi], got {config['sigma_range']!r}")
+                    function = _config_function(config, name)
+                    if function is not None or config.get("attention") == "dense":
+                        ranged.append((*config["sigma_range"], function))
+                fallback = next((_config_function(c, name) for c in configs if "sigma_range" not in c), None)
+                self.function = _per_step_function(ranged, fallback)
+            else:
+                for config in configs:  # first available entry wins
+                    self.function = _config_function(config, name)
+                    if self.function is not None:
+                        break
         super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
 
     def _save_to_state_dict(self, destination, prefix, keep_vars):

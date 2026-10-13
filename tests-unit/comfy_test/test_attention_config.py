@@ -58,6 +58,27 @@ def test_sinks_ignore_missing_and_out_of_range_spans(sol_calls):
     assert sol_calls[1]["sink_blocks"] == [0, 2] and sol_calls[1]["sink_q"] is None  # clamped / beyond a short sequence
 
 
+def test_per_step_config_dispatches_on_sigma(sol_calls, monkeypatch):
+    dense_calls = []
+    monkeypatch.setattr(attention, "optimized_attention", lambda *args, **kwargs: dense_calls.append(1) or torch.ones(1))
+    module = make_module([
+        {"attention": "dense", "sigma_range": [0.8, 1.0]},
+        {"attention": "comfy_kitchen_sol", "tau": 1.0, "sigma_range": [0.2, 0.8]},
+        {"attention": "comfy_kitchen_sol", "tau": 2.0},  # fallback
+    ])
+    for sigma in (0.9, 0.5, 0.1):
+        run_sol(module.function, transformer_options={"sigmas": torch.tensor([sigma])})
+    assert len(dense_calls) == 1
+    assert [call["tau"] for call in sol_calls] == [1.0, 2.0]
+    run_sol(module.function)  # no sigmas -> fallback
+    assert sol_calls[-1]["tau"] == 2.0
+
+
+def test_per_step_config_rejects_bad_range(sol_calls):
+    with pytest.raises(ValueError, match="sigma_range"):
+        make_module([{"attention": "comfy_kitchen_sol", "sigma_range": [0.5]}])
+
+
 def test_minimax_layout_attention_spans():
     layout = PackedLayout(10, 1, 4, 6, 3)
     starts = {kind: (a, b) for a, b, kind in layout.segments}
