@@ -1,4 +1,4 @@
-"""/view with ?preview= must not 500 on a file PIL can't decode (e.g. EXR)."""
+"""/view with ?preview= must not 500 on a file PIL can't identify (e.g. EXR)."""
 
 from io import BytesIO
 from unittest.mock import MagicMock
@@ -23,7 +23,7 @@ async def client(monkeypatch, tmp_path):
 
 @pytest.mark.asyncio
 async def test_preview_of_undecodable_file_serves_raw_bytes(client, tmp_path):
-    # OpenEXR magic number followed by junk: a real EXR header PIL has no decoder for.
+    # OpenEXR magic number plus padding: enough for the file to be an EXR PIL can't identify.
     raw = b"\x76\x2f\x31\x01" + b"\x00" * 64
     (tmp_path / "render.exr").write_bytes(raw)
 
