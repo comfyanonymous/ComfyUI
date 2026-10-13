@@ -184,7 +184,8 @@ def walk_listings(
             relist = dirpath
             continue
         names, subdirs, name_stats = listing
-        seen_dirs.add(dir_id)
+        if not follow_aliases:
+            seen_dirs.add(dir_id)
         listings[dirpath] = (names, subdirs)
         for name in names:
             yield_gil(run=RESCAN_YIELD_RUN)
