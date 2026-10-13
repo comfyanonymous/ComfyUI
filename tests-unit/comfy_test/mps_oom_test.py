@@ -4,12 +4,15 @@ import torch
 
 from comfy.cli_args import args as cli_args
 
+_original_cpu = cli_args.cpu
 if not torch.cuda.is_available():
     cli_args.cpu = True
 
 import comfy.model_management as mm  # noqa: E402
 from comfy.model_patcher import ModelPatcher  # noqa: E402
 from comfy.sd import VAE  # noqa: E402
+
+cli_args.cpu = _original_cpu
 
 
 MPS_OOM = (
@@ -29,7 +32,7 @@ def cpu_models(monkeypatch):
 
 def test_plain_mps_runtime_error_is_oom():
     error = RuntimeError(MPS_OOM)
-    assert not isinstance(error, torch.AcceleratorError)
+    assert type(error) is RuntimeError
     assert mm.is_oom(error)
     mm.raise_non_oom(error)
 
@@ -37,8 +40,7 @@ def test_plain_mps_runtime_error_is_oom():
 @pytest.mark.parametrize('error', [
     torch.OutOfMemoryError('fixture'),
     torch.cuda.OutOfMemoryError('fixture'),
-    torch.AcceleratorError('CUDA error: out of memory'),
-])
+] + ([torch.AcceleratorError('CUDA error: out of memory')] if hasattr(torch, 'AcceleratorError') else []))
 def test_existing_typed_oom_classification(error):
     assert mm.is_oom(error)
 
