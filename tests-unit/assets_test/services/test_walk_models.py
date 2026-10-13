@@ -221,8 +221,10 @@ def test_a_listing_frozen_while_a_writer_holds_the_file_sends_it_to_the_watch_li
 
 
 def test_a_name_differing_only_in_case_is_shadowed_where_names_ignore_case(tmp_path, monkeypatch):
-    """On a case-insensitive filesystem (Windows), the loader resolves case.safetensors to
-    the first folder's Case.safetensors, so the second folder's file is not catalogued."""
+    """Where os.path.normcase folds case (Windows), the loader resolves case.safetensors to
+    the first folder's Case.safetensors, so the second folder's file is not catalogued.
+    Master catalogued the first folder's file under both spellings instead. Elsewhere
+    (a case-insensitive macOS volume) names are compared exactly, a known limitation."""
     first = _write(tmp_path / "a" / "Case.safetensors")
     second = _write(tmp_path / "b" / "case.safetensors")
     monkeypatch.setattr(folder_paths, "folder_names_and_paths", {

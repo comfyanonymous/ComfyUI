@@ -299,3 +299,24 @@ def test_where_listings_can_be_stale_a_stale_listing_does_not_hide_a_change(
     _startup_scan(caplog)
 
     assert _live_size(session, model) == 80
+
+
+def test_an_unchanged_rescan_makes_no_stat_call_on_a_model_file(layout, session, caplog, monkeypatch):
+    """The listing replaces both the loader listing's per-file isfile() and the sync's
+    per-row stat: counted at os.stat itself, not by the scan's own counter."""
+    _seed(layout, session, caplog)
+    monkeypatch.setattr(seeder_module, "TRUST_LISTED_STATS", True)
+    model_dirs = tuple(str(layout[k]) for k in ("checkpoints", "shared", "late", "loras"))
+    real_stat = os.stat
+    statted: list[str] = []
+
+    def counting_stat(path, *args, **kwargs):
+        if str(path).startswith(model_dirs) and str(path).endswith(".safetensors"):
+            statted.append(str(path))
+        return real_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "stat", counting_stat)
+
+    _startup_scan(caplog)
+
+    assert statted == []
