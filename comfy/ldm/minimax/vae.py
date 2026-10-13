@@ -173,8 +173,18 @@ class ResnetBlock3D(nn.Module):
         return self.conv2(h, pre_norm=self.norm2, residual=x)
 
 
+class ResnetShortcut3D(nn.Module):
+    # resnet block pruned down to its shortcut (LightVAE Lite encoder)
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.nin_shortcut = CausalConv3d(in_channels, out_channels, kernel_size=1) if in_channels != out_channels else nn.Identity()
+
+    def forward(self, x):
+        return self.nin_shortcut(x)
+
+
 class EncoderFCN3D(nn.Module):
-    def __init__(self, ch, ch_mult, space_down, time_down, num_res_blocks, in_channels, z_channels, double_z=True):
+    def __init__(self, ch, ch_mult, space_down, time_down, num_res_blocks, in_channels, z_channels, double_z=True, kept_blocks=None):
         super().__init__()
         self.num_levels = len(ch_mult)
         if isinstance(num_res_blocks, int):
@@ -192,8 +202,9 @@ class EncoderFCN3D(nn.Module):
             down = nn.Module()
             down.block = nn.ModuleList()
             for i in range(self.num_res_blocks[i_level]):
+                block = ResnetBlock3D if kept_blocks is None or (i_level, i) in kept_blocks else ResnetShortcut3D
                 down.block.append(
-                    ResnetBlock3D(
+                    block(
                         in_channels=block_in[i_level] if i == 0 else block_mid[i_level],
                         out_channels=block_mid[i_level],
                     )
@@ -425,6 +436,7 @@ class MiniMaxH3VideoVAE(nn.Module):
         operations=ops,
         num_layers=36,
         still_frame=None,
+        encoder_kept_blocks=None,
     ):
         super().__init__()
         self.vae_ratio = int(math.prod(space_down))
@@ -457,6 +469,7 @@ class MiniMaxH3VideoVAE(nn.Module):
             in_channels=in_channels,
             z_channels=z_channels,
             double_z=True,
+            kept_blocks=encoder_kept_blocks,
         )
         self.quant_conv = ops.Conv3d(z_channels * 2, 2 * embed_dim, 1)
         self.post_quant_conv = ops.Conv3d(embed_dim, z_channels, 1)
