@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 import shutil
 
 import folder_paths
@@ -20,7 +19,7 @@ from comfy.cli_args import args
 # Startup imports this module even without the database packages; the functions
 # that need these are only called when a session can be created.
 if dependencies_available():
-    from sqlalchemy import or_, select
+    from sqlalchemy import select
 
     from app.assets.database.models import Asset, AssetContent
     from app.assets.database.queries.records import delete_record
@@ -83,37 +82,6 @@ def wipe_temp_db_rows(session) -> tuple[int, int]:
     return records_deleted, contents_deleted
 
 
-# Names Core gives previews: a content hash from the save node, a uuid from uploads; plus a save's temp file.
-_PREVIEW_NAME = re.compile(r"(?:[0-9a-f]{64}\.(?:jpg|webp)|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\.webp)(?:\.[0-9a-f]{32}\.tmp)?")
-
-
-def sweep_orphan_previews(session) -> int:
-    """Remove previews in previews/ that no content row records: previews whose output never registered.
-
-    Startup only, before any prompt runs, so it can't race a save that hasn't registered yet.
-    Rows match by file name, which is unique, so a moved or symlinked install keeps its previews.
-    """
-    directory = folder_paths.get_previews_directory()
-    try:
-        names = [name for name in os.listdir(directory) if _PREVIEW_NAME.fullmatch(name)]
-    except OSError:
-        return 0
-    recorded = session.scalars(
-        select(AssetContent.path).where(or_(AssetContent.path.like("%.jpg"), AssetContent.path.like("%.webp")))
-    )
-    known = {os.path.basename(path) for path in recorded}
-    removed = 0
-    for name in names:
-        path = os.path.join(directory, name)
-        if name not in known and os.path.isfile(path):
-            try:
-                os.remove(path)
-                removed += 1
-            except OSError:
-                logging.warning("Could not remove orphaned preview %s", path, exc_info=True)
-    return removed
-
-
 def cleanup_temp_filesystem() -> bool:
     temp_dir = os.path.abspath(folder_paths.get_temp_directory())
     if not os.path.exists(temp_dir):
@@ -149,7 +117,6 @@ def run_asset_startup() -> None:
         with create_session() as session:
             wipe_temp_db_rows(session)
             session.commit()
-            sweep_orphan_previews(session)
     except Exception:
         logging.exception("Temp DB row wipe failed; skipping filesystem cleanup")
         enqueue_mode_transition_work()

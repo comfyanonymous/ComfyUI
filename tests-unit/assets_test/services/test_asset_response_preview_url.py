@@ -385,14 +385,6 @@ def test_record_response_has_no_self_preview_url_when_content_is_missing(
     )
 
 
-def test_an_image_is_its_own_preview_id(sandboxed_comfy_roots: Path):
-    resp = _build_asset_response(
-        _make_result(file_path=str(sandboxed_comfy_roots / "output" / "a.png")), {}
-    )
-
-    assert (resp.preview_id, resp.preview_url) == ("ref-1", "/api/view?type=output&filename=a.png")
-
-
 @pytest.mark.parametrize(
     ("name", "mime_type"),
     [

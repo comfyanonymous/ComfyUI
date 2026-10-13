@@ -62,16 +62,8 @@ def _enrich_in_place(
                     entry["id"] = result.id
                     if result.preview_id:
                         entry["preview_id"] = result.preview_id
-                    elif _is_own_image_preview(abs_path):
-                        entry["preview_id"] = result.id
             except Exception:
                 logging.warning("Asset registration failed for output: %s", entry.get("filename"), exc_info=True)
-
-
-def _is_own_image_preview(abs_path: str) -> bool:
-    from app.assets.services.preview_rules import own_preview_kind
-
-    return own_preview_kind(None, abs_path) == "image"
 
 
 def take_asset_previews(output_ui: dict) -> dict[str, dict]:
