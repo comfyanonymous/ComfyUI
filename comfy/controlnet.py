@@ -680,8 +680,11 @@ def load_controlnet_qwen_instantx(sd, model_options={}):
 def load_controlnet_qwen_fun(sd, model_options={}):
     load_device = comfy.model_management.get_torch_device()
     weight_dtype = comfy.utils.weight_dtype(sd)
+    supported_inference_dtypes = comfy.supported_models.QwenImage.supported_inference_dtypes
     unet_dtype = model_options.get("dtype", weight_dtype)
-    manual_cast_dtype = comfy.model_management.unet_manual_cast(unet_dtype, load_device, comfy.supported_models.QwenImage.supported_inference_dtypes)
+    if unet_dtype not in supported_inference_dtypes:
+        unet_dtype = comfy.model_management.unet_dtype(supported_dtypes=supported_inference_dtypes, weight_dtype=weight_dtype)
+    manual_cast_dtype = comfy.model_management.unet_manual_cast(unet_dtype, load_device, supported_inference_dtypes)
 
     operations = model_options.get("custom_operations", None)
     if operations is None:
