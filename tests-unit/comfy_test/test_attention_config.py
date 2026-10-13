@@ -1,4 +1,6 @@
+import gc
 import json
+import weakref
 
 import pytest
 import torch
@@ -72,6 +74,27 @@ def test_per_step_config_dispatches_on_sigma(sol_calls, monkeypatch):
     assert [call["tau"] for call in sol_calls] == [1.0, 2.0]
     run_sol(module.function)  # no sigmas -> fallback
     assert sol_calls[-1]["tau"] == 2.0
+
+
+def test_explicit_dense_stops_preference_list(sol_calls, monkeypatch):
+    monkeypatch.setattr(attention, "COMFY_KITCHEN_INT8_ATTENTION_IS_AVAILABLE", False)
+    assert make_module([{"attention": "dense"}, {"attention": "comfy_kitchen_sol"}]).function is None
+    # an unavailable kernel is skipped, also when choosing the per-step fallback
+    assert make_module([{"attention": "comfy_kitchen_int8"}, {"attention": "comfy_kitchen_sol", "tau": 2.0}]).function.keywords == {"tau": 2.0}
+    per_step = make_module([{"attention": "comfy_kitchen_sol", "tau": 1.0, "sigma_range": [0.5, 1.0]},
+                            {"attention": "comfy_kitchen_int8"}, {"attention": "comfy_kitchen_sol", "tau": 2.0}])
+    run_sol(per_step.function, transformer_options={"sigmas": torch.tensor([0.1])})
+    assert sol_calls[-1]["tau"] == 2.0
+
+
+def test_per_step_cache_does_not_keep_sigmas_alive(sol_calls):
+    module = make_module([{"attention": "comfy_kitchen_sol", "sigma_range": [0.0, 1.0]}])
+    sigmas = torch.tensor([0.5])
+    ref = weakref.ref(sigmas)
+    run_sol(module.function, transformer_options={"sigmas": sigmas})
+    del sigmas
+    gc.collect()
+    assert ref() is None
 
 
 def test_per_step_config_rejects_bad_range(sol_calls):
