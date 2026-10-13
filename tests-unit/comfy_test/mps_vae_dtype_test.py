@@ -27,6 +27,12 @@ def test_vae_on_mps_prefers_fp16(flags):
     assert mm.vae_dtype(MPS, WORKING) == torch.float16
 
 
+def test_vae_without_device_resolves_mps_and_prefers_fp16(flags):
+    flags.setattr(mm, "vae_device", lambda: MPS)
+    flags.setattr(mm, "should_use_bf16", lambda device=None: True)
+    assert mm.vae_dtype(None, WORKING) == torch.float16
+
+
 def test_vae_on_mps_without_fp16_keeps_the_usual_choice(flags):
     flags.setattr(mm, "should_use_bf16", lambda device=None: True)
     assert mm.vae_dtype(MPS, [torch.bfloat16, torch.float32]) == torch.bfloat16
