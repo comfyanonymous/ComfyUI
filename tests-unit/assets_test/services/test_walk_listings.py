@@ -98,10 +98,25 @@ class _UnreadableEntry:
     def is_symlink(self) -> bool:
         raise OSError(errno.EIO, "I/O error", self.path)
 
+    def stat(self) -> os.stat_result:
+        raise OSError(errno.EIO, "I/O error", self.path)
+
+
+class _StatFailingEntry(_UnreadableEntry):
+    """A plain file whose type reads fine but whose stat fails, as on a share mid-listing."""
+
+    name = "statfails.png"
+
+    def is_dir(self) -> bool:
+        return False
+
+    def is_symlink(self) -> bool:
+        return False
+
 
 class _OsWithExtraEntry:
-    """Stands in for file_utils' os module (only there), appending one _UnreadableEntry
-    to every listing."""
+    """Stands in for file_utils' os module (only there), appending an _UnreadableEntry and a
+    _StatFailingEntry to every listing."""
 
     def __getattr__(self, name):
         return getattr(os, name)
@@ -111,7 +126,7 @@ class _OsWithExtraEntry:
 
         class _Entries:
             def __enter__(self):
-                return iter([*real, _UnreadableEntry(str(path))])
+                return iter([*real, _UnreadableEntry(str(path)), _StatFailingEntry(str(path))])
 
             def __exit__(self, *_exc):
                 real.close()
@@ -123,7 +138,10 @@ def test_an_entry_whose_type_cant_be_read_is_kept_and_the_folder_listed(temp_dir
     for name in ("a.png", "b.png"):
         _write(temp_dir / name)
     monkeypatch.setattr(file_utils, "os", _OsWithExtraEntry())
-    walk = walk_listings(str(temp_dir))
+    walk = walk_listings(str(temp_dir), stat_files=True)
     assert str(temp_dir) in walk.listings
-    # Kept as a file, as os.walk keeps an entry whose is_dir() raises; the scan's stat decides.
-    assert sorted(walk.files) == sorted(str(temp_dir / n) for n in ("a.png", "b.png", "unreadable.png"))
+    # Both kept as files with no stat, as os.walk keeps an entry whose is_dir() raises; the
+    # scan's own stat decides.
+    names = ("a.png", "b.png", "unreadable.png", "statfails.png")
+    assert sorted(walk.files) == sorted(str(temp_dir / n) for n in names)
+    assert set(walk.stats) == {str(temp_dir / n) for n in ("a.png", "b.png")}

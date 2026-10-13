@@ -126,12 +126,11 @@ class _ScanState:
     # its own count, and temp retirement is routine, so neither is included.
     missing_marked: int = 0
     recovered: int = 0
-    # Directories the input/output walks (or the output rescan's listing) listed; the
-    # models listing is not counted.
+    # Directory listings the walks read; a model folder reached by two paths counts twice.
     dirs_listed: int = 0
     # os.stat calls on files in the reference sync, output-listing check, discovery,
-    # admission, seed, watch-list and enrich loops. Hashing's own stability stats are
-    # not counted.
+    # admission, seed, watch-list and enrich loops. Hashing's own stability stats, and
+    # the stats a verifying scan's walk takes while listing, are not counted.
     files_statted: int = 0
     # Time blocked at the pause gate.
     paused_s: float = 0.0
@@ -167,6 +166,11 @@ INSERT_BATCH_SIZE = 200
 _BUSY_HANDLER_MAX_SLEEP_SECONDS = 0.1
 _TIMER_TICK_ALLOWANCE_SECONDS = 0.02
 INSERT_PAUSE_SECONDS = _BUSY_HANDLER_MAX_SLEEP_SECONDS + _TIMER_TICK_ALLOWANCE_SECONDS
+# NTFS updates a file's directory entry only through the link it was written by, so on
+# Windows the walk's stat of a file changed through another hard link stays stale, and
+# os.stat decides. A share served from NTFS shows other clients the same stale entry; that
+# case is a known limitation, as listings there are where the rescan's saving comes from.
+TRUST_LISTED_STATS = os.name != "nt"
 
 
 class _AssetSeeder:
@@ -917,49 +921,38 @@ class _AssetSeeder:
 
         should_stop = lambda: self._check_pause_and_cancel(_ScanStage.FAST_SCAN)
         # Every scan but the output-only rescan queued after each prompt stats every live row
-        # (sync_root). That rescan retires the rows its listings lack instead, so it misses an
-        # in-place overwrite until the next scan that isn't output-only, such as a page load;
-        # save nodes never overwrite, and their outputs are registered at save time.
+        # the walk didn't see unchanged (sync_root). That rescan retires the rows its listings
+        # lack instead, so it misses an in-place overwrite until the next scan that isn't
+        # output-only, such as a page load; save nodes never overwrite, and their outputs are
+        # registered at save time.
         verify = tuple(roots) != ("output",)
-        live_references: dict[str, list] = {}
         existing_paths: set[str] = set()
-        t_sync = time.perf_counter()
+        listed_stats: dict[str, os.stat_result] = {}
+        paths: list[str] = []
         assert self._scan_state is not None
         scan_state = self._scan_state
-        for r in roots:
-            if self._check_pause_and_cancel(_ScanStage.FAST_SCAN):
-                return total_created, skipped_existing, 0
-            if verify:
-                marked_before = scan_state.missing_marked
-                existing_paths.update(sync_root_safely(r, scan_state, should_stop))
-                self._emit_marked_missing(r, scan_state.missing_marked - marked_before)
-            else:
-                live_references = live_references_safely(r)
-                existing_paths.update(live_references)
-        logging.debug(
-            "Fast scan: sync_root phase took %.3fs (%d existing paths)",
-            time.perf_counter() - t_sync,
-            len(existing_paths),
-        )
-
-        if self._check_pause_and_cancel(_ScanStage.FAST_SCAN):
-            return total_created, skipped_existing, 0
-
         t_collect = time.perf_counter()
-        paths: list[str] = []
         for r in ("models", "input", "output"):
             if r not in roots:
                 continue
-            walk = list_root(r, should_stop, self._pause_or_cancel_requested, self._cancel_event.is_set)
+            live_references = {} if verify else live_references_safely(r)
+            walk = list_root(
+                r, should_stop, self._pause_or_cancel_requested, self._cancel_event.is_set, verify
+            )
             # A cancel during the walk leaves it partial.
             if should_stop():
                 return total_created, skipped_existing, 0
             paths.extend(walk.files)
+            listed = walk.stats if TRUST_LISTED_STATS else {}
+            listed_stats.update(listed)
             scan_state.dirs_listed += walk.dirs_listed
-            if verify:
-                continue
-            vanished, unlisted = unlisted_references(live_references, walk.listings, scan_state)
             marked_before = scan_state.missing_marked
+            if verify:
+                existing_paths.update(sync_root_safely(r, scan_state, should_stop, listed))
+                self._emit_marked_missing(r, scan_state.missing_marked - marked_before)
+                continue
+            existing_paths.update(live_references)
+            vanished, unlisted = unlisted_references(live_references, walk.listings, scan_state)
             mark_unlisted_references_missing_safely("output", vanished, scan_state, should_stop)
             self._emit_marked_missing("output", scan_state.missing_marked - marked_before)
             logging.debug(
@@ -974,6 +967,8 @@ class _AssetSeeder:
             time.perf_counter() - t_collect,
             len(paths),
         )
+        if should_stop():
+            return total_created, skipped_existing, 0
         total_paths = len(paths)
         self._update_progress(total=total_paths)
 
@@ -990,6 +985,7 @@ class _AssetSeeder:
             enable_metadata_extraction=False,
             progress=scan_state,
             should_stop=should_stop,
+            listed_stats=listed_stats,
         )
         logging.debug(
             "Fast scan: build_asset_specs took %.3fs (%d specs, %d skipped)",

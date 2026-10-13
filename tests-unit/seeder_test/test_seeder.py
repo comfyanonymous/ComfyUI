@@ -95,13 +95,13 @@ def _configure_fast_phase(
     specs: list[SeedAssetSpec],
 ) -> None:
     monkeypatch.setattr(
-        seeder_module, "sync_root_safely", lambda _root, _progress, _should_stop=None: set()
+        seeder_module, "sync_root_safely", lambda _root, _progress, _should_stop=None, _listed_stats=None: set()
     )
     monkeypatch.setattr(
         seeder_module,
         "list_root",
-        lambda root, _should_stop=None, _interrupted=None, _cancelled=None: ListingWalk(
-            [str(path) for path in paths] if root == "models" else [], {}, 0
+        lambda root, _should_stop=None, _interrupted=None, _cancelled=None, _stat_files=False: ListingWalk(
+            [str(path) for path in paths] if root == "models" else [], {}, 0, {}
         ),
     )
     monkeypatch.setattr(
@@ -610,19 +610,19 @@ def test_batch_insert_failure_emits_only_the_exception_type(
 ) -> None:
     session = Mock()
     monkeypatch.setattr(
-        seeder_module, "sync_root_safely", lambda _root, _progress, _should_stop=None: set()
+        seeder_module, "sync_root_safely", lambda _root, _progress, _should_stop=None, _listed_stats=None: set()
     )
     monkeypatch.setattr(
         seeder_module,
         "list_root",
-        lambda root, should_stop=None, interrupted=None, cancelled=None: ListingWalk(
-            ["asset.safetensors"] if root == "models" else [], {}, 0
+        lambda root, should_stop=None, interrupted=None, cancelled=None, stat_files=False: ListingWalk(
+            ["asset.safetensors"] if root == "models" else [], {}, 0, {}
         ),
     )
     monkeypatch.setattr(
         seeder_module,
         "build_asset_specs",
-        lambda paths, existing_paths, enable_metadata_extraction, progress=None, should_stop=None: (
+        lambda paths, existing_paths, enable_metadata_extraction, progress=None, should_stop=None, listed_stats=None: (
             [{"tags": []}],
             {},
             0,

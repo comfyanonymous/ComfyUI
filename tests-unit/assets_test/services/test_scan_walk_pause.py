@@ -404,16 +404,17 @@ def hooked(scan, entries):
 
 
 # Pause on the 3rd entry the output walk reads (after the empty input root's one listing),
-# or the 3rd and the 9th file stat'ed (the first and second stat loops; the reference sync
-# stats nothing on an empty catalog).
+# or the 3rd file stat'ed: admission's second stat where the walk's stat is its first, else
+# admission's own first stat (the reference sync stats nothing on an empty catalog).
+@pytest.mark.parametrize("trusted", [True, False])
 @pytest.mark.parametrize("counter,at,parked_at", [
     ("entries", 3, (1, 0, 3)),
     ("files_statted", 3, (FILES + 2, 3, 2 * FILES)),
-    ("files_statted", FILES + 3, (FILES + 2, FILES + 3, 2 * FILES)),
 ])
 def test_a_prompt_starting_mid_walk_or_stat_parks_the_scan(
-    scan, catalog, entries, hooked, counter, at, parked_at
+    scan, catalog, entries, hooked, counter, at, parked_at, trusted, monkeypatch
 ):
+    monkeypatch.setattr(seeder_module, "TRUST_LISTED_STATS", trusted)
     instance, events = scan
     state = instance._scan_state
     parked = threading.Event()
@@ -549,3 +550,19 @@ def test_a_prompt_or_cancel_mid_rescan_listing_marks_nothing_missing(
     assert result[0] == (0, FILES if action == "pause" else 0, FILES if action == "pause" else 0)
     assert state.missing_marked == 0
     assert _live_rows(catalog) == FILES
+
+
+def test_a_cancel_during_the_sync_ends_the_scan_before_it_starts_seeding(scan, catalog, monkeypatch):
+    instance, events = scan
+    real_sync = seeder_module.sync_root_safely
+
+    def cancelling_sync(root, *args, **kwargs):
+        if root == "output":  # the last root, so no walk follows to notice the cancel
+            instance.cancel()
+        return real_sync(root, *args, **kwargs)
+
+    monkeypatch.setattr(seeder_module, "sync_root_safely", cancelling_sync)
+
+    assert instance._run_fast_phase(("input", "output")) == (0, 0, 0)
+    assert "assets.seed.started" not in events
+    assert _rows(catalog) == 0

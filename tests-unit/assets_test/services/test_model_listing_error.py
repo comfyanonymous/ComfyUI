@@ -1,9 +1,9 @@
-"""A model category whose folder_paths listing raises (e.g. one of its folders was listed
-earlier and has since gone away) is skipped: the asset scan completes and catalogues
-everything else. Run through the seeder's real scan loop and folder_paths listing on an
+"""A model folder that can't be listed (gone, or raising) is skipped: the asset scan
+completes and catalogues everything else. Run through the seeder's real scan loop on an
 in-memory catalog."""
 
 import errno
+import os
 import logging
 from contextlib import contextmanager
 from pathlib import Path
@@ -14,10 +14,12 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session as SASession, sessionmaker
 
 import folder_paths
+from app.assets import scanner as scanner_module
 from app.assets import seeder as seeder_module
 from app.assets.database.models import Asset, AssetContent
 from app.assets.event_log import TAG
 from app.assets.scanner_admission import _WATCH_LIST
+from app.assets.services import file_utils
 
 ALL_ROOTS = ("models", "input", "output")
 
@@ -81,12 +83,12 @@ def _write(path: Path, payload: bytes = b"model-bytes") -> Path:
     return path
 
 
-def _startup_scan(caplog: pytest.LogCaptureFixture) -> dict:
+def _startup_scan(caplog: pytest.LogCaptureFixture, roots: tuple = ALL_ROOTS) -> dict:
     """One startup scan (prune first, then a fast scan); returns its scan_completed fields."""
     seeder = seeder_module._AssetSeeder()
     seeder._state = seeder_module.State.RUNNING
     seeder._scan_state = seeder_module._ScanState()
-    seeder._roots = ALL_ROOTS
+    seeder._roots = roots
     seeder._phase = seeder_module.ScanPhase.FAST
     seeder._prune_first = True
     seeder._run_gate.set()
@@ -129,8 +131,8 @@ def _add_new_files(layout: dict[str, Path]) -> list[Path]:
 def test_a_model_folder_that_vanishes_after_being_listed_does_not_abort_the_scan(
     layout, session, caplog
 ):
-    """folder_paths' cached listing raises once a folder it recorded is gone (and checked
-    before any folder that changed). The category's other folders are still catalogued."""
+    """A model folder that has gone away since the last scan lists nothing; the category's
+    other folders are still catalogued."""
     shared_files = _seed(layout, session, caplog)
     layout["shared"].rename(layout["shared"].with_name("checkpoints-away"))
     added = [*_add_new_files(layout), _write(layout["late"] / "new_checkpoint.safetensors")]
@@ -153,26 +155,27 @@ def test_a_model_folder_that_vanishes_after_being_listed_does_not_abort_the_scan
 def test_a_model_category_whose_listing_raises_an_oserror_is_skipped(
     layout, session, caplog, monkeypatch
 ):
-    """Any OSError, e.g. Windows' WinError 433 (device does not exist), that a fresh
-    listing hits too: that category is skipped, the rest catalogued."""
+    """Any OSError listing a folder, e.g. Windows' WinError 433 (device does not exist):
+    that category's folders are skipped, its rows kept, and the rest catalogued."""
     shared_files = _seed(layout, session, caplog)
-    for name in ("get_filename_list", "get_filename_list_"):
-        real = getattr(folder_paths, name)
+    checkpoint_dirs = tuple(str(layout[k]) for k in ("checkpoints", "shared", "late"))
+    real_scandir = file_utils.os.scandir
 
-        def raising(folder_name, real=real):
-            if folder_name == "checkpoints":
-                raise OSError(errno.EINVAL, "A device which does not exist was specified")
-            return real(folder_name)
+    def raising(path):
+        if str(path).startswith(checkpoint_dirs):
+            raise OSError(errno.EINVAL, "A device which does not exist was specified")
+        return real_scandir(path)
 
-        monkeypatch.setattr(folder_paths, name, raising)
+    monkeypatch.setattr(file_utils.os, "scandir", raising)
     added = _add_new_files(layout)
+    unlisted = _write(layout["late"] / "unlisted.safetensors")
 
     completed = _startup_scan(caplog)
 
     assert completed["created"] == 2
     missing = _missing(session)
     assert all(missing[str(p)] is False for p in [*added, *shared_files])
-    assert any("skipping model category checkpoints" in r.getMessage() for r in caplog.records)
+    assert str(unlisted) not in missing
 
 
 def test_a_model_folder_absent_at_startup_still_has_its_rows_marked_missing(
@@ -189,3 +192,131 @@ def test_a_model_folder_absent_at_startup_still_has_its_rows_marked_missing(
     missing = _missing(session)
     assert all(missing[str(p)] is True for p in shared_files)
     assert missing[str(layout["checkpoints"] / "local.safetensors")] is False
+
+
+def test_a_rescan_of_an_unchanged_library_stats_no_file(layout, session, caplog, monkeypatch):
+    """The walk's stats answer for every catalogued file, so a rescan with nothing changed
+    makes no per-file stat of its own, and still creates and retires nothing."""
+    monkeypatch.setattr(seeder_module, "TRUST_LISTED_STATS", True)
+    shared_files = _seed(layout, session, caplog)
+
+    completed = _startup_scan(caplog)
+
+    assert (completed["created"], completed["files_statted_count"]) == (0, 0)
+    assert all(_missing(session)[str(p)] is False for p in shared_files)
+
+
+@pytest.mark.parametrize("trusted,per_file", [(True, 2), (False, 3)])
+def test_a_fresh_scan_skips_admissions_first_stat(layout, caplog, monkeypatch, trusted, per_file):
+    """The walk's stat is admission's first where listings are trusted, so each new file
+    costs admission's second stat and the seed's observation stat only; elsewhere (Windows)
+    admission takes its own first stat as well."""
+    monkeypatch.setattr(seeder_module, "TRUST_LISTED_STATS", trusted)
+    _write(layout["shared"] / "a.safetensors")
+    _write(layout["late"] / "b.safetensors")
+    _write(layout["input"] / "photo.png", b"png")
+
+    completed = _startup_scan(caplog)
+
+    assert (completed["created"], completed["files_statted_count"]) == (3, 3 * per_file)
+
+
+def test_the_output_rescan_stats_only_its_new_files(layout, session, caplog):
+    """The rescan queued after a prompt doesn't check every row, so its walk takes no stats:
+    each new file costs admission's two and the seed's one, and existing outputs none."""
+    _seed(layout, session, caplog)
+    for i in range(3):
+        _write(layout["output"] / f"old_{i}.png", b"png")
+    _startup_scan(caplog, ("output",))
+    _write(layout["output"] / "new.png", b"png")
+
+    completed = _startup_scan(caplog, ("output",))
+
+    assert (completed["created"], completed["files_statted_count"]) == (1, 3)
+
+
+def _live_size(session, path: Path) -> int | None:
+    session.expire_all()
+    return session.scalar(
+        sa.select(AssetContent.size_bytes).where(
+            AssetContent.path == str(path), AssetContent.is_missing.is_(False)
+        )
+    )
+
+
+def test_a_model_changed_through_another_hard_link_is_seen_by_the_next_scan(
+    layout, session, caplog, temp_dir
+):
+    """NTFS updates a directory entry only through the link a file was written by, so a
+    listing can show a model changed through another link as unchanged; the rescan must
+    still see the new size. This guards Windows itself; elsewhere the listing's stat is
+    fresh, and the stale-listing test below covers the rule on every platform."""
+    model = _write(layout["checkpoints"] / "linked.safetensors", b"x" * 64)
+    _startup_scan(caplog)
+    assert _live_size(session, model) == 64
+    other = temp_dir / "elsewhere.safetensors"
+    os.link(model, other)
+    with open(other, "ab") as f:
+        f.write(b"y" * 16)
+    os.utime(other, ns=(0, os.stat(other).st_mtime_ns + 5_000_000_000))
+
+    _startup_scan(caplog)
+
+    assert _live_size(session, model) == 80
+
+
+def test_where_listings_can_be_stale_a_rescan_stats_every_row(layout, session, caplog, monkeypatch):
+    shared_files = _seed(layout, session, caplog)
+    monkeypatch.setattr(seeder_module, "TRUST_LISTED_STATS", False)
+
+    completed = _startup_scan(caplog)
+
+    assert completed["created"] == 0
+    assert completed["files_statted_count"] == len(shared_files) + 2  # every catalogued row
+
+
+def test_where_listings_can_be_stale_a_stale_listing_does_not_hide_a_change(
+    layout, session, caplog, monkeypatch
+):
+    """A listing that still shows a model's old size and mtime (as NTFS can) is ignored
+    where listings aren't trusted: the rescan's own stat sees the change."""
+    model = _write(layout["checkpoints"] / "stale.safetensors", b"x" * 64)
+    _startup_scan(caplog)
+    stale = os.stat(model)
+    _write(model, b"x" * 80)
+    os.utime(model, ns=(0, stale.st_mtime_ns + 5_000_000_000))
+    real_walk = file_utils.walk_listings
+
+    def stale_walk(base, *args, **kwargs):
+        walk = real_walk(base, *args, **kwargs)
+        if str(model) in walk.stats:
+            walk.stats[str(model)] = stale
+        return walk
+
+    monkeypatch.setattr(scanner_module, "walk_listings", stale_walk)
+    monkeypatch.setattr(seeder_module, "TRUST_LISTED_STATS", False)
+
+    _startup_scan(caplog)
+
+    assert _live_size(session, model) == 80
+
+
+def test_an_unchanged_rescan_makes_no_stat_call_on_a_model_file(layout, session, caplog, monkeypatch):
+    """The listing replaces both the loader listing's per-file isfile() and the sync's
+    per-row stat: counted at os.stat itself, not by the scan's own counter."""
+    _seed(layout, session, caplog)
+    monkeypatch.setattr(seeder_module, "TRUST_LISTED_STATS", True)
+    model_dirs = tuple(str(layout[k]) for k in ("checkpoints", "shared", "late", "loras"))
+    real_stat = os.stat
+    statted: list[str] = []
+
+    def counting_stat(path, *args, **kwargs):
+        if str(path).startswith(model_dirs) and str(path).endswith(".safetensors"):
+            statted.append(str(path))
+        return real_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "stat", counting_stat)
+
+    _startup_scan(caplog)
+
+    assert statted == []
