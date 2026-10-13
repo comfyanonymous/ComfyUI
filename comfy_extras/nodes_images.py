@@ -1136,6 +1136,90 @@ def _compress_rgb_gamut(rgb, weights):
     return torch.where(in_gamut, rgb, torch.addcmul(luminance, chroma, saturation)).clamp(0.0, 1.0)
 
 
+_LOTTES_HDR_PARAMETERS = (
+    -0.1517456472, -1.465687394, -0.2663205862, -1.11367178,
+    -2.938027859, -2.948823929, -2.97376132, -2.978893757,
+    -2.991618395, -2.956256151, -2.810376167, -2.666443586,
+    -2.584222317, -2.532898188, -2.458465099, -2.309132099,
+    -2.216364861, -2.167824268, -2.096168995, -2.062468767,
+    -2.130614519, 0.5,
+)
+
+
+def _sdr_to_hdr_lottes(rgb, target_luminance):
+    rgb = srgb_to_linear(rgb.clamp(0, 1))
+    p = rgb.new_tensor(_LOTTES_HDR_PARAMETERS)
+    y = _rgb_luminance(rgb, (0.2126, 0.7152, 0.0722))
+    safe_y = y.clamp_min(1e-6)
+    a = 0.7 + 0.6 * p[0].sigmoid()
+    d = 0.5 + 2 * p[1].sigmoid()
+    peak = 1 + 7 * p[2].sigmoid()
+    c = 0.5 + 2 * p[3].sigmoid()
+    expanded = safe_y.pow(a) / ((1 / peak - c) * safe_y.pow(a * d) + c).clamp_min(1e-5)
+    rational_gain = (expanded / safe_y).clamp_min(1e-3).log2().clamp(-1, 3.5)
+    knots = torch.nn.functional.softplus(p[4:21]).cumsum(0)
+    x = y.clamp(0, 1).sqrt() * 16
+    index = x.long().clamp_max(15)
+    curve_gain = knots[index] + (x - index) * (knots[index + 1] - knots[index])
+    blend = p[21].clamp(0, 1)
+    gain = blend * rational_gain + (1 - blend) * curve_gain
+    hdr = _convert_rgb_primaries(rgb, _REC709_TO_REC2020) * gain.exp2()
+
+    if target_luminance is not None:
+        white_gain = blend * peak.log2().clamp(-1, 3.5) + (1 - blend) * knots[-1]
+        source_white = white_gain.exp2()
+        target_white = target_luminance / _SDR_WHITE_NITS
+        y_hdr = _rgb_luminance(hdr, _REC2020_LUMA)
+        hdr = hdr / (1 + (1 / target_white - 1 / source_white) * y_hdr).clamp_min(1e-6)
+
+    # Inverse HLG OOTF followed by OETF, with zero display black.
+    peak_nits = max(_HLG_PEAK_NITS, target_luminance or 0.0)
+    gamma = 1.2 + 0.42 * math.log10(peak_nits / 1000.0)
+    display = hdr.clamp_min(0) * (_SDR_WHITE_NITS / peak_nits)
+    luminance = _rgb_luminance(display, _REC2020_LUMA)
+    scene = (display * luminance.clamp_min(1e-12).pow(1 / gamma - 1)).clamp(0, 1)
+    low = (3 * scene).sqrt()
+    high = _HLG_A * (12 * scene - _HLG_B).clamp_min(1e-12).log() + _HLG_C
+    return torch.where(scene <= 1 / 12, low, high)
+
+
+class ImageSDRToHDR(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="ImageSDRToHDR",
+            display_name="Convert SDR to HDR",
+            category="image/color",
+            description="Expand sRGB brightness into Rec.2020 HLG HDR. Save the result with the HDR color space selected. Alpha is preserved.",
+            inputs=[
+                IO.Image.Input("image", tooltip="SDR image(s) in sRGB."),
+                IO.DynamicCombo.Input("algorithm", options=[
+                    IO.DynamicCombo.Option("lottes", [
+                        IO.Float.Input("target_luminance", default=650.0, min=0.0, max=10000.0, step=1.0,
+                                       tooltip="Peak-white target in nits. 0 keeps the calibrated rendering. Dark images are not normalized to this peak."),
+                    ]),
+                ], tooltip="Lottes-style rational expansion blended with a calibrated monotonic log-gain curve."),
+            ],
+            outputs=[IO.Image.Output()],
+        )
+
+    @classmethod
+    def execute(cls, image, algorithm: IO.DynamicCombo.Type) -> IO.NodeOutput:
+        if algorithm["algorithm"] != "lottes":
+            raise ValueError(f"Unsupported HDR algorithm: {algorithm['algorithm']}")
+        target_luminance = algorithm["target_luminance"] or None
+        if image.shape[-1] == 1:
+            image = image.expand(*image.shape[:-1], 3)
+        output = torch.empty_like(image, device=comfy.model_management.intermediate_device(), dtype=comfy.model_management.intermediate_dtype())
+        device = comfy.model_management.get_torch_device()
+        for i, frame in enumerate(image):
+            rgb = frame[..., :3].to(device=device, dtype=torch.float32)
+            output[i, ..., :3] = _sdr_to_hdr_lottes(rgb, target_luminance)
+        if image.shape[-1] == 4:
+            output[..., 3:] = image[..., 3:]
+        return IO.NodeOutput(output)
+
+
 class ImageColorSpace(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -1996,6 +2080,7 @@ class ImagesExtension(ComfyExtension):
             RepeatImageBatch,
             ImageFromBatch,
             ImageAddNoise,
+            ImageSDRToHDR,
             ImageColorSpace,
             SaveAnimatedWEBP,
             SaveAnimatedPNG,
