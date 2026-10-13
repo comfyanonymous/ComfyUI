@@ -26,6 +26,7 @@ import copy
 import comfy.utils
 import comfy.model_management
 import comfy.model_detection
+import comfy.supported_models
 import comfy.model_patcher
 import comfy.storage
 import comfy.ops
@@ -680,7 +681,7 @@ def load_controlnet_qwen_fun(sd, model_options={}):
     load_device = comfy.model_management.get_torch_device()
     weight_dtype = comfy.utils.weight_dtype(sd)
     unet_dtype = model_options.get("dtype", weight_dtype)
-    manual_cast_dtype = comfy.model_management.unet_manual_cast(unet_dtype, load_device)
+    manual_cast_dtype = comfy.model_management.unet_manual_cast(unet_dtype, load_device, comfy.supported_models.QwenImage.supported_inference_dtypes)
 
     operations = model_options.get("custom_operations", None)
     if operations is None:
