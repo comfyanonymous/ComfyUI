@@ -460,7 +460,7 @@ def test_rows_marked_before_the_upgrade_still_revive_per_file(root, session):
     _scan()
     edits = _customise(session)
     for content in _contents(session):
-        mark_content_missing(session, content.id)  # no stamp, like a row marked before 0009
+        mark_content_missing(session, content.id)  # no stamp, like a row marked before 0010
     session.commit()
 
     state = _scan()

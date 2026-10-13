@@ -5,16 +5,16 @@ Set when a scan marks a content row missing. A returning file revives its row in
 bulk only within a window of it. Rows already missing stay NULL and keep the
 per-file revive.
 
-Revision ID: 0009_add_missing_since
-Revises: 0008_drop_asset_meta
+Revision ID: 0010_add_missing_since
+Revises: 0009_created_at_from_mtime
 Create Date: 2026-10-07
 """
 
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0009_add_missing_since"
-down_revision = "0008_drop_asset_meta"
+revision = "0010_add_missing_since"
+down_revision = "0009_created_at_from_mtime"
 branch_labels = None
 depends_on = None
 
