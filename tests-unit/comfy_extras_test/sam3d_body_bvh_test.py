@@ -6,9 +6,16 @@ rotations, which is what makes the OFFSET space observable: with identity bind
 rotations the parent-local and world-axis offsets coincide.
 """
 
-import numpy as np
+import torch
 
-from comfy_extras.sam3d_body.export.bvh import build_bvh
+from comfy.cli_args import args as cli_args
+
+if not torch.cuda.is_available():
+    cli_args.cpu = True
+
+import numpy as np  # noqa: E402
+
+from comfy_extras.sam3d_body.export.bvh import build_bvh  # noqa: E402
 
 
 def _quat_axis_angle(axis, angle):
