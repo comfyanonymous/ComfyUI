@@ -4085,12 +4085,20 @@ class _InProcessModels:
             return await asyncio.shield(task)
         except asyncio.CancelledError:
             cancelled.set()
+            # shield protects the worker, but does not suppress cancellation
+            # of this awaiting task. Further cancellation must not let the
+            # caller finish before the worker's terminal cleanup.
+            while not task.done():
+                try:
+                    await asyncio.shield(task)
+                except asyncio.CancelledError:
+                    continue
+                except Exception:
+                    break
             try:
-                await asyncio.shield(task)
-            except Exception:
-                # The invocation remains cancelled; the worker's finally block
-                # still removes its temporary file and releases its own lock.
-                pass
+                task.result()
+            except (Exception, asyncio.CancelledError):
+                pass  # Preserve the original invocation cancellation.
             raise
 
     async def download_huggingface_weights(

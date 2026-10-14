@@ -244,6 +244,35 @@ def test_public_coroutine_cancellation_waits_for_partial_cleanup(source, monkeyp
     assert not any(path.is_file() for path in root.rglob("*"))
 
 
+@pytest.mark.parametrize("extra_cancels", [1, 2])
+def test_repeated_parent_cancellation_still_drains_worker(source, monkeypatch, extra_cancels):
+    root, calls, config = source
+    entered = threading.Event(); release = threading.Event()
+    original = Response.read1
+    def waiting(self, size):
+        if not self.url.endswith("/releases/12"):
+            entered.set()
+            if not release.wait(10): raise TimeoutError("test fixture not released")
+        return original(self, size)
+    monkeypatch.setattr(Response, "read1", waiting)
+    async def run():
+        models = _sdk.InProcessCtxProvider().build(_sdk.ExecutionPlan("p", "1", "Model")).models
+        task = asyncio.create_task(models.download_public_artifact(declaration()))
+        try:
+            assert await asyncio.to_thread(entered.wait, 10)
+            task.cancel(); await asyncio.sleep(0)
+            for _ in range(extra_cancels):
+                task.cancel(); await asyncio.sleep(0)
+                assert not task.done(), "caller returned before the blocked worker could clean up"
+            release.set()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(task, 10)
+        finally:
+            release.set()
+    asyncio.run(run())
+    assert not any(path.is_file() for path in root.rglob("*"))
+
+
 def test_different_releases_are_immutable_distinct_catalogue_entries(source):
     root, calls, config = source
     first = declaration(); second = replace(first, release_id=13, release_tag="v2", asset_id=35)
