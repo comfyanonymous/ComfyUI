@@ -4,10 +4,12 @@ import mimetypes
 import logging
 from typing import Literal, List
 from collections.abc import Collection
+from datetime import datetime
 
 from comfy.cli_args import args
 
 supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.pt2', '.bin', '.pth', '.safetensors', '.pkl', '.sft'}
+supported_ya_extensions: set[str] = {".yaml"}
 
 folder_names_and_paths: dict[str, tuple[list[str], set[str]]] = {}
 
@@ -22,54 +24,62 @@ if args.models_directory:
 else:
     models_dir = os.path.join(base_path, "models")
 
-folder_names_and_paths["checkpoints"] = ([os.path.join(models_dir, "checkpoints")], supported_pt_extensions)
-folder_names_and_paths["configs"] = ([os.path.join(models_dir, "configs")], [".yaml"])
+folder_names = {
+    "controlnet"            :{"options": supported_pt_extensions, "more_folders":["t2i_adapter"]},
+    "diffusion_models"      :{"options": supported_pt_extensions, "more_folders":["unet"]},
+    "text_encoders"         :{"options": supported_pt_extensions, "more_folders":["clip"]},
+    "diffusers"             :{"options": ["folder"]},
 
-folder_names_and_paths["loras"] = ([os.path.join(models_dir, "loras")], supported_pt_extensions)
-folder_names_and_paths["vae"] = ([os.path.join(models_dir, "vae")], supported_pt_extensions)
-folder_names_and_paths["text_encoders"] = ([os.path.join(models_dir, "text_encoders"), os.path.join(models_dir, "clip")], supported_pt_extensions)
-folder_names_and_paths["diffusion_models"] = ([os.path.join(models_dir, "unet"), os.path.join(models_dir, "diffusion_models")], supported_pt_extensions)
-folder_names_and_paths["clip_vision"] = ([os.path.join(models_dir, "clip_vision")], supported_pt_extensions)
-folder_names_and_paths["style_models"] = ([os.path.join(models_dir, "style_models")], supported_pt_extensions)
-folder_names_and_paths["embeddings"] = ([os.path.join(models_dir, "embeddings")], supported_pt_extensions)
-folder_names_and_paths["diffusers"] = ([os.path.join(models_dir, "diffusers")], ["folder"])
-folder_names_and_paths["vae_approx"] = ([os.path.join(models_dir, "vae_approx")], supported_pt_extensions)
+    "audio_encoders"        :{"options": supported_pt_extensions},
+    "background_removal"    :{"options": supported_pt_extensions},
+    "checkpoints"           :{"options": supported_pt_extensions},
+    "classifiers"           :{"options": supported_pt_extensions},
+    "clip_vision"           :{"options": supported_pt_extensions},
+    "configs"               :{"options": supported_ya_extensions},
+    "detection"             :{"options": supported_pt_extensions},
+    "embeddings"            :{"options": supported_pt_extensions},
+    "frame_interpolation"   :{"options": supported_pt_extensions},
+    "geometry_estimation"   :{"options": supported_pt_extensions},
+    "gligen"                :{"options": supported_pt_extensions},
+    "hypernetworks"         :{"options": supported_pt_extensions},
+    "ipadapter"             :{"options": supported_pt_extensions},
+    "latent_upscale_models" :{"options": supported_pt_extensions},
+    "loras"                 :{"options": supported_pt_extensions},
+    "model_patches"         :{"options": supported_pt_extensions},
+    "optical_flow"          :{"options": supported_pt_extensions},
+    "photomaker"            :{"options": supported_pt_extensions},
+    "style_models"          :{"options": supported_pt_extensions},
+    "tensorrt"              :{"options": supported_pt_extensions},
+    "upscale_models"        :{"options": supported_pt_extensions},
+    "vae_approx"            :{"options": supported_pt_extensions},
+    "vae"                   :{"options": supported_pt_extensions},
+}
+for folder_name, folder_options in folder_names.items():
+    folders = [folder_name]
+    if "more_folders" in folder_options.keys():
+        folders += folder_options["more_folders"]
 
-folder_names_and_paths["controlnet"] = ([os.path.join(models_dir, "controlnet"), os.path.join(models_dir, "t2i_adapter")], supported_pt_extensions)
-folder_names_and_paths["gligen"] = ([os.path.join(models_dir, "gligen")], supported_pt_extensions)
-
-folder_names_and_paths["upscale_models"] = ([os.path.join(models_dir, "upscale_models")], supported_pt_extensions)
-
-folder_names_and_paths["latent_upscale_models"] = ([os.path.join(models_dir, "latent_upscale_models")], supported_pt_extensions)
+    paths = [
+        os.path.join(models_dir, folder) for folder in folders
+    ]
+    folder_names_and_paths[folder_name] = (paths, folder_options["options"])
 
 folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes")], set())
+folder_names_and_paths["datasets"]     = ([os.path.join(base_path, "datasets")], set())
+custom_directories = {
+    "temp"  :f"x:\\xModels\\inputs\\.temp",
+    "input" :f"x:\\xModels\\inputs\\.comfy",
+    "output":f"x:\\xModels\\outputs\\{datetime.now():%Y-%m-%d}",
+}
+for directory, directory_path in custom_directories.items():
+    if not os.path.isdir(directory_path):
+        os.mkdir(directory_path)
 
-folder_names_and_paths["datasets"] = ([os.path.join(base_path, "datasets")], set())
 
-folder_names_and_paths["hypernetworks"] = ([os.path.join(models_dir, "hypernetworks")], supported_pt_extensions)
-
-folder_names_and_paths["photomaker"] = ([os.path.join(models_dir, "photomaker")], supported_pt_extensions)
-
-folder_names_and_paths["classifiers"] = ([os.path.join(models_dir, "classifiers")], {""})
-
-folder_names_and_paths["model_patches"] = ([os.path.join(models_dir, "model_patches")], supported_pt_extensions)
-
-folder_names_and_paths["audio_encoders"] = ([os.path.join(models_dir, "audio_encoders")], supported_pt_extensions)
-
-folder_names_and_paths["background_removal"] = ([os.path.join(models_dir, "background_removal")], supported_pt_extensions)
-
-folder_names_and_paths["frame_interpolation"] = ([os.path.join(models_dir, "frame_interpolation")], supported_pt_extensions)
-
-folder_names_and_paths["geometry_estimation"] = ([os.path.join(models_dir, "geometry_estimation")], supported_pt_extensions)
-
-folder_names_and_paths["optical_flow"] = ([os.path.join(models_dir, "optical_flow")], supported_pt_extensions)
-
-folder_names_and_paths["detection"] = ([os.path.join(models_dir, "detection")], supported_pt_extensions)
-
-output_directory = os.path.join(base_path, "output")
-temp_directory = os.path.join(base_path, "temp")
-input_directory = os.path.join(base_path, "input")
-user_directory = os.path.join(base_path, "user")
+temp_directory   = custom_directories["temp"]
+input_directory  = custom_directories["input"]
+output_directory = custom_directories["output"]
+user_directory   = os.path.join(base_path, "user")
 
 filename_list_cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
 
@@ -533,12 +543,14 @@ def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, im
         input = input.replace("%width%", str(image_width))
         input = input.replace("%height%", str(image_height))
         now = time.localtime()
-        input = input.replace("%year%", str(now.tm_year))
-        input = input.replace("%month%", str(now.tm_mon).zfill(2))
-        input = input.replace("%day%", str(now.tm_mday).zfill(2))
-        input = input.replace("%hour%", str(now.tm_hour).zfill(2))
+        input = input.replace("%year%",   str(now.tm_year))
+        input = input.replace("%month%",  str(now.tm_mon).zfill(2))
+        input = input.replace("%day%",    str(now.tm_mday).zfill(2))
+        input = input.replace("%hour%",   str(now.tm_hour).zfill(2))
         input = input.replace("%minute%", str(now.tm_min).zfill(2))
         input = input.replace("%second%", str(now.tm_sec).zfill(2))
+        # Better
+        input = input.replace("%HMSf%", f"{datetime.now():%m%d%H%M%S}")
         return input
 
     if "%" in filename_prefix:
