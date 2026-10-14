@@ -182,7 +182,7 @@ class SamplerRef(Ref):
         ge_gamma: Optional[float] = ...,
     ) -> "SamplerRef": ...
 
-class SigmasRef(Ref):
+class SigmasRef(TensorRef):
     KIND: str
     async def steps(self) -> int: ...
     async def value_at(self, index: int) -> float: ...
@@ -207,6 +207,7 @@ class UpscaleModelRef(Ref):
 class ModelRef(Ref):
     """MODEL — patch/hook via ctx.models; weights never materialize in-node."""
     KIND: str
+    async def fix_empty_latent_channels(self, latent: LatentRef) -> LatentRef: ...
     async def patch(self, transform: str, **params: Any) -> "ModelRef": ...
     async def spatial_crop_inputs(
         self, *, regions: list[tuple[int, int, int, int]],
