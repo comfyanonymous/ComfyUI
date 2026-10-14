@@ -531,12 +531,17 @@ class OutputDomain(Protocol):
         caption_extension: str = ...,
         save_metadata: bool = ...,
         extra_metadata: Optional[dict[str, Any]] = ...,
+        a1111_parameters: Optional[str] = ...,
         image_format: str = ...,
         quality: int = ...,
         filenames: Optional[list[str]] = ...,
         lossless: bool = ...,
         optimize: bool = ...,
-    ) -> dict: ...
+        *,
+        png_text: Optional[dict[str, str]] = ...,
+    ) -> dict:
+        """Use png_text for a complete explicit PNG text block, independent of automatic metadata."""
+        ...
     async def save_images_with_alpha(
         self,
         images: ImageRef,
@@ -618,6 +623,7 @@ class OutputDomain(Protocol):
 
 class GraphDomain(Protocol):
     async def current_node_id(self) -> str: ...
+    async def execution_metadata(self, *, include_observations: bool = False) -> dict[str, Any]: ...
     async def input_label(
         self, input_name: str, default: str = ...,
     ) -> str: ...
@@ -867,6 +873,7 @@ class ExecutionPlan:
     node_module: str
     inputs: Optional[dict]
     dynamic_prompt: Any
+    execution_metadata: Any
     def __init__(
         self,
         prompt_id: str,
@@ -878,6 +885,7 @@ class ExecutionPlan:
         node_module: str = ...,
         inputs: Optional[dict] = ...,
         dynamic_prompt: Any = ...,
+        execution_metadata: Any = ...,
     ) -> None: ...
 
 @runtime_checkable

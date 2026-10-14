@@ -1826,6 +1826,7 @@ class ExecutionPlan:
     extra_pnginfo: Any = None
     dynamic_prompt: Any = None
     method: str = "execute"
+    execution_metadata: Any = None  # host-owned prompt observation lifetime
 
     def __post_init__(self) -> None:
         self.method = _normalize_v2_node_method(self.method)
@@ -1975,6 +1976,7 @@ class OutputDomain(Protocol):
         image_format: str = "png", quality: int = 95,
         filenames: Optional[list[str]] = None,
         lossless: bool = False, optimize: bool = False,
+        *, png_text: Optional[dict[str, str]] = None,
     ) -> dict: ...
     async def save_images_with_alpha(
         self, images: ImageRef, mask: MaskRef,
@@ -2030,6 +2032,9 @@ class OutputDomain(Protocol):
 
 class GraphDomain(Protocol):
     async def current_node_id(self) -> str: ...
+    async def execution_metadata(
+        self, *, include_observations: bool = False,
+    ) -> dict[str, Any]: ...
     async def input_label(
         self, input_name: str, default: str = "",
     ) -> str: ...
@@ -4938,6 +4943,29 @@ def _image_metadata_owner(
     return SimpleNamespace(hidden=hidden)
 
 
+def _png_text_metadata(values: dict[str, str]):
+    import json
+    from PIL.PngImagePlugin import PngInfo
+
+    if type(values) is not dict:
+        raise TypeError("PNG text must be a dictionary of strings")
+    size = 0
+    for key, value in values.items():
+        if type(key) is not str or type(value) is not str:
+            raise TypeError("PNG text keys and values must be strings")
+        if not key or "\x00" in key or len(key.encode("latin-1")) > 79:
+            raise ValueError("PNG text keywords must contain 1 to 79 Latin-1 bytes without NUL")
+        size += len(key) + len(value)
+        if size > 1024 * 1024:
+            raise ValueError("PNG text exceeds 1 MiB")
+    if len(json.dumps(values).encode("utf-8")) > 1024 * 1024:
+        raise ValueError("PNG text exceeds 1 MiB")
+    metadata = PngInfo()
+    for key, value in values.items():
+        metadata.add_text(key, value)
+    return metadata
+
+
 def _a1111_parameters_payload(value: Optional[str], image_format: str) -> tuple[Optional[str], bytes]:
     """Validate the closed Automatic1111 metadata profile.
 
@@ -5310,7 +5338,9 @@ class _InProcessOutput:
         image_format: str = "png", quality: int = 95,
         filenames: Optional[list[str]] = None,
         lossless: bool = False, optimize: bool = False,
+        *, png_text: Optional[dict[str, str]] = None,
     ) -> dict:
+        """Save images; explicit PNG text replaces automatic metadata, including its global switch."""
         import numpy as np
         from PIL import Image as PILImage
         import folder_paths
@@ -5324,7 +5354,9 @@ class _InProcessOutput:
         if not 1 <= batch_size <= self._IMAGE_BATCH_MAX:
             raise ValueError(
                 f"saved IMAGE batch must be in [1, {self._IMAGE_BATCH_MAX}]")
-        if int(value.shape[-1]) not in (1, 3, 4):
+        if int(value.shape[-1]) not in (1, 3, 4) and not (
+            int(value.shape[-1]) == 2 and str(image_format).lower() == "png"
+        ):
             raise ValueError("saved IMAGE must have 1, 3, or 4 channels")
         level = int(compress_level)
         if not 0 <= level <= 9:
@@ -5341,12 +5373,21 @@ class _InProcessOutput:
             raise ValueError("image quality must be in [1, 100]")
         if type(lossless) is not bool or type(optimize) is not bool:
             raise TypeError("lossless and optimize must be booleans")
-        metadata_owner = _image_metadata_owner(
-            self._prompt,
-            self._extra_pnginfo,
-            include_execution_metadata=bool(save_metadata),
-            extra_metadata=extra_metadata,
-        )
+        png_metadata = None
+        metadata_owner = None
+        if png_text is not None:
+            if pil_format != "PNG":
+                raise ValueError("png_text is supported only for PNG")
+            if extra_metadata is not None or a1111_parameters is not None:
+                raise ValueError("png_text cannot be combined with extra_metadata or a1111_parameters")
+            png_metadata = _png_text_metadata(png_text)
+        else:
+            metadata_owner = _image_metadata_owner(
+                self._prompt,
+                self._extra_pnginfo,
+                include_execution_metadata=bool(save_metadata),
+                extra_metadata=extra_metadata,
+            )
         output_dir = folder_paths.get_output_directory()
         requested: list[tuple[str, str, str, str]] = []
         if filenames is not None:
@@ -5384,7 +5425,8 @@ class _InProcessOutput:
                 counter += 1
 
         results = []
-        png_metadata = ImageSaveHelper._create_png_metadata(metadata_owner)
+        if png_text is None:
+            png_metadata = ImageSaveHelper._create_png_metadata(metadata_owner)
         if a1111_text is not None and pil_format == "PNG":
             if png_metadata is None:
                 from PIL.PngImagePlugin import PngInfo
@@ -6321,13 +6363,33 @@ class _InProcessOutput:
 
 class _InProcessGraph:
     def __init__(self, current_node_id: str, prompt: Any = None,
-                 extra_pnginfo: Any = None, dynamic_prompt: Any = None) -> None:
+                 extra_pnginfo: Any = None, dynamic_prompt: Any = None, *,
+                 execution_metadata: Any = None, permissions=(), prompt_id="") -> None:
         self._current_node_id = str(current_node_id)
         self._prompt = prompt if isinstance(prompt, dict) else {}
         self._workflow = (
             extra_pnginfo.get("workflow", {})
             if isinstance(extra_pnginfo, dict) else {})
         self._dynamic_prompt = dynamic_prompt
+        self._execution_metadata = execution_metadata
+        self._metadata_permission = "graph.metadata" in permissions
+        self._metadata_prompt_id = str(prompt_id)
+
+    async def execution_metadata(self, *, include_observations=False):
+        if current_context().graph is not self:
+            raise RuntimeError("execution metadata context is not current")
+        if not self._metadata_permission:
+            raise PermissionError("graph.metadata was not declared for this node")
+        if self._execution_metadata is None:
+            raise RuntimeError("no execution metadata owner is bound")
+        from ._execution_metadata import ExecutionMetadataScope
+
+        if type(self._execution_metadata) is not ExecutionMetadataScope:
+            raise TypeError("execution metadata requires the native owner scope")
+        if self._execution_metadata.prompt_id != self._metadata_prompt_id:
+            raise RuntimeError("execution metadata does not belong to this plan")
+        return self._execution_metadata.snapshot(
+            self._current_node_id, include_observations=include_observations)
 
     def _prompt_key(self, node_id: int | str) -> Optional[str]:
         wanted = str(node_id)
@@ -8735,7 +8797,8 @@ class InProcessCtxProvider:
             output=_InProcessOutput(plan.prompt, plan.extra_pnginfo),
             graph=_InProcessGraph(
                 plan.node_id, plan.prompt, plan.extra_pnginfo,
-                plan.dynamic_prompt),
+                plan.dynamic_prompt, execution_metadata=plan.execution_metadata,
+                permissions=plan.permissions, prompt_id=plan.prompt_id),
             execution=_InProcessExecution(plan.prompt_id),
             integrations=_InProcessIntegrations(),
             models=_InProcessModels(),
