@@ -18,6 +18,7 @@ import folder_paths
 import time
 from comfy.cli_args import enables_dynamic_vram
 from app import governance
+from app import product_tips
 from app.logger import setup_logger
 console_log_level = get_console_log_level(args.verbose)
 file_log_outputs = get_file_log_outputs(args.verbose)
@@ -401,6 +402,10 @@ def prompt_worker(q, server_instance, asset_manager):
                     logging.info(f"Prompt executed in {execution_time}", extra={'color': 'green'})
                 else:
                     logging.info("Prompt executed in {:.2f} seconds".format(execution_time), extra={'color': 'green'})
+
+                job_hint = product_tips.get_relevant_job_hint(args, os.environ, e.success, extra_data)
+                if job_hint is not None:
+                    logging.info(job_hint)
 
             flags = q.get_flags()
             free_memory = flags.get("free_memory", False)

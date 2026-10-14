@@ -64,6 +64,7 @@ from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
 from app.subgraph_manager import SubgraphManager
 from app.node_replace_manager import NodeReplaceManager
+from app import product_tips
 from typing import TYPE_CHECKING, Optional, Union
 from api_server.routes.internal.internal_routes import InternalRoutes
 from protocol import BinaryEventTypes
@@ -1561,6 +1562,10 @@ class PromptServer():
 
             if verbose:
                 logging.info("To see the GUI go to: {}://{}:{}".format(scheme, address_print, port))
+
+        if verbose and product_tips.tips_enabled(args, os.environ):
+            address_print = "[{}]".format(self.address) if ':' in self.address else self.address
+            logging.info("\n" + product_tips.startup_banner("{}:{}".format(address_print, self.port)))
 
         if call_on_start is not None:
             call_on_start(scheme, self.address, self.port)
