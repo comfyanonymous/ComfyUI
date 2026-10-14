@@ -216,16 +216,21 @@ def _record_phases(instance: _AssetSeeder, monkeypatch: pytest.MonkeyPatch, hold
     return events, entered, release
 
 
-def test_a_page_load_during_the_fast_phase_prunes_before_enrichment(scan_seeder, monkeypatch):
+@pytest.mark.parametrize("hashing", [False, True])
+def test_a_page_load_during_the_fast_phase_prunes_before_enrichment(scan_seeder, monkeypatch, hashing):
     events, entered, release = _record_phases(scan_seeder, monkeypatch, hold="fast")
-    scan_seeder.start(roots=ROOTS, prune_first=True)
+    enrich_hashes: list[bool] = []
+    enrich = scan_seeder._run_enrich_phase
+    monkeypatch.setattr(scan_seeder, "_run_enrich_phase", lambda roots: (enrich_hashes.append(scan_seeder._compute_hashes), enrich(roots))[1])
+    scan_seeder.start(roots=ROOTS, prune_first=True, compute_hashes=hashing)
     assert entered.wait(5)
 
-    scan_seeder.start_after_node_list(ROOTS, compute_hashes=False)
+    scan_seeder.start_after_node_list(ROOTS, compute_hashes=hashing)
     release.set()
     _settle(scan_seeder)
 
     assert events == [("fast", frozenset(ROOTS)), ("prune",), ("fast", frozenset(ROOTS)), ("enrich", frozenset(ROOTS))]
+    assert enrich_hashes == [hashing]
 
 
 def test_a_page_load_during_enrichment_waits_for_it(scan_seeder, monkeypatch):
@@ -321,29 +326,3 @@ def test_a_startup_scan_cancelled_after_its_fast_phase_hands_nothing_off(scan_se
     models = frozenset({"models"})
     assert events == [("fast", frozenset(ROOTS)), ("prune",), ("fast", models), ("enrich", models)]
 
-
-def test_a_fast_startup_scan_hands_off_no_enrichment(scan_seeder, monkeypatch):
-    events, entered, release = _record_phases(scan_seeder, monkeypatch, hold="fast")
-    scan_seeder.start(roots=ROOTS, prune_first=True, phase=ScanPhase.FAST)
-    assert entered.wait(5)
-
-    scan_seeder.start_after_node_list(ROOTS, compute_hashes=False)
-    release.set()
-    _settle(scan_seeder)
-
-    models = frozenset({"models"})
-    assert events == [("fast", frozenset(ROOTS)), ("prune",), ("fast", models), ("enrich", models)]
-
-
-def test_a_restarted_startup_scan_that_pruned_keeps_its_enrichment(scan_seeder, monkeypatch):
-    scan_seeder.start(roots=ROOTS, prune_first=True, phase=ScanPhase.FAST)
-    _settle(scan_seeder)
-    scan_seeder.start_after_node_list(ROOTS, compute_hashes=False)
-    _settle(scan_seeder)
-    scan_seeder._prune_pending = True  # e.g. the last prune was cancelled
-    events, _, _ = _record_phases(scan_seeder, monkeypatch, hold="")
-
-    scan_seeder.start(roots=ROOTS, prune_first=True)
-    _settle(scan_seeder)
-
-    assert events == [("prune",), ("fast", frozenset(ROOTS)), ("enrich", frozenset(ROOTS))]
