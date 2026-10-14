@@ -190,3 +190,160 @@ def test_a_request_merged_into_a_queued_scan_logs_at_debug(monkeypatch, caplog):
 
     queued = [r.levelno for r in caplog.records if r.getMessage().startswith("Scan queued")]
     assert queued == [logging.INFO, logging.DEBUG]
+
+
+def _record_phases(instance: _AssetSeeder, monkeypatch: pytest.MonkeyPatch, hold: str) -> tuple[list[tuple], threading.Event, threading.Event]:
+    """Record the order of prunes and phases; the first `hold` phase waits until released."""
+    events: list[tuple] = []
+    entered, release = threading.Event(), threading.Event()
+
+    def phase(name, result):
+        def run(roots):
+            events.append((name, frozenset(roots)))
+            if name == hold and not entered.is_set():
+                entered.set()
+                release.wait(5)
+            return result
+        return run
+
+    def prune(_prefixes, _should_stop=None):
+        events.append(("prune",))
+        return 0
+
+    monkeypatch.setattr(seeder_module, "mark_missing_outside_prefixes_safely", prune)
+    monkeypatch.setattr(instance, "_run_fast_phase", phase("fast", (0, 0, 0)))
+    monkeypatch.setattr(instance, "_run_enrich_phase", phase("enrich", (False, 0)))
+    return events, entered, release
+
+
+def test_a_page_load_during_the_fast_phase_prunes_before_enrichment(scan_seeder, monkeypatch):
+    events, entered, release = _record_phases(scan_seeder, monkeypatch, hold="fast")
+    scan_seeder.start(roots=ROOTS, prune_first=True)
+    assert entered.wait(5)
+
+    scan_seeder.start_after_node_list(ROOTS, compute_hashes=False)
+    release.set()
+    _settle(scan_seeder)
+
+    assert events == [("fast", frozenset(ROOTS)), ("prune",), ("fast", frozenset(ROOTS)), ("enrich", frozenset(ROOTS))]
+
+
+def test_a_page_load_during_enrichment_waits_for_it(scan_seeder, monkeypatch):
+    events, entered, release = _record_phases(scan_seeder, monkeypatch, hold="enrich")
+    scan_seeder.start(roots=ROOTS, prune_first=True)
+    assert entered.wait(5)
+
+    scan_seeder.start_after_node_list(ROOTS, compute_hashes=False)
+    release.set()
+    _settle(scan_seeder)
+
+    models = frozenset({"models"})
+    assert events == [("fast", frozenset(ROOTS)), ("enrich", frozenset(ROOTS)), ("prune",), ("fast", models), ("enrich", models)]
+
+
+def test_an_enrich_only_scan_keeps_its_enrichment(scan_seeder, monkeypatch):
+    events, _, _ = _record_phases(scan_seeder, monkeypatch, hold="")
+    scan_seeder.start(roots=ROOTS, prune_first=True, phase=ScanPhase.FAST)
+    _settle(scan_seeder)
+    entered, release = threading.Event(), threading.Event()
+    monkeypatch.setattr(scan_seeder, "_log_scan_config", lambda roots: (entered.set(), release.wait(5)))
+    scan_seeder.start(roots=("input",), phase=ScanPhase.ENRICH)
+    assert entered.wait(5)
+
+    scan_seeder.start_after_node_list(ROOTS, compute_hashes=False)
+    release.set()
+    _settle(scan_seeder)
+
+    assert ("enrich", frozenset({"input"})) in events
+
+
+def test_a_scan_queued_before_any_page_load_waits_for_enrichment(scan_seeder, monkeypatch):
+    events, entered, release = _record_phases(scan_seeder, monkeypatch, hold="fast")
+    scan_seeder.start(roots=ROOTS, prune_first=True)
+    assert entered.wait(5)
+
+    scan_seeder.enqueue_scan(roots=("output",), phase=ScanPhase.FULL)  # a prompt's output rescan
+    release.set()
+    _settle(scan_seeder)
+
+    output = frozenset({"output"})
+    assert events == [("fast", frozenset(ROOTS)), ("enrich", frozenset(ROOTS)), ("fast", output), ("enrich", output)]
+
+
+def test_a_scan_queued_after_the_prune_waits_for_enrichment(scan_seeder, monkeypatch):
+    scan_seeder.start(roots=ROOTS, prune_first=True, phase=ScanPhase.FAST)
+    _settle(scan_seeder)
+    scan_seeder.start_after_node_list(ROOTS, compute_hashes=False)  # runs the prune
+    _settle(scan_seeder)
+    events, entered, release = _record_phases(scan_seeder, monkeypatch, hold="fast")
+    scan_seeder.start(roots=ROOTS)
+    assert entered.wait(5)
+
+    scan_seeder.enqueue_scan(roots=("output",), phase=ScanPhase.FULL)
+    release.set()
+    _settle(scan_seeder)
+
+    assert events[:2] == [("fast", frozenset(ROOTS)), ("enrich", frozenset(ROOTS))]
+
+
+def test_a_seed_scan_before_the_first_page_load_keeps_its_enrichment(scan_seeder, monkeypatch):
+    scan_seeder.start(roots=ROOTS, prune_first=True, phase=ScanPhase.FAST)
+    _settle(scan_seeder)
+    events, entered, release = _record_phases(scan_seeder, monkeypatch, hold="fast")
+    scan_seeder.start(roots=("input",))  # e.g. POST /api/assets/seed, which waits for its enrichment
+    assert entered.wait(5)
+
+    scan_seeder.start_after_node_list(ROOTS, compute_hashes=False)
+    release.set()
+    _settle(scan_seeder)
+
+    inputs, models = frozenset({"input"}), frozenset({"models"})
+    assert events == [("fast", inputs), ("enrich", inputs), ("prune",), ("fast", models), ("enrich", models)]
+
+
+def test_a_startup_scan_cancelled_after_its_fast_phase_hands_nothing_off(scan_seeder, monkeypatch):
+    events, entered, release = _record_phases(scan_seeder, monkeypatch, hold="fast")
+    cancelled = threading.Event()
+
+    def cancel_once(kind, _data):
+        if kind == "assets.seed.fast_complete" and not cancelled.is_set():
+            cancelled.set()
+            scan_seeder.cancel()
+
+    scan_seeder.set_event_sink(cancel_once)
+    scan_seeder.start(roots=ROOTS, prune_first=True)
+    assert entered.wait(5)
+
+    scan_seeder.start_after_node_list(ROOTS, compute_hashes=False)
+    release.set()
+    _settle(scan_seeder)
+
+    models = frozenset({"models"})
+    assert events == [("fast", frozenset(ROOTS)), ("prune",), ("fast", models), ("enrich", models)]
+
+
+def test_a_fast_startup_scan_hands_off_no_enrichment(scan_seeder, monkeypatch):
+    events, entered, release = _record_phases(scan_seeder, monkeypatch, hold="fast")
+    scan_seeder.start(roots=ROOTS, prune_first=True, phase=ScanPhase.FAST)
+    assert entered.wait(5)
+
+    scan_seeder.start_after_node_list(ROOTS, compute_hashes=False)
+    release.set()
+    _settle(scan_seeder)
+
+    models = frozenset({"models"})
+    assert events == [("fast", frozenset(ROOTS)), ("prune",), ("fast", models), ("enrich", models)]
+
+
+def test_a_restarted_startup_scan_that_pruned_keeps_its_enrichment(scan_seeder, monkeypatch):
+    scan_seeder.start(roots=ROOTS, prune_first=True, phase=ScanPhase.FAST)
+    _settle(scan_seeder)
+    scan_seeder.start_after_node_list(ROOTS, compute_hashes=False)
+    _settle(scan_seeder)
+    scan_seeder._prune_pending = True  # e.g. the last prune was cancelled
+    events, _, _ = _record_phases(scan_seeder, monkeypatch, hold="")
+
+    scan_seeder.start(roots=ROOTS, prune_first=True)
+    _settle(scan_seeder)
+
+    assert events == [("prune",), ("fast", frozenset(ROOTS)), ("enrich", frozenset(ROOTS))]
