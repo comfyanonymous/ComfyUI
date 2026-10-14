@@ -67,8 +67,8 @@ for folder_name, folder_options in folder_names.items():
 folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes")], set())
 folder_names_and_paths["datasets"]     = ([os.path.join(base_path, "datasets")], set())
 custom_directories = {
-    "temp"  :f"x:\\xModels\\inputs\\.temp",
-    "input" :f"x:\\xModels\\inputs\\.comfy",
+    "temp"  :"x:\\xModels\\inputs\\.temp",
+    "input" :"x:\\xModels\\inputs\\.comfy",
     "output":f"x:\\xModels\\outputs\\{datetime.now():%Y-%m-%d}",
 }
 for directory, directory_path in custom_directories.items():
