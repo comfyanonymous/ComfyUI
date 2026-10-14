@@ -497,6 +497,27 @@ class SamModelRef(Ref):
         boxes: list[list[float]],
     ) -> MaskRef: ...
 
+class GitHubReleaseArtifact:
+    """Pinned opaque TorchScript declared in SDK_REQUIRED_ARTIFACTS."""
+    repo_id: str
+    release_id: int
+    release_tag: str
+    asset_id: int
+    filename: str
+    folder: str
+    sha256: str
+    size: int
+    on_demand: bool
+    def __init__(
+        self, repo_id: str, release_id: int, release_tag: str, asset_id: int,
+        filename: str, folder: str, sha256: str, size: int,
+        on_demand: bool = ...,
+    ) -> None: ...
+    @property
+    def catalogue_name(self) -> str: ...
+    @property
+    def source_url(self) -> str: ...
+
 class HuggingFaceWeight:
     """A public Hugging Face weight file declared in SDK_REQUIRED_WEIGHTS."""
     repo_id: str
@@ -719,6 +740,9 @@ class ModelConcatInvocation(Protocol):
     async def process_latent_in(self, tensor: Any) -> Any: ...
 
 class ModelsDomain(Protocol):
+    async def download_public_artifact(
+        self, artifact: GitHubReleaseArtifact,
+    ) -> str: ...
     async def create_sampling_model(
         self, family: str, parameters: Optional[dict[str, float]] = ...,
     ) -> ModelRef: ...
@@ -917,6 +941,7 @@ class ExecutionPlan:
     tier: str
     permissions: tuple[str, ...]
     required_weights: tuple[HuggingFaceWeight, ...]
+    required_artifacts: tuple[GitHubReleaseArtifact, ...]
     # Work-unit payload for out-of-process backends (set for SDK_REFS nodes).
     node_module: str
     inputs: Optional[dict]
@@ -934,6 +959,7 @@ class ExecutionPlan:
         inputs: Optional[dict] = ...,
         dynamic_prompt: Any = ...,
         execution_metadata: Any = ...,
+        required_artifacts: tuple[GitHubReleaseArtifact, ...] = ...,
     ) -> None: ...
 
 @runtime_checkable
