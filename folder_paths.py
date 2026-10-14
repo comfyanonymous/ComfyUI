@@ -62,6 +62,9 @@ folder_names_and_paths["frame_interpolation"] = ([os.path.join(models_dir, "fram
 
 folder_names_and_paths["geometry_estimation"] = ([os.path.join(models_dir, "geometry_estimation")], supported_pt_extensions)
 
+# Opaque model code, never admitted through a host tensor-archive loader.
+folder_names_and_paths["nlf"] = ([os.path.join(models_dir, "nlf")], {".torchscript"})
+
 folder_names_and_paths["optical_flow"] = ([os.path.join(models_dir, "optical_flow")], supported_pt_extensions)
 
 folder_names_and_paths["detection"] = ([os.path.join(models_dir, "detection")], supported_pt_extensions)

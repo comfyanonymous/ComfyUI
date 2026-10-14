@@ -264,7 +264,8 @@ def _sdk_seam_engaged(type_obj) -> bool:
     """
     if (getattr(type_obj, "SDK_REFS", False)
             or getattr(type_obj, "SDK_PERMISSIONS", ())
-            or getattr(type_obj, "SDK_REQUIRED_WEIGHTS", ())):
+            or getattr(type_obj, "SDK_REQUIRED_WEIGHTS", ())
+            or getattr(type_obj, "SDK_REQUIRED_ARTIFACTS", ())):
         return True
     from comfy_api.latest import _sdk as _comfy_sdk
     return _comfy_sdk.providers.engaged
@@ -433,6 +434,8 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
                         method=func,
                         permissions=tuple(_sdk_perms),
                         required_weights=tuple(_sdk_required_weights),
+                        required_artifacts=tuple(getattr(
+                            type_obj, "SDK_REQUIRED_ARTIFACTS", ()) or ()),
                         prompt=getattr(class_clone.hidden, "prompt", None),
                         extra_pnginfo=getattr(
                             class_clone.hidden, "extra_pnginfo", None),
@@ -477,6 +480,8 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
                             getattr(type_obj, "SDK_PERMISSIONS", ()) or ()),
                         required_weights=tuple(getattr(
                             type_obj, "SDK_REQUIRED_WEIGHTS", ()) or ()),
+                        required_artifacts=tuple(getattr(
+                            type_obj, "SDK_REQUIRED_ARTIFACTS", ()) or ()),
                         execution_metadata=_execution_metadata.current(prompt_id),
                     )
                     _sdk_refs = _comfy_sdk.providers.ref_resolver_factory()

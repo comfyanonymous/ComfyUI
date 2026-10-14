@@ -54,6 +54,7 @@ import threading
 import uuid
 from collections import OrderedDict
 from dataclasses import dataclass, field
+from ._public_artifacts import GitHubReleaseArtifact
 from typing import (
     Any,
     Awaitable,
@@ -1893,6 +1894,7 @@ class ExecutionPlan:
     dynamic_prompt: Any = None
     method: str = "execute"
     execution_metadata: Any = None  # host-owned prompt observation lifetime
+    required_artifacts: tuple[GitHubReleaseArtifact, ...] = ()
 
     def __post_init__(self) -> None:
         self.method = _normalize_v2_node_method(self.method)
@@ -1902,9 +1904,17 @@ class ExecutionPlan:
             raise TypeError(
                 "required_weights must contain HuggingFaceWeight declarations")
         self.permissions = tuple(self.permissions or ())
+        self.required_artifacts = tuple(self.required_artifacts or ())
+        if not all(isinstance(item, GitHubReleaseArtifact)
+                   for item in self.required_artifacts):
+            raise TypeError(
+                "required_artifacts must contain GitHubReleaseArtifact declarations")
         if (self.required_weights
                 and "models.download" not in self.permissions):
             self.permissions += ("models.download",)
+        if (self.required_artifacts
+                and "models.download_artifacts" not in self.permissions):
+            self.permissions += ("models.download_artifacts",)
         if self.input_mode not in {"refs", "values"}:
             raise ValueError(
                 f"V2 node input mode {self.input_mode!r} is not allowed; "
@@ -2178,6 +2188,16 @@ class ModelConcatInvocation(Protocol):
 
 
 class ModelsDomain(Protocol):
+    async def download_public_artifact(
+        self, artifact: GitHubReleaseArtifact,
+    ) -> str:
+        """Acquire declared opaque bytes; return a logical catalogue name.
+
+        The host never JIT-loads these artifacts. Use assets.resolve and bounded
+        read_range to materialize them for an isolated guest constructor.
+        """
+        ...
+
     async def create_sampling_model(
         self, family: str, parameters: Optional[dict[str, float]] = None,
     ) -> ModelRef:
@@ -2716,6 +2736,8 @@ class _InProcessAssets:
         if member is not None and ref.kind != AssetRef.KIND:
             raise TypeError("weight member loading requires an ASSET ref")
         path = await self.path(ref)
+        if str(path).lower().endswith(".torchscript"):
+            raise ValueError("opaque TorchScript assets may be loaded only in the isolated guest")
         if member is not None:
             return comfy.utils.load_torch_file(
                 path, safe_load=True, return_metadata=bool(return_metadata), member=member)
@@ -4050,6 +4072,34 @@ class _InProcessModels:
                 except FileNotFoundError:
                     pass
         return logical
+
+    async def download_public_artifact(
+        self, artifact: GitHubReleaseArtifact,
+    ) -> str:
+        from ._public_artifacts import download_github_release_artifact
+
+        cancelled = threading.Event()
+        task = asyncio.create_task(asyncio.to_thread(
+            download_github_release_artifact, artifact, cancelled))
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            cancelled.set()
+            # shield protects the worker, but does not suppress cancellation
+            # of this awaiting task. Further cancellation must not let the
+            # caller finish before the worker's terminal cleanup.
+            while not task.done():
+                try:
+                    await asyncio.shield(task)
+                except asyncio.CancelledError:
+                    continue
+                except Exception:
+                    break
+            try:
+                task.result()
+            except (Exception, asyncio.CancelledError):
+                pass  # Preserve the original invocation cancellation.
+            raise
 
     async def download_huggingface_weights(
         self, repo_id: str, filename: str, folder: str,
