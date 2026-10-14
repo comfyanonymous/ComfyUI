@@ -796,8 +796,15 @@ class _AssetSeeder:
                     },
                 )
 
+            # A page load during the fast phase queued the pending prune: hand enrichment to that
+            # scan, so the prune and the late folders' files don't wait for it.
+            with self._lock:
+                hand_off = phase is ScanPhase.FULL and self._prune_pending and self._node_list_served
+                if hand_off:
+                    self.enqueue_scan(roots=roots, phase=ScanPhase.FULL, compute_hashes=self._compute_hashes)
+
             # Phase 2: Enrichment scan (metadata + hashes)
-            if phase in (ScanPhase.ENRICH, ScanPhase.FULL):
+            if phase in (ScanPhase.ENRICH, ScanPhase.FULL) and not hand_off:
                 if self._check_pause_and_cancel(_ScanStage.ENRICH):
                     cancelled = True
                     return
