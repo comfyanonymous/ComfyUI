@@ -1026,7 +1026,7 @@ class VAE:
                 #Force cast it for --disable-dynamic-vram users until there is a true core fix.
                 if not comfy.memory_management.aimdo_enabled:
                     self.disable_offload = True
-            elif "decoder.transformer_blocks.0.scale1" in sd and "encoder.down.5.block.0.nin_shortcut.weight" in sd:  # MiniMax H3 video VAE
+            elif "decoder.transformer_blocks.0.scale1" in sd or "encoder.down.5.block.0.nin_shortcut.weight" in sd:  # MiniMax H3 video VAE, or just its decoder / encoder
                 minimax_ops = comfy.ops.disable_weight_init
                 minimax_quant = comfy.utils.detect_layer_quantization(sd, "")
                 if minimax_quant is not None:  # int8+convrot quantized decoder
@@ -1037,7 +1037,7 @@ class VAE:
                     still_frame = int(metadata.get("h3_t1_output_slice", 3))
                 # LightVAE Lite encoders prune resnet blocks down to their shortcut
                 minimax_kept = {(int(k.split(".")[2]), int(k.split(".")[4])) for k in sd if k.startswith("encoder.down.") and k.endswith(".conv1.weight")}
-                self.first_stage_model = comfy.ldm.minimax.vae.MiniMaxH3VideoVAE(operations=minimax_ops, num_layers=minimax_layers, still_frame=still_frame, encoder_kept_blocks=minimax_kept)
+                self.first_stage_model = comfy.ldm.minimax.vae.MiniMaxH3VideoVAE(operations=minimax_ops, num_layers=minimax_layers, still_frame=still_frame, encoder_kept_blocks=minimax_kept, encoder="encoder.conv_in.weight" in sd, decoder=minimax_layers > 0)
                 self.latent_channels = 24
                 self.latent_dim = 3
                 # frames 17k+5 <-> latents 5k+2, 16x spatial

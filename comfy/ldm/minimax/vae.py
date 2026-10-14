@@ -437,6 +437,8 @@ class MiniMaxH3VideoVAE(nn.Module):
         num_layers=36,
         still_frame=None,
         encoder_kept_blocks=None,
+        encoder=True,
+        decoder=True,
     ):
         super().__init__()
         self.vae_ratio = int(math.prod(space_down))
@@ -460,27 +462,29 @@ class MiniMaxH3VideoVAE(nn.Module):
         self.tile_size = tile_size
         self.tile_overlap_min = tile_overlap_min
 
-        self.encoder = EncoderFCN3D(
-            ch=ch,
-            ch_mult=list(ch_mult),
-            space_down=list(space_down),
-            time_down=list(time_down),
-            num_res_blocks=num_res_blocks,
-            in_channels=in_channels,
-            z_channels=z_channels,
-            double_z=True,
-            kept_blocks=encoder_kept_blocks,
-        )
-        self.quant_conv = ops.Conv3d(z_channels * 2, 2 * embed_dim, 1)
-        self.post_quant_conv = ops.Conv3d(embed_dim, z_channels, 1)
-        self.decoder = ViT3DDecoder(
-            patch_size=self.vae_ratio,
-            patch_size_t=self.vae_ratio_t,
-            in_channels=z_channels,
-            out_channels=out_ch,
-            num_layers=num_layers,
-            operations=operations,
-        )
+        if encoder:
+            self.encoder = EncoderFCN3D(
+                ch=ch,
+                ch_mult=list(ch_mult),
+                space_down=list(space_down),
+                time_down=list(time_down),
+                num_res_blocks=num_res_blocks,
+                in_channels=in_channels,
+                z_channels=z_channels,
+                double_z=True,
+                kept_blocks=encoder_kept_blocks,
+            )
+            self.quant_conv = ops.Conv3d(z_channels * 2, 2 * embed_dim, 1)
+        if decoder:
+            self.post_quant_conv = ops.Conv3d(embed_dim, z_channels, 1)
+            self.decoder = ViT3DDecoder(
+                patch_size=self.vae_ratio,
+                patch_size_t=self.vae_ratio_t,
+                in_channels=z_channels,
+                out_channels=out_ch,
+                num_layers=num_layers,
+                operations=operations,
+            )
 
         self.register_buffer("latents_mean", torch.tensor(LATENTS_MEAN))
         self.register_buffer("latents_std", torch.tensor(LATENTS_STD))
