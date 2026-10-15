@@ -67,6 +67,7 @@ import comfy.text_encoders.qwen_image
 import comfy.text_encoders.qwen_image21
 import comfy.text_encoders.hunyuan_image
 import comfy.text_encoders.z_image
+import comfy.text_encoders.ming_image
 import comfy.text_encoders.krea2
 import comfy.text_encoders.mage_flow
 import comfy.text_encoders.ideogram4
@@ -555,6 +556,11 @@ class VAE:
                 else:
                     self.latent_channels = sd["taesd_decoder.1.weight"].shape[1]
                 self.first_stage_model = comfy.taesd.taesd.TAESD(latent_channels=self.latent_channels)
+                if self.latent_channels == 64:  # Qwen Image 2.1 TAESD: 16x, RGBA
+                    self.downscale_ratio = 16
+                    self.upscale_ratio = 16
+                    self.output_channels = 4
+                    self.pad_channel_value = 1.0
             elif "vquantizer.codebook.weight" in sd: #VQGan: stage a of stable cascade
                 self.first_stage_model = StageA()
                 self.downscale_ratio = 4
@@ -598,8 +604,8 @@ class VAE:
                 self.latent_channels = comfy.ldm.seedvr.vae.SEEDVR2_LATENT_CHANNELS
                 self.latent_dim = 3
                 self.disable_offload = True
-                self.memory_used_decode = lambda shape, dtype: self.first_stage_model.comfy_memory_used_decode(shape)
-                self.memory_used_encode = lambda shape, dtype: (max(shape[2], 5) * shape[3] * shape[4] * 64) * model_management.dtype_size(dtype)
+                self.memory_used_decode = self.first_stage_model.comfy_memory_used_decode
+                self.memory_used_encode = self.first_stage_model.comfy_memory_used_encode
                 self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
                 self.handles_tiling = True
                 self.format_encoded = self.first_stage_model.comfy_format_encoded
@@ -1020,12 +1026,18 @@ class VAE:
                 #Force cast it for --disable-dynamic-vram users until there is a true core fix.
                 if not comfy.memory_management.aimdo_enabled:
                     self.disable_offload = True
-            elif "decoder.transformer_blocks.0.scale1" in sd and "encoder.down.5.block.0.conv1.weight" in sd:  # MiniMax H3 video VAE
+            elif "decoder.transformer_blocks.0.scale1" in sd or "encoder.down.5.block.0.nin_shortcut.weight" in sd:  # MiniMax H3 video VAE, or just its decoder / encoder
                 minimax_ops = comfy.ops.disable_weight_init
                 minimax_quant = comfy.utils.detect_layer_quantization(sd, "")
                 if minimax_quant is not None:  # int8+convrot quantized decoder
                     minimax_ops = comfy.ops.mixed_precision_ops(minimax_quant, dtype if dtype is not None else torch.float16)
-                self.first_stage_model = comfy.ldm.minimax.vae.MiniMaxH3VideoVAE(operations=minimax_ops)
+                minimax_layers = sum(k.startswith("decoder.transformer_blocks.") and k.endswith(".scale1") for k in sd)
+                still_frame = None
+                if metadata is not None and metadata.get("h3_t1_direct") == "true":  # decoder fine-tuned for single-latent stills
+                    still_frame = int(metadata.get("h3_t1_output_slice", 3))
+                # LightVAE Lite encoders prune resnet blocks down to their shortcut
+                minimax_kept = {(int(k.split(".")[2]), int(k.split(".")[4])) for k in sd if k.startswith("encoder.down.") and k.endswith(".conv1.weight")}
+                self.first_stage_model = comfy.ldm.minimax.vae.MiniMaxH3VideoVAE(operations=minimax_ops, num_layers=minimax_layers, still_frame=still_frame, encoder_kept_blocks=minimax_kept, encoder="encoder.conv_in.weight" in sd, decoder=minimax_layers > 0)
                 self.latent_channels = 24
                 self.latent_dim = 3
                 # frames 17k+5 <-> latents 5k+2, 16x spatial
@@ -1049,7 +1061,8 @@ class VAE:
                     return (elements_per_pixel * frames * height * width + fixed) * model_management.dtype_size(dtype) * 1.03
 
                 def estimate_decode_memory(frames, height, width, dtype):
-                    fixed = 110_000_000 if frames <= 22 else 270_000_000
+                    # the stock decoder decodes a still as a full clip of copies, so it needs a clip's activations
+                    fixed = 150_000_000 if frames == 1 and still_frame is None else 110_000_000 if frames <= 22 else 270_000_000
                     frames = min(frames, chunk_frames + 2)
                     return (9.5 * frames * height * width + fixed) * model_management.dtype_size(dtype) * 1.03
 
@@ -1264,6 +1277,14 @@ class VAE:
                 batch_number = int(free_memory / memory_used)
                 batch_number = max(1, batch_number)
 
+                # A VAE with a reliable estimate skips the doomed untiled attempt.
+                if getattr(self.first_stage_model, "comfy_decode_estimate_is_reliable", False):
+                    if memory_used > free_memory:
+                        logging.info("VAE decode needs more than the free VRAM; tiling directly.")
+                        raise model_management.OOM_EXCEPTION(
+                            "decode estimate exceeds free memory; going straight to tiled"
+                        )
+
                 # Pre-allocate output for VAEs that support direct buffer writes
                 preallocated = False
                 if getattr(self.first_stage_model, 'comfy_has_chunked_io', False):
@@ -1307,6 +1328,10 @@ class VAE:
                         pixel_samples = self.decode_tiled_(samples_in)
                 elif dims == 3:
                     tile = 256 // self.spacial_compression_decode()
+                    # A VAE that can size its own tiles raises the 256-pixel floor.
+                    prefers_tile = getattr(self.first_stage_model, "preferred_decode_tile", None)
+                    if prefers_tile is not None:
+                        tile = max(tile, prefers_tile(self.patcher.get_free_memory(self.device), self.vae_dtype))
                     overlap = tile // 4
                     if self.handles_tiling:
                         memory_used = self.memory_used_decode(self._tile_bounded_shape(samples_in.shape, tile, tile, None), self.vae_dtype)
@@ -1583,6 +1608,7 @@ class CLIPType(Enum):
     MAGE = 34
     MINIMAX = 35
     YUE2 = 36
+    FLUX3 = 37
 
 
 
@@ -1640,9 +1666,12 @@ class TEModel(Enum):
     QWEN3VL_8B = 35
     GEMMA_4_12B = 36
     QWEN3VL_32B = 37
+    MING_IMAGE = 38
 
 
 def detect_te_model(sd):
+    if "thinker.layers.1.mlp.image_gate.proj.weight" in sd:
+        return TEModel.MING_IMAGE
     if "text_model.encoder.layers.30.mlp.fc1.weight" in sd:
         return TEModel.CLIP_G
     if "text_model.encoder.layers.22.mlp.fc1.weight" in sd:
@@ -1902,6 +1931,11 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.clip = comfy.text_encoders.flux.flux2_te(**llama_detect(clip_data), pruned=te_model == TEModel.MISTRAL3_24B_PRUNED_FLUX2)
             clip_target.tokenizer = comfy.text_encoders.flux.Flux2Tokenizer
             tokenizer_data["tekken_model"] = clip_data[0].get("tekken_model", None)
+        elif te_model == TEModel.MING_IMAGE:
+            tokenizer_data["tokenizer_json"] = clip_data[0].get("tokenizer_json", None)
+            quant = comfy.utils.detect_layer_quantization(clip_data[0], "")
+            clip_target.clip = comfy.text_encoders.ming_image.te(dtype_llama=clip_data[0]["thinker.norm.weight"].dtype, llama_quantization_metadata=quant)
+            clip_target.tokenizer = comfy.text_encoders.ming_image.MingImageTokenizer
         elif te_model == TEModel.GPT_OSS_20B:
             clip_target.clip = comfy.text_encoders.gpt_oss.lens_te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.gpt_oss.LensTokenizer
@@ -1944,6 +1978,10 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 clip_data[0] = comfy.utils.state_dict_prefix_replace(clip_data[0], {"model.language_model.": "model.", "model.visual.": "visual.", "lm_head.": "model.lm_head."})
                 clip_target.clip = comfy.text_encoders.krea2.te(**llama_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.krea2.Krea2Tokenizer
+            elif clip_type == CLIPType.FLUX3 and te_model == TEModel.QWEN3VL_4B:  # FLUX.3: Qwen3-VL-4B text only, 8-layer tap -> 20480.
+                clip_data[0] = comfy.utils.state_dict_prefix_replace(clip_data[0], {"model.language_model.": "model.", "model.visual.": "visual.", "lm_head.": "model.lm_head."})
+                clip_target.clip = comfy.text_encoders.flux.flux3_te(**llama_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.flux.Flux3Tokenizer
             elif clip_type == CLIPType.MAGE and te_model == TEModel.QWEN3VL_4B:  # Mage-Flow: full Qwen3-VL-4B, last hidden state, Qwen-Image-style templates.
                 clip_data[0] = comfy.utils.state_dict_prefix_replace(clip_data[0], {"model.language_model.": "model.", "model.visual.": "visual.", "lm_head.": "model.lm_head."})
                 clip_target.clip = comfy.text_encoders.mage_flow.te(**llama_detect(clip_data))
@@ -2102,7 +2140,7 @@ def load_gligen(ckpt_path):
     model = gligen.load_gligen(data)
     if model_management.should_use_fp16():
         model = model.half()
-    return comfy.model_patcher.CoreModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=model_management.unet_offload_device())
+    return comfy.model_patcher.CoreModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=model_management.unet_offload_device(), fast_disk=comfy.storage.state_dict_fast_disk(data))
 
 def model_detection_error_hint(path, state_dict):
     filename = os.path.basename(path)
@@ -2351,7 +2389,7 @@ def load_diffusion_model_state_dict(sd, model_options={}, metadata=None, disable
     else:
         new_sd = model_detection.convert_diffusers_mmdit(sd, "")
         if new_sd is not None: #diffusers mmdit
-            model_config = model_detection.model_config_from_unet(new_sd, "")
+            model_config = model_detection.model_config_from_unet(new_sd, "", metadata=metadata)
             if model_config is None:
                 return None
         else: #diffusers unet
