@@ -88,11 +88,13 @@ class BranchNode(io.ComfyNode):
     def define_schema(cls):
         mtemplate = io.MatchType.Template("switch")
         minput = io.MatchType.Input("branch", template=mtemplate, lazy=True, optional=True)
-        template = _io.Autogrow.TemplatePrefix(input=minput, prefix="branch", min=1, max=10)
+        template = _io.Autogrow.TemplatePrefix(input=minput, prefix="branch", min=1, max=32)
         return io.Schema(
             node_id="BranchNode",
             display_name="Branch",
             category="logic",
+            description="Select from connected inputs by name. Inputs can be renamed by double clicking them.",
+            search_aliases=["switch", "choice", "pick"],
             is_experimental=True,
             inputs=[
                 _io.Autogrow.Input("autogrow", template=template),
