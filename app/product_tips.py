@@ -1,34 +1,11 @@
-"""Console tips for Comfy-Org developer products: one startup banner and at most one of each job hint per process.
+"""Console tips for Comfy-Org developer products: one startup line and at most one of each job hint per process.
 
 Plain ASCII on purpose: Windows consoles may still use cp1252.
 """
 
-COMFY_API_BANNER = """\
-==========================================================================
-   .-------------------.                          .-~~~-.
-   |  ComfyUI          |                   .-~~-.(       )
-   |  127.0.0.1:8188   |    ==========>   (               )-.
-   |  [o]-[o]-[o]      |                 (     Comfy API      )
-   '---------+---------'                  `------------------'
-          ___|___          From localhost to the cloud.
---------------------------------------------------------------------------
-   Comfy API hosts your ComfyUI workflows with your custom nodes as
-   scalable cloud endpoints. No GPUs or servers to manage.
-                  https://platform.comfy.org/ascii
- (Optional paid service from Comfy-Org. Hide: --disable-product-tips)
-=========================================================================="""
+COMFY_API_STARTUP_TIP = "Comfy API: host your ComfyUI workflows with your custom nodes as scalable cloud endpoints. No servers or GPUs to manage. -> https://platform.comfy.org/ascii (optional paid service, hide: --disable-product-tips)"
 
 COMFY_API_JOB_HINT = "Comfy API: host your ComfyUI workflows in the cloud -> https://platform.comfy.org/ascii-job (hide: --disable-product-tips)"
-
-_ADDRESS_SLOT = "127.0.0.1:8188   "
-_MAX_ADDRESS = len(_ADDRESS_SLOT) - 1  # keep one space before the monitor's right edge
-
-
-def startup_banner(address_and_port: str) -> str:
-    """The banner with the monitor showing address_and_port, or localhost:{port} if it doesn't fit."""
-    if len(address_and_port) > _MAX_ADDRESS:
-        address_and_port = "localhost:" + address_and_port.rsplit(":", 1)[-1]
-    return COMFY_API_BANNER.replace(_ADDRESS_SLOT, address_and_port.ljust(len(_ADDRESS_SLOT)))
 
 
 def tips_enabled(args, environ) -> bool:

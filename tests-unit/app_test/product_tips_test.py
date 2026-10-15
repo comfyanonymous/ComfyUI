@@ -11,27 +11,9 @@ def _args(**overrides):
     return argparse.Namespace(**flags)
 
 
-@pytest.mark.parametrize("address", ["127.0.0.1:8188", "[::1]:8188", "[2001:db8:85a3::8a2e:370:7334]:8188"])
-def test_banner_is_ascii_and_aligned(address):
-    lines = product_tips.startup_banner(address).splitlines()
-    template = product_tips.COMFY_API_BANNER.splitlines()
-    assert len(lines) == len(template)
-    for line, original in zip(lines, template):
-        assert line.isascii()
-        assert len(line) <= 76
-        assert line.rfind("|") == original.rfind("|")
-
-
-def test_banner_shows_address_and_falls_back_to_localhost():
-    assert "|  0.0.0.0:8188     |" in product_tips.startup_banner("0.0.0.0:8188")
-    assert "|  [::1]:8188       |" in product_tips.startup_banner("[::1]:8188")
-    overlong = product_tips.startup_banner("[2001:db8:85a3::8a2e:370:7334]:9000")
-    assert "|  localhost:9000   |" in overlong
-    assert "2001" not in overlong
-
-
-def test_banner_default_matches_template():
-    assert product_tips.startup_banner("127.0.0.1:8188") == product_tips.COMFY_API_BANNER
+def test_startup_tip_is_single_ascii_line():
+    assert product_tips.COMFY_API_STARTUP_TIP.isascii()
+    assert "\n" not in product_tips.COMFY_API_STARTUP_TIP
 
 
 def test_tips_enabled_by_default():

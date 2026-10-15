@@ -672,6 +672,8 @@ if __name__ == "__main__":
     event_loop, prompt_server, start_all_func = start_comfyui()
     try:
         x = start_all_func()
+        if product_tips.tips_enabled(args, os.environ):
+            logging.info(product_tips.COMFY_API_STARTUP_TIP)
         app.logger.print_startup_warnings()
         event_loop.run_until_complete(x)
     except KeyboardInterrupt:
