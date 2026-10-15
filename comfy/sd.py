@@ -1608,6 +1608,7 @@ class CLIPType(Enum):
     MAGE = 34
     MINIMAX = 35
     YUE2 = 36
+    FLUX3 = 37
 
 
 
@@ -1977,6 +1978,10 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 clip_data[0] = comfy.utils.state_dict_prefix_replace(clip_data[0], {"model.language_model.": "model.", "model.visual.": "visual.", "lm_head.": "model.lm_head."})
                 clip_target.clip = comfy.text_encoders.krea2.te(**llama_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.krea2.Krea2Tokenizer
+            elif clip_type == CLIPType.FLUX3 and te_model == TEModel.QWEN3VL_4B:  # FLUX.3: Qwen3-VL-4B text only, 8-layer tap -> 20480.
+                clip_data[0] = comfy.utils.state_dict_prefix_replace(clip_data[0], {"model.language_model.": "model.", "model.visual.": "visual.", "lm_head.": "model.lm_head."})
+                clip_target.clip = comfy.text_encoders.flux.flux3_te(**llama_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.flux.Flux3Tokenizer
             elif clip_type == CLIPType.MAGE and te_model == TEModel.QWEN3VL_4B:  # Mage-Flow: full Qwen3-VL-4B, last hidden state, Qwen-Image-style templates.
                 clip_data[0] = comfy.utils.state_dict_prefix_replace(clip_data[0], {"model.language_model.": "model.", "model.visual.": "visual.", "lm_head.": "model.lm_head."})
                 clip_target.clip = comfy.text_encoders.mage_flow.te(**llama_detect(clip_data))
