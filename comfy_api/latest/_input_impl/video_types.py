@@ -1344,6 +1344,7 @@ class VideoFromList(VideoInput):
         audio_pts = 0
         signature = None
         video_offset = Fraction()
+        last_dts = None
 
         def mux_audio_frames(frames, end_pts):
             nonlocal audio_pts
@@ -1503,6 +1504,10 @@ class VideoFromList(VideoInput):
                             packet.pts = int((Fraction(packet.pts) * time_base - origin + video_offset) / time_base)
                             video_end = max(video_end, Fraction(packet.pts + (packet.duration or 0)) * time_base)
                         packet.dts = int((Fraction(packet.dts) * time_base - origin + video_offset) / time_base)
+                        # a chunk with more B-frame delay than the previous one starts decoding before it ends
+                        if last_dts is not None and Fraction(packet.dts) * time_base <= last_dts:
+                            packet.dts = math.floor(last_dts / time_base) + 1
+                        last_dts = Fraction(packet.dts) * time_base
                         packet.stream = output_video
                         for packet in filter_hevc_packet(hevc_filter, packet) if hevc_filter else (packet,):
                             packet.stream = output_video
