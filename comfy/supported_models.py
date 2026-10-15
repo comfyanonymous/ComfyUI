@@ -842,6 +842,26 @@ class Flux2(Flux):
         return None
 
 
+class Flux3(Flux2):
+    unet_config = {
+        "image_model": "flux3",
+    }
+
+    sampling_settings = {
+        "shift": 1.93586,  # mu = ln(6.93), the reference timestep shift
+    }
+
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.Flux3(self, device=device)
+
+    def clip_target(self, state_dict={}):
+        pref = self.text_encoder_key_prefix[0]
+        detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen3vl_4b.transformer.".format(pref))
+        return supported_models_base.ClipTarget(comfy.text_encoders.flux.Flux3Tokenizer, comfy.text_encoders.flux.flux3_te(**detect))
+
+
 class Lens(supported_models_base.BASE):
     """Microsoft Lens (3.8B dual-stream MMDiT, GPT-OSS-20B text features, Flux2 VAE)."""
 
@@ -2665,6 +2685,7 @@ models = [
     Ideogram4,
     Krea2,
     Flux2,
+    Flux3,
     Lens,
     Kandinsky5Image,
     Kandinsky5,
