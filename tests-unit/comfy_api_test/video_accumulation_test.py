@@ -308,3 +308,12 @@ def test_accumulated_video_joins_chunks_with_different_reorder_delay():
         with av.open(output) as container:
             assert sum(1 for _ in container.decode(video=0)) == 8
 
+
+def test_accumulated_video_keeps_single_frame_chunk_duration():
+    with tempfile.TemporaryDirectory() as directory:
+        output = os.path.join(directory, "output.mp4")
+        VideoFromList(_trimmed_chunks(directory, (1, 2))).save_to(output)
+
+        with av.open(output) as container:
+            stream = container.streams.video[0]
+            assert stream.duration * stream.time_base == Fraction(3, 8)
