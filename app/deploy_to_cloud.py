@@ -100,13 +100,37 @@ def _git_head(gitdir: str) -> str | None:
     return None
 
 
+_GIT_ESCAPES = {"\\": "\\", '"': '"', "n": "\n", "t": "\t", "b": "\b"}
+
+
+def _git_config_value(raw: str) -> str | None:
+    """Decode a value the way git does: `"` toggles quoting, backslash escapes, an unquoted ; or # starts a comment.
+    None for an unknown escape or an unterminated quote."""
+    # configparser appends deeper-indented lines to the value; git reads them as separate entries.
+    chars = iter(raw.partition("\n")[0])
+    value, quoted = "", False
+    for c in chars:
+        if c == '"':
+            quoted = not quoted
+        elif c == "\\":
+            c = _GIT_ESCAPES.get(next(chars, ""))
+            if c is None:
+                return None
+            value += c
+        elif c in ";#" and not quoted:
+            break
+        else:
+            value += c
+    return None if quoted else value.strip()
+
+
 def _strip_userinfo(url: str) -> str | None:
-    """http(s) URLs keep scheme/host/port/path only; other forms such as git@host:org/repo pass unchanged."""
+    """scheme:// URLs keep scheme/host/port/path only; scp-like git@host:org/repo and local paths pass unchanged."""
     try:
         parts = urllib.parse.urlsplit(url)
     except ValueError:
         return None
-    if parts.scheme.lower() not in ("http", "https"):
+    if not parts.netloc:
         return url
     return urllib.parse.urlunsplit((parts.scheme, parts.netloc.rpartition("@")[2], parts.path, "", ""))
 
@@ -115,7 +139,7 @@ def _git_origin_url(gitdir: str) -> str | None:
     config = configparser.ConfigParser(strict=False, interpolation=None)
     try:
         config.read(os.path.join(gitdir, "config"), encoding="utf-8")
-        url = config.get('remote "origin"', "url", fallback="").strip()
+        url = _git_config_value(config.get('remote "origin"', "url", fallback=""))
     except (configparser.Error, UnicodeDecodeError):
         return None
     return _strip_userinfo(url) if url else None
@@ -319,8 +343,11 @@ class DeployToCloudRoutes:
                 allow_redirects=False,
             ) as resp:
                 status = resp.status
-                data = await resp.json(content_type=None) if status in (201, 400) else None
-        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as e:
+                try:
+                    data = await resp.json(content_type=None) if status in (201, 400) else None
+                except ValueError:  # a non-JSON 400 is still a rejection; a non-JSON 201 has no bundle
+                    data = None
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
             logging.warning("Deploy to cloud: builder request failed (%s)", type(e).__name__)
             return _error(502, "builder_unavailable")
 

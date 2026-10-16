@@ -129,6 +129,18 @@ def test_cnr_pyproject_parsing(tmp_path, pyproject, expected):
     ("http://tok@example.com:8080/a/b?x=1#f", "http://example.com:8080/a/b"),
     ("https://github.com/a/b.git", "https://github.com/a/b.git"),
     ("git@github.com:a/b.git", "git@github.com:a/b.git"),
+    ("ssh://user:secret@host/x.git", "ssh://host/x.git"),
+    ("git://user@host:9418/x.git", "git://host:9418/x.git"),
+    ("file:///srv/x.git", "file:///srv/x.git"),
+    # git's value syntax: quotes, escapes and comments are decoded before the URL is classified
+    ('"https://alice:secret@github.com/org/repo.git"', "https://github.com/org/repo.git"),
+    ('"https://al\\"ice:se\\\\cret@github.com/org/my\\"repo.git"', 'https://github.com/org/my"repo.git'),
+    ('"ssh://alice:secret@host/x.git" # pinned', "ssh://host/x.git"),
+    ("https://alice:secret@github.com/a/b.git ; set by script", "https://github.com/a/b.git"),
+    ("https://github.com/a/b.git\n\t\tpushurl = https://alice:secret@github.com/a/b.git", "https://github.com/a/b.git"),
+    ('"https://alice:secret@github.com/a/b.git', None),
+    ('"https://alice:se\\qret@github.com/a/b.git"', None),
+    ("https://alice:secret@github.com/a/b.git\\", None),
 ])
 def test_git_origin_url_strips_userinfo(tmp_path, url, expected):
     git_repo(tmp_path, SHA_A, origin=url)

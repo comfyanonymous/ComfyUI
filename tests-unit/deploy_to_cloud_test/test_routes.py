@@ -89,6 +89,8 @@ async def builder(builder_state, monkeypatch):
         await asyncio.sleep(builder_state["delay"])
         if builder_state["status"] == 302:
             raise web.HTTPFound("/redirect-target")
+        if isinstance(builder_state["body"], bytes):
+            return web.Response(body=builder_state["body"], status=builder_state["status"], content_type="text/html")
         return web.json_response(builder_state["body"], status=builder_state["status"])
 
     async def redirect_target(request):
@@ -259,12 +261,14 @@ BUILDER_ERRORS = [
     (413, {"error": "IMPORT_BUNDLE_TOO_LARGE", "message": "big"}, 413, "too_large"),
     (429, {"error": "IMPORT_BUNDLE_LIMIT", "message": "20"}, 429, "too_many_bundles"),
     (400, {"error": "INVALID_IMPORT_BUNDLE", "message": "bad"}, 502, "builder_rejected"),
+    (400, b"<html>400 Bad Request</html>", 502, "builder_rejected"),
     (404, {"error": "NOT_FOUND"}, 502, "builder_unavailable"),
     (405, {"error": "METHOD_NOT_ALLOWED"}, 502, "builder_unavailable"),
     (500, {"error": "INTERNAL"}, 502, "builder_unavailable"),
     (302, None, 502, "builder_unavailable"),
     (201, {"id": "x"}, 502, "builder_unavailable"),  # 201 without a usable id/workspace never yields a link
     (201, "not an object", 502, "builder_unavailable"),
+    (201, b"<html>created</html>", 502, "builder_unavailable"),
 ]
 
 
@@ -279,11 +283,15 @@ async def test_bundle_builder_outcomes(client, builder, installation, builder_st
 
 
 @pytest.mark.asyncio
-async def test_builder_rejection_forwards_only_a_truncated_message(client, builder, installation):
-    builder["status"], builder["body"] = 400, {"error": "INVALID_IMPORT_BUNDLE", "message": "m" * 600, "extra": 1}
+@pytest.mark.parametrize("builder_body,message", [
+    ({"error": "INVALID_IMPORT_BUNDLE", "message": "m" * 600, "extra": 1}, "m" * 500),
+    (b"<html>400 Bad Request</html>", ""),
+])
+async def test_builder_rejection_forwards_only_a_truncated_message(client, builder, installation, builder_body, message):
+    builder["status"], builder["body"] = 400, builder_body
     resp = await client.post("/api/deploy/bundle", json={}, headers={"Authorization": BEARER})
     assert resp.status == 502
-    assert await resp.json() == {"error": "builder_rejected", "message": "m" * 500}
+    assert await resp.json() == {"error": "builder_rejected", "message": message}
 
 
 @pytest.mark.asyncio
