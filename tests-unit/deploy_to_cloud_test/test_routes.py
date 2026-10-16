@@ -207,6 +207,16 @@ async def test_bundle_success_with_api_key_and_no_optional_fields(client, builde
 
 
 @pytest.mark.asyncio
+async def test_proxy_basic_auth_is_ignored_and_api_key_forwarded_alone(client, builder, installation):
+    resp = await client.post("/api/deploy/bundle", json={},
+                             headers={"Authorization": "Basic dXNlcjpwYXNz", "X-API-Key": API_KEY})
+    assert resp.status == 200
+    [received] = builder["requests"]
+    assert received["headers"]["X-API-Key"] == API_KEY
+    assert "Authorization" not in received["headers"]
+
+
+@pytest.mark.asyncio
 async def test_staging_tier_returns_staging_platform_url(client, builder, installation, monkeypatch):
     monkeypatch.setattr(args, "comfy_api_base", "https://stagingapi.comfy.org")
     resp = await client.post("/api/deploy/bundle", json={}, headers={"Authorization": BEARER})
@@ -221,6 +231,7 @@ LOCAL_ERRORS = [
     ({"Authorization": BEARER, "X-API-Key": API_KEY}, {}, 400, "multiple_credentials"),
     ({"X-API-Key": "comfyui-short"}, {}, 400, "invalid_api_key_format"),
     ({"X-API-Key": "sk-" + "0" * 64}, {}, 400, "invalid_api_key_format"),
+    ({"Authorization": "Basic dXNlcjpwYXNz", "X-API-Key": "comfyui-short"}, {}, 400, "invalid_api_key_format"),
     ({"Authorization": BEARER}, [1, 2], 400, "invalid_body"),
     ({"Authorization": BEARER}, "not json", 400, "invalid_body"),
     ({"Authorization": BEARER}, {"workflow": [1]}, 400, "invalid_body"),

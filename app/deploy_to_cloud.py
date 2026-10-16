@@ -286,14 +286,16 @@ def _error(status: int, code: str, message: str | None = None) -> web.Response:
 
 
 def _credential(request: web.Request) -> tuple[str, str] | web.Response:
-    """The single caller credential header to forward verbatim, or the error response."""
-    auth = request.headers.get("Authorization")
+    """The single caller credential header to forward verbatim, or the error response.
+    Only a non-empty Bearer Authorization counts; other schemes (e.g. a proxy's Basic auth) are ignored, never forwarded."""
+    auth = request.headers.get("Authorization", "")
+    bearer = auth.startswith("Bearer ") and bool(auth[7:].strip())
     key = request.headers.get("X-API-Key")
-    if auth is not None and key is not None:
+    if bearer and key is not None:
         return _error(400, "multiple_credentials")
     if key is not None:
         return ("X-API-Key", key) if _API_KEY.fullmatch(key) else _error(400, "invalid_api_key_format")
-    if auth is not None and auth.startswith("Bearer ") and auth[7:].strip():
+    if bearer:
         return ("Authorization", auth)
     return _error(401, "missing_credentials")
 
