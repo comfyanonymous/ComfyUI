@@ -59,6 +59,8 @@ def custom_nodes(tmp_path):
     write(root / "__pycache__" / "x.pyc")
     write(root / "notes.txt")
     git_repo(root / "corrupt_head" / ".git", "not a sha")
+    write(root / "renamed_off.disabled" / "__init__.py")
+    write(root / "bar.py.disabled")
     write(root / ".disabled" / "old_pack" / "__init__.py")
     write(root / ".disabled" / "foo_off.py")
     (root / ".disabled" / "stray_off").mkdir()
@@ -75,6 +77,7 @@ def test_scan_custom_nodes_identifies_every_kind(custom_nodes):
         {"id": "loose_ref", "type": "git", "dirName": "loose_ref", "enabled": True, "commit": SHA_A},
         {"id": "packed_ref", "type": "git", "dirName": "packed_ref", "enabled": True, "commit": SHA_B},
         {"id": "plain_dir", "type": "git", "dirName": "plain_dir", "enabled": True},
+        {"id": "renamed_off.disabled", "type": "git", "dirName": "renamed_off.disabled", "enabled": False},
         {"id": "toml_only", "type": "git", "dirName": "toml_only", "enabled": True},
         {"id": "with_origin", "type": "git", "dirName": "with_origin", "enabled": True, "url": "https://github.com/a/b.git", "commit": SHA_E},
         {"id": "old_pack", "type": "git", "dirName": "old_pack", "enabled": False},
@@ -83,8 +86,8 @@ def test_scan_custom_nodes_identifies_every_kind(custom_nodes):
 
 def test_scan_skips_what_desktop_skips(custom_nodes):
     names = {n["dirName"] for n in deploy_to_cloud.scan_custom_nodes([str(custom_nodes)])}
-    # core file node, stray dir without pyproject/Python, .git file without gitdir:, .disabled/ files and stray dirs
-    assert not names & {"websocket_image_save.py", "stray_dir", "bad_gitfile", "foo_off.py", "stray_off", "__init__.py", "notes.txt"}
+    # core file node, stray dir without pyproject/Python, .git file without gitdir:, .disabled/ files and stray dirs, *.py.disabled
+    assert not names & {"websocket_image_save.py", "stray_dir", "bad_gitfile", "foo_off.py", "stray_off", "__init__.py", "notes.txt", "bar.py.disabled"}
 
 
 def test_scan_skips_missing_dirs(tmp_path):
@@ -131,7 +134,21 @@ def test_cnr_pyproject_parsing(tmp_path, pyproject, expected):
     ("git@github.com:a/b.git", "git@github.com:a/b.git"),
     ("ssh://user:secret@host/x.git", "ssh://host/x.git"),
     ("git://user@host:9418/x.git", "git://host:9418/x.git"),
-    ("file:///srv/x.git", "file:///srv/x.git"),
+    ("HTTPS://github.com/a/b.git", "https://github.com/a/b.git"),
+    # only http(s)/ssh/git URLs with a host, and scp-like remotes on a dotted host, are reported
+    ("deploy@gitlab.example.org:team/repo.git", "deploy@gitlab.example.org:team/repo.git"),
+    ("user@internal-host:repo.git", None),
+    ("git@github.com:/abs/repo.git", None),
+    ("https::https://a:b@h/x", None),
+    ("ext::ssh -i key host %S x", None),
+    ("https://[::1]/x.git", None),
+    ("https://user:123/pw@host/x.git", None),
+    ("https://user@/x.git", None),
+    ("file:///srv/x.git", None),
+    ("ftp://host/x.git", None),
+    ("/srv/x.git", None),
+    ("../x.git", None),
+    ("C:\\repos\\x.git", None),
     # git's value syntax: quotes, escapes and comments are decoded before the URL is classified
     ('"https://alice:secret@github.com/org/repo.git"', "https://github.com/org/repo.git"),
     ('"https://al\\"ice:se\\\\cret@github.com/org/my\\"repo.git"', 'https://github.com/org/my"repo.git'),
@@ -165,6 +182,16 @@ def test_pip_packages_are_name_to_version():
     assert all(isinstance(k, str) and isinstance(v, str) for k, v in packages.items())
 
 
+def test_pip_packages_keep_first_distribution_of_a_name(tmp_path, monkeypatch):
+    write(tmp_path / "first" / "dup-1.0.dist-info" / "METADATA", "Metadata-Version: 2.1\nName: dup\nVersion: 1.0\n")
+    write(tmp_path / "second" / "dup-2.0.dist-info" / "METADATA", "Metadata-Version: 2.1\nName: dup\nVersion: 2.0\n")
+    write(tmp_path / "second" / "nameless-1.0.dist-info" / "METADATA", "Metadata-Version: 2.1\nVersion: 1.0\n")
+    real = deploy_to_cloud.importlib.metadata.distributions
+    paths = [str(tmp_path / "first"), str(tmp_path / "second")]
+    monkeypatch.setattr(deploy_to_cloud.importlib.metadata, "distributions", lambda: real(path=paths))
+    assert deploy_to_cloud.pip_packages() == {"dup": "1.0"}
+
+
 def test_build_snapshot_envelope(custom_nodes, monkeypatch):
     monkeypatch.setitem(folder_paths.folder_names_and_paths, "custom_nodes", ([str(custom_nodes)], set()))
     monkeypatch.setattr(folder_paths, "base_path", str(custom_nodes.parent / "MyComfy"))
@@ -187,7 +214,7 @@ def test_build_snapshot_golden_json(custom_nodes, monkeypatch):
     monkeypatch.setitem(folder_paths.folder_names_and_paths, "custom_nodes", ([str(custom_nodes)], set()))
     parsed = json.loads(json.dumps(deploy_to_cloud.build_snapshot()))
     nodes = parsed["snapshots"][0]["customNodes"]
-    assert len(nodes) == 11
+    assert len(nodes) == 12
     for node in nodes:
         assert set(node) <= NODE_KEYS
 

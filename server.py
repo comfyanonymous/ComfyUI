@@ -1227,7 +1227,8 @@ class PromptServer():
                             sensitive[sensitive_val] = extra_data.pop(sensitive_val)
                     extra_data["create_time"] = int(time.time() * 1000)  # timestamp in milliseconds
                     self.prompt_queue.put((number, prompt_id, prompt, extra_data, outputs_to_execute, sensitive))
-                    if not json_data.get("client_id"):
+                    # The frontend can queue with an empty client_id before its socket id arrives.
+                    if not json_data.get("client_id") and extra_data.get("comfy_usage_source") != "comfyui-frontend":
                         deploy_to_cloud.mark_used_headlessly()
                     response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
                     return web.json_response(response)

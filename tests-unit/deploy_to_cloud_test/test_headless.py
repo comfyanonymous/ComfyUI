@@ -46,13 +46,15 @@ def test_mark_is_idempotent(user_dir):
     assert os.listdir(user_dir) == [deploy_to_cloud.HEADLESS_MARKER]
 
 
-def test_mark_swallows_os_error(user_dir, monkeypatch, caplog):
+def test_mark_swallows_os_error_and_warns_once(user_dir, monkeypatch, caplog):
     def fail(*a, **kw):
         raise PermissionError("read-only")
     monkeypatch.setattr("builtins.open", fail)
+    monkeypatch.setattr(deploy_to_cloud, "_marker_warning_logged", False)
+    deploy_to_cloud.mark_used_headlessly()
     deploy_to_cloud.mark_used_headlessly()
     assert not marker(user_dir).exists()
-    assert "headless marker" in caplog.text
+    assert [r.getMessage() for r in caplog.records].count(f"Could not write headless marker {marker(user_dir)}: read-only") == 1
 
 
 def test_used_headlessly_flag_flips_after_marking(user_dir):
@@ -124,6 +126,9 @@ PROMPT = {"1": {"class_type": "PrimitiveInt", "inputs": {"value": 1}}}
     ({"client_id": ""}, True),
     ({"client_id": None}, True),
     ({"client_id": "abc"}, False),
+    ({"client_id": "", "extra_data": {"comfy_usage_source": "comfyui-frontend"}}, False),
+    ({"extra_data": {"comfy_usage_source": "comfyui-frontend"}}, False),
+    ({"client_id": "", "extra_data": {"comfy_usage_source": "my-script"}}, True),
 ])
 async def test_post_prompt_marks_only_without_client_id(client, user_dir, body, headless):
     resp = await client.post("/api/prompt", json={"prompt": PROMPT, **body})

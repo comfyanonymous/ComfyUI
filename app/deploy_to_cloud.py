@@ -17,6 +17,7 @@ from comfy.comfy_api_env import builder_base_url, platform_base_url
 from comfyui_version import __version__
 
 HEADLESS_MARKER = "used_headlessly"
+_marker_warning_logged = False
 
 
 def headless_marker_path() -> str:
@@ -29,6 +30,7 @@ def used_headlessly() -> bool:
 
 def mark_used_headlessly() -> None:
     """Record, once and permanently, that a prompt was queued without a client_id."""
+    global _marker_warning_logged
     path = headless_marker_path()
     if os.path.exists(path):
         return
@@ -36,7 +38,9 @@ def mark_used_headlessly() -> None:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         open(path, "a").close()
     except OSError as e:
-        logging.warning("Could not write headless marker %s: %s", path, e)
+        if not _marker_warning_logged:
+            _marker_warning_logged = True
+            logging.warning("Could not write headless marker %s: %s", path, e)
 
 
 # Installation snapshot in Comfy-Desktop's "comfyui-desktop-2-snapshot" format.
@@ -124,14 +128,25 @@ def _git_config_value(raw: str) -> str | None:
     return None if quoted else value.strip()
 
 
+_REMOTE_SCHEMES = ("http", "https", "ssh", "git")
+_SCP_LIKE = re.compile(r"[A-Za-z0-9._-]+@([A-Za-z0-9.-]+):[^/\\]\S*")
+
+
 def _strip_userinfo(url: str) -> str | None:
-    """scheme:// URLs keep scheme/host/port/path only; scp-like git@host:org/repo and local paths pass unchanged."""
+    """http(s)/ssh/git URLs reduced to scheme/host/port/path; scp-like user@host:path only for a dotted host.
+    None for everything else: remote helpers (`::`), file://, local paths, internal scp-like hosts."""
+    if "::" in url:
+        return None
+    scp = _SCP_LIKE.fullmatch(url)
+    if scp:
+        return url if "." in scp.group(1) else None
     try:
         parts = urllib.parse.urlsplit(url)
     except ValueError:
         return None
-    if not parts.netloc:
-        return url
+    # An unencoded / ? or # in the password ends the netloc early and pushes the rest of the userinfo past it.
+    if parts.scheme not in _REMOTE_SCHEMES or not parts.hostname or "@" in parts.path + parts.query + parts.fragment:
+        return None
     return urllib.parse.urlunsplit((parts.scheme, parts.netloc.rpartition("@")[2], parts.path, "", ""))
 
 
@@ -176,7 +191,8 @@ def _scan_dir(path: str, name: str, enabled: bool) -> dict | None:
 
 
 def scan_custom_nodes(dirs: list[str]) -> list[dict]:
-    """Desktop ScannedNode entries for each custom_nodes dir and the directories in its .disabled/ subfolder (enabled False)."""
+    """Desktop ScannedNode entries for each custom_nodes dir and the directories in its .disabled/ subfolder (enabled False).
+    A directory named *.disabled is reported disabled and a *.py.disabled file is skipped, as ComfyUI's loader skips both."""
     nodes = []
     for base in dirs:
         for root, enabled in ((base, True), (os.path.join(base, ".disabled"), False)):
@@ -189,7 +205,7 @@ def scan_custom_nodes(dirs: list[str]) -> list[dict]:
                 if name.startswith(".") or name == "__pycache__":
                     continue
                 if os.path.isdir(path):
-                    node = _scan_dir(path, name, enabled)
+                    node = _scan_dir(path, name, enabled and not name.endswith(".disabled"))
                     if node is not None:
                         nodes.append(node)
                 elif enabled and name.endswith(".py") and name != "__init__.py" and name not in _CORE_FILE_NODES:
@@ -204,9 +220,9 @@ def count_custom_nodes() -> int:
 def pip_packages() -> dict[str, str]:
     packages = {}
     for dist in importlib.metadata.distributions():
-        name = dist.metadata["Name"]
-        if name:
-            packages[name] = dist.version
+        name = dist.metadata.get("Name")
+        if name:  # the first distribution of a name is the one imports resolve to
+            packages.setdefault(name, dist.version)
     return packages
 
 
