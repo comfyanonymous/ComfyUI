@@ -8,7 +8,8 @@ modified by an inplace operation": the slice update is recorded as a CopySlices
 node that bumps the stream's version once per block.
 
 The training branch builds the gated residual out of place; inference keeps the
-fused in-place update.
+fused in-place update. `Flux3.preprocess_conds` keeps each early block result so
+the training branch's new stream tensors are not dropped.
 
 Run:  python -m pytest tests-unit/comfy_test/flux3_block_training_test.py
 """
@@ -19,7 +20,7 @@ import torch.utils.checkpoint as cp
 import comfy.model_management
 import comfy.ops as comfy_ops
 from comfy.ldm.flux.layers import EmbedND, ModulationOut
-from comfy.ldm.flux3.model import Block
+from comfy.ldm.flux3.model import Block, Flux3
 
 NUM_BLOCKS = 32
 DIM = 16
@@ -34,10 +35,19 @@ def _make_block():
     block = Block(DIM, HEADS, 2.0, fused_qkv=False, dtype=torch.float32,
                   device=torch.device("cpu"), operations=comfy_ops.disable_weight_init)
     torch.manual_seed(0)
-    with torch.no_grad():
-        for p in block.parameters():
-            p.normal_(0.0, 0.1)
+    for p in block.parameters():
+        torch.nn.init.normal_(p, 0.0, 0.1)
     return block
+
+
+def _make_model():
+    # EmbedND's axes_dim sums to 128, so head_dim has to stay 128
+    model = Flux3(hidden_size=128, num_heads=1, depth=2, depth_single_blocks=1, fused_qkv=False,
+                  dtype=torch.float32, device=torch.device("cpu"), operations=comfy_ops.disable_weight_init)
+    torch.manual_seed(0)
+    for p in model.parameters():
+        torch.nn.init.normal_(p, 0.0, 0.1)
+    return model
 
 
 def _make_pe():
@@ -145,3 +155,20 @@ def test_gradients_match_between_checkpointed_and_plain(monkeypatch):
     assert len(plain) == len(ckpt)
     for a, b in zip(plain, ckpt):
         assert torch.allclose(a, b, atol=1e-5)
+
+
+def test_preprocess_conds_keeps_the_early_stream_updates(monkeypatch):
+    """The training branch returns new stream tensors, so each early block result must be kept."""
+    monkeypatch.setattr(comfy.model_management, "in_training", True)
+    model = _make_model()
+    context = torch.randn(1, 4, 20480)
+    ref = torch.randn(1, 128, 2, 2)
+
+    txt_states, ref_states = model.preprocess_conds(context, [ref])
+
+    assert not torch.allclose(txt_states, model.txt_in(context))
+    assert not torch.allclose(ref_states, model.emb_in["image_cond"](ref.flatten(2).transpose(1, 2)))
+
+    (txt_states.square().mean() + ref_states.square().mean()).backward()
+    assert model.txt_mode_blocks[0].q_proj.weight.grad is not None
+    assert model.content_mode_blocks["image_cond"][0].q_proj.weight.grad is not None

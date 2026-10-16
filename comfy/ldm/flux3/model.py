@@ -148,7 +148,11 @@ class Flux3(nn.Module):
             pe = self.rope(ids)
             for block in blocks:
                 comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, device, block, tokens.dtype)
-                block(tokens, [(0, tokens.shape[1], mod)], pe)
+                tokens = block(tokens, [(0, tokens.shape[1], mod)], pe)
+            if mode == "txt":
+                txt = tokens
+            elif mode == "image_cond":
+                refs = tokens
         comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, device, None)
         return txt, refs
 
