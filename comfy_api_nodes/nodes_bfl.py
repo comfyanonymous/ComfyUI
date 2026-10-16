@@ -1649,9 +1649,9 @@ class Flux3ImageNode(IO.ComfyNode):
     def define_schema(cls) -> IO.Schema:
         return IO.Schema(
             node_id="Flux3ImageNode",
-            display_name="Flux 3 Image",
+            display_name="FLUX 3 Image",
             category="partner/image/BFL",
-            description="Generates an image with FLUX 3 from a prompt, or edits and combines up to 10 "
+            description="Generates an image with FLUX 3 Image from a prompt, or edits and combines up to 10 "
             "reference images. Refer to the references in the prompt as image 1, image 2, and so on.",
             inputs=[
                 IO.String.Input(
