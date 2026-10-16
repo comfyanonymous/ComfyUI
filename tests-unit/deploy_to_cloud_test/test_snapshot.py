@@ -1,0 +1,202 @@
+"""Tests for the local installation snapshot + models collector used by deploy to cloud"""
+
+import json
+import platform
+
+import pytest
+
+import folder_paths
+from app import deploy_to_cloud
+from comfyui_version import __version__
+
+SHA_A = "a" * 40
+SHA_B = "b" * 40
+SHA_C = "c" * 40
+SHA_D = "d" * 40
+SHA_E = "e" * 40
+NODE_KEYS = {"id", "type", "dirName", "enabled", "version", "commit", "url"}
+
+
+def write(path, text=""):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+
+
+def git_repo(gitdir, head, origin=None):
+    write(gitdir / "HEAD", head + "\n")
+    if origin:
+        write(gitdir / "config", f'[core]\n\tbare = false\n[remote "origin"]\n\turl = {origin}\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n')
+
+
+@pytest.fixture
+def custom_nodes(tmp_path):
+    root = tmp_path / "custom_nodes"
+    cnr = root / "cnr_pack"
+    write(cnr / ".tracking")
+    write(cnr / "pyproject.toml", '[project]\nname = "comfyui-cnr-pack"\nversion = "1.2.3"\n')
+
+    git_repo(root / "loose_ref" / ".git", "ref: refs/heads/main")
+    write(root / "loose_ref" / ".git" / "refs" / "heads" / "main", SHA_A + "\n")
+
+    git_repo(root / "packed_ref" / ".git", "ref: refs/heads/main")
+    write(root / "packed_ref" / ".git" / "packed-refs", f"# pack-refs with: peeled fully-peeled sorted\n{SHA_C} refs/heads/dev\n{SHA_B} refs/heads/main\n^{SHA_C}\n")
+
+    git_repo(root / "detached" / ".git", SHA_C)
+
+    git_repo(tmp_path / "modules" / "linked", SHA_D)
+    write(root / "gitdir_file" / ".git", "gitdir: ../../modules/linked\n")
+
+    git_repo(root / "with_origin" / ".git", SHA_E, origin="https://github.com/a/b.git")
+
+    write(root / "plain_dir" / "nodes.py")
+    write(root / "toml_only" / "pyproject.toml", '[project]\nname = "x"\n')
+    (root / "stray_dir").mkdir()
+    write(root / "stray_dir" / "readme.txt")
+    write(root / "bad_gitfile" / ".git", "not a gitdir pointer\n")
+    write(root / "foo.py")
+    write(root / "websocket_image_save.py")
+    write(root / "__init__.py")
+    write(root / "__pycache__" / "x.pyc")
+    write(root / "notes.txt")
+    git_repo(root / "corrupt_head" / ".git", "not a sha")
+    write(root / ".disabled" / "old_pack" / "__init__.py")
+    write(root / ".disabled" / "foo_off.py")
+    (root / ".disabled" / "stray_off").mkdir()
+    return root
+
+
+def test_scan_custom_nodes_identifies_every_kind(custom_nodes):
+    assert deploy_to_cloud.scan_custom_nodes([str(custom_nodes)]) == [
+        {"id": "comfyui-cnr-pack", "type": "cnr", "dirName": "cnr_pack", "enabled": True, "version": "1.2.3"},
+        {"id": "corrupt_head", "type": "git", "dirName": "corrupt_head", "enabled": True},
+        {"id": "detached", "type": "git", "dirName": "detached", "enabled": True, "commit": SHA_C},
+        {"id": "foo", "type": "file", "dirName": "foo.py", "enabled": True},
+        {"id": "gitdir_file", "type": "git", "dirName": "gitdir_file", "enabled": True, "commit": SHA_D},
+        {"id": "loose_ref", "type": "git", "dirName": "loose_ref", "enabled": True, "commit": SHA_A},
+        {"id": "packed_ref", "type": "git", "dirName": "packed_ref", "enabled": True, "commit": SHA_B},
+        {"id": "plain_dir", "type": "git", "dirName": "plain_dir", "enabled": True},
+        {"id": "toml_only", "type": "git", "dirName": "toml_only", "enabled": True},
+        {"id": "with_origin", "type": "git", "dirName": "with_origin", "enabled": True, "url": "https://github.com/a/b.git", "commit": SHA_E},
+        {"id": "old_pack", "type": "git", "dirName": "old_pack", "enabled": False},
+    ]
+
+
+def test_scan_skips_what_desktop_skips(custom_nodes):
+    names = {n["dirName"] for n in deploy_to_cloud.scan_custom_nodes([str(custom_nodes)])}
+    # core file node, stray dir without pyproject/Python, .git file without gitdir:, .disabled/ files and stray dirs
+    assert not names & {"websocket_image_save.py", "stray_dir", "bad_gitfile", "foo_off.py", "stray_off", "__init__.py", "notes.txt"}
+
+
+def test_scan_skips_missing_dirs(tmp_path):
+    assert deploy_to_cloud.scan_custom_nodes([str(tmp_path / "missing")]) == []
+
+
+def test_scan_skips_unreadable_dir(custom_nodes, monkeypatch):
+    real_listdir = deploy_to_cloud.os.listdir
+
+    def listdir(path):
+        if str(path).endswith("plain_dir"):
+            raise PermissionError(path)
+        return real_listdir(path)
+
+    monkeypatch.setattr(deploy_to_cloud.os, "listdir", listdir)
+    names = [n["dirName"] for n in deploy_to_cloud.scan_custom_nodes([str(custom_nodes)])]
+    assert "plain_dir" not in names
+    assert "loose_ref" in names
+
+
+def test_count_custom_nodes_counts_enabled_only(custom_nodes, monkeypatch):
+    monkeypatch.setitem(folder_paths.folder_names_and_paths, "custom_nodes", ([str(custom_nodes)], set()))
+    assert deploy_to_cloud.count_custom_nodes() == 10
+
+
+@pytest.mark.parametrize("pyproject, expected", [
+    ('[project]\nname = "dq"\nversion = "1.0"\n', {"id": "dq", "version": "1.0"}),
+    ("[project]\nname = 'sq'\nversion = '2.0'\n", {"id": "sq", "version": "2.0"}),
+    ('[project]\nversion = "3.0"\n\n[tool.x]\nname = "not-this"\n', {"id": "pack", "version": "3.0"}),
+    ('[tool.comfy]\nname = "x"\nversion = "9"\n', {"id": "pack"}),
+    (None, {"id": "pack"}),
+])
+def test_cnr_pyproject_parsing(tmp_path, pyproject, expected):
+    write(tmp_path / "pack" / ".tracking")
+    if pyproject is not None:
+        write(tmp_path / "pack" / "pyproject.toml", pyproject)
+    assert deploy_to_cloud.scan_custom_nodes([str(tmp_path)]) == [{"type": "cnr", "dirName": "pack", "enabled": True, **expected}]
+
+
+@pytest.mark.parametrize("url, expected", [
+    ("https://user:tok@github.com/a/b.git", "https://github.com/a/b.git"),
+    ("http://tok@example.com:8080/a/b?x=1#f", "http://example.com:8080/a/b"),
+    ("https://github.com/a/b.git", "https://github.com/a/b.git"),
+    ("git@github.com:a/b.git", "git@github.com:a/b.git"),
+])
+def test_git_origin_url_strips_userinfo(tmp_path, url, expected):
+    git_repo(tmp_path, SHA_A, origin=url)
+    assert deploy_to_cloud._git_origin_url(str(tmp_path)) == expected
+
+
+def test_git_origin_url_tolerates_bad_config(tmp_path):
+    write(tmp_path / "config", "garbage without section\n")
+    assert deploy_to_cloud._git_origin_url(str(tmp_path)) is None
+    assert deploy_to_cloud._git_origin_url(str(tmp_path / "missing")) is None
+
+
+def test_git_head_rejects_ref_escaping_gitdir(tmp_path):
+    write(tmp_path / "outside", SHA_A)
+    write(tmp_path / "g" / "HEAD", "ref: refs/../../outside\n")
+    assert deploy_to_cloud._git_head(str(tmp_path / "g")) is None
+
+
+def test_pip_packages_are_name_to_version():
+    packages = deploy_to_cloud.pip_packages()
+    assert "aiohttp" in packages
+    assert all(isinstance(k, str) and isinstance(v, str) for k, v in packages.items())
+
+
+def test_build_snapshot_envelope(custom_nodes, monkeypatch):
+    monkeypatch.setitem(folder_paths.folder_names_and_paths, "custom_nodes", ([str(custom_nodes)], set()))
+    monkeypatch.setattr(folder_paths, "base_path", str(custom_nodes.parent / "MyComfy"))
+    s = deploy_to_cloud.build_snapshot()
+    assert s["type"] == "comfyui-desktop-2-snapshot"
+    assert s["version"] == 2
+    assert s["installationName"] == "MyComfy"
+    assert s["exportedAt"].endswith("Z")
+    [snap] = s["snapshots"]
+    tag = "v" + __version__
+    assert snap["createdAt"] == s["exportedAt"]
+    assert (snap["version"], snap["trigger"], snap["label"]) == (2, "manual", None)
+    assert snap["comfyui"] == {"ref": tag, "commit": None, "releaseTag": tag, "variant": "comfyui-core", "baseTag": tag}
+    assert snap["pythonVersion"] == platform.python_version()
+    assert "aiohttp" in snap["pipPackages"]
+    assert snap["customNodes"] == deploy_to_cloud.scan_custom_nodes([str(custom_nodes)])
+
+
+def test_build_snapshot_golden_json(custom_nodes, monkeypatch):
+    monkeypatch.setitem(folder_paths.folder_names_and_paths, "custom_nodes", ([str(custom_nodes)], set()))
+    parsed = json.loads(json.dumps(deploy_to_cloud.build_snapshot()))
+    nodes = parsed["snapshots"][0]["customNodes"]
+    assert len(nodes) == 11
+    for node in nodes:
+        assert set(node) <= NODE_KEYS
+
+
+def test_list_models(monkeypatch):
+    files = {
+        "checkpoints": ["sd.safetensors", "sub/dir/model.GGUF", "readme.txt", "preview.png"],
+        "configs": ["v1.yaml", "weird.safetensors"],
+        "custom_nodes": ["pack/model.safetensors"],
+        "text_encoders": ["t5.onnx", "t5.yaml"],
+    }
+    monkeypatch.setattr(folder_paths, "folder_names_and_paths", {k: ([], set()) for k in files})
+    monkeypatch.setattr(folder_paths, "get_filename_list", lambda folder: files[folder])
+    assert deploy_to_cloud.list_models() == [
+        {"directory": "checkpoints", "filename": "sd.safetensors"},
+        {"directory": "checkpoints", "filename": "sub/dir/model.GGUF"},
+        {"directory": "text_encoders", "filename": "t5.onnx"},
+    ]
+
+
+def test_collect_returns_snapshot_and_models(monkeypatch):
+    monkeypatch.setattr(deploy_to_cloud, "build_snapshot", lambda: {"type": "s"})
+    monkeypatch.setattr(deploy_to_cloud, "list_models", lambda: [{"directory": "d", "filename": "f"}])
+    assert deploy_to_cloud.collect() == ({"type": "s"}, [{"directory": "d", "filename": "f"}])
