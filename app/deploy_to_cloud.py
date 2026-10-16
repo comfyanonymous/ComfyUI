@@ -270,7 +270,8 @@ def collect() -> tuple[dict, list[dict]]:
 
 _API_KEY = re.compile(r"comfyui-[0-9a-f]{64}")
 _UPLOAD_TIMEOUT = aiohttp.ClientTimeout(total=60)
-# Builder status -> (our status, error code); anything not listed (and transport failures) -> 502 builder_unavailable.
+# Builder status -> (our status, error code), after the builder_busy cases in bundle();
+# anything not listed (and transport failures) -> 502 builder_unavailable.
 _BUILDER_ERRORS = {
     401: (401, "unauthorized"),
     403: (403, "unauthorized"),
@@ -359,8 +360,9 @@ class DeployToCloudRoutes:
                 allow_redirects=False,
             ) as resp:
                 status = resp.status
+                retry_after = resp.headers.get("Retry-After", "")
                 try:
-                    data = await resp.json(content_type=None) if status in (201, 400) else None
+                    data = await resp.json(content_type=None) if status in (201, 400, 429, 503) else None
                 except ValueError:  # a non-JSON 400 is still a rejection; a non-JSON 201 has no bundle
                     data = None
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
@@ -385,5 +387,10 @@ class DeployToCloudRoutes:
         if status == 400:
             message = data.get("message") if isinstance(data, dict) else None
             return _error(502, "builder_rejected", message[:500] if isinstance(message, str) else "")
+        builder_code = data.get("error") if isinstance(data, dict) else None
+        # Only IMPORT_BUNDLE_LIMIT is the per-user bundle cap; any other 429 (e.g. IMPORT_BUNDLE_IN_PROGRESS) is transient.
+        if (status == 429 and builder_code != "IMPORT_BUNDLE_LIMIT") or (status == 503 and builder_code == "IMPORT_BUNDLE_BUSY"):
+            headers = {"Retry-After": retry_after} if re.fullmatch(r"[0-9]+", retry_after) else None
+            return web.json_response({"error": "builder_busy"}, status=503, headers=headers)
         mapped_status, code = _BUILDER_ERRORS.get(status, (502, "builder_unavailable"))
         return _error(mapped_status, code)

@@ -36,6 +36,7 @@ EXPECTED_ERROR_CODES = {
     "unauthorized",
     "too_large",
     "too_many_bundles",
+    "builder_busy",
     "builder_rejected",
     "builder_unavailable",
 }
@@ -78,7 +79,7 @@ def installation(tmp_path, monkeypatch):
 
 @pytest.fixture
 def builder_state():
-    return {"status": 201, "body": CREATED, "delay": 0, "requests": [], "redirect_hits": 0}
+    return {"status": 201, "body": CREATED, "headers": {}, "delay": 0, "requests": [], "redirect_hits": 0}
 
 
 @pytest_asyncio.fixture
@@ -89,9 +90,10 @@ async def builder(builder_state, monkeypatch):
         await asyncio.sleep(builder_state["delay"])
         if builder_state["status"] == 302:
             raise web.HTTPFound("/redirect-target")
+        headers = builder_state["headers"]
         if isinstance(builder_state["body"], bytes):
-            return web.Response(body=builder_state["body"], status=builder_state["status"], content_type="text/html")
-        return web.json_response(builder_state["body"], status=builder_state["status"])
+            return web.Response(body=builder_state["body"], status=builder_state["status"], content_type="text/html", headers=headers)
+        return web.json_response(builder_state["body"], status=builder_state["status"], headers=headers)
 
     async def redirect_target(request):
         builder_state["redirect_hits"] += 1
@@ -260,6 +262,13 @@ BUILDER_ERRORS = [
     (403, {"error": "FORBIDDEN", "message": "no"}, 403, "unauthorized"),
     (413, {"error": "IMPORT_BUNDLE_TOO_LARGE", "message": "big"}, 413, "too_large"),
     (429, {"error": "IMPORT_BUNDLE_LIMIT", "message": "20"}, 429, "too_many_bundles"),
+    (429, {"error": "IMPORT_BUNDLE_IN_PROGRESS", "message": "wait"}, 503, "builder_busy"),
+    (429, b"<html>429 Too Many Requests</html>", 503, "builder_busy"),
+    (503, {"error": "IMPORT_BUNDLE_BUSY", "message": "busy"}, 503, "builder_busy"),
+    (503, {"error": "IMPORT_BUNDLE_STORAGE_UNAVAILABLE", "message": "down"}, 502, "builder_unavailable"),
+    (503, b"<html>503 Service Unavailable</html>", 502, "builder_unavailable"),
+    (408, {"error": "IMPORT_BUNDLE_TIMEOUT", "message": "slow"}, 502, "builder_unavailable"),
+    (415, {"error": "UNSUPPORTED_MEDIA_TYPE", "message": "json"}, 502, "builder_unavailable"),
     (400, {"error": "INVALID_IMPORT_BUNDLE", "message": "bad"}, 502, "builder_rejected"),
     (400, b"<html>400 Bad Request</html>", 502, "builder_rejected"),
     (404, {"error": "NOT_FOUND"}, 502, "builder_unavailable"),
@@ -280,6 +289,23 @@ async def test_bundle_builder_outcomes(client, builder, installation, builder_st
     assert await error_of(resp, status) == code
     assert len(builder["requests"]) == 1
     assert builder["redirect_hits"] == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("builder_status,builder_error,retry_after,expected", [
+    (429, "IMPORT_BUNDLE_IN_PROGRESS", "5", "5"),
+    (503, "IMPORT_BUNDLE_BUSY", "5", "5"),
+    (429, "IMPORT_BUNDLE_IN_PROGRESS", None, None),
+    (503, "IMPORT_BUNDLE_BUSY", "Wed, 21 Oct 2026 07:28:00 GMT", None),
+    (429, "IMPORT_BUNDLE_IN_PROGRESS", "-1", None),
+    (429, "IMPORT_BUNDLE_LIMIT", "5", None),
+    (503, "IMPORT_BUNDLE_STORAGE_UNAVAILABLE", "5", None),
+])
+async def test_retry_after_passes_through_only_digits_on_builder_busy(client, builder, installation, builder_status, builder_error, retry_after, expected):
+    builder["status"], builder["body"] = builder_status, {"error": builder_error}
+    builder["headers"] = {} if retry_after is None else {"Retry-After": retry_after}
+    resp = await client.post("/api/deploy/bundle", json={}, headers={"Authorization": BEARER})
+    assert resp.headers.get("Retry-After") == expected
 
 
 @pytest.mark.asyncio
