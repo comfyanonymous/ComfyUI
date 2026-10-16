@@ -192,6 +192,34 @@ def test_pip_packages_keep_first_distribution_of_a_name(tmp_path, monkeypatch):
     assert deploy_to_cloud.pip_packages() == {"dup": "1.0"}
 
 
+@pytest.mark.parametrize("direct_url, expected", [
+    (None, "1.0"),
+    ({"url": "file:///home/alice/src/pkg", "dir_info": {"editable": True}}, "file://local"),
+    ({"url": "file:///home/alice/src/pkg", "dir_info": {}}, "file://local"),
+    ({"url": "https://alice:tok@github.com/a/b.git", "vcs_info": {"vcs": "git", "commit_id": SHA_A, "requested_revision": "main"}},
+     f"git+https://github.com/a/b.git@{SHA_A}"),
+    ({"url": "ssh://git@github.com/a/b.git", "vcs_info": {"vcs": "git", "commit_id": SHA_B}}, f"git+ssh://github.com/a/b.git@{SHA_B}"),
+    ({"url": "https://tok@files.example.com/x/pkg-1.0.tar.gz?sig=s#sha256=00", "archive_info": {"hash": "sha256=00"}},
+     "https://files.example.com/x/pkg-1.0.tar.gz"),
+    ({"url": "file:///home/alice/wheels/pkg-1.0-py3-none-any.whl", "archive_info": {}}, "file://local"),
+    ({"url": "file:///home/alice/repo", "vcs_info": {"vcs": "git", "commit_id": SHA_A}}, "file://local"),
+    ({"url": "https://github.com/a/b.git", "vcs_info": {"vcs": "git"}}, "file://local"),
+    ({"url": "https://github.com/a/b.git", "vcs_info": "git"}, "file://local"),
+    ({"url": 5, "archive_info": {}}, "file://local"),
+    ({"archive_info": {}}, "file://local"),
+    (["https://github.com/a/b.git"], "file://local"),
+    ("{not json", "file://local"),
+])
+def test_pip_packages_report_direct_url_installs_without_paths_or_credentials(tmp_path, monkeypatch, direct_url, expected):
+    info = tmp_path / "pkg-1.0.dist-info"
+    write(info / "METADATA", "Metadata-Version: 2.1\nName: pkg\nVersion: 1.0\n")
+    if direct_url is not None:
+        write(info / "direct_url.json", direct_url if isinstance(direct_url, str) else json.dumps(direct_url))
+    real = deploy_to_cloud.importlib.metadata.distributions
+    monkeypatch.setattr(deploy_to_cloud.importlib.metadata, "distributions", lambda: real(path=[str(tmp_path)]))
+    assert deploy_to_cloud.pip_packages() == {"pkg": expected}
+
+
 def test_build_snapshot_envelope(custom_nodes, monkeypatch):
     monkeypatch.setitem(folder_paths.folder_names_and_paths, "custom_nodes", ([str(custom_nodes)], set()))
     monkeypatch.setattr(folder_paths, "base_path", str(custom_nodes.parent / "MyComfy"))

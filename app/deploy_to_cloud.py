@@ -1,6 +1,7 @@
 import asyncio
 import configparser
 import importlib.metadata
+import json
 import logging
 import os
 import platform
@@ -217,12 +218,34 @@ def count_custom_nodes() -> int:
     return sum(1 for n in scan_custom_nodes(folder_paths.get_folder_paths("custom_nodes")) if n["enabled"])
 
 
+# Pathless stand-in for a local install: not a PEP 440 release, so comfy-builder's parsePins reports it unpinnable, and Desktop restore skips any value containing "://".
+_LOCAL_REFERENCE = "file://local"
+
+
+def _pip_version(dist: importlib.metadata.Distribution) -> str:
+    """The version, or for a PEP 610 direct-URL install the reference Desktop's parsePipFreeze stores
+    (`git+<url>@<commit>` for VCS, `<url>` for an archive) with credentials stripped; local or malformed -> _LOCAL_REFERENCE."""
+    try:
+        raw = dist.read_text("direct_url.json")
+        if raw is None:
+            return dist.version
+        direct = json.loads(raw)
+        url = _strip_userinfo(direct["url"])
+        if url is None or "dir_info" in direct:
+            return _LOCAL_REFERENCE
+        if "vcs_info" in direct:
+            return f"{direct['vcs_info']['vcs']}+{url}@{direct['vcs_info']['commit_id']}"
+        return url
+    except (ValueError, TypeError, KeyError):
+        return _LOCAL_REFERENCE
+
+
 def pip_packages() -> dict[str, str]:
     packages = {}
     for dist in importlib.metadata.distributions():
         name = dist.metadata.get("Name")
         if name:  # the first distribution of a name is the one imports resolve to
-            packages.setdefault(name, dist.version)
+            packages.setdefault(name, _pip_version(dist))
     return packages
 
 
