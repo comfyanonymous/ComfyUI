@@ -71,6 +71,9 @@ class Block(nn.Module):
         out = comfy.ops.linear_input_act(self.mlp_out, mlp, "swiglu", residual=out, residual_scale=out.new_ones(out.shape[-1]))
         del mlp
 
+        if comfy.model_management.in_training:
+            # training must not mutate the block input: backward and the checkpoint recompute read it
+            return torch.cat([torch.addcmul(x[:, a:b], out[:, a:b], mod.gate) for a, b, mod in spans], dim=1)
         for start, end, mod in spans:
             x[:, start:end].addcmul_(out[:, start:end], mod.gate)
         return x
