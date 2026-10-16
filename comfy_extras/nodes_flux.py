@@ -306,9 +306,9 @@ class Flux3LayoutPrompt(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="Flux3LayoutPrompt",
-            display_name="FLUX.3 Layout Prompt",
+            display_name="FLUX 3 Image Layout Prompt",
             category="model/conditioning/flux",
-            description="Appends the boxes from Create Bounding Boxes to a FLUX.3 prompt as its layout table.",
+            description="Appends the boxes from Create Bounding Boxes to a FLUX 3 Image prompt as its layout table.",
             inputs=[
                 io.String.Input("prompt", multiline=True, dynamic_prompts=True,
                                 tooltip="The prompt text. Cite box N as <obj_N> to tie words to it."),
