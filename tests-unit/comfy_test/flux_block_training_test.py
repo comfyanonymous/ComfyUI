@@ -29,9 +29,8 @@ TXT_SEQ = 8
 def _make_block(cls):
     block = cls(DIM, HEADS, 2.0, dtype=torch.float32, device=torch.device("cpu"), operations=comfy_ops.disable_weight_init)
     torch.manual_seed(0)
-    with torch.no_grad():
-        for p in block.parameters():
-            p.normal_(0.0, 0.1)
+    for p in block.parameters():
+        torch.nn.init.normal_(p, 0.0, 0.1)
     return block
 
 
@@ -162,17 +161,15 @@ def test_zero_gates_return_the_block_inputs(monkeypatch):
     vec = torch.randn(1, DIM)
 
     single = _make_block(SingleStreamBlock)
-    with torch.no_grad():
-        single.modulation.lin.weight.zero_()
-        single.modulation.lin.bias.zero_()
+    torch.nn.init.zeros_(single.modulation.lin.weight)
+    torch.nn.init.zeros_(single.modulation.lin.bias)
     x = torch.randn(1, SEQ, DIM)
     assert torch.allclose(single(x.clone(), vec, _make_pe(SEQ)), x)
 
     double = _make_block(DoubleStreamBlock)
-    with torch.no_grad():
-        for mod in (double.img_mod, double.txt_mod):
-            mod.lin.weight.zero_()
-            mod.lin.bias.zero_()
+    for mod in (double.img_mod, double.txt_mod):
+        torch.nn.init.zeros_(mod.lin.weight)
+        torch.nn.init.zeros_(mod.lin.bias)
     img, txt = torch.randn(1, SEQ, DIM), torch.randn(1, TXT_SEQ, DIM)
     img_out, txt_out = double(img.clone(), txt.clone(), vec, _make_pe(TXT_SEQ + SEQ))
     assert torch.allclose(img_out, img)
