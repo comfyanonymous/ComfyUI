@@ -119,7 +119,9 @@ class Block(nn.Module):
         x = gated_residual(x, self.proj["o"](out), gate_a)
         y = modulated_rms_norm(x, self.norm2, scale_f, shift_f)
         hidden, gate = self.proj["ffn_up_gate"](y).chunk(2, dim=-1)
-        return gated_residual(x, self.proj["ffn_down"](situ(hidden, gate)), gate_f)
+        # situ without its 4 * 25 factor, applied on the gate instead (ffn_down has no bias): two fewer passes
+        out = self.proj["ffn_down"](torch.tanh(gate / 4.0) * torch.sigmoid(gate) * torch.tanh(hidden / 25.0))
+        return gated_residual(x, out, gate_f * 100.0)
 
 
 class MOSSImage(nn.Module):
