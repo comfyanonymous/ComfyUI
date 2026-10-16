@@ -10,11 +10,15 @@ COMFY_LLM_PREFIX_CACHE: off (default) | gpu (resident, parked in pinned RAM when
 needs the VRAM) | vram (resident, never parked) | cpu (parked in pinned RAM after every call) |
 disk (parked to COMFY_LLM_PREFIX_CACHE_DIR after every call, mmapped back) | stats (same timing log, never reuses).
 COMFY_LLM_PREFILL_CHUNK: prefill in chunks of this many tokens (0 = one pass).
+COMFY_LLM_PREFIX_CACHE_HOST_GB: cap on the parked (host) copy; least recently used checkpoints are dropped to fit,
+and the KV is cut to the last checkpoint kept. On Windows, pinned and pageable RAM count against commit; disk mode
+maps its files shared, which does not.
 """
 import json
 import logging
 import os
 import time
+import weakref
 
 import torch
 
@@ -24,30 +28,55 @@ HEADROOM = int(os.environ.get("COMFY_LLM_PREFIX_CACHE_HEADROOM", "4096"))
 MARGINS = os.environ.get("COMFY_LLM_PREFIX_CACHE_MARGINS", "0") == "1"  # log top-2 logit gaps (plain decode)
 DISK_DIR = os.environ.get("COMFY_LLM_PREFIX_CACHE_DIR", "/tmp/llm_prefix_cache")
 CKPT_RECENT = int(os.environ.get("COMFY_LLM_PREFIX_CACHE_CKPTS", "6"))  # message-boundary checkpoints kept
+HOST_CAP = int(float(os.environ.get("COMFY_LLM_PREFIX_CACHE_HOST_GB", "4")) * 2**30)
 MSG_END = (248046, 198)  # "<|im_end|>\n" in the Qwen3.5 vocab: a checkpoint may sit after it
 MIN_SUFFIX = 7  # suffixes of 6 or fewer tokens would take the decode/verify paths
 
 _slot = None
 stats = {}
-_disk_gen = [0]
+_files = {}  # {path: weakref to the tensor mapped from it}; a file is deleted once nothing holds its tensor
+_file_n = [0]
+_used = {}  # {checkpoint position: tick of its last use}, for LRU eviction under HOST_CAP
+_tick = [0]
+
+
+def _touch(pos):
+    _tick[0] += 1
+    _used[pos] = _tick[0]
+
+
+def _release_host():
+    # delete parked files nothing maps any more (Windows refuses to delete a mapped file, so retry each time),
+    # and hand freed pinned blocks back to the driver: torch's host allocator keeps them cached otherwise
+    for path, ref in list(_files.items()):
+        if ref() is None:
+            try:
+                os.remove(path)
+                del _files[path]
+            except FileNotFoundError:
+                del _files[path]
+            except OSError:
+                pass
+    empty = getattr(torch._C, "_host_emptyCache", None)
+    if empty is not None and torch.cuda.is_available():
+        empty()
 
 
 class _Host:
-    # parks one tensor at a time: pinned RAM, or a file on disk that is mmapped back
+    # parks one tensor at a time: pinned RAM, or a file on disk that is mapped back. Already-parked tensors are kept.
     def __init__(self, disk):
         self.disk = disk
-        if disk:
-            _disk_gen[0] += 1
+        if disk and _file_n[0] == 0:
             os.makedirs(DISK_DIR, exist_ok=True)
-            for f in os.listdir(DISK_DIR):
-                if not f.startswith(f"g{_disk_gen[0]}-"):
-                    try:
-                        os.remove(os.path.join(DISK_DIR, f))
-                    except OSError:
-                        pass
-        self.n = 0
+            for f in os.listdir(DISK_DIR):  # leftovers of an earlier process
+                try:
+                    os.remove(os.path.join(DISK_DIR, f))
+                except OSError:
+                    pass
 
     def __call__(self, t):
+        if t.device.type == "cpu":
+            return t
         if not self.disk:
             # pinned when the driver allows it; ComfyUI's own pinned weights can exhaust that before RAM runs out
             try:
@@ -57,10 +86,14 @@ class _Host:
                 stats["park_pageable"] = True
             h.copy_(t, non_blocking=h.is_pinned())
             return h
-        self.n += 1
-        path = os.path.join(DISK_DIR, f"g{_disk_gen[0]}-{self.n}.pt")
-        torch.save(t.cpu(), path)
-        return torch.load(path, mmap=True)
+        _file_n[0] += 1
+        path = os.path.join(DISK_DIR, f"p{os.getpid()}-{_file_n[0]}.bin")
+        t.contiguous().view(torch.uint8).cpu().numpy().tofile(path)
+        # shared, not torch.load(mmap=True): its private (copy-on-write) view is charged to commit in full on
+        # Windows, while a shared view of a file is backed by the file itself
+        h = torch.from_file(path, shared=True, size=t.nbytes, dtype=torch.uint8).view(t.dtype).view(t.shape)
+        _files[path] = weakref.ref(h)
+        return h
 
 
 def enabled():
@@ -96,11 +129,35 @@ class _Slot:
         n += sum(c.nbytes + r.nbytes for st in self.checkpoints.values() for c, r in st.values())
         return n
 
+    def fit(self, cap):
+        """Drop least recently used checkpoints until the parked copy fits in cap bytes; the KV is cut to the last
+        checkpoint kept, since a restore never reads past it. False when nothing fits."""
+        per_tok = sum(kv.key[:, :, :1].nbytes + kv.value[:, :, :1].nbytes for kv in self.attn.values())
+        size = {pos: sum(c.nbytes + r.nbytes for c, r in st.values()) for pos, st in self.checkpoints.items()}
+        keep = sorted(self.checkpoints, key=lambda pos: _used.get(pos, 0))
+        while keep and per_tok * max(keep) + sum(size[pos] for pos in keep) > cap:
+            keep.pop(0)
+        dropped = len(self.checkpoints) - len(keep)
+        if dropped:
+            stats["host_evicted"] = dropped
+        self.checkpoints = {pos: self.checkpoints[pos] for pos in sorted(keep)}
+        for pos in list(_used):
+            if pos not in self.checkpoints:
+                del _used[pos]
+        if not keep:
+            return False
+        self.kv_len = min(self.kv_len, max(keep))
+        self.ids = self.ids[:self.kv_len]
+        return True
+
     def park(self):
-        # copy the used KV and the states to pinned host memory and free the device copies
+        # copy the used KV and the states to host memory (pinned RAM or files) and free the device copies
         if self.cpu is not None:
-            return
+            return True
         t = time.perf_counter()
+        if not self.fit(HOST_CAP):
+            logging.info("llm prefix cache: nothing fits in the %.2f GB host cap, dropped", HOST_CAP / 1e9)
+            return False
         host = _Host(MODE == "disk")
         cpu = {}
         for i, kv in self.attn.items():
@@ -112,8 +169,10 @@ class _Slot:
         self.checkpoints = cps
         self.attn = None
         self.shared = None
+        _release_host()
         stats["park_s"] = round(time.perf_counter() - t, 3)
         logging.info("llm prefix cache: parked %.2f GB (%s) in %.3f s", self.nbytes() / 1e9, MODE, stats["park_s"])
+        return True
 
 
 def _match(ids):
@@ -131,6 +190,7 @@ def _match(ids):
     if not usable:
         return None
     pos = max(usable)
+    _touch(pos)
     return pos, _slot.checkpoints[pos]
 
 
@@ -156,6 +216,8 @@ def _restore(model, key, ids, need, device, dtype):
         if _slot is not None:
             stats["miss_reason"] = "key" if _slot.key != key else "prefix"
         _slot = None  # drop the old KV before allocating the new one
+        _used.clear()
+        _release_host()
         # stats mode sizes the cache as core does without it
         return model.init_kv_cache(1, need + (0 if MODE == "stats" else HEADROOM), device, dtype), 0, {}
     n, st = hit
@@ -165,6 +227,7 @@ def _restore(model, key, ids, need, device, dtype):
         for i, kv in _slot.attn.items():
             pkv[i] = kv
         stats["restore"] = "in-place"
+        src = None
     else:
         # parked, or too small for this prompt + max_length: copy the prefix into a new allocation
         pkv = model.init_kv_cache(1, max(need + HEADROOM, _slot.capacity), device, dtype)
@@ -176,8 +239,9 @@ def _restore(model, key, ids, need, device, dtype):
     for i, (c, r) in st.items():
         pkv[i] = LinearKV(c.to(device, copy=True, non_blocking=True), r.to(device, copy=True, non_blocking=True), n, None, None)
     _set_prefix(pkv, n)
-    # the slot is rebuilt from this call's cache in prefill()
+    # the slot is rebuilt from this call's cache in prefill(); the parked KV goes now
     _slot = None
+    del src
     return pkv, n, carried
 
 
@@ -214,6 +278,7 @@ def prefill(model, embeds, ids, capacity, forward):
         x = _run_prefill(embeds[:, start:pos], pkv, forward)
         if MODE != "stats":
             checkpoints[pos] = _linear_states(pkv, clone=True)
+            _touch(pos)
         start = pos
     _sync(device)
     stats["prefill_s"] = round(time.perf_counter() - t1, 3)
@@ -274,14 +339,16 @@ def finish(pkv, ids, generated):
     if _slot.cpu is None and len(ids) < idx <= len(full):
         # MTP may have consumed accepted drafts past a stop token: then idx > len(full) and the state is unusable
         _slot.checkpoints[idx] = _linear_states(pkv, clone=False)
+        _touch(idx)
         _slot.ids = full[:idx]
         _slot.kv_len = idx
-    stats["cache_gb"] = round(_slot.nbytes() / 1e9, 3)
     stats["mode"] = MODE
     if MODE == "stats":
         _slot = None
-    elif MODE in ("cpu", "disk"):
-        _slot.park()
+    elif MODE in ("cpu", "disk") and not _slot.park():
+        _slot = None
+        _release_host()
+    stats["cache_gb"] = round(_slot.nbytes() / 1e9, 3) if _slot is not None else 0
     out = {k: v for k, v in stats.items() if k != "t0"}
     logging.info("LLM_PREFIX_CACHE %s", json.dumps(out))
 
@@ -289,6 +356,8 @@ def finish(pkv, ids, generated):
 def drop():
     global _slot
     _slot = None
+    _used.clear()
+    _release_host()
 
 
 def on_memory_pressure(memory_required, device):
@@ -296,5 +365,5 @@ def on_memory_pressure(memory_required, device):
     if MODE == "vram" or _slot is None or _slot.cpu is not None or device is None or device.type != "cuda":
         return
     import comfy.model_management
-    if comfy.model_management.get_free_memory(device) < memory_required:
-        _slot.park()
+    if comfy.model_management.get_free_memory(device) < memory_required and not _slot.park():
+        drop()
