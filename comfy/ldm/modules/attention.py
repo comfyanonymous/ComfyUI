@@ -10,6 +10,7 @@ from einops import rearrange, repeat
 from typing import Optional, Any, Callable, Union
 import logging
 import functools
+import weakref
 
 import comfy_kitchen
 
@@ -74,6 +75,61 @@ def get_attention_function(name: str, default: Any=...) -> Union[Callable, None]
     return REGISTERED_ATTENTION_FUNCTIONS[name]
 
 
+# Options forwarded from an attention config to comfy_kitchen.sol_attn; sink_* name row spans the model publishes in
+# transformer_options["attention_spans"] (e.g. MiniMax H3: "prefix", "text", "audio").
+SOL_CONFIG_KEYS = ("tau", "topk_ratio", "tail", "token_aug", "sink_keys", "sink_queries")
+
+
+def _config_function(config, name=""):
+    """Attention function for one config entry, or None to use the default attention."""
+    method = config.get("attention")
+    if method == "dense":
+        return None
+    if method == "comfy_kitchen_int8":
+        if COMFY_KITCHEN_INT8_ATTENTION_IS_AVAILABLE and comfy_kitchen.int8_attention_is_available(model_management.get_torch_device()):
+            return attention_comfy_kitchen_int8
+        return None
+    if method == "comfy_kitchen_sol":
+        if comfy_kitchen.sol_attn_is_available(model_management.get_torch_device()):
+            return functools.partial(attention_comfy_kitchen_sol, **{k: config[k] for k in SOL_CONFIG_KEYS if k in config})
+        return None
+    logging.warning(f"Ignoring unknown attention method {method!r} for {name}")
+    return None
+
+
+def _first_available_function(configs, name=""):
+    """First entry whose kernel is available; an explicit "dense" entry stops the search and selects the default attention."""
+    for config in configs:
+        if config.get("attention") == "dense":
+            return None
+        function = _config_function(config, name)
+        if function is not None:
+            return function
+    return None
+
+
+def _per_step_function(entries, fallback):
+    """Dispatch on the current sigma (transformer_options["sigmas"]); entries are (sigma_lo, sigma_hi, function), first match wins.
+
+    The sigma is read on the host once per step: every layer of a step shares the same sigmas tensor object, which is
+    held weakly so the cache does not keep it alive after sampling.
+    """
+    cache = {"tensor": None, "value": None}
+
+    def dispatch(*args, **kwargs):
+        sigmas = (kwargs.get("transformer_options") or {}).get("sigmas")
+        fn = fallback
+        if sigmas is not None:
+            if cache["tensor"] is None or cache["tensor"]() is not sigmas:
+                cache["tensor"], cache["value"] = weakref.ref(sigmas), float(sigmas.reshape(-1)[0])
+            fn = next((f for lo, hi, f in entries if lo <= cache["value"] <= hi), fallback)  # None: default attention
+        if fn is None:
+            return optimized_attention(*args, **kwargs)
+        return fn(*args, **kwargs)
+
+    return dispatch
+
+
 class ComfyAttention(ConfigurableModule):
     def __init__(self):
         super().__init__()
@@ -92,18 +148,21 @@ class ComfyAttention(ConfigurableModule):
         if metadata is not None:
             self.config = json.loads(metadata.numpy().tobytes())
             configs = self.config if isinstance(self.config, list) else [self.config]
-            for config in configs:
-                method = config.get("attention")
-                if method == "comfy_kitchen_int8":
-                    if COMFY_KITCHEN_INT8_ATTENTION_IS_AVAILABLE and comfy_kitchen.int8_attention_is_available(model_management.get_torch_device()):
-                        self.function = attention_comfy_kitchen_int8
-                elif method == "comfy_kitchen_sol":
-                    if comfy_kitchen.sol_attn_is_available(model_management.get_torch_device()):
-                        self.function = functools.partial(attention_comfy_kitchen_sol, tau=config.get("tau", 1.0))
-                else:
-                    logging.warning(f"Ignoring unknown attention method {method!r} for {prefix.rstrip('.')}")
-                if self.function is not None:
-                    break
+            name = prefix.rstrip(".")
+            if any("sigma_range" in config for config in configs):
+                # per-step: entries with a sigma_range are picked by the current sigma; entries without one are the fallback.
+                # An explicit "dense" entry selects the default attention; entries whose kernel is unavailable are dropped.
+                ranged = []
+                for config in (c for c in configs if "sigma_range" in c):
+                    if len(config["sigma_range"]) != 2:
+                        raise ValueError(f"{name}: sigma_range must be [sigma_lo, sigma_hi], got {config['sigma_range']!r}")
+                    function = _config_function(config, name)
+                    if function is not None or config.get("attention") == "dense":
+                        ranged.append((*config["sigma_range"], function))
+                fallback = _first_available_function([c for c in configs if "sigma_range" not in c], name)
+                self.function = _per_step_function(ranged, fallback)
+            else:
+                self.function = _first_available_function(configs, name)
         super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
 
     def _save_to_state_dict(self, destination, prefix, keep_vars):
@@ -693,7 +752,8 @@ attention_comfy_kitchen_int8.container_function = _attention_comfy_kitchen_int8_
 
 
 @wrap_attn
-def attention_comfy_kitchen_sol(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, *, tau=1.0, **kwargs):
+def attention_comfy_kitchen_sol(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, *, tau=1.0,
+                                topk_ratio=0.0, tail=True, token_aug=0, sink_keys=None, sink_queries=None, **kwargs):
     if mask is not None:
         return attention_pytorch(q, k, v, heads, mask=mask, attn_precision=attn_precision, skip_reshape=skip_reshape, skip_output_reshape=skip_output_reshape, **kwargs)
 
@@ -703,7 +763,20 @@ def attention_comfy_kitchen_sol(q, k, v, heads, mask=None, attn_precision=None, 
         q, k, v = map(lambda t: t.transpose(1, 2), (q, k, v))
     else:
         q, k, v = _reshape_qkv_to_heads(q, k, v, b, heads, dim_head)
-    out = comfy_kitchen.sol_attn(q, k, v, tau=tau, scale=kwargs.get("scale"))
+    spans = (kwargs.get("transformer_options") or {}).get("attention_spans", {})
+    n_blocks = -(-q.shape[1] // 64)
+
+    def block_range(span_name):
+        # row span -> [start, end) of 64-token blocks covering it; spans this call does not have (other models,
+        # shorter sequences such as a text refiner) are ignored
+        if span_name not in spans:
+            return None
+        a, e = spans[span_name]
+        start, end = a // 64, min(-(-e // 64), n_blocks)
+        return [start, end] if end > start else None
+
+    out = comfy_kitchen.sol_attn(q, k, v, tau=tau, scale=kwargs.get("scale"), sink_blocks=block_range(sink_keys),
+                                 sink_q=block_range(sink_queries), topk_ratio=topk_ratio, tail=tail, token_aug=token_aug)
     if skip_output_reshape:
         return out.transpose(1, 2)
     return out.reshape(b, -1, heads * dim_head)
