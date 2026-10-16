@@ -2507,6 +2507,7 @@ async def init_builtin_extra_nodes():
         "nodes_mage.py",
         "nodes_joyimage.py",
         "nodes_boogu.py",
+        "nodes_moss_image.py",
         "nodes_chroma_radiance.py",
         "nodes_pid.py",
         "nodes_model_patch.py",
