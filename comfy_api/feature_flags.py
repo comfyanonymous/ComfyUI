@@ -8,7 +8,6 @@ allowing graceful protocol evolution while maintaining backward compatibility.
 import logging
 from typing import Any, TypedDict
 
-from app import deploy_to_cloud
 from comfy.cli_args import args
 
 
@@ -114,10 +113,10 @@ _CORE_FEATURE_FLAGS: dict[str, Any] = {
     "assets": not args.disable_assets,
 }
 
-# Computed on every get_server_features() call.
+# Reserved for the server, which computes these per request (server.py _server_features).
 _LIVE_FEATURE_FLAGS = ("used_headlessly", "deploy_to_cloud")
 
-# CLI-provided flags cannot overwrite core or live flags. Startup code may: main.py sets "assets".
+# CLI-provided flags cannot overwrite core or server-reserved flags. Startup code may: main.py sets "assets".
 _cli_flags = {
     k: v for k, v in _parse_cli_feature_flags().items()
     if k not in _CORE_FEATURE_FLAGS and k not in _LIVE_FEATURE_FLAGS
@@ -176,8 +175,4 @@ def get_server_features() -> dict[str, Any]:
     Returns:
         Dictionary of server feature flags
     """
-    return {
-        **SERVER_FEATURE_FLAGS,
-        "used_headlessly": deploy_to_cloud.used_headlessly(),
-        "deploy_to_cloud": not args.offline,
-    }
+    return SERVER_FEATURE_FLAGS.copy()

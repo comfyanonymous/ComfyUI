@@ -1,4 +1,4 @@
-"""Tests for the headless-use marker and the used_headlessly / deploy_to_cloud feature flags"""
+"""Tests for the headless-use marker and the used_headlessly / deploy_to_cloud feature flags the server reports"""
 
 import os
 import subprocess
@@ -20,7 +20,6 @@ import execution  # noqa: E402
 import folder_paths  # noqa: E402
 import server  # noqa: E402
 from app import deploy_to_cloud  # noqa: E402
-from comfy_api.feature_flags import get_server_features  # noqa: E402
 
 
 @pytest.fixture
@@ -57,40 +56,18 @@ def test_mark_swallows_os_error_and_warns_once(user_dir, monkeypatch, caplog):
     assert [r.getMessage() for r in caplog.records].count(f"Could not write headless marker {marker(user_dir)}: read-only") == 1
 
 
-def test_used_headlessly_flag_flips_after_marking(user_dir):
-    assert get_server_features()["used_headlessly"] is False
-    deploy_to_cloud.mark_used_headlessly()
-    assert get_server_features()["used_headlessly"] is True
-
-
-@pytest.mark.parametrize("offline,expected", [(False, True), (True, False)])
-def test_deploy_to_cloud_flag_follows_offline(monkeypatch, offline, expected):
-    monkeypatch.setattr(args, "offline", offline)
-    assert get_server_features()["deploy_to_cloud"] is expected
-
-
-def test_offline_does_not_hide_used_headlessly(user_dir, monkeypatch):
-    monkeypatch.setattr(args, "offline", True)
-    deploy_to_cloud.mark_used_headlessly()
-    features = get_server_features()
-    assert features["used_headlessly"] is True
-    assert features["deploy_to_cloud"] is False
-
-
-def test_cli_feature_flag_cannot_override_live_flags(tmp_path):
+def test_cli_feature_flag_cannot_claim_server_reserved_flags(tmp_path):
     code = (
-        "import comfy.options; comfy.options.enable_args_parsing(); "
-        "from comfy_api.feature_flags import SERVER_FEATURE_FLAGS, get_server_features; "
-        "f = get_server_features(); "
-        "print('used_headlessly' in SERVER_FEATURE_FLAGS, 'deploy_to_cloud' in SERVER_FEATURE_FLAGS, "
-        "f['used_headlessly'], f['deploy_to_cloud'])"
+        "import sys, comfy.options; comfy.options.enable_args_parsing(); "
+        "from comfy_api.feature_flags import get_server_features; f = get_server_features(); "
+        "print('used_headlessly' in f, 'deploy_to_cloud' in f, f.get('show_signin_button'), 'app.deploy_to_cloud' in sys.modules)"
     )
     out = subprocess.run(
-        [sys.executable, "-c", code, "--base-directory", str(tmp_path), "--offline",
-         "--feature-flag", "used_headlessly=true", "--feature-flag", "deploy_to_cloud=true"],
+        [sys.executable, "-c", code, "--base-directory", str(tmp_path), "--feature-flag", "used_headlessly=true",
+         "--feature-flag", "deploy_to_cloud=true", "--feature-flag", "show_signin_button=true"],
         capture_output=True, text=True, check=True,
     )
-    assert out.stdout.split()[-4:] == ["False", "False", "False", "False"]
+    assert out.stdout.split()[-4:] == ["False", "False", "True", "False"]
 
 
 @pytest.fixture
@@ -109,12 +86,57 @@ def validation(monkeypatch):
 async def client(validation):
     prompt_server = server.PromptServer(None, MagicMock(enabled=False))
     prompt_server.prompt_queue = MagicMock()
+    prompt_server.prompt_queue.get_tasks_remaining.return_value = 0
     for route in prompt_server.routes:
-        if isinstance(route, web.RouteDef) and route.path == "/prompt" and route.method == "POST":
-            prompt_server.app.router.add_post("/api/prompt", route.handler)
+        if isinstance(route, web.RouteDef) and (route.method, route.path) in (("POST", "/prompt"), ("GET", "/features"), ("GET", "/ws")):
+            prompt_server.app.router.add_route(route.method, "/api" + route.path, route.handler)
     async with TestClient(TestServer(prompt_server.app)) as c:
         c.prompt_queue = prompt_server.prompt_queue
         yield c
+
+
+async def features_endpoint(client):
+    resp = await client.get("/api/features")
+    assert resp.status == 200
+    return await resp.json()
+
+
+async def features_handshake(client):
+    async with client.ws_connect("/api/ws") as ws:
+        await ws.send_json({"type": "feature_flags", "data": {}})
+        while (msg := await ws.receive_json(timeout=5))["type"] != "feature_flags":
+            pass
+        return msg["data"]
+
+
+READERS = pytest.mark.parametrize("read_features", [features_endpoint, features_handshake])
+
+
+@pytest.mark.asyncio
+@READERS
+async def test_used_headlessly_flag_flips_after_marking(client, user_dir, read_features):
+    assert (await read_features(client))["used_headlessly"] is False
+    deploy_to_cloud.mark_used_headlessly()
+    assert (await read_features(client))["used_headlessly"] is True
+
+
+@pytest.mark.asyncio
+@READERS
+@pytest.mark.parametrize("offline,expected", [(False, True), (True, False)])
+async def test_deploy_to_cloud_flag_follows_offline(client, user_dir, monkeypatch, read_features, offline, expected):
+    monkeypatch.setattr(args, "offline", offline)
+    assert (await read_features(client))["deploy_to_cloud"] is expected
+
+
+@pytest.mark.asyncio
+@READERS
+async def test_offline_does_not_hide_used_headlessly_or_shared_flags(client, user_dir, monkeypatch, read_features):
+    monkeypatch.setattr(args, "offline", True)
+    deploy_to_cloud.mark_used_headlessly()
+    features = await read_features(client)
+    assert features["used_headlessly"] is True
+    assert features["deploy_to_cloud"] is False
+    assert features["supports_preview_metadata"] is True
 
 
 PROMPT = {"1": {"class_type": "PrimitiveInt", "inputs": {"value": 1}}}
