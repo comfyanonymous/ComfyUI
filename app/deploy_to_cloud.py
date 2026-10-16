@@ -1,3 +1,4 @@
+import asyncio
 import configparser
 import importlib.metadata
 import logging
@@ -7,7 +8,12 @@ import re
 import urllib.parse
 from datetime import datetime, timezone
 
+import aiohttp
+from aiohttp import web
+
 import folder_paths
+from comfy.cli_args import args
+from comfy.comfy_api_env import builder_base_url, platform_base_url
 from comfyui_version import __version__
 
 HEADLESS_MARKER = "used_headlessly"
@@ -217,3 +223,124 @@ def build_snapshot() -> dict:
 
 def collect() -> tuple[dict, list[dict]]:
     return build_snapshot(), list_models()
+
+
+# Routes. Registered on the app directly (not PromptServer.routes) so they exist only under /api.
+# The bundle upload is ComfyUI's only outbound request here: explicit user action, never under --offline.
+
+_API_KEY = re.compile(r"comfyui-[0-9a-f]{64}")
+_UPLOAD_TIMEOUT = aiohttp.ClientTimeout(total=60)
+# Builder status -> (our status, error code); anything not listed (and transport failures) -> 502 builder_unavailable.
+_BUILDER_ERRORS = {
+    401: (401, "unauthorized"),
+    403: (403, "unauthorized"),
+    413: (413, "too_large"),
+    429: (429, "too_many_bundles"),
+}
+
+
+def _error(status: int, code: str, message: str | None = None) -> web.Response:
+    body = {"error": code} if message is None else {"error": code, "message": message}
+    return web.json_response(body, status=status)
+
+
+def _credential(request: web.Request) -> tuple[str, str] | web.Response:
+    """The single caller credential header to forward verbatim, or the error response."""
+    auth = request.headers.get("Authorization")
+    key = request.headers.get("X-API-Key")
+    if auth is not None and key is not None:
+        return _error(400, "multiple_credentials")
+    if key is not None:
+        return ("X-API-Key", key) if _API_KEY.fullmatch(key) else _error(400, "invalid_api_key_format")
+    if auth is not None and auth.startswith("Bearer ") and auth[7:].strip():
+        return ("Authorization", auth)
+    return _error(401, "missing_credentials")
+
+
+async def _bundle_fields(request: web.Request) -> dict | web.Response:
+    """Optional workflow/name from the request body (null counts as absent)."""
+    try:
+        body = await request.json()
+    except ValueError:
+        return _error(400, "invalid_body", "body must be a JSON object")
+    if not isinstance(body, dict):
+        return _error(400, "invalid_body", "body must be a JSON object")
+    workflow, name = body.get("workflow"), body.get("name")
+    if workflow is not None and not isinstance(workflow, dict):
+        return _error(400, "invalid_body", "workflow must be an object")
+    if name is not None and not (isinstance(name, str) and len(name) <= 200):
+        return _error(400, "invalid_body", "name must be a string of at most 200 characters")
+    return {k: v for k, v in (("workflow", workflow), ("name", name)) if v is not None}
+
+
+def _created(data) -> tuple | None:
+    """(id, workspaceId, expiresAt) when all three are non-empty strings."""
+    if not isinstance(data, dict):
+        return None
+    fields = (data.get("id"), data.get("workspaceId"), data.get("expiresAt"))
+    return fields if all(isinstance(f, str) and f for f in fields) else None
+
+
+class DeployToCloudRoutes:
+    def __init__(self, prompt_server):
+        self.prompt_server = prompt_server
+
+    def add_routes(self, app: web.Application) -> None:
+        app.add_routes([
+            web.get("/api/deploy/summary", self.summary),
+            web.post("/api/deploy/bundle", self.bundle),
+        ])
+
+    async def summary(self, request: web.Request) -> web.Response:
+        if args.offline:
+            return _error(403, "offline")
+        custom_nodes = await asyncio.to_thread(count_custom_nodes)
+        models = await asyncio.to_thread(list_models)
+        return web.json_response({"custom_nodes": custom_nodes, "models": len(models)})
+
+    async def bundle(self, request: web.Request) -> web.Response:
+        if args.offline:
+            return _error(403, "offline")
+        credential = _credential(request)
+        if isinstance(credential, web.Response):
+            return credential
+        fields = await _bundle_fields(request)
+        if isinstance(fields, web.Response):
+            return fields
+
+        snapshot, models = await asyncio.to_thread(collect)
+        payload = {"snapshot": snapshot, "models": models, **fields, "source": "comfyui"}
+        try:
+            async with self.prompt_server.client_session.post(
+                builder_base_url() + "/v1/import-bundles",
+                json=payload,
+                headers=dict([credential]),
+                timeout=_UPLOAD_TIMEOUT,
+                allow_redirects=False,
+            ) as resp:
+                status = resp.status
+                data = await resp.json(content_type=None) if status in (201, 400) else None
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as e:
+            logging.warning("Deploy to cloud: builder request failed (%s)", type(e).__name__)
+            return _error(502, "builder_unavailable")
+
+        created = _created(data) if status == 201 else None
+        if created is not None:
+            bundle_id, workspace_id, expires_at = created
+            logging.info("Deploy to cloud: uploaded import bundle %s", bundle_id)
+            query = urllib.parse.urlencode({
+                "step": "import", "bundle": bundle_id, "workspace": workspace_id, "bundle_workspace": workspace_id,
+            })
+            return web.json_response({
+                "url": f"{platform_base_url()}/profile/builds/new?{query}",
+                "bundle_id": bundle_id,
+                "workspace_id": workspace_id,
+                "expires_at": expires_at,
+            })
+
+        logging.warning("Deploy to cloud: builder returned status %d", status)
+        if status == 400:
+            message = data.get("message") if isinstance(data, dict) else None
+            return _error(502, "builder_rejected", message[:500] if isinstance(message, str) else "")
+        mapped_status, code = _BUILDER_ERRORS.get(status, (502, "builder_unavailable"))
+        return _error(mapped_status, code)

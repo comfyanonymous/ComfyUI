@@ -267,6 +267,7 @@ class PromptServer():
         self.subgraph_manager = SubgraphManager()
         self.node_replace_manager = NodeReplaceManager()
         self.internal_routes = InternalRoutes(self)
+        self.deploy_to_cloud_routes = deploy_to_cloud.DeployToCloudRoutes(self)
         self.supports = ["custom_nodes_from_web"]
         self.prompt_queue = execution.PromptQueue(self)
         self.loop = loop
@@ -1337,6 +1338,8 @@ class PromptServer():
                 api_routes.route(route.method, "/api" + route.path)(route.handler, **route.kwargs)
         self.app.add_routes(api_routes)
         self.app.add_routes(self.routes)
+        # Registered after the /api duplication above, so these exist only under /api.
+        self.deploy_to_cloud_routes.add_routes(self.app)
 
         # Add routes from web extensions.
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
