@@ -26,7 +26,8 @@ SHA = "a" * 40
 CREATED = {"id": "0b9a3f4e-1c2d-4e5f-8a9b-0c1d2e3f4a5b", "workspaceId": "ws 1/a", "expiresAt": "2026-10-17T12:00:00Z"}
 WORKFLOW = {"last_node_id": 1, "nodes": [{"id": 1, "type": "KSampler"}]}
 
-# Every `error` value the routes can return; the contract doc (todo 16) is checked against this set.
+# Every `error` value the routes can return: error_of rejects any other, and
+# test_expected_error_codes_are_all_exercised requires each one to be asserted by some test.
 EXPECTED_ERROR_CODES = {
     "offline",
     "missing_credentials",

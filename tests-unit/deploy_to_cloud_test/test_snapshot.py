@@ -133,6 +133,10 @@ def test_cnr_pyproject_parsing(tmp_path, pyproject, expected):
     ("https://github.com/a/b.git", "https://github.com/a/b.git"),
     ("git@github.com:a/b.git", "git@github.com:a/b.git"),
     ("ssh://user:secret@host/x.git", "ssh://host/x.git"),
+    ("ssh://git@github.com/org/repo.git", "ssh://git@github.com/org/repo.git"),
+    ("ssh://git:@github.com:22/org/repo.git", "ssh://github.com:22/org/repo.git"),
+    ("ssh://al%40ice@host/x.git", "ssh://host/x.git"),
+    ("https://git@github.com/org/repo.git", "https://github.com/org/repo.git"),
     ("git://user@host:9418/x.git", "git://host:9418/x.git"),
     ("HTTPS://github.com/a/b.git", "https://github.com/a/b.git"),
     # only http(s)/ssh/git URLs with a host, and scp-like remotes on a dotted host, are reported
@@ -182,14 +186,50 @@ def test_pip_packages_are_name_to_version():
     assert all(isinstance(k, str) and isinstance(v, str) for k, v in packages.items())
 
 
-def test_pip_packages_keep_first_distribution_of_a_name(tmp_path, monkeypatch):
-    write(tmp_path / "first" / "dup-1.0.dist-info" / "METADATA", "Metadata-Version: 2.1\nName: dup\nVersion: 1.0\n")
-    write(tmp_path / "second" / "dup-2.0.dist-info" / "METADATA", "Metadata-Version: 2.1\nName: dup\nVersion: 2.0\n")
-    write(tmp_path / "second" / "nameless-1.0.dist-info" / "METADATA", "Metadata-Version: 2.1\nVersion: 1.0\n")
-    real = deploy_to_cloud.importlib.metadata.distributions
-    paths = [str(tmp_path / "first"), str(tmp_path / "second")]
-    monkeypatch.setattr(deploy_to_cloud.importlib.metadata, "distributions", lambda: real(path=paths))
+def dist_info(site, name, version):
+    write(site / f"{name}-{version}.dist-info" / "METADATA", f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n")
+
+
+@pytest.fixture
+def env(tmp_path, monkeypatch):
+    """A fake sys.prefix; each test sets sys.path to the site directories it builds."""
+    prefix = tmp_path / "env"
+    prefix.mkdir()
+    monkeypatch.setattr(deploy_to_cloud.sys, "prefix", str(prefix))
+    return prefix
+
+
+def test_pip_packages_keep_first_distribution_of_a_name(env, monkeypatch):
+    dist_info(env / "first", "dup", "1.0")
+    dist_info(env / "second", "dup", "2.0")
+    write(env / "second" / "nameless-1.0.dist-info" / "METADATA", "Metadata-Version: 2.1\nVersion: 1.0\n")
+    monkeypatch.setattr(deploy_to_cloud.sys, "path", [str(env / "first"), str(env / "second")])
     assert deploy_to_cloud.pip_packages() == {"dup": "1.0"}
+
+
+def test_pip_packages_read_only_sys_path_entries_under_sys_prefix(tmp_path, env, monkeypatch):
+    dist_info(env / "lib" / "site-packages", "inside", "1.0")
+    dist_info(tmp_path / "user-site", "user-only", "1.0")
+    dist_info(tmp_path / "base" / "site-packages", "base-only", "1.0")
+    dist_info(tmp_path / "env_sibling" / "site-packages", "sibling-only", "1.0")
+    monkeypatch.setattr(deploy_to_cloud.sys, "path", [
+        str(tmp_path / "comfyui"), str(tmp_path / "user-site"), str(env / "lib" / "site-packages"),
+        str(tmp_path / "base" / "site-packages"), str(tmp_path / "env_sibling" / "site-packages"),
+    ])
+    assert deploy_to_cloud.pip_packages() == {"inside": "1.0"}
+
+
+def test_pip_packages_compare_resolved_paths(tmp_path, env, monkeypatch):
+    dist_info(env / "site", "inside", "1.0")
+    dist_info(tmp_path / "user-site", "user-only", "1.0")
+    try:
+        (tmp_path / "env-link").symlink_to(env, target_is_directory=True)
+        (env / "escape").symlink_to(tmp_path / "user-site", target_is_directory=True)
+    except OSError:
+        pytest.skip("symlinks unavailable")
+    monkeypatch.setattr(deploy_to_cloud.sys, "prefix", str(tmp_path / "env-link"))
+    monkeypatch.setattr(deploy_to_cloud.sys, "path", [str(env / "site"), str(env / "escape")])
+    assert deploy_to_cloud.pip_packages() == {"inside": "1.0"}
 
 
 @pytest.mark.parametrize("direct_url, expected", [
@@ -198,7 +238,7 @@ def test_pip_packages_keep_first_distribution_of_a_name(tmp_path, monkeypatch):
     ({"url": "file:///home/alice/src/pkg", "dir_info": {}}, "file://local"),
     ({"url": "https://alice:tok@github.com/a/b.git", "vcs_info": {"vcs": "git", "commit_id": SHA_A, "requested_revision": "main"}},
      f"git+https://github.com/a/b.git@{SHA_A}"),
-    ({"url": "ssh://git@github.com/a/b.git", "vcs_info": {"vcs": "git", "commit_id": SHA_B}}, f"git+ssh://github.com/a/b.git@{SHA_B}"),
+    ({"url": "ssh://git@github.com/a/b.git", "vcs_info": {"vcs": "git", "commit_id": SHA_B}}, f"git+ssh://git@github.com/a/b.git@{SHA_B}"),
     ({"url": "https://tok@files.example.com/x/pkg-1.0.tar.gz?sig=s#sha256=00", "archive_info": {"hash": "sha256=00"}},
      "https://files.example.com/x/pkg-1.0.tar.gz"),
     ({"url": "file:///home/alice/wheels/pkg-1.0-py3-none-any.whl", "archive_info": {}}, "file://local"),
@@ -210,13 +250,11 @@ def test_pip_packages_keep_first_distribution_of_a_name(tmp_path, monkeypatch):
     (["https://github.com/a/b.git"], "file://local"),
     ("{not json", "file://local"),
 ])
-def test_pip_packages_report_direct_url_installs_without_paths_or_credentials(tmp_path, monkeypatch, direct_url, expected):
-    info = tmp_path / "pkg-1.0.dist-info"
-    write(info / "METADATA", "Metadata-Version: 2.1\nName: pkg\nVersion: 1.0\n")
+def test_pip_packages_report_direct_url_installs_without_paths_or_credentials(env, monkeypatch, direct_url, expected):
+    dist_info(env / "site", "pkg", "1.0")
     if direct_url is not None:
-        write(info / "direct_url.json", direct_url if isinstance(direct_url, str) else json.dumps(direct_url))
-    real = deploy_to_cloud.importlib.metadata.distributions
-    monkeypatch.setattr(deploy_to_cloud.importlib.metadata, "distributions", lambda: real(path=[str(tmp_path)]))
+        write(env / "site" / "pkg-1.0.dist-info" / "direct_url.json", direct_url if isinstance(direct_url, str) else json.dumps(direct_url))
+    monkeypatch.setattr(deploy_to_cloud.sys, "path", [str(env / "site")])
     assert deploy_to_cloud.pip_packages() == {"pkg": expected}
 
 

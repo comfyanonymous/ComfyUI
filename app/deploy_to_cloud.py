@@ -6,6 +6,7 @@ import logging
 import os
 import platform
 import re
+import sys
 import urllib.parse
 from datetime import datetime, timezone
 
@@ -134,7 +135,8 @@ _SCP_LIKE = re.compile(r"[A-Za-z0-9._-]+@([A-Za-z0-9.-]+):[^/\\]\S*")
 
 
 def _strip_userinfo(url: str) -> str | None:
-    """http(s)/ssh/git URLs reduced to scheme/host/port/path; scp-like user@host:path only for a dotted host.
+    """http(s)/ssh/git URLs reduced to scheme/host/port/path, keeping a password-less ssh:// user (ssh://git@host/...);
+    scp-like user@host:path only for a dotted host.
     None for everything else: remote helpers (`::`), file://, local paths, internal scp-like hosts."""
     if "::" in url:
         return None
@@ -148,7 +150,10 @@ def _strip_userinfo(url: str) -> str | None:
     # An unencoded / ? or # in the password ends the netloc early and pushes the rest of the userinfo past it.
     if parts.scheme not in _REMOTE_SCHEMES or not parts.hostname or "@" in parts.path + parts.query + parts.fragment:
         return None
-    return urllib.parse.urlunsplit((parts.scheme, parts.netloc.rpartition("@")[2], parts.path, "", ""))
+    user, _, host = parts.netloc.rpartition("@")
+    if parts.scheme == "ssh" and re.fullmatch(r"[A-Za-z0-9._-]+", user):
+        host = f"{user}@{host}"
+    return urllib.parse.urlunsplit((parts.scheme, host, parts.path, "", ""))
 
 
 def _git_origin_url(gitdir: str) -> str | None:
@@ -241,8 +246,12 @@ def _pip_version(dist: importlib.metadata.Distribution) -> str:
 
 
 def pip_packages() -> dict[str, str]:
+    """This environment's distributions, like Desktop's `uv pip freeze --python <venv python>`: only sys.path
+    entries under sys.prefix are read, so user site-packages and a venv's base interpreter are left out."""
+    prefix = os.path.join(os.path.normcase(os.path.realpath(sys.prefix)), "")
+    paths = [p for p in sys.path if os.path.join(os.path.normcase(os.path.realpath(p)), "").startswith(prefix)]
     packages = {}
-    for dist in importlib.metadata.distributions():
+    for dist in importlib.metadata.distributions(path=paths):
         name = dist.metadata.get("Name")
         if name:  # the first distribution of a name is the one imports resolve to
             packages.setdefault(name, _pip_version(dist))
