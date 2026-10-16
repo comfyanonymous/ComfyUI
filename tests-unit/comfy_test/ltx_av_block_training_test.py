@@ -48,9 +48,8 @@ def _make_block(cross_attention_adaln):
         operations=comfy_ops.disable_weight_init,
     )
     torch.manual_seed(0)
-    with torch.no_grad():
-        for p in block.parameters():
-            p.normal_(0.0, 0.1)
+    for p in block.parameters():
+        torch.nn.init.normal_(p, 0.0, 0.1)
     return block
 
 
