@@ -308,11 +308,28 @@ def h3_sparse_attention(attn, x, rope_freqs, transformer_options, patch: SparseA
 
 
 def make_h3_block_patch(block, block_index, patch: SparseAttnPatch):
-    """Runs the block with its attention swapped for the sparse producer."""
+    """Use the chunked producer only when no external H3 attention owner exists.
+
+    DiTBlock.forward's optional "attention" argument bypasses attn.forward.
+    Replacing VDN-H3's object-patched forward silently drops the VDN learned
+    linear complement for each block-sparse eligible layer.
+    """
     def attention(h, rope_freqs=None, transformer_options={}):
         return h3_sparse_attention(block.attn, h, rope_freqs, transformer_options, patch, block_index)
 
     def block_patch(args, extra):
+        forward = getattr(block.attn, "forward", None)
+        if getattr(forward, "_vdn_forward", False):
+            # Preserve the object-patched owner even when an earlier block
+            # patch injected another attention callback into the shared args.
+            # The generic attention override can still handle compatible
+            # Q/K/V calls without replacing VDN's trained linear branch.
+            patch.log_once(
+                ("vdn_forward_owned", block_index),
+                "H3 block %s: VDN owns attn.forward; bypassing Core BSA/MSA "
+                "chunked block replacement" % block_index,
+            )
+            return extra["original_block"]({**args, "attention": block.attn})
         if h3_eligible(block.attn, args["img"], args["rope_freqs"], args["transformer_options"], patch, block_index):
             args = {**args, "attention": attention}
         return extra["original_block"](args)
