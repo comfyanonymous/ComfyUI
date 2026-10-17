@@ -1062,8 +1062,8 @@ class Qwen35ImageTokenizer(sd1_clip.SD1Tokenizer):
             llama_text = template.format(text)
             if system_prompt:
                 llama_text = "<|im_start|>system\n" + system_prompt + "<|im_end|>\n" + llama_text
-            if not thinking:
-                llama_text += "<think>\n</think>\n"
+            if llama_template is None:  # chat template: thinking opens the block, otherwise an empty block disables reasoning
+                llama_text += "<think>\n" if thinking else "<think>\n\n</think>\n\n"
 
         tokens = super().tokenize_with_weights(llama_text, return_word_ids=return_word_ids, disable_weights=True, **kwargs)
         key_name = next(iter(tokens))

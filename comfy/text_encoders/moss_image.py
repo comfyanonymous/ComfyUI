@@ -14,12 +14,12 @@ class MOSSImageTokenizer(comfy.text_encoders.qwen35.Qwen35ImageTokenizer):
 
 
 class MOSSImageTEModel(sd1_clip.SD1ClipModel):
-    def __init__(self, device="cpu", dtype=None, model_options={}):
-        clip_model = lambda **kw: comfy.text_encoders.qwen35.Qwen35ClipModel(**kw, layer="last", layer_idx=None, model_type="qwen35_9b")
+    def __init__(self, device="cpu", dtype=None, model_options={}, mtp=False):
+        clip_model = lambda **kw: comfy.text_encoders.qwen35.Qwen35ClipModel(**kw, layer="last", layer_idx=None, model_type="qwen35_9b", mtp=mtp)
         super().__init__(device=device, dtype=dtype, name="qwen35_9b", clip_model=clip_model, model_options=model_options)
 
 
-def te(dtype_llama=None, llama_quantization_metadata=None):
+def te(dtype_llama=None, llama_quantization_metadata=None, mtp=False):
     class MOSSImageTEModel_(MOSSImageTEModel):
         def __init__(self, device="cpu", dtype=None, model_options={}):
             if dtype_llama is not None:
@@ -27,5 +27,5 @@ def te(dtype_llama=None, llama_quantization_metadata=None):
             if llama_quantization_metadata is not None:
                 model_options = model_options.copy()
                 model_options["quantization_metadata"] = llama_quantization_metadata
-            super().__init__(device=device, dtype=dtype, model_options=model_options)
+            super().__init__(device=device, dtype=dtype, model_options=model_options, mtp=mtp)
     return MOSSImageTEModel_
