@@ -1093,15 +1093,16 @@ class CLIPVisionEncode:
     def INPUT_TYPES(s):
         return {"required": { "clip_vision": ("CLIP_VISION",),
                               "image": ("IMAGE",),
-                              "crop": (["center", "none"],),
-                              "batch_size": ("INT", {"default": 64, "min": 1, "max": 4096, "step": 1})
+                              "crop": (["center", "none"],)
+                             },
+                "optional": { "batch_size": ("INT", {"default": 64, "min": 1, "max": 4096, "step": 1, "tooltip": "Number of frames encoded per forward pass. Lower values reduce VRAM usage." })
                              }}
     RETURN_TYPES = ("CLIP_VISION_OUTPUT",)
     FUNCTION = "encode"
 
     CATEGORY = "model/conditioning"
 
-    def encode(self, clip_vision, image, crop, batch_size):
+    def encode(self, clip_vision, image, crop, batch_size=64):
         crop_image = True
         if crop != "center":
             crop_image = False

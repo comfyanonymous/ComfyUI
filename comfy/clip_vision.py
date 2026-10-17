@@ -70,16 +70,23 @@ class ClipVisionModel():
         # Encode in batches: activation VRAM grows linearly with frame count, so encoding a
         # long video in one shot OOMs. Frames share no cross-attention, so batching is exact.
         outputs = None
+        tensor_outputs = {}
         for i in range(0, image.shape[0], batch_size):
             chunk = self.encode_image_chunk(image[i:i + batch_size], crop)
             if outputs is None:
                 outputs = chunk
+                for key in vars(outputs):
+                    if key != "image_sizes" and outputs[key] is not None:
+                        tensor_outputs[key] = [outputs[key]]
                 continue
             for key in vars(outputs):
                 if key == "image_sizes":
-                    outputs[key] = outputs[key] + chunk[key]
+                    outputs[key].extend(chunk[key])
                 elif outputs[key] is not None:
-                    outputs[key] = torch.cat([outputs[key], chunk[key]], dim=0)
+                    tensor_outputs[key].append(chunk[key])
+        for key, tensors in tensor_outputs.items():
+            if len(tensors) > 1:
+                outputs[key] = torch.cat(tensors, dim=0)
         return outputs
 
     def encode_image_chunk(self, image, crop=True):
@@ -100,7 +107,10 @@ class ClipVisionModel():
         else:
             outputs["penultimate_hidden_states"] = out[1].to(comfy.model_management.intermediate_device())
 
-        outputs["mm_projected"] = out[3]
+        if out[3] is not None:
+            outputs["mm_projected"] = out[3].to(comfy.model_management.intermediate_device())
+        else:
+            outputs["mm_projected"] = None
         return outputs
 
 def convert_to_transformers(sd, prefix):
