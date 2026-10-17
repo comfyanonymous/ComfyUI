@@ -96,7 +96,7 @@ jobs:
       pull-requests: "read"
     runs-on: ${{ inputs.python_arch == 'arm64' && 'windows-11-arm' || 'windows-latest' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.git_tag }}
           fetch-depth: 150
