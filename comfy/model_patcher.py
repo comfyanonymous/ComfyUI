@@ -38,6 +38,7 @@ import comfy.patcher_extension
 import comfy.utils
 import comfy_aimdo.host_buffer
 from comfy.comfy_types import UnetWrapperFunction
+from comfy.configurable import ConfigurableModule
 from comfy.internal_logging import detail
 from comfy.quant_ops import QuantizedTensor
 from comfy.patcher_extension import CallbacksMP, PatcherInjection, WrappersMP
@@ -341,7 +342,7 @@ class ModelPatcher:
     def __init__(self, model, load_device, offload_device, size=0, weight_inplace_update=False, fast_disk=False):
         self.size = size
         self.model = model
-        self.fast_disk = bool(comfy.model_management.args.fast_disk or fast_disk)
+        self.fast_disk = fast_disk
         if not hasattr(self.model, 'device'):
             logging.debug("Model doesn't have a device attribute.")
             self.model.device = offload_device
@@ -843,6 +844,7 @@ class ModelPatcher:
     def add_patches(self, patches, strength_patch=1.0, strength_model=1.0):
         with self.use_ejected():
             p = set()
+            weights_changed = False
             model_sd = self.model.state_dict()
             for k in patches:
                 offset = None
@@ -855,13 +857,28 @@ class ModelPatcher:
                     if len(k) > 2:
                         function = k[2]
 
+                patch = patches[k]
+                if isinstance(patch, tuple) and len(patch) == 2 and patch[0] == "config":
+                    module_name, _, attribute = key.rpartition(".")
+                    try:
+                        module = self.get_model_object(module_name)
+                    except AttributeError:
+                        continue
+                    if attribute == "config" and isinstance(module, ConfigurableModule):
+                        p.add(k)
+                        if strength_patch != 0:
+                            self.add_object_patch(module_name, module.with_config(patch[1][0]))
+                    continue
+
                 if key in model_sd:
                     p.add(k)
                     current_patches = self.patches.get(key, [])
                     current_patches.append((strength_patch, patches[k], strength_model, offset, function))
                     self.patches[key] = current_patches
+                    weights_changed = True
 
-            self.patches_uuid = uuid.uuid4()
+            if weights_changed:
+                self.patches_uuid = uuid.uuid4()
             return list(p)
 
     def get_key_patches(self, filter_prefix=None):
@@ -874,6 +891,8 @@ class ModelPatcher:
             bk = self.backup.get(k, None)
             hbk = self.hook_backup.get(k, None)
             weight, set_func, convert_func = get_key_weight(self.model, k)
+            if not isinstance(weight, torch.Tensor):
+                continue
             if bk is not None:
                 weight = bk.weight
             if hbk is not None:
@@ -1542,6 +1561,8 @@ class ModelPatcher:
             p = set()
             model_sd = self.model.state_dict()
             for k in patches:
+                if isinstance(patches[k], tuple) and len(patches[k]) == 2 and patches[k][0] == "config":
+                    continue
                 offset = None
                 function = None
                 if isinstance(k, str):

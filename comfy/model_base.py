@@ -40,6 +40,7 @@ import comfy.ldm.hydit.models
 import comfy.ldm.audio.dit
 import comfy.ldm.audio.embedders
 import comfy.ldm.flux.model
+import comfy.ldm.flux3.model
 import comfy.ldm.lens.model
 import comfy.ldm.lightricks.model
 import comfy.ldm.hunyuan_video.model
@@ -63,6 +64,7 @@ import comfy.ldm.omnigen.omnigen2
 import comfy.ldm.seedvr.model
 import comfy.ldm.boogu.model
 import comfy.ldm.qwen_image.model
+import comfy.ldm.qwen_image21.model
 import comfy.ldm.mage_flow.model
 import comfy.ldm.joyimage.model
 import comfy.ldm.ideogram4.model
@@ -81,6 +83,7 @@ import comfy.ldm.sensenova.conditioning
 import comfy.ldm.sensenova.model
 from comfy.ldm.sensenova.sampling import SenseNovaModelSampling, time_snr_shift
 import comfy.ldm.depth_anything_3.model
+import comfy.ldm.moss_image.model
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -1097,6 +1100,39 @@ class Flux2(Flux):
         return out
 
 
+class Flux3(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.flux3.model.Flux3)
+        self.memory_usage_factor_conds = ("ref_latents",)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            ref_latents = [self.process_latent_in(lat) for lat in ref_latents]
+        # the DiT attends to every text token, so no padding: cond and uncond of different lengths run separately
+        if cross_attn is not None and torch.is_inference_mode_enabled() and kwargs.get("hooks") is None and not self.diffusion_model.flow_map:
+            # the t = 0 early blocks of text and references depend on the conditioning alone: run them once, not every step
+            # (a flow map also modulates them with each step's target time)
+            device, dtype = kwargs["device"], self.get_dtype_inference()
+            refs = [lat.to(device=device, dtype=dtype) for lat in ref_latents] if ref_latents else None
+            txt_states, ref_states = self.diffusion_model.preprocess_conds(cross_attn.to(device=device, dtype=dtype), refs)
+            del out['c_crossattn']
+            out['txt_states'] = comfy.conds.CONDRegular(txt_states)
+            if ref_states is not None:
+                out['ref_states'] = comfy.conds.CONDRegular(ref_states)
+                out['ref_shapes'] = comfy.conds.CONDConstant([tuple(lat.shape[-2:]) for lat in ref_latents])
+            return out
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        if ref_latents is not None:
+            out['ref_latents'] = comfy.conds.CONDList(ref_latents)
+        return out
+
+    extra_conds_shapes = Flux.extra_conds_shapes
+
+
 class Lens(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
         super().__init__(
@@ -1556,6 +1592,17 @@ class Lumina2(BaseModel):
         ref_latents = kwargs.get("reference_latents", None)
         if ref_latents is not None:
             out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()[2:]), ref_latents))])
+        return out
+
+class MingImage(Lumina2):
+    def extra_conds(self, **kwargs):
+        ref_latents = kwargs.pop("reference_latents", None)
+        out = super().extra_conds(**kwargs)
+        direct_context = kwargs.get("direct_context", None)
+        if direct_context is not None:
+            out['direct_context'] = comfy.conds.CONDRegular(direct_context)
+        if ref_latents is not None:
+            out['ref_frames'] = comfy.conds.CONDList([self.process_latent_in(lat)[:, :, f] for lat in ref_latents for f in range(lat.shape[2])])
         return out
 
 class ZImagePixelSpace(Lumina2):
@@ -2644,7 +2691,8 @@ class QwenImage(BaseModel):
         out = {}
         ref_latents = kwargs.get("reference_latents", None)
         if ref_latents is not None:
-            out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
+            c = self.latent_format.latent_channels
+            out['ref_latents'] = list([1, c, sum(map(lambda a: math.prod(a.size()), ref_latents)) // c])
         return out
 
 class MageFlow(QwenImage):
@@ -2655,11 +2703,31 @@ class MageFlow(QwenImage):
         # Mage runs in bf16 and rounds its timestep frequency table to the timestep dtype, keep that on fp32 devices.
         return timestep.to(torch.bfloat16)
 
-    def extra_conds_shapes(self, **kwargs):
-        out = {}
-        ref_latents = kwargs.get("reference_latents", None)
-        if ref_latents is not None:
-            out['ref_latents'] = list([1, 128, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 128])
+class QwenImage21(QwenImage):
+    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.qwen_image21.model.QwenImage21Transformer2DModel)
+
+    def get_dynamic_vram__units(self):
+        return list(self.diffusion_model.transformer_blocks), []
+
+    @property
+    def current_patcher(self):
+        return self._current_patcher
+
+    @current_patcher.setter
+    def current_patcher(self, patcher):
+        # set by pre_run / cleanup: the prefix K/V cache lives for one sampling run, off when hooks can repatch weights mid-run
+        self._current_patcher = patcher
+        diffusion_model = getattr(self, "diffusion_model", None)
+        if diffusion_model is not None:
+            diffusion_model.current_patcher = patcher
+            diffusion_model.reset_prefix_cache(patcher is not None and len(patcher.hook_patches) == 0)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        image_slots = kwargs.get("image_slots", None)
+        if image_slots is not None:
+            out['image_slots'] = comfy.conds.CONDConstant(image_slots)
         return out
 
 class JoyImage(BaseModel):
@@ -2726,6 +2794,18 @@ class Krea2(BaseModel):
         ref_latents = kwargs.get("reference_latents", None)
         if ref_latents is not None:
             out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
+        return out
+
+class MOSSImage(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.moss_image.model.MOSSImage)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        # rope positions follow the true text length, so no repeat padding: cond and uncond of different lengths run separately
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         return out
 
 class HunyuanImage21(BaseModel):
