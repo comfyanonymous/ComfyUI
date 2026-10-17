@@ -10,7 +10,7 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-2022, macos-latest]
+        os: [ubuntu-latest, windows-2022, macos-latest, ubuntu-24.04-arm, windows-11-arm]
     runs-on: ${{ matrix.os }}
     continue-on-error: true
     steps:
