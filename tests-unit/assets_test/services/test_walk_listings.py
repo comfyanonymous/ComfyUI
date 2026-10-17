@@ -98,6 +98,9 @@ class _UnreadableEntry:
     def is_symlink(self) -> bool:
         raise OSError(errno.EIO, "I/O error", self.path)
 
+    def is_file(self) -> bool:
+        raise OSError(errno.EIO, "I/O error", self.path)
+
     def stat(self) -> os.stat_result:
         raise OSError(errno.EIO, "I/O error", self.path)
 
@@ -112,6 +115,9 @@ class _StatFailingEntry(_UnreadableEntry):
 
     def is_symlink(self) -> bool:
         return False
+
+    def is_file(self) -> bool:
+        return True
 
 
 class _OsWithExtraEntry:

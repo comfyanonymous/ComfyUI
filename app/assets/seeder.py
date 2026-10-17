@@ -956,9 +956,10 @@ class _AssetSeeder:
             mark_unlisted_references_missing_safely("output", vanished, scan_state, should_stop)
             self._emit_marked_missing("output", scan_state.missing_marked - marked_before)
             logging.debug(
-                "Fast scan: output listing: %d dirs listed, %d rows retired, "
+                "Fast scan: output listing: %d dirs listed, %d reused, %d rows retired, "
                 "%d rows skipped (not listed, still on disk)",
                 walk.dirs_listed,
+                walk.dirs_reused,
                 len(vanished),
                 unlisted,
             )

@@ -62,11 +62,13 @@ from app.assets.services.file_utils import is_gone as _is_gone
 from app.assets.services.file_utils import (
     RESCAN_YIELD_RUN,
     DirListings,
+    ListingCache,
     ListingWalk,
     get_mtime_ns,
     is_visible,
     walk_listings,
 )
+from app.assets.services.fs_type import directory_mtimes_trusted
 from app.assets.services.gil import yield_gil
 from app.assets.services.media_metadata import extract_media_metadata
 from app.assets.services.metadata_extract import ExtractedMetadata, extract_file_metadata
@@ -408,7 +410,39 @@ def list_root(
     if root == "models":
         return _walk_models(should_stop, interrupted, cancelled)
     directory = folder_paths.get_input_directory() if root == "input" else folder_paths.get_output_directory()
-    return walk_listings(directory, should_stop, interrupted, cancelled, stat_files)
+    return _walk(directory, should_stop, interrupted, cancelled, stat_files=stat_files)
+
+
+# Each walked folder's directory listings from its last complete walk, so the next walk
+# reuses those of unchanged directories (walk_listings). In memory: the first scan after
+# a start lists every directory, and anything a reused listing could miss (a stale mtime
+# the filesystem check let through) heals on restart. Only the seeder's scan thread
+# walks, one scan at a time, so there is no lock.
+_listing_caches: dict[str, ListingCache] = {}
+
+
+def _walk(
+    base: str,
+    should_stop: ShouldStop,
+    interrupted: Callable[[], bool] | None,
+    cancelled: Callable[[], bool] | None,
+    **options: bool,
+) -> ListingWalk:
+    walk = walk_listings(
+        base,
+        should_stop,
+        interrupted,
+        cancelled,
+        cache=_listing_caches.get(base, {}),
+        trusted=directory_mtimes_trusted,
+        **options,
+    )
+    if walk.complete and walk.cache is not None:
+        _listing_caches[base] = walk.cache
+        configured = {p for r in ("models", "input", "output") for p in get_scan_prefixes_for_root(r)}
+        for gone in _listing_caches.keys() - configured:
+            del _listing_caches[gone]
+    return walk
 
 
 def _walk_models(
@@ -430,13 +464,15 @@ def _walk_models(
         resolved: set[str] = set()
         for base in map(os.path.abspath, bases):
             if base not in walks:
-                walks[base] = walk_listings(
+                walks[base] = _walk(
                     base, should_stop, interrupted, cancelled, stat_files=True, follow_aliases=True
                 )
             for path in walks[base].files:
                 st = walks[base].stats.get(path)
                 rel = os.path.normcase(os.path.relpath(path, base))
-                if st is None or not stat.S_ISREG(st.st_mode) or rel in resolved:
+                # A file in a directory taken from the cache has no stat, only its kind.
+                regular = stat.S_ISREG(st.st_mode) if st is not None else path in walks[base].reused_regular
+                if not regular or rel in resolved:
                     continue
                 if exts and os.path.splitext(path)[1].lower() not in exts:
                     continue
@@ -445,7 +481,13 @@ def _walk_models(
     stats: dict[str, os.stat_result] = {}
     for walk in walks.values():
         stats.update(walk.stats)
-    return ListingWalk(list(files), {}, sum(walk.dirs_listed for walk in walks.values()), stats)
+    return ListingWalk(
+        list(files),
+        {},
+        sum(walk.dirs_listed for walk in walks.values()),
+        stats,
+        dirs_reused=sum(walk.dirs_reused for walk in walks.values()),
+    )
 
 
 def live_references_safely(root: RootType) -> dict[str, list[_ReferenceObservation]]:

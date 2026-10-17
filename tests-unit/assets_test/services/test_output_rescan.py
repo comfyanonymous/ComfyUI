@@ -83,7 +83,7 @@ def _live_paths(session) -> set[str]:
 
 
 _LISTING_LINE = re.compile(
-    r"output listing: (\d+) dirs listed, (\d+) rows retired, (\d+) rows skipped"
+    r"output listing: (\d+) dirs listed, \d+ reused, (\d+) rows retired, (\d+) rows skipped"
 )
 
 
