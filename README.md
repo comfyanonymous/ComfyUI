@@ -215,6 +215,55 @@ This is the command to install the nightly with ROCm 7.2 which might have some p
 
 ```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm7.2```
 
+#### Match the PyTorch ROCm line to the installed ROCm
+
+The wheels above bundle their own ROCm runtime, and on some recent APUs that bundle has to be the
+same ROCm line as the one already on the machine, or the process dies the first time PyTorch loads
+a kernel. On a Ryzen AI Max+ 395 / Radeon 8060S (gfx1151) with ROCm 7.14.1 installed, a `+rocm7.1`
+wheel crashes at `torch.zeros(64, device="cuda")`, before ComfyUI reaches any model, and ComfyUI
+cannot report it: the fault is a native segfault, so no Python handler sees it and the log ends at
+`ROCm version:`. Check the match before debugging anything else:
+
+```bash
+python -c "import torch; print(torch.__version__, torch.version.hip)"
+cat /opt/rocm/*/.info/version        # this packaging has no /opt/rocm/.info/version
+ls /opt/rocm/*/lib/libamdhip64.so.*
+```
+
+The `torch.version.hip` build string should match the system `libamdhip64.so.*` build string. If it
+does not, install the wheel for your ROCm line — indexes exist for `rocm7.1`, `rocm7.2` and
+`rocm7.14`, so a GPU missing from the command above is usually a matter of swapping the index:
+
+```pip install torch --index-url https://download.pytorch.org/whl/rocm7.14```
+
+AMD's own multi-architecture wheels are another route on Linux, and ship gfx1151 kernels for
+CPython 3.10-3.14:
+
+```pip install --index-url https://stable.repo.amd.com/rocm/whl-next/ "torch[device-gfx1151]==2.14.0+rocm10.1.0"```
+
+#### `torch` and `torchvision` come from different indexes on ROCm
+
+The stable ROCm indexes publish `torch` but no `torchvision` wheel for Linux (verified on
+`rocm7.1`, `rocm7.2` and `rocm7.14` on 2026-10-17), while `requirements.txt` lists `torchvision`
+unconditionally. So `pip install -r requirements.txt` against a ROCm `torch` either pulls a plain
+PyPI build or fails to resolve. Two ways that work:
+
+Use the matching nightly index, which does publish Linux `torchvision` wheels (nightly only, so pin
+the exact build you tested, and keep `torch` and `torchvision` on the same ROCm line and the same
+index — mixing them across ROCm lines loads but breaks in the custom ops, e.g.
+`nms_kernel ... not implemented for 'Long'`):
+
+```pip install torchvision --index-url https://download.pytorch.org/whl/nightly/rocm7.14```
+
+Or build the CPU-side ops from the matching tag against the installed `torch` (`FORCE_CUDA=0` is
+enough on Linux; the GPU paths come from `torch` itself, this only builds the C/C++ ops):
+
+```bash
+git clone --depth 1 --branch v0.29.1 https://github.com/pytorch/vision.git && cd vision
+FORCE_CUDA=0 USE_ROCM=0 USE_CUDA=0 MAX_JOBS=16 \
+    python -m pip install --no-build-isolation --no-deps .
+```
+
 
 ### AMD GPUs (Windows, ROCm 10.0)
 
