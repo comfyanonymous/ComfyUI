@@ -62,3 +62,7 @@ def test_text_detection_uses_presence_score():
         masks, boxes = module.SAM3_Detect.execute(model, image, conditioning=[object()], refine_iterations=0)
         assert masks.count_nonzero() == 4
         assert len(boxes[0]) == 1
+        torch.testing.assert_close(
+            torch.tensor(boxes[0][0]["score"]),
+            torch.sigmoid(torch.tensor(4.0)) * torch.sigmoid(torch.tensor(8.0)),
+        )
