@@ -977,9 +977,16 @@ def _swiglu_eager(x):
     return torch.nn.functional.silu(gate).mul_(up)
 
 
+def _situ_eager(x):
+    # out of place: the training path runs through here
+    hidden, gate = x.chunk(2, dim=-1)
+    return (4.0 * torch.tanh(gate / 4.0) * torch.sigmoid(gate)) * (25.0 * torch.tanh(hidden / 25.0))
+
+
 INPUT_ACT_EAGER = {
     "gelu_tanh": lambda x: torch.nn.functional.gelu(x, approximate="tanh"),
     "swiglu": _swiglu_eager,
+    "situ": _situ_eager,
 }
 
 

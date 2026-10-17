@@ -118,10 +118,8 @@ class Block(nn.Module):
         out = attention(q, k, v, self.q_norm, self.k_norm, pe, self.num_heads, self.comfy_attention, transformer_options)
         x = gated_residual(x, self.proj["o"](out), gate_a)
         y = modulated_rms_norm(x, self.norm2, scale_f, shift_f)
-        hidden, gate = self.proj["ffn_up_gate"](y).chunk(2, dim=-1)
-        # situ without its 4 * 25 factor, applied on the gate instead (ffn_down has no bias): two fewer passes
-        out = self.proj["ffn_down"](torch.tanh(gate / 4.0) * torch.sigmoid(gate) * torch.tanh(hidden / 25.0))
-        return gated_residual(x, out, gate_f * 100.0)
+        # situ on the [hidden | gate] halves; int8 weights fold it into the activation quantization
+        return gated_residual(x, comfy.ops.linear_input_act(self.proj["ffn_down"], self.proj["ffn_up_gate"](y), "situ"), gate_f)
 
 
 class MOSSImage(nn.Module):
