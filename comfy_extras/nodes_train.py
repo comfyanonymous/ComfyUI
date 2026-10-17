@@ -717,7 +717,7 @@ def _create_weight_adapter(
     logging.debug(f"Creating weight adapter for {key} with shape {shape}")
 
     if len(shape) >= 2:
-        existing_alpha = float(existing_weights.get(f"{key}.alpha", 1.0))
+        existing_alpha = float(existing_weights.get(f"{module_name}.alpha", 1.0))
         dora_scale = existing_weights.get(f"{key}.dora_scale", None)
 
         # Try to load existing adapter
@@ -1086,9 +1086,8 @@ class TrainLoraNode(io.ComfyNode):
                 io.Float.Input(
                     "alpha",
                     default=1.0,
-                    min=0.01,
-                    max=1024.0,
                     step=0.01,
+                    optional=True,
                     tooltip="The alpha of new LoRA layers. The LoRA scale is alpha / rank. Ignored when appending to an existing LoRA.",
                 ),
             ],
@@ -1127,7 +1126,7 @@ class TrainLoraNode(io.ComfyNode):
         existing_lora,
         bucket_mode,
         bypass_mode,
-        alpha,
+        alpha=None,
     ):
         # Extract scalars from lists (due to is_input_list=True)
         model = model[0]
@@ -1149,7 +1148,7 @@ class TrainLoraNode(io.ComfyNode):
         existing_lora = existing_lora[0]
         bucket_mode = bucket_mode[0]
         bypass_mode = bypass_mode[0]
-        alpha = alpha[0]
+        alpha = alpha[0] if alpha else 1.0
 
         comfy.model_management.training_fp8_bwd = quantized_backward
 
