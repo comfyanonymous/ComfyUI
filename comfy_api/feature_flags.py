@@ -6,7 +6,7 @@ allowing graceful protocol evolution while maintaining backward compatibility.
 """
 
 import logging
-from typing import Any, TypedDict
+from typing import Any, Callable, TypedDict
 
 from comfy.cli_args import args
 
@@ -109,14 +109,16 @@ _CORE_FEATURE_FLAGS: dict[str, Any] = {
     "max_upload_size": args.max_upload_size * 1024 * 1024, # Convert MB to bytes
     "extension": {"manager": {"supports_v4": True}},
     "node_replacements": True,
-    # main.py replaces this at startup with the selected AssetManager's state, which is off without database dependencies.
-    "assets": args.enable_assets,
+    # main.py replaces this at startup with the selected AssetManager's state.
+    "assets": not args.disable_assets,
 }
 
 # CLI-provided flags cannot overwrite core flags. Startup code may: main.py sets "assets".
 _cli_flags = {k: v for k, v in _parse_cli_feature_flags().items() if k not in _CORE_FEATURE_FLAGS}
 
 SERVER_FEATURE_FLAGS: dict[str, Any] = {**_CORE_FEATURE_FLAGS, **_cli_flags}
+
+_RUNTIME_FLAGS: dict[str, Callable[[], Any]] = {}
 
 
 def get_connection_feature(
@@ -169,4 +171,14 @@ def get_server_features() -> dict[str, Any]:
     Returns:
         Dictionary of server feature flags
     """
-    return SERVER_FEATURE_FLAGS.copy()
+    features = SERVER_FEATURE_FLAGS.copy()
+    for name, provider in _RUNTIME_FLAGS.items():
+        value = provider()
+        if value is not None:
+            features[name] = value
+    return features
+
+
+def register_runtime_flag(name: str, provider: Callable[[], Any]) -> None:
+    """Publish a flag whose value is only known while running (None leaves it out)."""
+    _RUNTIME_FLAGS[name] = provider
