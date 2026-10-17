@@ -231,12 +231,14 @@ def _k_weighting(sample_rate):
 
 
 def integrated_loudness(waveform, sample_rate):
-    """Gated integrated loudness in LUFS (ITU-R BS.1770-4) of a [channels, samples] waveform.
+    """Gated loudness in LUFS using the ITU-R BS.1770-4 K-weighting of a [channels, samples] waveform.
 
-    Returns -inf when the clip is shorter than one 400 ms block or every block is gated out.
+    Channels are weighted equally; channel layout and LFE are not interpreted.
+    Returns -inf when the clip is shorter than one 400 ms block (or the sample rate is too low
+    to form one) or every block is gated out.
     """
     step = round(0.1 * sample_rate)
-    if waveform.shape[-1] < 4 * step:
+    if step == 0 or waveform.shape[-1] < 4 * step:
         return -math.inf
 
     x = waveform.detach().cpu().double().numpy()

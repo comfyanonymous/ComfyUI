@@ -801,7 +801,7 @@ class AudioNormalizeLoudness(IO.ComfyNode):
             search_aliases=["lufs", "loudness normalization", "ebu r128", "audio level"],
             display_name="Normalize Audio Loudness",
             category="audio",
-            description="Apply a gain so the integrated loudness (ITU-R BS.1770 LUFS) of each clip matches the target. Clips that are too short or too quiet to measure are passed through. The gain is not limited, so peaks can exceed 0 dBFS.",
+            description="Apply a gain so the K-weighted loudness (ITU-R BS.1770 LUFS) of each clip matches the target. All channels are weighted equally; channel layout and LFE are not interpreted. Clips that are too short or too quiet to measure are passed through. The gain is not limited, so peaks can exceed 0 dBFS.",
             inputs=[
                 IO.Audio.Input("audio"),
                 IO.Float.Input("target_lufs", default=-23.0, min=-70.0, max=0.0, step=0.1, tooltip="Target integrated loudness in LUFS."),

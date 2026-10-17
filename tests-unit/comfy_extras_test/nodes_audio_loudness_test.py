@@ -69,3 +69,7 @@ def test_node_leaves_input_untouched():
     original = waveform.clone()
     AudioNormalizeLoudness.execute({"waveform": waveform, "sample_rate": SAMPLE_RATE}, -23.0)
     assert torch.equal(waveform, original)
+
+
+def test_very_low_sample_rate_is_unmeasurable():
+    assert comfy.audio.integrated_loudness(torch.ones(1, 4), 1) == -math.inf
