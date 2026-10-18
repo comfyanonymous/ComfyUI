@@ -21,7 +21,10 @@ class ImageCompare(IO.ComfyNode):
                 IO.Image.Input("image_b", optional=True),
                 IO.ImageCompare.Input("compare_view"),
             ],
-            outputs=[],
+            outputs=[
+                IO.Image.Output(display_name="image_a"),
+                IO.Image.Output(display_name="image_b"),
+            ],
         )
 
     @classmethod
@@ -38,7 +41,7 @@ class ImageCompare(IO.ComfyNode):
             saved = preview_node.save_images(image_b, "comfy.compare.b")
             result["b_images"] = saved["ui"]["images"]
 
-        return IO.NodeOutput(ui=result)
+        return IO.NodeOutput(image_a, image_b, ui=result)
 
 
 class ImageCompareExtension(ComfyExtension):
