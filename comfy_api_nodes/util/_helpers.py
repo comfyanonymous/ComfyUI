@@ -52,7 +52,7 @@ _renewed_partner_tokens: dict[str, str] = {}
 """Newest renewed partner-node token per lineage. In memory only; renewal does not rotate the token."""
 _partner_token_renewals: dict[str, asyncio.Task] = {}
 _capped_partner_token_lineages: set[str] = set()
-"""Lineages whose last renewal did not extend ``exp`` (session end reached): no pre-emptive renewal, only on a 401."""
+"""Lineages whose last renewed token did not extend ``exp`` and is already inside the renew margin (session end reached): no pre-emptive renewal, only on a 401."""
 _partner_token_renew_not_before: dict[str, float] = {}
 """Lineage -> wall-clock time before which comfy-api asked (HTTP 429) not to be sent another renewal."""
 _rejected_partner_tokens: set[str] = set()
@@ -103,6 +103,8 @@ async def _request_partner_token_renewal(lineage: str, sid: str, token: str) -> 
         retry_delays = ()
     deadline = time.monotonic() + 30.0
     for retry_delay in (*retry_delays, None):
+        if is_processing_interrupted():
+            return None
         try:
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=max(deadline - time.monotonic(), 1.0))) as session:
                 async with session.post(url, headers={"Authorization": f"Bearer {token}"}) as resp:
@@ -132,7 +134,7 @@ async def _request_partner_token_renewal(lineage: str, sid: str, token: str) -> 
     if claims is None or claims["sid"] != sid:
         logging.warning("Comfy API returned an unusable renewed sign-in token.")
         return None
-    if claims["exp"] <= _partner_token_claims(token)["exp"]:
+    if claims["exp"] <= _partner_token_claims(token)["exp"] and claims["exp"] - time.time() < _PARTNER_NODE_TOKEN_RENEW_MARGIN:
         _capped_partner_token_lineages.add(lineage)
     else:
         _capped_partner_token_lineages.discard(lineage)
@@ -153,11 +155,12 @@ async def _renew_partner_token(token: str, claims: dict) -> str | None:
         task.add_done_callback(
             lambda t: _partner_token_renewals.pop(lineage, None) if _partner_token_renewals.get(lineage) is t else None
         )
-    while not task.done():
+    while True:
         if is_processing_interrupted():
             raise ProcessingInterrupted("Task cancelled")
+        if task.done():
+            return task.result()
         await asyncio.wait({task}, timeout=1.0)
-    return task.result()
 
 
 async def refresh_partner_token(node_cls: type[IO.ComfyNode]) -> None:
