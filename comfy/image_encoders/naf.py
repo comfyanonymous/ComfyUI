@@ -42,8 +42,9 @@ def na2d_pure(
     out = output if output is not None else torch.empty((B, n, d_v, H, W), device=q.device, dtype=q.dtype)
     pad = (Kw // 2, Kw // 2, Kh // 2, Kh // 2)
     k, v = F.pad(k, pad), F.pad(v, pad)
-    # LR rows per chunk, sized from one row's windows, fp32 scores and outputs
-    row_bytes = B * n * w * (KK * d_v * v.element_size() + DD * KK * 4 + DD * d_v * q.element_size())
+    # LR rows per chunk, from one row's live temporaries: K/V windows, Q, fp32 copies and scores, outputs
+    es = q.element_size()
+    row_bytes = B * n * w * (KK * (d_qk * (es + 4) + d_v * es) + DD * (d_qk * (es + 4) + KK * (8 + es) + 2 * d_v * es))
     rows = max(1, _CHUNK_BYTES // row_bytes)
     for r0 in range(0, h, rows):
         r1 = min(r0 + rows, h)
