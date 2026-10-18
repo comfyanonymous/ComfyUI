@@ -218,6 +218,11 @@ def _calc_cond_batch_outer(model: BaseModel, conds: list[list[dict]], x_in: torc
     )
     return executor.execute(model, conds, x_in, timestep, model_options)
 
+def _batch_timestep(timestep: torch.Tensor, batch_chunks: int) -> torch.Tensor:
+    if timestep.shape[0] == 1:
+        return timestep.expand(batch_chunks, *timestep.shape[1:])
+    return torch.cat([timestep] * batch_chunks)
+
 def _calc_cond_batch(model: BaseModel, conds: list[list[dict]], x_in: torch.Tensor, timestep: torch.Tensor, model_options: dict[str]):
     # NOTE: keep in sync with _calc_cond_batch_multigpu below. Shared logic
     # (hooked_to_run accumulation, memory-fit batching, per-chunk output
@@ -306,7 +311,7 @@ def _calc_cond_batch(model: BaseModel, conds: list[list[dict]], x_in: torch.Tens
             batch_chunks = len(cond_or_uncond)
             input_x = torch.cat(input_x)
             c = cond_cat(c)
-            timestep_ = timestep.expand(batch_chunks, *timestep.shape[1:])
+            timestep_ = _batch_timestep(timestep, batch_chunks)
 
             transformer_options = model.current_patcher.apply_hooks(hooks=hooks)
             if 'transformer_options' in model_options:
@@ -494,7 +499,7 @@ def _calc_cond_batch_multigpu(model: BaseModel, conds: list[list[dict]], x_in: t
                     input_x = torch.cat(input_x).to(device)
                     c = cond_cat(c, device=device)
                     timestep_device = timestep.to(device)
-                    timestep_ = timestep_device.expand(batch_chunks, *timestep_device.shape[1:])
+                    timestep_ = _batch_timestep(timestep_device, batch_chunks)
 
                     transformer_options = model_current.current_patcher.apply_hooks(hooks=hooks)
                     if 'transformer_options' in model_options:
