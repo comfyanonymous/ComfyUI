@@ -367,25 +367,39 @@ class WanAttentionBlock(nn.Module):
             e = (comfy.model_management.cast_to(self.modulation, dtype=x.dtype, device=x.device).unsqueeze(0) + e).unbind(2)
         # assert e[0].dtype == torch.float32
 
+        # The chunked paths require per-sequence modulation (size(1) == 1): the
+        # per-frame variants map frames to tokens by the current sequence length
+        # (repeat_e), which misaligns inside a chunk. Training also keeps the
+        # original graph, since the chunked paths write residuals in place.
+        use_chunks = s >= CHUNK_MIN_SEQ and e[0].size(1) == 1 and not comfy.model_management.in_training
+
         # self-attention
         x = x.contiguous() # otherwise implicit in LayerNorm
         y = self.self_attn(
-            x, freqs, transformer_options=transformer_options,
-            modulation=(self.norm1, e[0], e[1]), residual_gate=e[2])
+            x if use_chunks else modulate(x, self.norm1, e[0], e[1]),
+            freqs, transformer_options=transformer_options,
+            modulation=(self.norm1, e[0], e[1]) if use_chunks else None,
+            residual_gate=e[2] if use_chunks else None)
         if y is not None:
-            # non-chunked path; in-place to avoid a full-size intermediate
-            x.addcmul_(y, repeat_e(e[2], x))
+            # non-chunked path; out of place while training so autograd can save x
+            if comfy.model_management.in_training:
+                x = torch.addcmul(x, y, repeat_e(e[2], x))
+            else:
+                x.addcmul_(y, repeat_e(e[2], x))
 
         # cross-attention & ffn
-        y = self.cross_attn(self.norm3(x), context, context_img_len=context_img_len, transformer_options=transformer_options, residual_x=x)
+        y = self.cross_attn(self.norm3(x), context, context_img_len=context_img_len, transformer_options=transformer_options, residual_x=x if use_chunks else None)
         if y is not None:
-            x.add_(y)
+            if comfy.model_management.in_training:
+                x = x + y
+            else:
+                x.add_(y)
 
         if "attn2_patch" in patches:
             for p in patches["attn2_patch"]:
                 x = p({"x": x, "transformer_options": transformer_options})
 
-        if s >= CHUNK_MIN_SEQ:
+        if use_chunks:
             # chunked path: the FFN and its residual run one chunk at a time, in
             # place, so the modulated copy, the hidden activations and the output
             # never exist at full sequence size
@@ -395,7 +409,10 @@ class WanAttentionBlock(nn.Module):
                 xs.addcmul_(self.ffn(modulate(xs, self.norm2, e[3], e[4])), repeat_e(e[5], xs))
         else:
             y = self.ffn(modulate(x, self.norm2, e[3], e[4]))
-            x = torch.addcmul(x, y, repeat_e(e[5], x))
+            if comfy.model_management.in_training:
+                x = torch.addcmul(x, y, repeat_e(e[5], x))
+            else:
+                x.addcmul_(y, repeat_e(e[5], x))
         return x
 
 
