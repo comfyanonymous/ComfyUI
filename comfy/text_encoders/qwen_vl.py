@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Optional, Tuple
 import math
+import comfy.ops
 from comfy.ldm.modules.attention import optimized_attention_for_device
 
 
@@ -144,11 +145,9 @@ class VisionPatchEmbed(nn.Module):
         )
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        hidden_states = hidden_states.view(
-            -1, self.in_channels, self.temporal_patch_size, self.patch_size, self.patch_size
-        )
-        hidden_states = self.proj(hidden_states)
-        return hidden_states.view(-1, self.embed_dim)
+        # stride == kernel, so the conv is a linear over flattened patches; avoids the slow conv3d fallback when cudnn/MIOpen is off (AMD)
+        with comfy.ops.CastBiasWeightContext(self.proj, hidden_states, offloadable=True) as (weight, bias):
+            return F.linear(hidden_states.reshape(-1, weight[0].numel()), weight.reshape(self.embed_dim, -1), bias)
 
 
 def rotate_half(x):
