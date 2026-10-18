@@ -142,14 +142,14 @@ class MOSSImage(nn.Module):
     def rope(self, h, w, text_len, device, transformer_options={}):
         # (r, f, h, w): the image sits after the text on f, its rows and columns centered
         rope_options = transformer_options.get("rope_options", {})
+        # NTK-aware axis scales, zero collapses the axis
+        scales = (1.0, 1.0, rope_options.get("scale_y", 1.0), rope_options.get("scale_x", 1.0))
         ids = torch.zeros(1, h * w + text_len, 4, device=device, dtype=torch.float32)
         ids[0, :h * w, 1] = text_len + rope_options.get("shift_t", 0.0)
-        ids[0, :h * w, 2] = (torch.arange(h, device=device, dtype=torch.float32) - (h - 1) / 2 + rope_options.get("shift_y", 0.0)).repeat_interleave(w)
-        ids[0, :h * w, 3] = (torch.arange(w, device=device, dtype=torch.float32) - (w - 1) / 2 + rope_options.get("shift_x", 0.0)).repeat(h)
+        ids[0, :h * w, 2] = ((torch.arange(h, device=device, dtype=torch.float32) - (h - 1) / 2) * float(scales[2] != 0) + rope_options.get("shift_y", 0.0)).repeat_interleave(w)
+        ids[0, :h * w, 3] = ((torch.arange(w, device=device, dtype=torch.float32) - (w - 1) / 2) * float(scales[3] != 0) + rope_options.get("shift_x", 0.0)).repeat(h)
         ids[0, h * w:, 1] = torch.arange(text_len, device=device, dtype=torch.float32)
-        # rope_options scale rows/columns NTK-aware: scaling the positions blurs detail, raising the axis theta keeps the highest band intact
-        scales = (1.0, 1.0, rope_options.get("scale_y", 1.0), rope_options.get("scale_x", 1.0))
-        pe = torch.cat([comfy.ldm.flux.math.rope(ids[..., i], d, 10000 * s ** (-d / (d - 2))) for i, (d, s) in enumerate(zip(self.rope_axes_dim, scales))], dim=-3)
+        pe = torch.cat([comfy.ldm.flux.math.rope(ids[..., i], d, 10000 * (s or 1.0) ** (-d / (d - 2))) for i, (d, s) in enumerate(zip(self.rope_axes_dim, scales))], dim=-3)
         return pe.unsqueeze(1).transpose(1, 2).contiguous()
 
     def forward(self, x, timestep, context, transformer_options={}, **kwargs):
