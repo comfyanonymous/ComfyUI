@@ -1784,6 +1784,18 @@ def llama_detect(clip_data):
     return {}
 
 def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}, disable_dynamic=False):
+    """Load and initialize text encoder model(s) and tokenizer(s) from state dicts.
+
+    Args:
+        state_dicts: List of text encoder state dicts.
+        embedding_directory: Directory containing custom text embeddings.
+        clip_type: CLIPType enum specifying expected model architecture and tokenizer mapping.
+        model_options: Optional configuration dictionary for model instantiation.
+        disable_dynamic: Whether to disable dynamic memory management.
+
+    Returns:
+        CLIP: Configured CLIP wrapper instance holding the text encoder and tokenizer.
+    """
     clip_data = state_dicts
 
     class EmptyClass:
