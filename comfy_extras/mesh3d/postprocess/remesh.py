@@ -1135,6 +1135,9 @@ def remesh_narrow_band_dc(
         # graph-cut a tetrahedralization of the UDF shell into one solid and sign the corners by it
         shell_v = _dual_contour(vox_keys, udf - eps, unique_corner_keys, resolution, scale, center)[0]
         del udf
+        if shell_v.numel() == 0:
+            return (vertices.new_empty((0, 3)), faces.new_empty((0, 3)),
+                    None if colors is None else colors.new_empty((0, colors.shape[1])))
         tet_pts, tets, nbr, solid, cut_tri = _solid_partition(shell_v, tri_verts_g, _band_tree, eps, fill)
         locate = _tet_locator(tet_pts, tets, nbr)
         del shell_v, tet_pts, tets, nbr
