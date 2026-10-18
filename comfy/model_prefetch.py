@@ -235,6 +235,8 @@ def prefetch_queue_pop(queue, device, module, dtype=None, core=None, enable_grap
                 if hasattr(s, "_v"):
                     comfy_modules.append(s)
 
+        # pin_modules may fail after faulting only part of this batch.
+        queue[0] = (None, (module, comfy_modules))
         offload_stream, fully_faulted = pin_modules(comfy_modules, device, dtype)
         queue[0] = (offload_stream, (module, comfy_modules))
 
