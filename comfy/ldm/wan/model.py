@@ -15,6 +15,17 @@ import comfy.ops
 import comfy.patcher_extension
 import comfy.quant_ops
 
+# On long sequences the [B, S, C] activation copies (modulated inputs, q/o
+# projections, attention outputs, FFN hidden states) dominate peak VRAM, not the
+# attention itself. The chunked paths below process those one token chunk at a
+# time while keeping attention against the full K/V. 4096-token chunks keep the
+# per-chunk GEMMs large enough to saturate the GPU; sequences shorter than
+# CHUNK_MIN_SEQ keep the original non-chunked path, where chunking overhead
+# outweighs the savings.
+ATTN_CHUNK = 4096
+FFN_CHUNK = 4096
+CHUNK_MIN_SEQ = 8192
+
 
 def sinusoidal_embedding_1d(dim, position):
     # preprocess
@@ -59,29 +70,73 @@ class WanSelfAttention(nn.Module):
         self.norm_q = operation_settings.get("operations").RMSNorm(dim, eps=eps, elementwise_affine=True, device=operation_settings.get("device"), dtype=operation_settings.get("dtype")) if qk_norm else nn.Identity()
         self.norm_k = operation_settings.get("operations").RMSNorm(dim, eps=eps, elementwise_affine=True, device=operation_settings.get("device"), dtype=operation_settings.get("dtype")) if qk_norm else nn.Identity()
 
-    def forward(self, x, freqs, transformer_options={}):
+    def forward(self, x, freqs, transformer_options={}, modulation=None, residual_gate=None):
         r"""
         Args:
             x(Tensor): Shape [B, L, num_heads, C / num_heads]
             freqs(Tensor): Rope freqs, shape [1024, C / num_heads / 2]
+            modulation: optional (norm, shift, scale); when given, this layer applies
+                the modulation itself, one chunk at a time, so no full-size modulated
+                copy of x is materialized
+            residual_gate: optional gate; when given, the chunked path adds the gated
+                output directly back into x and returns None
         """
         patches = transformer_options.get("patches", {})
 
         b, s, n, d = *x.shape[:2], self.num_heads, self.head_dim
 
-        def qkv_fn_q(x):
-            q = self.norm_q(self.q(x)).view(b, s, n, d)
-            return apply_rope1(q, freqs)
+        def qkv_fn_q(xs, fs):
+            q = self.norm_q(self.q(xs)).view(b, -1, n, d)
+            return apply_rope1(q, fs)
 
-        def qkv_fn_k(x):
-            k = self.norm_k(self.k(x)).view(b, s, n, d)
-            return apply_rope1(k, freqs)
+        def qkv_fn_k(xs, fs):
+            k = self.norm_k(self.k(xs)).view(b, -1, n, d)
+            return apply_rope1(k, fs)
+
+        if s >= CHUNK_MIN_SEQ and modulation is not None and not patches.get("attn1_patch"):
+            # Chunked path: project K/V chunk by chunk into preallocated full-size
+            # buffers, then run attention with chunked queries against the full K/V
+            # (every query needs every key, so K/V must stay resident). Only x and
+            # the K/V buffers remain full-size; the modulation, q, attention output
+            # and o projection exist one chunk at a time.
+            # Two passes are required: the K/V buffers must be complete before the
+            # first query chunk attends to them.
+            norm1, m_shift, m_scale = modulation
+            k_buf = torch.empty_like(x)
+            v_buf = torch.empty_like(x)
+            y = None if residual_gate is not None else torch.empty_like(x)
+            for s0 in range(0, s, ATTN_CHUNK):
+                s1 = min(s0 + ATTN_CHUNK, s)
+                xm = modulate(x[:, s0:s1], norm1, m_shift, m_scale)
+                k_buf[:, s0:s1] = qkv_fn_k(xm, freqs[:, s0:s1]).view(b, s1 - s0, n * d)
+                v_buf[:, s0:s1] = self.v(xm)
+            for s0 in range(0, s, ATTN_CHUNK):
+                s1 = min(s0 + ATTN_CHUNK, s)
+                xs = x[:, s0:s1]
+                qc = qkv_fn_q(modulate(xs, norm1, m_shift, m_scale), freqs[:, s0:s1])
+                attn = optimized_attention(
+                    AttentionTensorContainer(qc.reshape(b, s1 - s0, n * d)),
+                    AttentionTensorContainer(k_buf),
+                    AttentionTensorContainer(v_buf),
+                    heads=self.num_heads,
+                    preferred_attention=self.comfy_attention,
+                    transformer_options=transformer_options,
+                )
+                out = self.o(attn)
+                if residual_gate is not None:
+                    xs.addcmul_(out, repeat_e(residual_gate, xs))
+                else:
+                    y[:, s0:s1] = out
+            return y
+
+        if modulation is not None:
+            x = modulate(x, *modulation)
 
         #These two are VRAM hogs, so we want to do all of q computation and
         #have pytorch garbage collect the intermediates on the sub function
         #return before we touch k
-        q = qkv_fn_q(x)
-        k = qkv_fn_k(x)
+        q = qkv_fn_q(x, freqs)
+        k = qkv_fn_k(x, freqs)
 
         if patches.get("attn1_patch"):
             q_patch, k_patch = q, k
@@ -267,11 +322,11 @@ class WanAttentionBlock(nn.Module):
         # self-attention
         x = x.contiguous() # otherwise implicit in LayerNorm
         y = self.self_attn(
-            modulate(x, self.norm1, e[0], e[1]),
-            freqs, transformer_options=transformer_options)
-
-        x = torch.addcmul(x, y, repeat_e(e[2], x))
-        del y
+            x, freqs, transformer_options=transformer_options,
+            modulation=(self.norm1, e[0], e[1]), residual_gate=e[2])
+        if y is not None:
+            # non-chunked path; in-place to avoid a full-size intermediate
+            x.addcmul_(y, repeat_e(e[2], x))
 
         # cross-attention & ffn
         x = x + self.cross_attn(self.norm3(x), context, context_img_len=context_img_len, transformer_options=transformer_options)
