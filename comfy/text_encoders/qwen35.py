@@ -1071,7 +1071,7 @@ class Qwen35ImageTokenizer(sd1_clip.SD1Tokenizer):
         qwen_tokens = tokens[key_name]
         for r in qwen_tokens:
             for i in range(len(r)):
-                if r[i][0] == 248056:  # <|image_pad|>
+                if isinstance(r[i][0], (int, float)) and r[i][0] == 248056:  # <|image_pad|>
                     if len(images) > embed_count:
                         r[i] = ({"type": "image", "data": images[embed_count], "original_type": "image"},) + r[i][1:]
                         embed_count += 1
