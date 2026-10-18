@@ -155,15 +155,18 @@ def cleanup_prefetch_queues():
     global MALLOC_GRAPH_USED
 
     cleanup_malloc_graph()
-    for queue in PREFETCH_QUEUES:
+    queues = PREFETCH_QUEUES
+    # Reset before walking so a failing entry can't leave stale queues behind for every later node.
+    PREFETCH_QUEUES = []
+    for queue in queues:
         for entry in queue:
-            if entry is None or not isinstance(entry, tuple):
+            # Only pinned slots are (offload_stream, (module, comfy_modules)); slots not yet
+            # reached still hold the raw module or module group passed to make_prefetch_queue.
+            if not isinstance(entry, tuple) or len(entry) != 2 or not isinstance(entry[1], tuple):
                 continue
-            _, prefetch_state = entry
-            prefetched_module, comfy_modules = prefetch_state
+            prefetched_module, comfy_modules = entry[1]
             if comfy_modules is not None:
                 cleanup_prefetched_modules(prefetched_module, comfy_modules)
-    PREFETCH_QUEUES = []
     GRAPH_WARMED_MODULES.clear()
     if MALLOC_GRAPH_USED:
         logging.info("Comfy model compiler graph breaks: %d, rogues: %d", MALLOC_GRAPH_BREAKS, MALLOC_GRAPH_ROGUES)
