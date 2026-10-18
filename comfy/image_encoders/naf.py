@@ -104,22 +104,24 @@ def na2d_pure(
 
             # Q·K → attention weights (small: KK=81 per output position).
             KK = Kh * Kw
+            # Contract in F.unfold's native [B, n, C, KK, t] layout. Permuting the unfold blob and
+            # calling matmul makes matmul clone it through a strided copy, which dominated the
+            # Pixal3D conditioning time (and is far slower still on ROCm).
             k_w = F.unfold(k_tile, kernel_size=(Kh, Kw), dilation=(Dh, Dw), padding=0)
-            k_w = k_w.view(B, n, d_qk, KK, t_h * t_w).permute(0, 1, 4, 3, 2)  # [B, n, t, KK, d_qk]
-            # q is [B, H, W, n, d_qk]; per-tile slice + permute -> [B, n, t_h*t_w, 1, d_qk].
-            q_tile = q[:, h0:h1, w0:w1].permute(0, 3, 1, 2, 4).reshape(B, n, t_h * t_w, 1, d_qk)
-            scores = torch.matmul(q_tile, k_w.transpose(-1, -2)) * scale
-            attn = scores.softmax(dim=-1)
+            k_w = k_w.view(B, n, d_qk, KK, t_h * t_w)  # [B, n, d_qk, KK, t]
+            # q is [B, H, W, n, d_qk]; per-tile slice -> [B, n, d_qk, 1, t] (one small HR tile copy).
+            q_tile = q[:, h0:h1, w0:w1].permute(0, 3, 4, 1, 2).reshape(B, n, d_qk, 1, t_h * t_w)
+            scores = (q_tile * k_w).sum(dim=2, dtype=torch.float32) * scale  # [B, n, KK, t]
+            attn = scores.softmax(dim=2).to(q.dtype).unsqueeze(2)  # [B, n, 1, KK, t]
             del k_w, scores, q_tile, k_tile
 
             # attn · V, chunked over d_v.
             for c0 in range(0, d_v, chunk):
                 c1 = min(c0 + chunk, d_v)
                 v_w = F.unfold(v_tile[:, c0:c1], kernel_size=(Kh, Kw),dilation=(Dh, Dw), padding=0) # [B*n, (c1-c0)*KK, t]
-                v_w = v_w.view(B, n, c1 - c0, KK, t_h * t_w).permute(0, 1, 4, 3, 2)
-                out_chunk = torch.matmul(attn, v_w).squeeze(-2) # [B, n, t, c1-c0]
-                out_chunk = out_chunk.view(B, n, t_h, t_w, c1 - c0).permute(0, 1, 4, 2, 3)
-                out[:, :, c0:c1, h0:h1, w0:w1] = out_chunk
+                v_w = v_w.view(B, n, c1 - c0, KK, t_h * t_w)  # [B, n, c, KK, t]
+                out_chunk = (attn * v_w).sum(dim=3, dtype=torch.float32).to(q.dtype)  # [B, n, c, t]
+                out[:, :, c0:c1, h0:h1, w0:w1] = out_chunk.view(B, n, c1 - c0, t_h, t_w)
                 del v_w, out_chunk
             del attn, v_tile
 
