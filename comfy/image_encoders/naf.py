@@ -111,7 +111,14 @@ def na2d_pure(
             k_w = k_w.view(B, n, d_qk, KK, t_h * t_w)  # [B, n, d_qk, KK, t]
             # q is [B, H, W, n, d_qk]; per-tile slice -> [B, n, d_qk, 1, t] (one small HR tile copy).
             q_tile = q[:, h0:h1, w0:w1].permute(0, 3, 4, 1, 2).reshape(B, n, d_qk, 1, t_h * t_w)
-            scores = (q_tile * k_w).sum(dim=2, dtype=torch.float32) * scale  # [B, n, KK, t]
+            # Multiply and accumulate in fp32, chunked over d_qk: fp16 products can overflow to
+            # +/-inf even when the score is finite (cancelling terms), which a half-precision GEMM
+            # avoids by accumulating in fp32. Chunking keeps the fp32 temporaries bounded.
+            scores = None
+            for d0 in range(0, d_qk, 16):
+                part = (q_tile[:, :, d0:d0 + 16].float() * k_w[:, :, d0:d0 + 16].float()).sum(dim=2)
+                scores = part if scores is None else scores.add_(part)
+            scores = scores * scale  # [B, n, KK, t]
             attn = scores.softmax(dim=2).to(q.dtype).unsqueeze(2)  # [B, n, 1, KK, t]
             del k_w, scores, q_tile, k_tile
 
