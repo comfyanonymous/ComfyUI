@@ -359,6 +359,7 @@ class WanAttentionBlock(nn.Module):
         # assert e.dtype == torch.float32
 
         patches = transformer_options.get("patches", {})
+        s = x.shape[1]
 
         if e.ndim < 4:
             e = (comfy.model_management.cast_to(self.modulation, dtype=x.dtype, device=x.device) + e).chunk(6, dim=1)
@@ -384,8 +385,17 @@ class WanAttentionBlock(nn.Module):
             for p in patches["attn2_patch"]:
                 x = p({"x": x, "transformer_options": transformer_options})
 
-        y = self.ffn(modulate(x, self.norm2, e[3], e[4]))
-        x = torch.addcmul(x, y, repeat_e(e[5], x))
+        if s >= CHUNK_MIN_SEQ:
+            # chunked path: the FFN and its residual run one chunk at a time, in
+            # place, so the modulated copy, the hidden activations and the output
+            # never exist at full sequence size
+            for s0 in range(0, s, FFN_CHUNK):
+                s1 = min(s0 + FFN_CHUNK, s)
+                xs = x[:, s0:s1]
+                xs.addcmul_(self.ffn(modulate(xs, self.norm2, e[3], e[4])), repeat_e(e[5], xs))
+        else:
+            y = self.ffn(modulate(x, self.norm2, e[3], e[4]))
+            x = torch.addcmul(x, y, repeat_e(e[5], x))
         return x
 
 
