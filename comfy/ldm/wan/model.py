@@ -161,12 +161,33 @@ class WanSelfAttention(nn.Module):
 
 class WanT2VCrossAttention(WanSelfAttention):
 
-    def forward(self, x, context, transformer_options={}, **kwargs):
+    def forward(self, x, context, transformer_options={}, residual_x=None, **kwargs):
         r"""
         Args:
             x(Tensor): Shape [B, L1, C]
             context(Tensor): Shape [B, L2, C]
+            residual_x: optional tensor; when given, the chunked path adds the
+                output directly back into it and returns None
         """
+        if x.shape[1] >= CHUNK_MIN_SEQ:
+            # Chunked path: K/V come from the (short) context and stay resident;
+            # query, attention and o projection run one chunk at a time.
+            b, s = x.shape[0], x.shape[1]
+            k = self.norm_k(self.k(context))
+            v = self.v(context)
+            y = None if residual_x is not None else torch.empty_like(x)
+            for s0 in range(0, s, ATTN_CHUNK):
+                s1 = min(s0 + ATTN_CHUNK, s)
+                q = AttentionTensorContainer(self.norm_q(self.q(x[:, s0:s1])))
+                # containers are single-use; rebuild the zero-copy wrappers per call
+                attn = optimized_attention(q, AttentionTensorContainer(k), AttentionTensorContainer(v), heads=self.num_heads, preferred_attention=self.comfy_attention, transformer_options=transformer_options)
+                out = self.o(attn)
+                if residual_x is not None:
+                    residual_x[:, s0:s1].add_(out)
+                else:
+                    y[:, s0:s1] = out
+            return y
+
         # compute query, key, value
         q = AttentionTensorContainer(self.norm_q(self.q(x)))
         k = AttentionTensorContainer(self.norm_k(self.k(context)))
@@ -194,14 +215,40 @@ class WanI2VCrossAttention(WanSelfAttention):
         # self.alpha = nn.Parameter(torch.zeros((1, )))
         self.norm_k_img = operation_settings.get("operations").RMSNorm(dim, eps=eps, elementwise_affine=True, device=operation_settings.get("device"), dtype=operation_settings.get("dtype")) if qk_norm else nn.Identity()
 
-    def forward(self, x, context, context_img_len, transformer_options={}):
+    def forward(self, x, context, context_img_len, transformer_options={}, residual_x=None):
         r"""
         Args:
             x(Tensor): Shape [B, L1, C]
             context(Tensor): Shape [B, L2, C]
+            residual_x: optional tensor; when given, the chunked path adds the
+                output directly back into it and returns None
         """
         context_img = context[:, :context_img_len]
         context = context[:, context_img_len:]
+
+        if x.shape[1] >= CHUNK_MIN_SEQ:
+            # Chunked path: K/V (image and text) come from the short context and
+            # stay resident; query, the two attentions and o projection run one
+            # chunk at a time.
+            b, s = x.shape[0], x.shape[1]
+            k_img = self.norm_k_img(self.k_img(context_img))
+            v_img = self.v_img(context_img)
+            k = self.norm_k(self.k(context))
+            v = self.v(context)
+            y = None if residual_x is not None else torch.empty_like(x)
+            for s0 in range(0, s, ATTN_CHUNK):
+                s1 = min(s0 + ATTN_CHUNK, s)
+                qc = self.norm_q(self.q(x[:, s0:s1]))
+                # containers are single-use; rebuild the zero-copy wrappers per call
+                # Sageattn can cause Nans here, don't allow it as there is no speed difference anyway as img attention is tiny.
+                img_x = optimized_attention(AttentionTensorContainer(qc), AttentionTensorContainer(k_img), AttentionTensorContainer(v_img), heads=self.num_heads, preferred_attention=self.comfy_attention, transformer_options=transformer_options, low_precision_attention=False)
+                attn = optimized_attention(AttentionTensorContainer(qc), AttentionTensorContainer(k), AttentionTensorContainer(v), heads=self.num_heads, preferred_attention=self.comfy_attention, transformer_options=transformer_options)
+                out = self.o(img_x + attn)
+                if residual_x is not None:
+                    residual_x[:, s0:s1].add_(out)
+                else:
+                    y[:, s0:s1] = out
+            return y
 
         # compute query, key, value
         q = self.norm_q(self.q(x))
@@ -329,7 +376,9 @@ class WanAttentionBlock(nn.Module):
             x.addcmul_(y, repeat_e(e[2], x))
 
         # cross-attention & ffn
-        x = x + self.cross_attn(self.norm3(x), context, context_img_len=context_img_len, transformer_options=transformer_options)
+        y = self.cross_attn(self.norm3(x), context, context_img_len=context_img_len, transformer_options=transformer_options, residual_x=x)
+        if y is not None:
+            x.add_(y)
 
         if "attn2_patch" in patches:
             for p in patches["attn2_patch"]:
