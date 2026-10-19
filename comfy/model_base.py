@@ -2808,6 +2808,18 @@ class MOSSImage(BaseModel):
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         return out
 
+    def concat_cond(self, **kwargs):
+        # control adapters widen video_embedder, zeros are no control
+        noise = kwargs["noise"]
+        channels = self.diffusion_model.video_embedder.weight.shape[1] - noise.shape[1]
+        if channels <= 0:
+            return None
+        image = kwargs.get("concat_latent_image", None)
+        if image is None:
+            return noise.new_zeros((noise.shape[0], channels) + noise.shape[2:])
+        image = utils.common_upscale(image.to(kwargs["device"]), noise.shape[-1], noise.shape[-2], "bilinear", "center")
+        return utils.resize_to_batch_size(self.process_latent_in(image), noise.shape[0])
+
 class HunyuanImage21(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.hunyuan_video.model.HunyuanVideo)
