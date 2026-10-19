@@ -473,6 +473,8 @@ def calculate_shape(patches, weight, key, original_weights=None):
             patch_type, patch_data = v[0], v[1]
             if patch_type == "diff" and len(patch_data) > 1 and patch_data[1]['pad_weight']:
                 current_shape = patch_data[0].shape
+            elif patch_type == "set":
+                current_shape = patch_data[0].shape
 
     return current_shape
 
@@ -527,7 +529,10 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32, ori
                 else:
                     weight += function(strength * comfy.model_management.cast_to_device(diff, weight.device, weight.dtype))
         elif patch_type == "set":
-            weight.copy_(v[0])
+            if v[0].shape != weight.shape:
+                weight = comfy.model_management.cast_to_device(v[0], weight.device, weight.dtype, copy=True)
+            else:
+                weight.copy_(v[0])
         elif patch_type == "model_as_lora":
             target_weight: torch.Tensor = v[0]
             diff_weight = comfy.model_management.cast_to_device(target_weight, weight.device, intermediate_dtype) - \
