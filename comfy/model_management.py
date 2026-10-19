@@ -2020,6 +2020,9 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
     return False
 
 def supports_fp8_compute(device=None):
+    if is_device_cpu(device):
+        return False
+
     if SUPPORT_FP8_OPS:
         return True
 
@@ -2044,6 +2047,9 @@ def supports_fp8_compute(device=None):
     return True
 
 def supports_nvfp4_compute(device=None):
+    if is_device_cpu(device):
+        return False
+
     if not is_nvidia():
         return False
 
@@ -2054,6 +2060,9 @@ def supports_nvfp4_compute(device=None):
     return True
 
 def supports_mxfp8_compute(device=None):
+    if is_device_cpu(device):
+        return False
+
     if not is_nvidia():
         return False
 
@@ -2082,6 +2091,9 @@ def supports_fp64(device=None):
     return True
 
 def supports_int8_compute(device=None):
+    if is_device_cpu(device):
+        return False
+
     # The eager comfy_kitchen backend implements int8 weight-only quantized
     # matmul via torch._int_mm, which PyTorch does not implement for MPS.
     # https://github.com/pytorch/pytorch/issues/141287
