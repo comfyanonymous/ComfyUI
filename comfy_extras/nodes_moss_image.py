@@ -2,7 +2,11 @@ import json
 import math
 import re
 
+import torch
 from typing_extensions import override
+
+import comfy.utils
+import node_helpers
 from comfy_api.latest import ComfyExtension, io
 
 
@@ -47,11 +51,51 @@ class MOSSImageLayoutPrompt(io.ComfyNode):
         return io.NodeOutput(json.dumps(layout, ensure_ascii=False, separators=(",", ":")))
 
 
+class MOSSImageControl(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="MOSSImageControl",
+            display_name="MOSS-Image Color/Depth Control",
+            category="model/conditioning/moss_image",
+            description="Adds the color region and depth maps for a MOSS-Image color/depth control adapter loaded with a LoRA loader.",
+            inputs=[
+                io.Conditioning.Input("positive"),
+                io.Conditioning.Input("negative"),
+                io.Vae.Input("vae"),
+                io.Image.Input("color_map", optional=True, tooltip="One flat color per region, at the output size. The colors are only region IDs."),
+                io.Image.Input("depth_map", optional=True, tooltip="Depth map at the output size, near is white."),
+                io.Float.Input("strength", default=1.0, min=0.0, max=10.0, step=0.01, tooltip="Scales the maps' contribution to the image tokens. 0.0 is the same as no maps, 1.0 is the trained strength."),
+                io.Float.Input("start_percent", default=0.0, min=0.0, max=1.0, step=0.001, tooltip="Sampling percent at which the control starts."),
+                io.Float.Input("end_percent", default=1.0, min=0.0, max=1.0, step=0.001, tooltip="Sampling percent at which the control ends. Ending early keeps the layout and depth while the rest of the steps loosen the shapes."),
+            ],
+            outputs=[io.Conditioning.Output(display_name="positive"), io.Conditioning.Output(display_name="negative")],
+            is_experimental=True,
+        )
+
+    @classmethod
+    def execute(cls, positive, negative, vae, color_map=None, depth_map=None, strength=1.0, start_percent=0.0, end_percent=1.0) -> io.NodeOutput:
+        latents = [vae.encode(m[:, :, :, :3]) if m is not None else None for m in (color_map, depth_map)]
+        ref = next((latent for latent in latents if latent is not None), None)
+        if ref is None:
+            return io.NodeOutput(positive, negative)
+        batch = max(latent.shape[0] for latent in latents if latent is not None)
+        # [color | depth]; a missing map is a zero latent
+        latents = [torch.zeros_like(ref) if latent is None else latent if latent.shape[-2:] == ref.shape[-2:]
+                   else comfy.utils.common_upscale(latent, ref.shape[-1], ref.shape[-2], "bilinear", "center") for latent in latents]
+        # the embedder is linear and zeros are no control, so scaling the latent scales the control's contribution
+        control = torch.cat([comfy.utils.resize_to_batch_size(latent, batch) for latent in latents], dim=1) * strength
+        values = {"concat_latent_image": control}
+        return io.NodeOutput(node_helpers.conditioning_set_values_with_timestep_range(positive, values, start_percent, end_percent),
+                             node_helpers.conditioning_set_values_with_timestep_range(negative, values, start_percent, end_percent))
+
+
 class MOSSImageExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             MOSSImageLayoutPrompt,
+            MOSSImageControl,
         ]
 
 
