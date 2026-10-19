@@ -591,6 +591,8 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
         # add a heads dimension if there isn't already one
         if mask.ndim == 3:
             mask = mask.unsqueeze(1)
+        if mask.is_floating_point() and mask.dtype != q.dtype:
+            mask = mask.to(dtype=q.dtype)
 
     sdpa_keys = ("scale", "enable_gqa")
     sdpa_extra = {k: v for k, v in kwargs.items() if k in sdpa_keys}
