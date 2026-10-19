@@ -1010,10 +1010,11 @@ _FLUX3_ASPECT_RATIOS = ["auto", "21:9", "2:1", "16:9", "4:3", "1:1", "3:4", "9:1
 _FLUX3_MIN_DURATION = 5
 _FLUX3_MAX_DURATION = 20
 _FLUX3_DURATIONS = ["auto"] + [str(i) for i in range(_FLUX3_MIN_DURATION, _FLUX3_MAX_DURATION + 1)]
-_FLUX3_RESOLUTIONS = {"720p": "hd", "1080p": "fhd"}
+_FLUX3_RESOLUTIONS = {"720p": "hd", "1080p": "fhd", "1440p": "qhd", "2160p": "uhd"}
 _FLUX3_MAX_IMAGES = 10
 _FLUX3_MIN_IMAGE_SIDE = 256
 _FLUX3_MAX_IMAGE_ASPECT = 64
+_FLUX3_MAX_START_VIDEO_PIXELS = 3840 * 2160
 
 
 def _flux3_validate_image(image: torch.Tensor) -> None:
@@ -1069,8 +1070,7 @@ def _flux3_parse_times(value: str, image_count: int, duration: int | str) -> lis
 class Flux3VideoNodeBase(IO.ComfyNode):
     """Shared widgets, request plumbing and polling for the FLUX 3 generation modes."""
 
-    RATE_HD: float
-    RATE_FHD: float
+    RATES: dict[str, float]
 
     @classmethod
     def common_inputs(cls) -> list:
@@ -1145,7 +1145,7 @@ class Flux3VideoNodeBase(IO.ComfyNode):
             depends_on=IO.PriceBadgeDepends(widgets=["resolution", "duration"]),
             expr=f"""
                 (
-                  $rate := widgets.resolution = "1080p" ? {cls.RATE_FHD} : {cls.RATE_HD};
+                  $rate := $lookup({json.dumps(cls.RATES)}, widgets.resolution);
                   $type(widgets.duration) = "string" and widgets.duration != "auto"
                     ? {{"type":"usd","usd": $rate * $number(widgets.duration)}}
                     : {{"type":"usd","usd": $rate, "format": {{"suffix": "/second"}}}}
@@ -1192,8 +1192,7 @@ async def _bfl_video_execute(
 
 
 class Flux3TextToVideoNode(Flux3VideoNodeBase):
-    RATE_HD = 0.2431
-    RATE_FHD = 0.4147
+    RATES = {"720p": 0.2431, "1080p": 0.4147, "1440p": 0.572, "2160p": 1.144}
 
     @classmethod
     def define_schema(cls) -> IO.Schema:
@@ -1240,8 +1239,7 @@ class Flux3TextToVideoNode(Flux3VideoNodeBase):
 
 
 class Flux3ImageToVideoNode(Flux3VideoNodeBase):
-    RATE_HD = 0.2431
-    RATE_FHD = 0.4147
+    RATES = {"720p": 0.2431, "1080p": 0.4147, "1440p": 0.572, "2160p": 1.144}
 
     @classmethod
     def define_schema(cls) -> IO.Schema:
@@ -1338,8 +1336,7 @@ class Flux3ImageToVideoNode(Flux3VideoNodeBase):
 
 
 class Flux3VideoContinuationNode(Flux3VideoNodeBase):
-    RATE_HD = 0.5863
-    RATE_FHD = 0.7579
+    RATES = {"720p": 0.5863, "1080p": 0.7579, "1440p": 0.9295, "2160p": 1.3585}
 
     @classmethod
     def define_schema(cls) -> IO.Schema:
@@ -1350,7 +1347,10 @@ class Flux3VideoContinuationNode(Flux3VideoNodeBase):
             description="Continues a video with FLUX 3: the new clip carries on from the final frames "
             "of the one you provide.",
             inputs=[
-                IO.Video.Input("video", tooltip="The clip to continue."),
+                IO.Video.Input(
+                    "video",
+                    tooltip="The clip to continue. Clips over 3840x2160 pixels in area are downscaled to fit.",
+                ),
                 IO.String.Input(
                     "prompt",
                     multiline=True,
@@ -1383,6 +1383,7 @@ class Flux3VideoContinuationNode(Flux3VideoNodeBase):
         seed: int,
     ) -> IO.NodeOutput:
         fields = cls.common_fields(prompt, aspect_ratio, duration, resolution, generate_audio, safety_tolerance)
+        video = downscale_video_to_max_pixels(video, _FLUX3_MAX_START_VIDEO_PIXELS)
         url = await upload_video_to_comfyapi(cls, video, wait_label="Uploading source video")
         request = Flux3VideoContinuationRequest(start_video=url, **fields)
         return await _bfl_video_execute(cls, _FLUX3_VIDEO_ENDPOINT, request)
