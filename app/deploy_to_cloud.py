@@ -269,9 +269,9 @@ MODEL_EXTENSIONS = set(folder_paths.supported_pt_extensions) | {".gguf", ".onnx"
 
 
 def list_models() -> list[dict]:
-    """Model files as folder name + relative path. Identical relative paths under two roots of one folder collapse to one entry."""
+    """Model files as folder name + /-separated relative path. Identical relative paths under two roots of one folder collapse to one entry."""
     return [
-        {"directory": folder, "filename": filename}
+        {"directory": folder, "filename": filename.replace(os.sep, "/")}
         for folder in list(folder_paths.folder_names_and_paths)
         if folder not in ("custom_nodes", "configs")
         for filename in folder_paths.get_filename_list(folder)
