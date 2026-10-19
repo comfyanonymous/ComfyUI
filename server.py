@@ -256,15 +256,6 @@ def create_block_external_middleware():
     return block_external_middleware
 
 
-def _server_features() -> dict:
-    """Feature flags sent to clients: the shared ones plus the deploy-to-cloud flags this server owns."""
-    return {
-        **feature_flags.get_server_features(),
-        "used_headlessly": deploy_to_cloud.used_headlessly(),
-        "deploy_to_cloud": not args.offline,
-    }
-
-
 class PromptServer():
     def __init__(self, loop, asset_manager: "AssetManager"):
         PromptServer.instance = self
@@ -382,7 +373,7 @@ class PromptServer():
                                 # Send server feature flags in response
                                 await self.send(
                                     "feature_flags",
-                                    _server_features(),
+                                    feature_flags.get_server_features(),
                                     sid,
                                 )
 
@@ -834,7 +825,7 @@ class PromptServer():
 
         @routes.get("/features")
         async def get_features(request):
-            features = _server_features()
+            features = feature_flags.get_server_features()
             overrides = get_environment_overrides()
             if overrides:
                 features.update(overrides)

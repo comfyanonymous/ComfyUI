@@ -15,6 +15,7 @@ from aiohttp import web
 
 import folder_paths
 from comfy.cli_args import args
+from comfy_api import feature_flags
 from comfy.comfy_api_env import builder_base_url, platform_base_url
 from comfyui_version import __version__
 
@@ -30,6 +31,10 @@ def used_headlessly() -> bool:
     return os.path.exists(headless_marker_path())
 
 
+def update_feature_flag() -> None:
+    feature_flags.set_server_feature("deploy_to_cloud", not args.offline and used_headlessly())
+
+
 def mark_used_headlessly() -> None:
     """Record, once and permanently, that a prompt was queued without a client_id."""
     global _marker_warning_logged
@@ -43,6 +48,8 @@ def mark_used_headlessly() -> None:
         if not _marker_warning_logged:
             _marker_warning_logged = True
             logging.warning("Could not write headless marker %s: %s", path, e)
+        return
+    update_feature_flag()
 
 
 # Installation snapshot in Comfy-Desktop's "comfyui-desktop-2-snapshot" format.
@@ -359,6 +366,7 @@ def _created(data) -> tuple | None:
 class DeployToCloudRoutes:
     def __init__(self, prompt_server):
         self.prompt_server = prompt_server
+        update_feature_flag()
 
     def add_routes(self, app: web.Application) -> None:
         app.add_routes([
