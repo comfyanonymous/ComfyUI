@@ -81,3 +81,43 @@ async def test_selected_frontend_does_not_require_default_package(tmp_path, monk
         response = await client.get("/asset.js")
         assert response.status == 200
         assert await response.text() == "selected asset"
+
+
+@pytest.mark.asyncio
+async def test_failed_selected_frontend_serves_symlinked_default_asset(tmp_path, monkeypatch):
+    cache_file = tmp_path / "cache" / "asset.js"
+    cache_file.parent.mkdir()
+    cache_file.write_text("fallback asset")
+    root = tmp_path / "default"
+    root.mkdir()
+    (root / "asset.js").symlink_to(cache_file)
+
+    def fail_selected(_version):
+        raise RuntimeError("selected frontend unavailable")
+
+    monkeypatch.setattr(args, "front_end_root", None)
+    monkeypatch.setattr(args, "front_end_version", "owner/frontend@v1.0.0")
+    monkeypatch.setattr(FrontendManager, "frontend_fallback", False, raising=False)
+    monkeypatch.setattr(FrontendManager, "init_frontend_unsafe", fail_selected)
+    monkeypatch.setattr(FrontendManager, "default_frontend_path", lambda: str(root))
+    monkeypatch.setattr("app.frontend_management.check_comfy_packages_versions", lambda: None)
+    monkeypatch.setattr(FrontendManager, "get_installed_templates_version", lambda: None)
+    monkeypatch.setattr(FrontendManager, "legacy_templates_path", lambda: None)
+    monkeypatch.setattr(FrontendManager, "embedded_docs_path", lambda: None)
+
+    prompt_server = server.PromptServer(None, MagicMock(enabled=False))
+    prompt_server.add_routes()
+    async with TestClient(TestServer(prompt_server.app)) as client:
+        response = await client.get("/asset.js")
+        assert response.status == 200
+        assert await response.text() == "fallback asset"
+
+    selected = tmp_path / "selected"
+    selected.mkdir()
+    (selected / "asset.js").symlink_to(cache_file)
+    monkeypatch.setattr(FrontendManager, "init_frontend_unsafe", lambda _version: str(selected))
+    prompt_server = server.PromptServer(None, MagicMock(enabled=False))
+    prompt_server.add_routes()
+    async with TestClient(TestServer(prompt_server.app)) as client:
+        response = await client.get("/asset.js")
+        assert response.status == 404

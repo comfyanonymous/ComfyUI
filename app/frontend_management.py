@@ -204,6 +204,7 @@ def download_release_asset_zip(release: Release, destination_path: str) -> None:
 
 class FrontendManager:
     CUSTOM_FRONTENDS_ROOT = str(Path(__file__).parents[1] / "web_custom_versions")
+    frontend_fallback = False
 
     @classmethod
     def get_required_frontend_version(cls) -> str:
@@ -427,13 +428,16 @@ comfyui-workflow-templates is not installed.
         Returns:
             str: The path of the initialized frontend.
         """
+        cls.frontend_fallback = False
         try:
             return cls.init_frontend_unsafe(version_string)
         except Exception as e:
             logging.error("Failed to initialize frontend: %s", e)
             logging.info("Falling back to the default frontend.")
             check_comfy_packages_versions()
-            return cls.default_frontend_path()
+            frontend_path = cls.default_frontend_path()
+            cls.frontend_fallback = True
+            return frontend_path
     @classmethod
     def template_asset_handler(cls):
         assets = cls.template_asset_map()

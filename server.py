@@ -1373,7 +1373,7 @@ class PromptServer():
             ])
 
         self.app.add_routes([
-            web.static('/', self.web_root, follow_symlinks=args.front_end_root is None and args.front_end_version == DEFAULT_VERSION_STRING),
+            web.static('/', self.web_root, follow_symlinks=args.front_end_root is None and (args.front_end_version == DEFAULT_VERSION_STRING or FrontendManager.frontend_fallback)),
         ])
 
     def get_queue_info(self):
