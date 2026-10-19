@@ -79,23 +79,15 @@ class MOSSImageControl(io.ComfyNode):
         ref = next((latent for latent in latents if latent is not None), None)
         if ref is None:
             return io.NodeOutput(positive, negative)
+        batch = max(latent.shape[0] for latent in latents if latent is not None)
         # [color | depth]; a missing map is a zero latent
         latents = [torch.zeros_like(ref) if latent is None else latent if latent.shape[-2:] == ref.shape[-2:]
                    else comfy.utils.common_upscale(latent, ref.shape[-1], ref.shape[-2], "bilinear", "center") for latent in latents]
         # the embedder is linear and zeros are no control, so scaling the latent scales the control's contribution
-        control = torch.cat(latents, dim=1) * strength
-
-        def windowed(cond):
-            if start_percent <= 0.0 and end_percent >= 1.0:
-                return node_helpers.conditioning_set_values(cond, {"concat_latent_image": control})
-            # the control rides a cond limited to the window, conds without it cover the rest
-            parts = node_helpers.conditioning_set_values(cond, {"concat_latent_image": control, "start_percent": start_percent, "end_percent": end_percent})
-            if start_percent > 0.0:
-                parts += node_helpers.conditioning_set_values(cond, {"start_percent": 0.0, "end_percent": start_percent})
-            if end_percent < 1.0:
-                parts += node_helpers.conditioning_set_values(cond, {"start_percent": end_percent, "end_percent": 1.0})
-            return parts
-        return io.NodeOutput(windowed(positive), windowed(negative))
+        control = torch.cat([comfy.utils.resize_to_batch_size(latent, batch) for latent in latents], dim=1) * strength
+        values = {"concat_latent_image": control}
+        return io.NodeOutput(node_helpers.conditioning_set_values_with_timestep_range(positive, values, start_percent, end_percent),
+                             node_helpers.conditioning_set_values_with_timestep_range(negative, values, start_percent, end_percent))
 
 
 class MOSSImageExtension(ComfyExtension):
