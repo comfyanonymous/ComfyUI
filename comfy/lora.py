@@ -352,6 +352,15 @@ def model_lora_keys_unet(model, key_map={}):
                     key_map[key_lora] = (k, (0, i * third, third))
                     key_map["lora_unet_{}".format(key_lora[len("diffusion_model."):].replace(".", "_"))] = (k, (0, i * third, third))
 
+    if isinstance(model, comfy.model_base.MOSSImage):
+        for k in sdk:
+            if k.endswith(".proj.qkv.weight"):  # fused q/k/v files; LoRAs address the separate projections
+                third = sd[k].shape[0] // 3
+                for i, proj in enumerate(("q", "k", "v")):
+                    key_lora = "{}.{}".format(k[:-len(".qkv.weight")], proj)
+                    key_map[key_lora] = (k, (0, i * third, third))
+                    key_map["lora_unet_{}".format(key_lora[len("diffusion_model."):].replace(".", "_"))] = (k, (0, i * third, third))
+
     if isinstance(model, comfy.model_base.Krea2):
         diffusers_keys = comfy.utils.krea2_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
         for k in diffusers_keys:
@@ -464,6 +473,8 @@ def calculate_shape(patches, weight, key, original_weights=None):
             patch_type, patch_data = v[0], v[1]
             if patch_type == "diff" and len(patch_data) > 1 and patch_data[1]['pad_weight']:
                 current_shape = patch_data[0].shape
+            elif patch_type == "set":
+                current_shape = patch_data[0].shape
 
     return current_shape
 
@@ -518,7 +529,10 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32, ori
                 else:
                     weight += function(strength * comfy.model_management.cast_to_device(diff, weight.device, weight.dtype))
         elif patch_type == "set":
-            weight.copy_(v[0])
+            if v[0].shape != weight.shape:
+                weight = comfy.model_management.cast_to_device(v[0], weight.device, weight.dtype, copy=True)
+            else:
+                weight.copy_(v[0])
         elif patch_type == "model_as_lora":
             target_weight: torch.Tensor = v[0]
             diff_weight = comfy.model_management.cast_to_device(target_weight, weight.device, intermediate_dtype) - \

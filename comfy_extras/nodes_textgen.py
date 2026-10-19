@@ -81,10 +81,14 @@ class TextGenerate(io.ComfyNode):
 
         generated_text = clip.decode(generated_ids)
 
-        # Reasoning opens in the generated text or at the end of a raw prompt, and has no close when max_length cut it short.
-        reasoning, _, text = generated_text.partition("</think>")
-        if not reasoning.lstrip().startswith("<think>") and not prompt.rstrip().endswith("<think>"):
-            reasoning, text = "", generated_text
+        # </think> ends reasoning; without one, reasoning opened by the output or prompt was cut off by max_length
+        reasoning, sep, text = generated_text.partition("</think>")
+        if not sep and not reasoning.lstrip().startswith("<think>"):
+            if isinstance(tokens, dict):
+                tokens = next(iter(tokens.values()))
+            prompt_ids = [t[0] for t in tokens[-1] if isinstance(t, tuple) and isinstance(t[0], int)]
+            if not prompt.rstrip().endswith("<think>") and not clip.decode(prompt_ids[-4:]).rstrip().endswith("<think>"):
+                reasoning, text = "", generated_text
 
         return io.NodeOutput(text.strip(), reasoning.replace("<think>", "", 1).strip())
 

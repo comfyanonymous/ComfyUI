@@ -83,6 +83,7 @@ import comfy.ldm.sensenova.conditioning
 import comfy.ldm.sensenova.model
 from comfy.ldm.sensenova.sampling import SenseNovaModelSampling, time_snr_shift
 import comfy.ldm.depth_anything_3.model
+import comfy.ldm.moss_image.model
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -2794,6 +2795,30 @@ class Krea2(BaseModel):
         if ref_latents is not None:
             out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
         return out
+
+class MOSSImage(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.moss_image.model.MOSSImage)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        # rope positions follow the true text length, so no repeat padding: cond and uncond of different lengths run separately
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        return out
+
+    def concat_cond(self, **kwargs):
+        # control adapters widen video_embedder, zeros are no control
+        noise = kwargs["noise"]
+        channels = self.diffusion_model.video_embedder.weight.shape[1] - noise.shape[1]
+        if channels <= 0:
+            return None
+        image = kwargs.get("concat_latent_image", None)
+        if image is None:
+            return noise.new_zeros((noise.shape[0], channels) + noise.shape[2:])
+        image = utils.common_upscale(image.to(kwargs["device"]), noise.shape[-1], noise.shape[-2], "bilinear", "center")
+        return utils.resize_to_batch_size(self.process_latent_in(image), noise.shape[0])
 
 class HunyuanImage21(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
