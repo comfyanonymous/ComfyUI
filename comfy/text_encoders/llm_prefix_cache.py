@@ -13,6 +13,11 @@ COMFY_LLM_PREFILL_CHUNK: prefill in chunks of this many tokens (0 = one pass).
 COMFY_LLM_PREFIX_CACHE_HOST_GB: cap on the parked (host) copy; least recently used checkpoints are dropped to fit,
 and the KV is cut to the last checkpoint kept. On Windows, pinned and pageable RAM count against commit; disk mode
 maps its files shared, which does not.
+
+The KV is truncated by moving every layer's index back (FixedKVCache masks slots at and past its seqlen). Attention
+must use the bf16 FixedKVCache: Int8FixedKVCache can't continue a prefill from a cached prefix (its append
+re-initialises the packed store and attends only the new segment), so GatedAttention picks FixedKVCache while the
+cache is on.
 """
 import json
 import logging
@@ -107,13 +112,9 @@ def _sync(device):
 
 class _Slot:
     def __init__(self, key, pkv):
-        from .llama import FixedKVBias
+        from .llama import FixedKVCache
         self.key = key
-        self.attn = {i: kv for i, kv in enumerate(pkv) if isinstance(kv, FixedKVBias)}
-        self.shared = None
-        for kv in self.attn.values():
-            self.shared = (kv.position, kv.bias, kv.tracker)
-            break
+        self.attn = {i: kv for i, kv in enumerate(pkv) if type(kv) is FixedKVCache}
         self.capacity = next(iter(self.attn.values())).key.shape[2]
         self.kv_len = 0
         self.ids = []  # the tokens the KV holds, up to kv_len
@@ -168,7 +169,6 @@ class _Slot:
         self.where = "disk" if host.disk else "pinned"
         self.checkpoints = cps
         self.attn = None
-        self.shared = None
         _release_host()
         stats["park_s"] = round(time.perf_counter() - t, 3)
         logging.info("llm prefix cache: parked %.2f GB (%s) in %.3f s", self.nbytes() / 1e9, MODE, stats["park_s"])
@@ -195,16 +195,16 @@ def _match(ids):
 
 
 def _set_prefix(pkv, n):
-    # every layer at index n; decode bias open below n and closed from n on
-    from .llama import FixedKVBias
+    # every layer at index n; the next prepare() rewrites the shared position/seqlen (slots from n on are masked)
+    from .llama import FixedKVState
+    from .qwen35 import LinearKV
     for kv in pkv:
         kv.index = n
-    for kv in pkv:
-        if isinstance(kv, FixedKVBias):
-            kv.bias[..., :n] = 0
-            kv.bias[..., n:] = torch.finfo(kv.bias.dtype).min
+        if isinstance(kv, FixedKVState):
             kv.tracker["step"] = -1
-            break
+        elif isinstance(kv, LinearKV):
+            kv.uncommitted = 0
+            kv.ctl_tracker["step"] = None
 
 
 def _restore(model, key, ids, need, device, dtype):
@@ -236,8 +236,9 @@ def _restore(model, key, ids, need, device, dtype):
             pkv[i].key[:, :, :n].copy_(k[:, :, :n], non_blocking=True)
             pkv[i].value[:, :, :n].copy_(v[:, :, :n], non_blocking=True)
         stats["restore"] = ("from-" + _slot.where) if _slot.cpu is not None else "grow"
+    tracker = LinearKV.deferred_tracker(device)
     for i, (c, r) in st.items():
-        pkv[i] = LinearKV(c.to(device, copy=True, non_blocking=True), r.to(device, copy=True, non_blocking=True), n, None, None)
+        pkv[i] = model.make_linear_kv(c.to(device, copy=True, non_blocking=True), r.to(device, copy=True, non_blocking=True), n, device, dtype, tracker)
     _set_prefix(pkv, n)
     # the slot is rebuilt from this call's cache in prefill(); the parked KV goes now
     _slot = None
@@ -267,6 +268,9 @@ def prefill(model, embeds, ids, capacity, forward):
     t0 = time.perf_counter()
     stats["t0"] = t0
     pkv, n, checkpoints = _restore(model, key, ids, capacity, device, dtype)
+    from .llama import FixedKVCache
+    if not any(type(kv) is FixedKVCache for kv in pkv):
+        raise RuntimeError("llm prefix cache needs the bf16 FixedKVCache for attention (see the module docstring)")
     _sync(device)
     t1 = time.perf_counter()
     stats.update(prompt_len=len(ids), prefix_len=n, hit=n > 0, restore_s=round(t1 - t0, 3))
@@ -315,8 +319,6 @@ def _linear_states(pkv, clone):
     for i, kv in enumerate(pkv):
         if isinstance(kv, LinearKV):
             out[i] = (kv.conv_state.clone(), kv.recurrent_state.clone()) if clone else (kv.conv_state, kv.recurrent_state)
-            if not clone:
-                kv.snapshots = kv.snap_backing = kv.conv_snap_backing = None
     return out
 
 
@@ -335,7 +337,11 @@ def finish(pkv, ids, generated):
     stats["gen_tokens"] = len(generated)
     stats["gen_ids"] = list(generated)
     full = list(ids) + list(generated)
-    idx = next(kv.index for kv in pkv if isinstance(kv, LinearKV))
+    lin = next(kv for kv in pkv if isinstance(kv, LinearKV))
+    # deferred commit: a decode step leaves the DeltaNet state untouched until the next step, so the state lags the
+    # index by the last step's still-uncommitted tokens
+    idx = lin.index - lin.uncommitted
+    stats["uncommitted"] = lin.uncommitted
     if _slot.cpu is None and len(ids) < idx <= len(full):
         # MTP may have consumed accepted drafts past a stop token: then idx > len(full) and the state is unusable
         _slot.checkpoints[idx] = _linear_states(pkv, clone=False)

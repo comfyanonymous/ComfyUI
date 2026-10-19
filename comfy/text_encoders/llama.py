@@ -1221,46 +1221,6 @@ class BaseGenerate:
                     current_input_ids = decode_tokens if initial_input_ids is not None else None
                     position_ids = torch.tensor([[next_pos]], device=device) if next_pos is not None else None
 
-<<<<<<< HEAD
-            # DeepStack visual features are injected on the prefill only; gemma4's forward lacks these kwargs.
-            extra = {}
-            if decode_buffers is not None:
-                extra["decode_buffers"] = decode_buffers
-            if step == 0 and deepstack_embeds is not None:
-                extra["deepstack_embeds"] = deepstack_embeds
-                extra["visual_pos_masks"] = visual_pos_masks
-            if step == 0 and cache_ids is not None:
-                past_key_values, x = llm_prefix_cache.prefill(self, embeds, cache_ids, max_cache_len,
-                                                              lambda e, pkv: self.model.forward(None, embeds=e, attention_mask=None, past_key_values=pkv, **extra)[0])
-            else:
-                x, _, past_key_values = self.model.forward(None, embeds=embeds, attention_mask=None, past_key_values=past_key_values, input_ids=current_input_ids, position_ids=position_ids, **extra, embeds_info=(embeds_info if step == 0 else None))
-            logits = self.logits(x)[:, -1]
-            if cache_ids is not None and llm_prefix_cache.MARGINS and step < 64:
-                top2 = logits[0].float().topk(2).values
-                llm_prefix_cache.stats.setdefault("margins", []).append(round((top2[0] - top2[1]).item(), 3))
-            if penalty_mask is None and do_sample and penalize:
-                # allocated on the (unbracketed) first step; later steps only index_fill_ it
-                penalty_mask = torch.zeros((logits.shape[-1],), dtype=torch.bool, device=device)
-                if len(initial_tokens) > 0:
-                    penalty_mask.index_fill_(0, torch.tensor(initial_tokens, device=device), True)
-            next_token = self.sample_token(logits, temperature, top_k, top_p, min_p, repetition_penalty, [], generator, do_sample=do_sample, presence_penalty=presence_penalty, penalty_mask=penalty_mask)
-||||||| e8665ca8e
-            # DeepStack visual features are injected on the prefill only; gemma4's forward lacks these kwargs.
-            extra = {}
-            if decode_buffers is not None:
-                extra["decode_buffers"] = decode_buffers
-            if step == 0 and deepstack_embeds is not None:
-                extra["deepstack_embeds"] = deepstack_embeds
-                extra["visual_pos_masks"] = visual_pos_masks
-            x, _, past_key_values = self.model.forward(None, embeds=embeds, attention_mask=None, past_key_values=past_key_values, input_ids=current_input_ids, position_ids=position_ids, **extra, embeds_info=(embeds_info if step == 0 else None))
-            logits = self.logits(x)[:, -1]
-            if penalty_mask is None and do_sample and penalize:
-                # allocated on the (unbracketed) first step; later steps only index_fill_ it
-                penalty_mask = torch.zeros((logits.shape[-1],), dtype=torch.bool, device=device)
-                if len(initial_tokens) > 0:
-                    penalty_mask.index_fill_(0, torch.tensor(initial_tokens, device=device), True)
-            next_token = self.sample_token(logits, temperature, top_k, top_p, min_p, repetition_penalty, [], generator, do_sample=do_sample, presence_penalty=presence_penalty, penalty_mask=penalty_mask)
-=======
                 # DeepStack visual features are injected on the prefill only; gemma4's forward lacks these kwargs.
                 extra = {}
                 if decode_buffers is not None:
@@ -1271,15 +1231,21 @@ class BaseGenerate:
                 if step == 0 and deepstack_embeds is not None:
                     extra["deepstack_embeds"] = deepstack_embeds
                     extra["visual_pos_masks"] = visual_pos_masks
-                x, _, past_key_values = self.model.forward(None, embeds=embeds, attention_mask=None, past_key_values=past_key_values, input_ids=current_input_ids, position_ids=position_ids, **extra, embeds_info=(embeds_info if step == 0 else None))
+                if step == 0 and cache_ids is not None:
+                    past_key_values, x = llm_prefix_cache.prefill(self, embeds, cache_ids, max_cache_len,
+                                                                  lambda e, pkv: self.model.forward(None, embeds=e, attention_mask=None, past_key_values=pkv, **extra)[0])
+                else:
+                    x, _, past_key_values = self.model.forward(None, embeds=embeds, attention_mask=None, past_key_values=past_key_values, input_ids=current_input_ids, position_ids=position_ids, **extra, embeds_info=(embeds_info if step == 0 else None))
                 logits = self.logits(x)[:, -1]
+                if cache_ids is not None and llm_prefix_cache.MARGINS and step < 64:
+                    top2 = logits[0].float().topk(2).values
+                    llm_prefix_cache.stats.setdefault("margins", []).append(round((top2[0] - top2[1]).item(), 3))
                 if penalty_mask is None and do_sample and penalize:
                     # allocated on the (unbracketed) first step; later steps only index_fill_ it
                     penalty_mask = torch.zeros((logits.shape[-1],), dtype=torch.bool, device=device)
                     if len(initial_tokens) > 0:
                         penalty_mask.index_fill_(0, torch.tensor(initial_tokens, device=device), True)
                 next_token = self.sample_token(logits, temperature, top_k, top_p, min_p, repetition_penalty, [], generator, do_sample=do_sample, presence_penalty=presence_penalty, penalty_mask=penalty_mask)
->>>>>>> origin/master
 
                 decode_tokens.copy_(next_token)
                 if penalty_mask is not None:
@@ -1288,18 +1254,10 @@ class BaseGenerate:
                 if step > 0 and compile_allocations:
                     comfy.model_prefetch.malloc_graph_end()
 
-<<<<<<< HEAD
-            token_id = decode_tokens[0].item()
-            generated_token_ids.append(token_id)
-            if cache_ids is not None and step < 2:
-                llm_prefix_cache.note_token(step + 1)
-||||||| e8665ca8e
-            token_id = decode_tokens[0].item()
-            generated_token_ids.append(token_id)
-=======
                 token_id = decode_tokens[0].item()
                 generated_token_ids.append(token_id)
->>>>>>> origin/master
+                if cache_ids is not None and step < 2:
+                    llm_prefix_cache.note_token(step + 1)
 
                 if step == 0 and hasattr(self.model.embed_tokens, "_v"):
                     # prefill's transients can evict body pages and lower the VBAR watermark: let the decode fault them back

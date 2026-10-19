@@ -271,19 +271,8 @@ class GatedDeltaNet(nn.Module):
         a = self.in_proj_a(x)
 
         # Conv1d
-<<<<<<< HEAD
-        if use_recurrent:
-            # decode: exact-width causal window, weight resolved via the vbar-aware context
-            combined = torch.cat([past_key_value.conv_state, mixed_qkv], dim=-1)
-            if seq_len > 1:
-                past_key_value.last_seq = seq_len
-                for s in range(seq_len - 1):
-                    past_key_value.snapshots[s][1].copy_(combined[:, :, 1 + s:1 + s + self.conv_kernel_size - 1])
-            past_key_value.conv_state.copy_(combined[:, :, seq_len:])
-            with comfy.ops.CastBiasWeightContext(self.conv1d, combined, offloadable=True) as (conv_weight, conv_bias):
-                mixed_qkv = F.silu(F.conv1d(combined, conv_weight, conv_bias, groups=self.conv1d.groups))
-        elif past_key_value is not None and past_key_value.index > 0:
-            # prefill continuing a cached prefix: the conv window starts from the cached state
+        if past_key_value is not None and past_key_value.index > 0:
+            # spike prefix cache: prefill continuing a cached prefix, so the conv window starts from the cached state
             combined = torch.cat([past_key_value.conv_state, mixed_qkv], dim=-1)
             past_key_value.conv_state.copy_(combined[:, :, -past_key_value.conv_state.shape[-1]:])
             with comfy.ops.CastBiasWeightContext(self.conv1d, combined, offloadable=True) as (conv_weight, conv_bias):
@@ -294,30 +283,6 @@ class GatedDeltaNet(nn.Module):
                 conv_state_init = F.pad(mixed_qkv, (self.conv_kernel_size - mixed_qkv.shape[-1], 0))
                 conv_state.copy_(conv_state_init[:, :, -conv_state.shape[-1]:])
             mixed_qkv = F.silu(self.conv1d(mixed_qkv)[:, :, :seq_len])
-||||||| e8665ca8e
-        if use_recurrent:
-            # decode: exact-width causal window, weight resolved via the vbar-aware context
-            combined = torch.cat([past_key_value.conv_state, mixed_qkv], dim=-1)
-            if seq_len > 1:
-                past_key_value.last_seq = seq_len
-                for s in range(seq_len - 1):
-                    past_key_value.snapshots[s][1].copy_(combined[:, :, 1 + s:1 + s + self.conv_kernel_size - 1])
-            past_key_value.conv_state.copy_(combined[:, :, seq_len:])
-            with comfy.ops.CastBiasWeightContext(self.conv1d, combined, offloadable=True) as (conv_weight, conv_bias):
-                mixed_qkv = F.silu(F.conv1d(combined, conv_weight, conv_bias, groups=self.conv1d.groups))
-        else:
-            if past_key_value is not None:
-                conv_state = past_key_value.conv_state
-                conv_state_init = F.pad(mixed_qkv, (self.conv_kernel_size - mixed_qkv.shape[-1], 0))
-                conv_state.copy_(conv_state_init[:, :, -conv_state.shape[-1]:])
-            mixed_qkv = F.silu(self.conv1d(mixed_qkv)[:, :, :seq_len])
-=======
-        if past_key_value is not None:
-            conv_state = past_key_value.conv_state
-            conv_state_init = F.pad(mixed_qkv, (self.conv_kernel_size - mixed_qkv.shape[-1], 0))
-            conv_state.copy_(conv_state_init[:, :, -conv_state.shape[-1]:])
-        mixed_qkv = F.silu(self.conv1d(mixed_qkv)[:, :, :seq_len])
->>>>>>> origin/master
 
         # Split QKV and compute beta/g
         mixed_qkv = mixed_qkv.transpose(1, 2)  # [B, seq_len, conv_dim]
@@ -342,7 +307,8 @@ class GatedDeltaNet(nn.Module):
         # Delta rule
         core_attn_out, last_recurrent_state = torch_chunk_gated_delta_rule(
             query, key, value, g=g, beta=beta,
-            initial_state=None,
+            # spike prefix cache: a prefill after a restored (or earlier-chunk) state continues from it
+            initial_state=past_key_value.recurrent_state if past_key_value is not None and past_key_value.index > 0 else None,
             output_final_state=past_key_value is not None,
         )
 
@@ -351,34 +317,6 @@ class GatedDeltaNet(nn.Module):
             if last_recurrent_state is not None:
                 past_key_value.recurrent_state.copy_(last_recurrent_state.to(past_key_value.recurrent_state.dtype))
             present_key_value = past_key_value
-<<<<<<< HEAD
-        else:
-            core_attn_out, last_recurrent_state = torch_chunk_gated_delta_rule(
-                query, key, value, g=g, beta=beta,
-                initial_state=past_key_value.recurrent_state if past_key_value is not None and past_key_value.index > 0 else None,
-                output_final_state=past_key_value is not None,
-            )
-
-            present_key_value = None
-            if past_key_value is not None:
-                if last_recurrent_state is not None:
-                    past_key_value.recurrent_state.copy_(last_recurrent_state.to(past_key_value.recurrent_state.dtype))
-                present_key_value = past_key_value
-||||||| e8665ca8e
-        else:
-            core_attn_out, last_recurrent_state = torch_chunk_gated_delta_rule(
-                query, key, value, g=g, beta=beta,
-                initial_state=None,
-                output_final_state=past_key_value is not None,
-            )
-
-            present_key_value = None
-            if past_key_value is not None:
-                if last_recurrent_state is not None:
-                    past_key_value.recurrent_state.copy_(last_recurrent_state.to(past_key_value.recurrent_state.dtype))
-                present_key_value = past_key_value
-=======
->>>>>>> origin/master
 
         # Gated norm + output projection (shared)
         core_attn_out = self.norm(core_attn_out.reshape(-1, self.value_head_dim), z.reshape(-1, self.value_head_dim))
@@ -424,6 +362,8 @@ class GatedAttention(nn.Module):
         self.comfy_attention = ComfyAttention()
 
     def kv_cache_type(self, device, dtype):
+        if llm_prefix_cache.enabled():
+            return FixedKVCache  # the spike prefix cache continues prefills from a cached prefix; int8 can't
         method = self.comfy_attention.method
         if method == "comfy_kitchen_int8" or method is None and comfy.model_management.comfy_kitchen_attention_enabled():
             if dtype == torch.bfloat16 and self.head_dim == 256 and int8_decode_is_available(device):
@@ -1096,14 +1036,19 @@ class Qwen35(BaseLlama, BaseGenerate, torch.nn.Module):
                     [batch, conv_dim, model_config.conv_kernel_size - 1],
                     device=device, dtype=execution_dtype
                 )
-                kv = LinearKV(conv_state, recurrent_state, 0, None, None)
-                kv.qkv_buf, kv.proj_buf, kv.gates_buf, kv.sumsq_buf = comfy_kitchen.gated_delta_deferred_buffers(
-                    batch, conv_dim, model_config.linear_num_value_heads, model_config.linear_num_key_heads, execution_dtype, device)
-                kv.ctl, kv.ctl_tracker = tracker["ctl"], tracker
-                past_key_values.append(kv)
+                past_key_values.append(self.make_linear_kv(conv_state, recurrent_state, 0, device, execution_dtype, tracker))
             else:
                 past_key_values.append(self.model.layers[i].self_attn.init_kv_cache(batch, max_cache_len, device, execution_dtype, shared))
         return past_key_values
+
+    def make_linear_kv(self, conv_state, recurrent_state, index, device, execution_dtype, tracker):
+        # a DeltaNet layer's cache with the deferred-decode kernel buffers; every layer of one cache shares `tracker`
+        model_config = self.model.config
+        kv = LinearKV(conv_state, recurrent_state, index, None, None)
+        kv.qkv_buf, kv.proj_buf, kv.gates_buf, kv.sumsq_buf = comfy_kitchen.gated_delta_deferred_buffers(
+            conv_state.shape[0], conv_state.shape[1], model_config.linear_num_value_heads, model_config.linear_num_key_heads, execution_dtype, device)
+        kv.ctl, kv.ctl_tracker = tracker["ctl"], tracker
+        return kv
 
 # Tokenizer and Text Encoder Wrappers
 
