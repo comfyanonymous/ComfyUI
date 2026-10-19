@@ -343,6 +343,24 @@ def model_lora_keys_unet(model, key_map={}):
                     key_map["transformer.{}".format(key_lora)] = to
                     key_map["lycoris_{}".format(key_lora.replace(".", "_"))] = to #SimpleTuner lycoris format
 
+    if isinstance(model, comfy.model_base.Flux3):
+        for k in sdk:
+            if k.endswith(".qkv.weight"):  # fused q/k/v files; LoRAs address the separate projections
+                third = sd[k].shape[0] // 3
+                for i, proj in enumerate(("q_proj", "k_proj", "v_proj")):
+                    key_lora = "{}.{}".format(k[:-len(".qkv.weight")], proj)
+                    key_map[key_lora] = (k, (0, i * third, third))
+                    key_map["lora_unet_{}".format(key_lora[len("diffusion_model."):].replace(".", "_"))] = (k, (0, i * third, third))
+
+    if isinstance(model, comfy.model_base.MOSSImage):
+        for k in sdk:
+            if k.endswith(".proj.qkv.weight"):  # fused q/k/v files; LoRAs address the separate projections
+                third = sd[k].shape[0] // 3
+                for i, proj in enumerate(("q", "k", "v")):
+                    key_lora = "{}.{}".format(k[:-len(".qkv.weight")], proj)
+                    key_map[key_lora] = (k, (0, i * third, third))
+                    key_map["lora_unet_{}".format(key_lora[len("diffusion_model."):].replace(".", "_"))] = (k, (0, i * third, third))
+
     if isinstance(model, comfy.model_base.Krea2):
         diffusers_keys = comfy.utils.krea2_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
         for k in diffusers_keys:
