@@ -27,6 +27,10 @@ def test_is_heif_detects_major_and_compatible_brands(tmp_path):
     compat_heic.write_bytes(_ftyp_box(b"mif1", b"mif1", b"heic", b"hevc"))
     assert nodes.is_heif(str(compat_heic))
 
+    late_brand = tmp_path / "late.heic"
+    late_brand.write_bytes(_ftyp_box(b"mif1", *([b"mif1"] * 35 + [b"heic"])))
+    assert nodes.is_heif(str(late_brand))
+
 
 def test_is_heif_rejects_other_containers(tmp_path):
     avif = tmp_path / "image.avif"
@@ -44,6 +48,10 @@ def test_is_heif_rejects_other_containers(tmp_path):
     truncated = tmp_path / "broken.heic"
     truncated.write_bytes(b"\x00\x00\x00\x1cftyp")
     assert not nodes.is_heif(str(truncated))
+
+    oversized = tmp_path / "oversized.heic"
+    oversized.write_bytes((65536).to_bytes(4, "big") + b"ftypheic" + b"\x00" * 8)
+    assert not nodes.is_heif(str(oversized))
 
 
 @pytest.fixture

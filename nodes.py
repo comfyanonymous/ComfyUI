@@ -1746,12 +1746,14 @@ class PreviewImage(SaveImage):
 
 def is_heif(image_path):
     with open(image_path, 'rb') as f:
-        header = f.read(128)
-    if len(header) < 16 or header[4:8] != b'ftyp':
-        return False
-    box_size = int.from_bytes(header[0:4], 'big')
-    brands = range(8, min(box_size, len(header)), 4)
-    return any(header[i:i + 4] in (b'heic', b'heix', b'heim', b'heis', b'hevc', b'hevx') for i in brands)
+        header = f.read(8)
+        if len(header) < 8 or header[4:8] != b'ftyp':
+            return False
+        box_size = int.from_bytes(header[0:4], 'big')
+        if box_size < 16 or box_size > 4096:
+            return False
+        brands = f.read(box_size - 8)
+    return any(brands[i:i + 4] in (b'heic', b'heix', b'heim', b'heis', b'hevc', b'hevx') for i in range(0, len(brands), 4))
 
 class LoadImage:
     @classmethod
