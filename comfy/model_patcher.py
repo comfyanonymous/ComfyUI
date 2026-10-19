@@ -19,38 +19,77 @@
 from __future__ import annotations
 
 import collections
-import copy
 import inspect
 import logging
 import math
+import time
 import uuid
 from typing import Callable, Optional
 
 import torch
+import tqdm
 
 import comfy.float
 import comfy.hooks
 import comfy.lora
 import comfy.model_management
+import comfy.ops
 import comfy.patcher_extension
 import comfy.utils
+import comfy_aimdo.host_buffer
 from comfy.comfy_types import UnetWrapperFunction
+from comfy.configurable import ConfigurableModule
+from comfy.internal_logging import detail
 from comfy.quant_ops import QuantizedTensor
 from comfy.patcher_extension import CallbacksMP, PatcherInjection, WrappersMP
 
+import comfy_aimdo.model_vbar
 
-def string_to_seed(data):
-    crc = 0xFFFFFFFF
-    for byte in data:
-        if isinstance(byte, str):
-            byte = ord(byte)
-        crc ^= byte
-        for _ in range(8):
-            if crc & 1:
-                crc = (crc >> 1) ^ 0xEDB88320
+def is_model_patcher_output(output):
+    return isinstance(output, ModelPatcher) or isinstance(getattr(output, "patcher", None), ModelPatcher)
+
+class PromptModelTracker:
+    def __init__(self):
+        self.models = {}
+
+    def start(self):
+        self.end()
+
+    def add(self, outputs):
+        if isinstance(outputs, collections.abc.Mapping):
+            outputs = outputs.values()
+        elif not isinstance(outputs, (list, tuple)):
+            outputs = (outputs,)
+
+        for output in outputs:
+            if isinstance(output, (collections.abc.Mapping, list, tuple)):
+                self.add(output)
+                continue
+
+            models = []
+            if isinstance(output, ModelPatcher):
+                models.append(output)
+                models.extend(output.model_patches_models())
+                models.extend(output.get_nested_additional_models())
             else:
-                crc >>= 1
-    return crc ^ 0xFFFFFFFF
+                patcher = getattr(output, "patcher", None)
+                if isinstance(patcher, ModelPatcher):
+                    models.append(patcher)
+                get_models = getattr(output, "get_models", None)
+                if callable(get_models):
+                    models.extend(get_models())
+
+            for model in models:
+                if not isinstance(model, ModelPatcher) or not model.is_dynamic():
+                    continue
+                key = (id(model.model), model.load_device)
+                self.models[key] = model
+                model.set_in_use_by_current_prompt(True)
+
+    def end(self):
+        for model in self.models.values():
+            model.set_in_use_by_current_prompt(False)
+        self.models.clear()
 
 def set_model_options_patch_replace(model_options, patch, name, block_name, number, transformer_index=None):
     to = model_options["transformer_options"].copy()
@@ -88,12 +127,15 @@ def set_model_options_pre_cfg_function(model_options, pre_cfg_function, disable_
 def create_model_options_clone(orig_model_options: dict):
     return comfy.patcher_extension.copy_nested_dicts(orig_model_options)
 
-def create_hook_patches_clone(orig_hook_patches):
+def create_hook_patches_clone(orig_hook_patches, copy_tuples=False):
     new_hook_patches = {}
     for hook_ref in orig_hook_patches:
         new_hook_patches[hook_ref] = {}
         for k in orig_hook_patches[hook_ref]:
             new_hook_patches[hook_ref][k] = orig_hook_patches[hook_ref][k][:]
+            if copy_tuples:
+                for i in range(len(new_hook_patches[hook_ref][k])):
+                    new_hook_patches[hook_ref][k][i] = tuple(new_hook_patches[hook_ref][k][i])
     return new_hook_patches
 
 def wipe_lowvram_weight(m):
@@ -123,15 +165,42 @@ def move_weight_functions(m, device):
                 memory += f.move_to(device=device)
     return memory
 
+def string_to_seed(data):
+    logging.warning("WARNING: string_to_seed has moved from comfy.model_patcher to comfy.utils")
+    return comfy.utils.string_to_seed(data)
+
 class LowVramPatch:
+    is_lowvram_patch = True
+
     def __init__(self, key, patches, convert_func=None, set_func=None):
         self.key = key
         self.patches = patches
         self.convert_func = convert_func # TODO: remove
         self.set_func = set_func
+        self.prepared_patches = None
+
+    def memory_required(self):
+        counter = [0]
+        for patch in self.patches[self.key]:
+            comfy.lora.prefetch_prepared_value(patch[1], counter, None, None, False)
+        return counter[0]
+
+    def prepare(self, destination, stream, copy=True, commit=True):
+        counter = [0]
+        prepared_patches = [
+            (patch[0], comfy.lora.prefetch_prepared_value(patch[1], counter, destination, stream, copy), patch[2], patch[3], patch[4])
+            for patch in self.patches[self.key]
+        ]
+        if commit:
+            self.prepared_patches = prepared_patches
+        return prepared_patches
+
+    def clear_prepared(self):
+        self.prepared_patches = None
 
     def __call__(self, weight):
-        return comfy.lora.calculate_weight(self.patches[self.key], weight, self.key, intermediate_dtype=weight.dtype)
+        patches = self.prepared_patches if self.prepared_patches is not None else self.patches[self.key]
+        return comfy.lora.calculate_weight(patches, weight, self.key, intermediate_dtype=weight.dtype)
 
 LOWVRAM_PATCH_ESTIMATE_MATH_FACTOR = 2
 
@@ -168,6 +237,11 @@ def get_key_weight(model, key):
             weight = comfy.utils.get_attr(model, key)
 
     return weight, set_func, convert_func
+
+def key_param_name_to_key(key, param):
+    if len(key) == 0:
+        return param
+    return "{}.{}".format(key, param)
 
 class AutoPatcherEjector:
     def __init__(self, model: 'ModelPatcher', skip_and_inject_on_exit_only=False):
@@ -212,10 +286,63 @@ class MemoryCounter:
     def decrement(self, used: int):
         self.value -= used
 
+CustomTorchDevice = collections.namedtuple("FakeDevice", ["type", "index"])("comfy-lazy-caster", 0)
+
+class LazyCastingParam(torch.nn.Parameter):
+    def __new__(cls, model, key, tensor):
+        return super().__new__(cls, tensor)
+
+    def __init__(self, model, key, tensor):
+        self.model = model
+        self.key = key
+
+    @property
+    def device(self):
+        return CustomTorchDevice
+
+    #safetensors will .to() us to the cpu which we catch here to cast on demand. The returned tensor is
+    #then just a short lived thing in the safetensors serialization logic inside its big for loop over
+    #all weights getting garbage collected per-weight
+    def to(self, *args, **kwargs):
+        return self.model.patch_weight_to_device(self.key, device_to=self.model.load_device, return_weight=True).to("cpu")
+
+
+class LazyCastingQuantizedParam:
+    def __init__(self, model, key):
+        self.model = model
+        self.key = key
+        self.cpu_state_dict = None
+
+    def state_dict_tensor(self, state_dict_key):
+        if self.cpu_state_dict is None:
+            weight = self.model.patch_weight_to_device(self.key, device_to=self.model.load_device, return_weight=True)
+            self.cpu_state_dict = {k: v.to("cpu") for k, v in weight.state_dict(self.key).items()}
+        return self.cpu_state_dict[state_dict_key]
+
+
+class LazyCastingParamPiece(torch.nn.Parameter):
+    def __new__(cls, caster, state_dict_key, tensor):
+        return super().__new__(cls, tensor)
+
+    def __init__(self, caster, state_dict_key, tensor):
+        self.caster = caster
+        self.state_dict_key = state_dict_key
+
+    @property
+    def device(self):
+        return CustomTorchDevice
+
+    def to(self, *args, **kwargs):
+        caster = self.caster
+        del self.caster
+        return caster.state_dict_tensor(self.state_dict_key)
+
+
 class ModelPatcher:
-    def __init__(self, model, load_device, offload_device, size=0, weight_inplace_update=False):
+    def __init__(self, model, load_device, offload_device, size=0, weight_inplace_update=False, fast_disk=False):
         self.size = size
         self.model = model
+        self.fast_disk = fast_disk
         if not hasattr(self.model, 'device'):
             logging.debug("Model doesn't have a device attribute.")
             self.model.device = offload_device
@@ -224,6 +351,7 @@ class ModelPatcher:
 
         self.patches = {}
         self.backup = {}
+        self.backup_buffers = {}
         self.object_patches = {}
         self.object_patches_backup = {}
         self.weight_wrapper_patches = {}
@@ -254,6 +382,10 @@ class ModelPatcher:
         self.is_clip = False
         self.hook_mode = comfy.hooks.EnumHookMode.MaxSpeed
 
+        self.cached_patcher_init: tuple[Callable, tuple] | tuple[Callable, tuple, int] | None = None
+        self.is_multigpu_base_clone = False
+        self.clone_base_uuid = uuid.uuid4()
+
         if not hasattr(self.model, 'model_loaded_weight_memory'):
             self.model.model_loaded_weight_memory = 0
 
@@ -269,14 +401,14 @@ class ModelPatcher:
         if not hasattr(self.model, 'model_offload_buffer_memory'):
             self.model.model_offload_buffer_memory = 0
 
+    def is_dynamic(self):
+        return False
+
     def model_size(self):
         if self.size > 0:
             return self.size
         self.size = comfy.model_management.module_size(self.model)
         return self.size
-
-    def get_ram_usage(self):
-        return self.model_size()
 
     def loaded_size(self):
         return self.model.model_loaded_weight_memory
@@ -284,8 +416,35 @@ class ModelPatcher:
     def lowvram_patch_counter(self):
         return self.model.lowvram_patch_counter
 
-    def clone(self):
-        n = self.__class__(self.model, self.load_device, self.offload_device, self.model_size(), weight_inplace_update=self.weight_inplace_update)
+    def get_free_memory(self, device):
+        #Prioritize batching (incl. CFG/conds etc) over keeping the model resident. In
+        #the vast majority of setups a little bit of offloading on the giant model more
+        #than pays for CFG. So return everything both torch and Aimdo could give us
+        aimdo_mem = 0
+        if comfy.memory_management.aimdo_enabled:
+            aimdo_device = device.index if getattr(device, "type", None) == "cuda" else None
+            aimdo_mem = comfy_aimdo.model_vbar.vbars_analyze(aimdo_device)
+        return comfy.model_management.get_free_memory(device) + aimdo_mem
+
+    def get_clone_model_override(self):
+        return self.model, (self.backup, self.backup_buffers, self.object_patches_backup, self.pinned)
+
+    def clone(self, disable_dynamic=False, model_override=None, force_deepcopy=False):
+        class_ = self.__class__
+        if self.is_dynamic() and disable_dynamic or force_deepcopy:
+            if self.is_dynamic() and disable_dynamic:
+                class_ = ModelPatcher
+            if model_override is None:
+                if self.cached_patcher_init is None:
+                    raise RuntimeError("Cannot create non-dynamic delegate: cached_patcher_init is not initialized.")
+                temp_model_patcher = self.cached_patcher_init[0](*self.cached_patcher_init[1], disable_dynamic=True)
+                if len(self.cached_patcher_init) > 2:
+                    temp_model_patcher = temp_model_patcher[self.cached_patcher_init[2]]
+                model_override = temp_model_patcher.get_clone_model_override()
+        if model_override is None:
+            model_override = self.get_clone_model_override()
+
+        n = class_(model_override[0], self.load_device, self.offload_device, self.model_size(), weight_inplace_update=self.weight_inplace_update, fast_disk=self.fast_disk)
         n.patches = {}
         for k in self.patches:
             n.patches[k] = self.patches[k][:]
@@ -293,13 +452,12 @@ class ModelPatcher:
 
         n.object_patches = self.object_patches.copy()
         n.weight_wrapper_patches = self.weight_wrapper_patches.copy()
-        n.model_options = copy.deepcopy(self.model_options)
-        n.backup = self.backup
-        n.object_patches_backup = self.object_patches_backup
+        n.model_options = comfy.utils.deepcopy_list_dict(self.model_options)
         n.parent = self
-        n.pinned = self.pinned
 
         n.force_cast_weights = self.force_cast_weights
+
+        n.backup, n.backup_buffers, n.object_patches_backup, n.pinned = model_override[1]
 
         # attachments
         n.attachments = {}
@@ -339,18 +497,111 @@ class ModelPatcher:
         n.is_clip = self.is_clip
         n.hook_mode = self.hook_mode
 
+        n.cached_patcher_init = self.cached_patcher_init
+        n.is_multigpu_base_clone = self.is_multigpu_base_clone
+        n.clone_base_uuid = self.clone_base_uuid
+
         for callback in self.get_all_callbacks(CallbacksMP.ON_CLONE):
             callback(self, n)
         return n
+
+    def deepclone_multigpu(self, new_load_device=None, models_cache: dict[uuid.UUID,ModelPatcher]=None):
+        logging.info(f"Creating deepclone of {self.model.__class__.__name__} for {new_load_device if new_load_device else self.load_device}.")
+        if self.cached_patcher_init is None:
+            raise RuntimeError(
+                f"Cannot create multigpu deepclone of {self.model.__class__.__name__}: "
+                "the loader that produced this model does not support multigpu "
+                "(cached_patcher_init is not initialized). Use a core loader "
+                "(CheckpointLoaderSimple, UNETLoader, CLIPLoader/DualCLIPLoader, VAELoader), "
+                "or have the custom loader register a cached_patcher_init factory."
+            )
+        comfy.model_management.unload_model_and_clones(self)
+        # Produce a freshly-loaded patcher from the loader factory so the multigpu
+        # clone owns its own untainted model weights (rather than relying on
+        # copy.deepcopy of an already-patched/already-loaded module).
+        temp_model_patcher: ModelPatcher | list[ModelPatcher] = self.cached_patcher_init[0](*self.cached_patcher_init[1])
+        if len(self.cached_patcher_init) > 2:
+            temp_model_patcher = temp_model_patcher[self.cached_patcher_init[2]]
+        # Override clone()'s normal "share self.model + share backup containers" with
+        # the pristine model from temp_model_patcher plus empty backup containers --
+        # the fresh model has no patches applied, so any deepcopy of self's stale
+        # backup/object_patches_backup/pinned would just propagate dead state that
+        # no longer corresponds to anything in n.model.
+        model_override = (temp_model_patcher.model, ({}, {}, {}, set()))
+        n = self.clone(model_override=model_override)
+        # clone() copies hook_backup by reference from self; reset since model is pristine.
+        n.hook_backup = {}
+        # set load device, if present
+        if new_load_device is not None:
+            n.load_device = new_load_device
+        # Ensure any per-device bookkeeping (e.g. ModelPatcherDynamic.dynamic_pins)
+        # has an entry for n.load_device on the freshly-loaded n.model. temp_model_patcher's
+        # __init__ only registered its own (default) load_device.
+        if hasattr(n, "register_load_device"):
+            n.register_load_device(n.load_device)
+        # multigpu clone should not have multigpu additional_models entry
+        n.remove_additional_models("multigpu")
+        # multigpu_clone all stored additional_models; make sure circular references are properly handled
+        if models_cache is None:
+            models_cache = {}
+        for key, model_list in n.additional_models.items():
+            for i in range(len(model_list)):
+                add_model = n.additional_models[key][i]
+                if add_model.clone_base_uuid not in models_cache:
+                    models_cache[add_model.clone_base_uuid] = add_model.deepclone_multigpu(new_load_device=new_load_device, models_cache=models_cache)
+                n.additional_models[key][i] = models_cache[add_model.clone_base_uuid]
+        for callback in self.get_all_callbacks(CallbacksMP.ON_DEEPCLONE_MULTIGPU):
+            callback(self, n)
+        return n
+
+    def match_multigpu_clones(self):
+        multigpu_models = self.get_additional_models_with_key("multigpu")
+        if len(multigpu_models) > 0:
+            new_multigpu_models = []
+            for mm in multigpu_models:
+                # clone main model, but bring over relevant props from existing multigpu clone
+                n = self.clone(model_override=mm.get_clone_model_override())
+                n.load_device = mm.load_device
+                n.hook_backup = mm.hook_backup
+                n.is_multigpu_base_clone = mm.is_multigpu_base_clone
+                n.remove_additional_models("multigpu")
+                orig_additional_models: dict[str, list[ModelPatcher]] = comfy.patcher_extension.copy_nested_dicts(n.additional_models)
+                n.additional_models = comfy.patcher_extension.copy_nested_dicts(mm.additional_models)
+                # figure out which additional models are not present in multigpu clone
+                models_cache = {}
+                for mm_add_model in mm.get_additional_models():
+                    models_cache[mm_add_model.clone_base_uuid] = mm_add_model
+                remove_models_uuids = set(list(models_cache.keys()))
+                for key, model_list in orig_additional_models.items():
+                    for orig_add_model in model_list:
+                        if orig_add_model.clone_base_uuid not in models_cache:
+                            models_cache[orig_add_model.clone_base_uuid] = orig_add_model.deepclone_multigpu(new_load_device=n.load_device, models_cache=models_cache)
+                            existing_list = n.get_additional_models_with_key(key)
+                            existing_list.append(models_cache[orig_add_model.clone_base_uuid])
+                            n.set_additional_models(key, existing_list)
+                        if orig_add_model.clone_base_uuid in remove_models_uuids:
+                            remove_models_uuids.remove(orig_add_model.clone_base_uuid)
+                # remove duplicate additional models
+                for key, model_list in n.additional_models.items():
+                    new_model_list = [x for x in model_list if x.clone_base_uuid not in remove_models_uuids]
+                    n.set_additional_models(key, new_model_list)
+                for callback in self.get_all_callbacks(CallbacksMP.ON_MATCH_MULTIGPU_CLONES):
+                    callback(self, n)
+                new_multigpu_models.append(n)
+            self.set_additional_models("multigpu", new_multigpu_models)
 
     def is_clone(self, other):
         if hasattr(other, 'model') and self.model is other.model:
             return True
         return False
 
-    def clone_has_same_weights(self, clone: 'ModelPatcher'):
-        if not self.is_clone(clone):
-            return False
+    def clone_has_same_weights(self, clone: ModelPatcher, allow_multigpu=False):
+        if allow_multigpu:
+            if self.clone_base_uuid != clone.clone_base_uuid:
+                return False
+        else:
+            if not self.is_clone(clone):
+                return False
 
         if self.current_hooks != clone.current_hooks:
             return False
@@ -383,13 +634,16 @@ class ModelPatcher:
     def memory_required(self, input_shape):
         return self.model.memory_required(input_shape=input_shape)
 
+    def disable_model_cfg1_optimization(self):
+        self.model_options["disable_cfg1_optimization"] = True
+
     def set_model_sampler_cfg_function(self, sampler_cfg_function, disable_cfg1_optimization=False):
         if len(inspect.signature(sampler_cfg_function).parameters) == 3:
             self.model_options["sampler_cfg_function"] = lambda args: sampler_cfg_function(args["cond"], args["uncond"], args["cond_scale"]) #Old way
         else:
             self.model_options["sampler_cfg_function"] = sampler_cfg_function
         if disable_cfg1_optimization:
-            self.model_options["disable_cfg1_optimization"] = True
+            self.disable_model_cfg1_optimization()
 
     def set_model_sampler_post_cfg_function(self, post_cfg_function, disable_cfg1_optimization=False):
         self.model_options = set_model_options_post_cfg_function(self.model_options, post_cfg_function, disable_cfg1_optimization)
@@ -433,6 +687,14 @@ class ModelPatcher:
     def set_model_attn2_output_patch(self, patch):
         self.set_model_patch(patch, "attn2_output_patch")
 
+    def set_model_optimized_attention(self, optimized_attention):
+        def optimized_attention_override(_, *args, **kwargs):
+            return optimized_attention(*args, **kwargs)
+
+        if hasattr(optimized_attention, "container_function") and optimized_attention.container_function is not None:
+            optimized_attention_override.container_function = optimized_attention.container_function
+        self.model_options["transformer_options"]["optimized_attention_override"] = optimized_attention_override
+
     def set_model_input_block_patch(self, patch):
         self.set_model_patch(patch, "input_block_patch")
 
@@ -456,6 +718,10 @@ class ModelPatcher:
 
     def set_model_noise_refiner_patch(self, patch):
         self.set_model_patch(patch, "noise_refiner")
+
+    def set_model_middle_block_after_patch(self, patch):
+        self.set_model_patch(patch, "middle_block_after_patch")
+
 
     def set_model_rope_options(self, scale_x, shift_x, scale_y, shift_y, scale_t, shift_t, **kwargs):
         rope_options = self.model_options["transformer_options"].get("rope_options", {})
@@ -550,6 +816,27 @@ class ModelPatcher:
 
         return models
 
+    def model_patches_call_function(self, function_name="cleanup", arguments={}):
+        to = self.model_options["transformer_options"]
+        if "patches" in to:
+            patches = to["patches"]
+            for name in patches:
+                patch_list = patches[name]
+                for i in range(len(patch_list)):
+                    if hasattr(patch_list[i], function_name):
+                        getattr(patch_list[i], function_name)(**arguments)
+        if "patches_replace" in to:
+            patches = to["patches_replace"]
+            for name in patches:
+                patch_list = patches[name]
+                for k in patch_list:
+                    if hasattr(patch_list[k], function_name):
+                        getattr(patch_list[k], function_name)(**arguments)
+        if "model_function_wrapper" in self.model_options:
+            wrap_func = self.model_options["model_function_wrapper"]
+            if hasattr(wrap_func, function_name):
+                getattr(wrap_func, function_name)(**arguments)
+
     def model_dtype(self):
         if hasattr(self.model, "get_dtype"):
             return self.model.get_dtype()
@@ -557,6 +844,7 @@ class ModelPatcher:
     def add_patches(self, patches, strength_patch=1.0, strength_model=1.0):
         with self.use_ejected():
             p = set()
+            weights_changed = False
             model_sd = self.model.state_dict()
             for k in patches:
                 offset = None
@@ -569,13 +857,28 @@ class ModelPatcher:
                     if len(k) > 2:
                         function = k[2]
 
+                patch = patches[k]
+                if isinstance(patch, tuple) and len(patch) == 2 and patch[0] == "config":
+                    module_name, _, attribute = key.rpartition(".")
+                    try:
+                        module = self.get_model_object(module_name)
+                    except AttributeError:
+                        continue
+                    if attribute == "config" and isinstance(module, ConfigurableModule):
+                        p.add(k)
+                        if strength_patch != 0:
+                            self.add_object_patch(module_name, module.with_config(patch[1][0]))
+                    continue
+
                 if key in model_sd:
                     p.add(k)
                     current_patches = self.patches.get(key, [])
                     current_patches.append((strength_patch, patches[k], strength_model, offset, function))
                     self.patches[key] = current_patches
+                    weights_changed = True
 
-            self.patches_uuid = uuid.uuid4()
+            if weights_changed:
+                self.patches_uuid = uuid.uuid4()
             return list(p)
 
     def get_key_patches(self, filter_prefix=None):
@@ -588,6 +891,8 @@ class ModelPatcher:
             bk = self.backup.get(k, None)
             hbk = self.hook_backup.get(k, None)
             weight, set_func, convert_func = get_key_weight(self.model, k)
+            if not isinstance(weight, torch.Tensor):
+                continue
             if bk is not None:
                 weight = bk.weight
             if hbk is not None:
@@ -611,17 +916,17 @@ class ModelPatcher:
                         sd.pop(k)
             return sd
 
-    def patch_weight_to_device(self, key, device_to=None, inplace_update=False):
-        if key not in self.patches:
-            return
-
+    def patch_weight_to_device(self, key, device_to=None, inplace_update=False, return_weight=False, force_cast=False):
         weight, set_func, convert_func = get_key_weight(self.model, key)
+        if key not in self.patches and not force_cast:
+            return weight
+
         inplace_update = self.weight_inplace_update or inplace_update
 
-        if key not in self.backup:
+        if key not in self.backup and not return_weight:
             self.backup[key] = collections.namedtuple('Dimension', ['weight', 'inplace_update'])(weight.to(device=self.offload_device, copy=inplace_update), inplace_update)
 
-        temp_dtype = comfy.model_management.lora_compute_dtype(device_to)
+        temp_dtype = comfy.model_management.lora_compute_dtype(device_to) if key in self.patches else None
         if device_to is not None:
             temp_weight = comfy.model_management.cast_to_device(weight, device_to, temp_dtype, copy=True)
         else:
@@ -629,15 +934,18 @@ class ModelPatcher:
         if convert_func is not None:
             temp_weight = convert_func(temp_weight, inplace=True)
 
-        out_weight = comfy.lora.calculate_weight(self.patches[key], temp_weight, key)
+        out_weight = comfy.lora.calculate_weight(self.patches[key], temp_weight, key) if key in self.patches else temp_weight
         if set_func is None:
-            out_weight = comfy.float.stochastic_rounding(out_weight, weight.dtype, seed=string_to_seed(key))
-            if inplace_update:
+            if key in self.patches:
+                out_weight = comfy.float.stochastic_rounding(out_weight, weight.dtype, seed=comfy.utils.string_to_seed(key))
+            if return_weight:
+                return out_weight
+            elif inplace_update:
                 comfy.utils.copy_to_param(self.model, key, out_weight)
             else:
                 comfy.utils.set_attr_param(self.model, key, out_weight)
         else:
-            set_func(out_weight, inplace_update=inplace_update, seed=string_to_seed(key))
+            return set_func(out_weight, inplace_update=inplace_update, seed=comfy.utils.string_to_seed(key), return_weight=return_weight)
 
     def pin_weight_to_device(self, key):
         weight, set_func, convert_func = get_key_weight(self.model, key)
@@ -654,18 +962,19 @@ class ModelPatcher:
         for key in list(self.pinned):
             self.unpin_weight(key)
 
-    def _load_list(self):
+    def _load_list(self, for_dynamic=False, default_device=None):
         loading = []
         for n, m in self.model.named_modules():
-            params = []
-            skip = False
-            for name, param in m.named_parameters(recurse=False):
-                params.append(name)
+            default = False
+            params = { name: param for name, param in m.named_parameters(recurse=False) }
             for name, param in m.named_parameters(recurse=True):
                 if name not in params:
-                    skip = True # skip random weights in non leaf modules
+                    default = True # default random weights in non leaf modules
                     break
-            if not skip and (hasattr(m, "comfy_cast_weights") or len(params) > 0):
+            if default and default_device is not None:
+                for param_name, param in params.items():
+                    param.data = param.data.to(device=default_device, dtype=getattr(m, param_name + "_comfy_model_dtype", None))
+            if not default and (hasattr(m, "comfy_cast_weights") or len(params) > 0):
                 module_mem = comfy.model_management.module_size(m)
                 module_offload_mem = module_mem
                 if hasattr(m, "comfy_cast_weights"):
@@ -681,7 +990,13 @@ class ModelPatcher:
                         return 0
                     module_offload_mem += check_module_offload_mem("{}.weight".format(n))
                     module_offload_mem += check_module_offload_mem("{}.bias".format(n))
-                loading.append((module_offload_mem, module_mem, n, m, params))
+                # Dynamic: small weights (<64KB) first, then larger weights prioritized by size.
+                # Non-dynamic: prioritize by module offload cost.
+                if for_dynamic:
+                    sort_criteria = (module_offload_mem >= 64 * 1024, -module_offload_mem)
+                else:
+                    sort_criteria = (module_offload_mem,)
+                loading.append(sort_criteria + (module_mem, n, m, params))
         return loading
 
     def load(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False, full_load=False):
@@ -725,14 +1040,14 @@ class ModelPatcher:
                         m.bias_function = []
 
                     if weight_key in self.patches:
-                        if force_patch_weights:
+                        if force_patch_weights or comfy.lora.calculate_shape(self.patches[weight_key], m.weight, weight_key) != m.weight.shape:
                             self.patch_weight_to_device(weight_key)
                         else:
                             _, set_func, convert_func = get_key_weight(self.model, weight_key)
                             m.weight_function = [LowVramPatch(weight_key, self.patches, convert_func, set_func)]
                             patch_counter += 1
                     if bias_key in self.patches:
-                        if force_patch_weights:
+                        if force_patch_weights or comfy.lora.calculate_shape(self.patches[bias_key], m.bias, bias_key) != m.bias.shape:
                             self.patch_weight_to_device(bias_key)
                         else:
                             _, set_func, convert_func = get_key_weight(self.model, bias_key)
@@ -772,8 +1087,10 @@ class ModelPatcher:
                     if m.comfy_patched_weights == True:
                         continue
 
-                for param in params:
-                    key = "{}.{}".format(n, param)
+                for param, param_value in params.items():
+                    if hasattr(m, "comfy_cast_weights") and getattr(param_value, "is_meta", False):
+                        comfy.ops.disable_weight_init._zero_init_parameter(m, param)
+                    key = key_param_name_to_key(n, param)
                     self.unpin_weight(key)
                     self.patch_weight_to_device(key, device_to=device_to)
                 if comfy.model_management.is_device_cuda(device_to):
@@ -789,7 +1106,7 @@ class ModelPatcher:
                 n = x[1]
                 params = x[3]
                 for param in params:
-                    self.pin_weight_to_device("{}.{}".format(n, param))
+                    self.pin_weight_to_device(key_param_name_to_key(n, param))
 
             usable_stat = "{:.2f} MB usable,".format(lowvram_model_memory / (1024 * 1024)) if lowvram_model_memory < 1e32 else ""
             if lowvram_counter > 0:
@@ -895,7 +1212,7 @@ class ModelPatcher:
                 if hasattr(m, "comfy_patched_weights") and m.comfy_patched_weights == True:
                     move_weight = True
                     for param in params:
-                        key = "{}.{}".format(n, param)
+                        key = key_param_name_to_key(n, param)
                         bk = self.backup.get(key, None)
                         if bk is not None:
                             if not lowvram_possible:
@@ -920,14 +1237,14 @@ class ModelPatcher:
                         module_mem += move_weight_functions(m, device_to)
                         if lowvram_possible:
                             if weight_key in self.patches:
-                                if force_patch_weights:
+                                if force_patch_weights or comfy.lora.calculate_shape(self.patches[weight_key], m.weight, weight_key) != m.weight.shape:
                                     self.patch_weight_to_device(weight_key)
                                 else:
                                     _, set_func, convert_func = get_key_weight(self.model, weight_key)
                                     m.weight_function.append(LowVramPatch(weight_key, self.patches, convert_func, set_func))
                                     patch_counter += 1
                             if bias_key in self.patches:
-                                if force_patch_weights:
+                                if force_patch_weights or comfy.lora.calculate_shape(self.patches[bias_key], m.bias, bias_key) != m.bias.shape:
                                     self.patch_weight_to_device(bias_key)
                                 else:
                                     _, set_func, convert_func = get_key_weight(self.model, bias_key)
@@ -946,7 +1263,7 @@ class ModelPatcher:
                         logging.debug("freed {}".format(n))
 
                         for param in params:
-                            self.pin_weight_to_device("{}.{}".format(n, param))
+                            self.pin_weight_to_device(key_param_name_to_key(n, param))
 
 
             self.model.model_lowvram = True
@@ -984,6 +1301,17 @@ class ModelPatcher:
 
             return self.model.model_loaded_weight_memory - current_used
 
+    def pinned_memory_size(self):
+        # Pinned memory pressure tracking is only implemented for DynamicVram loading
+        return 0
+
+    def loaded_ram_size(self):
+        # Loaded RAM pressure tracking is only implemented for DynamicVram loading
+        return 0
+
+    def partially_unload_ram(self, ram_to_unload):
+        return 0
+
     def detach(self, unpatch_all=True):
         self.eject_model()
         self.model_patches_to(self.offload_device)
@@ -1001,6 +1329,7 @@ class ModelPatcher:
         return comfy.lora.calculate_weight(patches, weight, key, intermediate_dtype=intermediate_dtype)
 
     def cleanup(self):
+        self.model_patches_call_function(function_name="cleanup")
         self.clean_hooks()
         if hasattr(self.model, "current_patcher"):
             self.model.current_patcher = None
@@ -1080,7 +1409,7 @@ class ModelPatcher:
         return self.additional_models.get(key, [])
 
     def get_additional_models(self):
-        all_models = []
+        all_models: list[ModelPatcher] = []
         for models in self.additional_models.values():
             all_models.extend(models)
         return all_models
@@ -1134,9 +1463,18 @@ class ModelPatcher:
         for callback in self.get_all_callbacks(CallbacksMP.ON_PRE_RUN):
             callback(self)
 
-    def prepare_state(self, timestep):
+    def prepare_state(self, timestep, model_options):
+        ignore_multigpu = model_options.get("ignore_multigpu", False)
         for callback in self.get_all_callbacks(CallbacksMP.ON_PREPARE_STATE):
-            callback(self, timestep)
+            callback(self, timestep, model_options)
+        if not ignore_multigpu and "multigpu_clones" in model_options:
+            model_options["ignore_multigpu"] = True
+            try:
+                for p in model_options["multigpu_clones"].values():
+                    p: ModelPatcher
+                    p.prepare_state(timestep, model_options)
+            finally:
+                model_options.pop("ignore_multigpu", None)
 
     def restore_hook_patches(self):
         if self.hook_patches_backup is not None:
@@ -1149,12 +1487,18 @@ class ModelPatcher:
     def prepare_hook_patches_current_keyframe(self, t: torch.Tensor, hook_group: comfy.hooks.HookGroup, model_options: dict[str]):
         curr_t = t[0]
         reset_current_hooks = False
+        multigpu_kf_changed_cache = None
         transformer_options = model_options.get("transformer_options", {})
         for hook in hook_group.hooks:
             changed = hook.hook_keyframe.prepare_current_keyframe(curr_t=curr_t, transformer_options=transformer_options)
             # if keyframe changed, remove any cached HookGroups that contain hook with the same hook_ref;
             # this will cause the weights to be recalculated when sampling
             if changed:
+                # cache changed for multigpu usage
+                if "multigpu_clones" in model_options:
+                    if multigpu_kf_changed_cache is None:
+                        multigpu_kf_changed_cache = []
+                    multigpu_kf_changed_cache.append(hook)
                 # reset current_hooks if contains hook that changed
                 if self.current_hooks is not None:
                     for current_hook in self.current_hooks.hooks:
@@ -1164,6 +1508,28 @@ class ModelPatcher:
                 for cached_group in list(self.cached_hook_patches.keys()):
                     if cached_group.contains(hook):
                         self.cached_hook_patches.pop(cached_group)
+        if reset_current_hooks:
+            self.patch_hooks(None)
+        if "multigpu_clones" in model_options:
+            for p in model_options["multigpu_clones"].values():
+                p: ModelPatcher
+                p._handle_changed_hook_keyframes(multigpu_kf_changed_cache)
+
+    def _handle_changed_hook_keyframes(self, kf_changed_cache: list[comfy.hooks.Hook]):
+        'Used to handle multigpu behavior inside prepare_hook_patches_current_keyframe.'
+        if kf_changed_cache is None:
+            return
+        reset_current_hooks = False
+        # reset current_hooks if contains hook that changed
+        for hook in kf_changed_cache:
+            if self.current_hooks is not None:
+                for current_hook in self.current_hooks.hooks:
+                    if current_hook == hook:
+                        reset_current_hooks = True
+                        break
+            for cached_group in list(self.cached_hook_patches.keys()):
+                if cached_group.contains(hook):
+                    self.cached_hook_patches.pop(cached_group)
         if reset_current_hooks:
             self.patch_hooks(None)
 
@@ -1195,6 +1561,8 @@ class ModelPatcher:
             p = set()
             model_sd = self.model.state_dict()
             for k in patches:
+                if isinstance(patches[k], tuple) and len(patches[k]) == 2 and patches[k][0] == "config":
+                    continue
                 offset = None
                 function = None
                 if isinstance(k, str):
@@ -1317,10 +1685,10 @@ class ModelPatcher:
                                                  key, original_weights=original_weights)
         del original_weights[key]
         if set_func is None:
-            out_weight = comfy.float.stochastic_rounding(out_weight, weight.dtype, seed=string_to_seed(key))
+            out_weight = comfy.float.stochastic_rounding(out_weight, weight.dtype, seed=comfy.utils.string_to_seed(key))
             comfy.utils.copy_to_param(self.model, key, out_weight)
         else:
-            set_func(out_weight, inplace_update=True, seed=string_to_seed(key))
+            set_func(out_weight, inplace_update=True, seed=comfy.utils.string_to_seed(key))
         if self.hook_mode == comfy.hooks.EnumHookMode.MaxSpeed:
             # TODO: disable caching if not enough system RAM to do so
             target_device = self.offload_device
@@ -1355,7 +1723,483 @@ class ModelPatcher:
         self.unpatch_hooks()
         self.clear_cached_hook_weights()
 
+    def model_state_dict_for_saving(self, model=None, prefix=""):
+        if model is None:
+            model = self.model
+
+        original_state_dict = model.state_dict()
+        output_state_dict = {}
+        keys = list(original_state_dict)
+        while len(keys) > 0:
+            k = keys.pop(0)
+            v = original_state_dict[k]
+            op_keys = k.rsplit('.', 1)
+            if (len(op_keys) < 2) or op_keys[1] not in ["weight", "bias"]:
+                output_state_dict[k] = v
+                continue
+            try:
+                op = comfy.utils.get_attr(model, op_keys[0])
+            except:
+                output_state_dict[k] = v
+                continue
+            if not op or not hasattr(op, "comfy_cast_weights") or \
+                (hasattr(op, "comfy_patched_weights") and op.comfy_patched_weights == True):
+                output_state_dict[k] = v
+                continue
+            key = prefix + k
+            weight = comfy.utils.get_attr(self.model, key)
+            if isinstance(weight, QuantizedTensor) and k in original_state_dict:
+                qt_state_dict = weight.state_dict(k)
+                caster = LazyCastingQuantizedParam(self, key)
+                for group_key in (x for x in qt_state_dict if x in original_state_dict):
+                    if group_key in keys:
+                        keys.remove(group_key)
+                    output_state_dict.pop(group_key, "")
+                    output_state_dict[group_key] = LazyCastingParamPiece(caster, prefix + group_key, original_state_dict[group_key])
+                continue
+            output_state_dict[k] = LazyCastingParam(self, key, weight)
+        return output_state_dict
+
+    def state_dict_for_saving(self, clip_state_dict=None, vae_state_dict=None, clip_vision_state_dict=None):
+        unet_state_dict = self.model_state_dict_for_saving(self.model.diffusion_model, "diffusion_model.")
+        return self.model.state_dict_for_saving(unet_state_dict, clip_state_dict=clip_state_dict, vae_state_dict=vae_state_dict, clip_vision_state_dict=clip_vision_state_dict)
+
     def __del__(self):
         self.unpin_all_weights()
         self.detach(unpatch_all=False)
 
+class ModelPatcherDynamic(ModelPatcher):
+
+    def __new__(cls, model=None, load_device=None, offload_device=None, size=0, weight_inplace_update=False, fast_disk=False):
+        if load_device is not None and comfy.model_management.is_device_cpu(load_device):
+            #reroute to default MP for CPUs
+            return ModelPatcher(model, load_device, offload_device, size, weight_inplace_update, fast_disk)
+        return super().__new__(cls)
+
+    def __init__(self, model, load_device, offload_device, size=0, weight_inplace_update=False, fast_disk=False):
+        super().__init__(model, load_device, offload_device, size, weight_inplace_update, fast_disk)
+        if not hasattr(self.model, "dynamic_vbars"):
+            self.model.dynamic_vbars = {}
+        if not hasattr(self.model, "dynamic_pins"):
+            self.model.dynamic_pins = {}
+        self.register_load_device(self.load_device)
+        self.non_dynamic_delegate_model = None
+        assert load_device is not None
+        if not hasattr(self.model, "dynamic_patchers"):
+            self.model.dynamic_patchers = set()
+        self.model.dynamic_patchers.add(id(self))
+
+    def register_load_device(self, device):
+        """Ensure dynamic_pins has an entry for *device*.
+
+        Called from __init__ and also from any code that retargets an
+        already-constructed patcher to a new load_device (e.g. the
+        Select{Model,CLIP,VAE}Device selector nodes); without this entry
+        partially_unload_ram() raises KeyError when it tries to read the
+        per-device pin state.
+        """
+        if device not in self.model.dynamic_pins:
+            self.model.dynamic_pins[device] = {
+                "weights": (comfy_aimdo.host_buffer.HostBuffer(0, 0, 0), [], [-1], [0], [0], {}),
+                "patches": (comfy_aimdo.host_buffer.HostBuffer(0, 0, 0), [], [-1], [0], [0], {}),
+                "weights-loaded": (comfy_aimdo.host_buffer.HostBuffer(0, 0, 0), [], [-1], [0], [0], {}),
+                "patches-loaded": (comfy_aimdo.host_buffer.HostBuffer(0, 0, 0), [], [-1], [0], [0], {}),
+                "weights-fast": (comfy_aimdo.host_buffer.HostBuffer(0, 0, 0), [], [-1], [0], [0], {}),
+                "patches-fast": (comfy_aimdo.host_buffer.HostBuffer(0, 0, 0), [], [-1], [0], [0], {}),
+                "fast_disk": self.fast_disk,
+                "hostbufs_initialized": False,
+                "failed": False,
+                "active": False,
+                "current_prompt": False,
+            }
+
+    def is_dynamic(self):
+        return True
+
+    def set_in_use_by_current_prompt(self, in_use):
+        self.model.dynamic_pins[self.load_device]["current_prompt"] = in_use
+
+    def _vbar_get(self, create=False):
+        if self.load_device == torch.device("cpu"):
+            return None
+        vbar = self.model.dynamic_vbars.get(self.load_device, None)
+        if create and vbar is None:
+            # x10. We dont know what model defined type casts we have in the vbar, but virtual address
+            # space is pretty free. This will cover someone casting an entire model from FP4 to FP32
+            # with some left over.
+            vbar = comfy_aimdo.model_vbar.ModelVBAR(self.model_size() * 10, self.load_device.index)
+            self.model.dynamic_vbars[self.load_device] = vbar
+        return vbar
+
+    def loaded_size(self):
+        vbar = self._vbar_get()
+        return (vbar.loaded_size() if vbar is not None else 0) + self.model.model_loaded_weight_memory
+
+    #Pinning is deferred to ops time. Assert against this API to avoid pin leaks.
+
+    def pin_weight_to_device(self, key):
+        raise RuntimeError("pin_weight_to_device invalid for dymamic weight loading")
+
+    def unpin_weight(self, key):
+        raise RuntimeError("unpin_weight invalid for dymamic weight loading")
+
+    def unpin_all_weights(self):
+        self.partially_unload_ram(1e32)
+
+    def __del__(self):
+        model = getattr(self, "model", None)
+        dynamic_patchers = getattr(model, "dynamic_patchers", None)
+        if dynamic_patchers is None or id(self) not in dynamic_patchers:
+            return
+        dynamic_patchers.discard(id(self))
+        try:
+            if not dynamic_patchers:
+                self.unpin_all_weights()
+        finally:
+            self.detach(unpatch_all=False)
+
+    def memory_required(self, input_shape):
+        #Pad this significantly. We are trying to get away from precise estimates. This
+        #estimate is only used when using the ModelPatcherDynamic after ModelPatcher. If you
+        #use all ModelPatcherDynamic this is ignored and its all done dynamically.
+        return super().memory_required(input_shape=input_shape) * 1.3 + (1024 ** 3)
+
+    def restore_loaded_backups(self):
+        restored = self.model.model_loaded_weight_memory
+        for key in list(self.backup.keys()):
+            bk = self.backup.pop(key)
+            comfy.utils.set_attr_param(self.model, key, bk.weight)
+        for key in list(self.backup_buffers.keys()):
+            comfy.utils.set_attr_buffer(self.model, key, self.backup_buffers.pop(key))
+        self.model.model_loaded_weight_memory = 0
+        return restored
+
+
+    def load(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False, full_load=False, dirty=False):
+
+        #Force patching doesn't make sense in Dynamic loading, as you dont know what does and
+        #doesn't need to be forced at this stage. The only thing you could do would be patch
+        #it all on CPU which consumes huge RAM.
+        assert not force_patch_weights
+
+        #Full load doesn't make sense as we dont actually have any loader capability here and
+        #now.
+        assert not full_load
+
+        assert device_to == self.load_device
+
+        num_patches = 0
+        allocated_size = 0
+        self.restore_loaded_backups()
+
+        with self.use_ejected():
+            self.unpatch_hooks()
+
+            vbar = self._vbar_get(create=True)
+            pin_state = self.model.dynamic_pins[self.load_device]
+            if not pin_state["hostbufs_initialized"]:
+                hostbuf_size = comfy.model_management.pinned_hostbuf_size(self.model_size())
+                pin_state["weights"] = (comfy_aimdo.host_buffer.HostBuffer(0, 64 * 1024 * 1024, hostbuf_size), [], [-1], [0], [0], {})
+                pin_state["patches"] = (comfy_aimdo.host_buffer.HostBuffer(0, 8 * 1024 * 1024, hostbuf_size), [], [-1], [0], [0], {})
+                pin_state["weights-loaded"] = (comfy_aimdo.host_buffer.HostBuffer(0, 64 * 1024 * 1024, hostbuf_size), [], [-1], [0], [0], {})
+                pin_state["patches-loaded"] = (comfy_aimdo.host_buffer.HostBuffer(0, 8 * 1024 * 1024, hostbuf_size), [], [-1], [0], [0], {})
+                pin_state["weights-fast"] = (comfy_aimdo.host_buffer.HostBuffer(0, 64 * 1024 * 1024, hostbuf_size), [], [-1], [0], [0], {})
+                pin_state["patches-fast"] = (comfy_aimdo.host_buffer.HostBuffer(0, 8 * 1024 * 1024, hostbuf_size), [], [-1], [0], [0], {})
+                pin_state["hostbufs_initialized"] = True
+            pin_state["failed"] = False
+            pin_state["active"] = True
+            if vbar is not None:
+                vbar.prioritize()
+
+            loading = self._load_list(for_dynamic=True, default_device=device_to)
+            loading.sort()
+
+            get_units = getattr(self.model, "get_dynamic_vram__units", None)
+            dynamic_units, last_dynamic_units = get_units() if get_units is not None else ([], [])
+            dynamic_units = list(dynamic_units)
+            last_dynamic_units = list(last_dynamic_units)
+            loading_by_module = {entry[-2]: entry for entry in loading}
+            loading = []
+            for unit in dynamic_units:
+                unit_modules = unit if isinstance(unit, (list, tuple)) else (unit,)
+                modules = [module for root in unit_modules for module in root.modules() if module in loading_by_module]
+                for index, module in enumerate(modules):
+                    loading.append((*loading_by_module.pop(module), unit if index == len(modules) - 1 else None))
+            last_loading = []
+            for unit in last_dynamic_units:
+                unit_modules = unit if isinstance(unit, (list, tuple)) else (unit,)
+                modules = [module for root in unit_modules for module in root.modules() if module in loading_by_module]
+                for index, module in enumerate(modules):
+                    last_loading.append((*loading_by_module.pop(module), unit if index == len(modules) - 1 else None))
+            loading.extend((*entry, None) for entry in loading_by_module.values())
+            loading.extend(last_loading)
+            v_block = None
+
+            for x in loading:
+                *_, module_mem, n, m, params, end_of_block = x
+
+                def set_dirty(item, dirty):
+                    if dirty or not hasattr(item, "_v_signature"):
+                        item._v_signature = None
+
+                def setup_param(self, m, n, param_key):
+                    nonlocal num_patches
+                    key = key_param_name_to_key(n, param_key)
+
+                    weight_function = []
+
+                    weight, _, _ = get_key_weight(self.model, key)
+                    if weight is None:
+                        return (False, 0)
+                    if key in self.patches:
+                        if comfy.lora.calculate_shape(self.patches[key], weight, key) != weight.shape:
+                            return (True, 0)
+                        lowvram_patch = LowVramPatch(key, self.patches)
+                        lowvram_patch._pin_state = pin_state
+                        setattr(m, param_key + "_lowvram_function", lowvram_patch)
+                        num_patches += 1
+                    else:
+                        setattr(m, param_key + "_lowvram_function", None)
+
+                    if key in self.weight_wrapper_patches:
+                        weight_function.extend(self.weight_wrapper_patches[key])
+                    setattr(m, param_key + "_function", weight_function)
+                    geometry = weight
+                    if not isinstance(weight, QuantizedTensor):
+                        model_dtype = getattr(m, param_key + "_comfy_model_dtype", None) or weight.dtype
+                        weight._model_dtype = model_dtype
+                        geometry = comfy.memory_management.TensorGeometry(shape=weight.shape, dtype=model_dtype)
+                    return (False, comfy.memory_management.vram_aligned_size(geometry))
+
+                def force_load_param(self, param_key, device_to):
+                    key = key_param_name_to_key(n, param_key)
+                    weight, _, _ = get_key_weight(self.model, key)
+                    if weight is None:
+                        return
+                    if key in self.backup:
+                        comfy.utils.set_attr_param(self.model, key, self.backup[key].weight)
+                    self.patch_weight_to_device(key, device_to=device_to, force_cast=True)
+                    weight, _, _ = get_key_weight(self.model, key)
+                    if weight is not None:
+                        self.model.model_loaded_weight_memory += weight.numel() * weight.element_size()
+
+                if hasattr(m, "comfy_cast_weights"):
+                    m.comfy_cast_weights = True
+                    m.seed_key = n
+                    m._pin_state = pin_state
+                    set_dirty(m, dirty)
+
+                    #Models that mix tiny and giant weights can causing lopsided stream buffer
+                    #rotations and stall. force the tinys over.
+                    if module_mem > 16 * 1024:
+                        force_load, v_weight_size = setup_param(self, m, n, "weight")
+                        force_load_bias, v_weight_bias = setup_param(self, m, n, "bias")
+                        force_load = force_load or force_load_bias
+                        v_weight_size += v_weight_bias
+                        if force_load:
+                            logging.info(f"Module {n} has resizing Lora - force loading")
+                    else:
+                        force_load=True
+
+                    if force_load:
+                        if hasattr(m, "_v"):
+                            comfy_aimdo.model_vbar.vbar_unpin(m._v)
+                            delattr(m, "_v")
+                        force_load_param(self, "weight", device_to)
+                        force_load_param(self, "bias", device_to)
+                    else:
+                        if vbar is not None and not hasattr(m, "_v"):
+                            m._v = vbar.alloc(v_weight_size)
+                        allocated_size += v_weight_size
+
+                    for param in params:
+                        if param not in ("weight", "bias"):
+                            force_load_param(self, param, device_to)
+
+                else:
+                    for param in params:
+                        key = key_param_name_to_key(n, param)
+                        weight, _, _ = get_key_weight(self.model, key)
+                        if key not in self.backup:
+                            self.backup[key] = collections.namedtuple('Dimension', ['weight', 'inplace_update'])(weight, False)
+                        model_dtype = getattr(m, param + "_comfy_model_dtype", None)
+                        casted_weight = weight.to(dtype=model_dtype, device=device_to)
+                        comfy.utils.set_attr_param(self.model, key, casted_weight)
+                        self.model.model_loaded_weight_memory += casted_weight.numel() * casted_weight.element_size()
+
+                move_weight_functions(m, device_to)
+
+                if hasattr(m, "_v"):
+                    v_block = m._v if v_block is None else (v_block[0], v_block[1], max(v_block[2], m._v[1] + m._v[2] - v_block[1]))
+                if end_of_block is not None:
+                    unit = end_of_block
+                    (unit[0] if isinstance(unit, (list, tuple)) else unit)._v_block = v_block
+                    v_block = None
+
+            for key, buf in self.model.named_buffers(recurse=True):
+                if key not in self.backup_buffers:
+                    self.backup_buffers[key] = buf
+                module, buf_name = comfy.utils.resolve_attr(self.model, key)
+                model_dtype = getattr(module, buf_name + "_comfy_model_dtype", None)
+                casted_buf = buf.to(dtype=model_dtype, device=device_to)
+                comfy.utils.set_attr_buffer(self.model, key, casted_buf)
+                self.model.model_loaded_weight_memory += casted_buf.numel() * casted_buf.element_size()
+
+            force_load_stat = f" Force pre-loaded {len(self.backup)} weights: {self.model.model_loaded_weight_memory // 1024} KB." if len(self.backup) > 0 else ""
+            log_key = (self.patches_uuid, allocated_size, num_patches, len(self.backup), self.model.model_loaded_weight_memory)
+            in_loop = bool(getattr(tqdm.tqdm, "_instances", None))
+            level = logging.DEBUG if in_loop and getattr(self, "_last_prepare_log_key", None) == log_key else logging.INFO
+            self._last_prepare_log_key = log_key
+            logging.log(level, f"Model {self.model.__class__.__name__} prepared for dynamic VRAM loading. {allocated_size // (1024 ** 2)}MB Staged. {num_patches} patches attached.{force_load_stat}")
+
+            self.model.device = device_to
+            self.model.current_weight_patches_uuid = self.patches_uuid
+
+            for callback in self.get_all_callbacks(CallbacksMP.ON_LOAD):
+                #These are all super dangerous. Who knows what the custom nodes actually do here...
+                callback(self, device_to, lowvram_model_memory, force_patch_weights, full_load)
+
+            self.apply_hooks(self.forced_hooks, force_apply=True)
+
+    def partially_unload(self, device_to, memory_to_free=0, force_patch_weights=False):
+        assert not force_patch_weights #See above
+        assert self.load_device != torch.device("cpu")
+
+        vbar = self._vbar_get()
+        vbar_freed = 0 if vbar is None else vbar.free_memory(memory_to_free)
+        freed = vbar_freed
+
+        backup_freed = 0
+        if freed < memory_to_free:
+            backup_freed = self.restore_loaded_backups()
+            freed += backup_freed
+
+        method = "vbar+backups" if vbar_freed and backup_freed else "vbar" if vbar_freed else "backups" if backup_freed else "none"
+        free_methods = getattr(self, "_free_methods", {})
+        free_methods[method] = free_methods.get(method, 0) + 1
+        self._free_methods = free_methods
+        now = time.monotonic()
+        if now - getattr(self, "_last_free_log_time", 0) >= 5:
+            requested = "all" if memory_to_free >= 1e30 else f"{memory_to_free / (1024 ** 2):.1f}MB"
+            prevailing_method = max(free_methods, key=free_methods.get)
+            detail("AIMDO free: model=%s device=%s prevailing_method=%s methods=%s requested=%s vbar_mb=%.1f backups_mb=%.1f", self.model.__class__.__name__, self.load_device, prevailing_method, free_methods, requested, vbar_freed / (1024 ** 2), backup_freed / (1024 ** 2))
+            self._free_methods = {}
+            self._last_free_log_time = now
+
+        return freed
+
+    def loaded_ram_size(self):
+        pin_state = self.model.dynamic_pins[self.load_device]
+        return pin_state["weights"][0].size + pin_state["weights-loaded"][0].size + pin_state["weights-fast"][0].size
+
+    def pinned_memory_size(self):
+        pin_state = self.model.dynamic_pins[self.load_device]
+        return pin_state["weights"][3][0] + pin_state["weights-loaded"][3][0] + pin_state["weights-fast"][3][0]
+
+    def unregister_inactive_pins(self, ram_to_unload, subsets=[ "weights-loaded", "patches-loaded", "weights", "patches" ]):
+        freed = 0
+        pin_state = self.model.dynamic_pins[self.load_device]
+        for subset in subsets:
+            hostbuf, stack, stack_split, pinned_size, *_ = pin_state[subset]
+            split = stack_split[0]
+            while split >= 0:
+                module, offset = stack[split]
+                module_pin = module._pins[subset]
+                split -= 1
+                stack_split[0] = split
+                if not module_pin["registered"]:
+                    continue
+                pin = module_pin["pin"]
+                size = pin.numel() * pin.element_size()
+                if torch.cuda.cudart().cudaHostUnregister(pin.data_ptr()) != 0:
+                    comfy.model_management.discard_cuda_async_error()
+                    continue
+                module_pin["registered"] = False
+                comfy.model_management.TOTAL_PINNED_MEMORY = max(0, comfy.model_management.TOTAL_PINNED_MEMORY - size)
+                pinned_size[0] = max(0, pinned_size[0] - size)
+                freed += size
+                ram_to_unload -= size
+                if ram_to_unload <= 0:
+                    return freed
+        return freed
+
+    def partially_unload_ram(self, ram_to_unload, subsets=[ "weights-fast", "patches-fast", "weights-loaded", "patches-loaded", "weights", "patches" ]):
+        freed = 0
+        pin_state = self.model.dynamic_pins[self.load_device]
+        for subset in subsets:
+            hostbuf, stack, stack_split, pinned_size, *_ = pin_state[subset]
+            while len(stack) > 0:
+                module, offset = stack.pop()
+                module_pin = module._pins[subset]
+                pin = module_pin["pin"]
+                size = pin.numel() * pin.element_size()
+                module_pin["balancer_entry"][-1] = None
+                del module_pin["balancer_entry"]
+                del module_pin["pin"]
+                registered = module_pin["registered"]
+                hostbuf.truncate(offset, do_unregister=registered)
+                stack_split[0] = min(stack_split[0], len(stack) - 1)
+                if registered:
+                    comfy.model_management.TOTAL_PINNED_MEMORY = max(0, comfy.model_management.TOTAL_PINNED_MEMORY - size)
+                    pinned_size[0] = max(0, pinned_size[0] - size)
+                freed += size
+                ram_to_unload -= size
+                if ram_to_unload <= 0:
+                    return freed
+        return freed
+
+    def patch_model(self, device_to=None, lowvram_model_memory=0, load_weights=True, force_patch_weights=False):
+        #This isn't used by the core at all and can only be to load a model out of
+        #the control of proper model_managment. If you are a custom node author reading
+        #this, the correct pattern is to call load_models_gpu() to get a proper
+        #managed load of your model.
+        assert not load_weights
+        return super().patch_model(load_weights=load_weights, force_patch_weights=force_patch_weights)
+
+    def unpatch_model(self, device_to=None, unpatch_weights=True):
+        super().unpatch_model(device_to=None, unpatch_weights=False)
+
+        if unpatch_weights:
+            self.partially_unload_ram(1e32)
+            self.partially_unload(None, 1e32)
+            for m in self.model.modules():
+                move_weight_functions(m, device_to)
+
+    def partially_load(self, device_to, extra_memory=0, force_patch_weights=False):
+        assert not force_patch_weights #See above
+        with self.use_ejected(skip_and_inject_on_exit_only=True):
+            dirty = self.model.current_weight_patches_uuid is not None and (self.model.current_weight_patches_uuid != self.patches_uuid)
+
+            self.unpatch_model(self.offload_device, unpatch_weights=False)
+            self.patch_model(load_weights=False)
+
+            try:
+                self.load(device_to, dirty=dirty)
+            except Exception as e:
+                self.detach()
+                raise e
+            #ModelPatcher::partially_load returns a number on what got loaded but
+            #nothing in core uses this and we have no data in the Dynamic world. Hit
+            #the custom node devs with a None rather than a 0 that would mislead any
+            #logic they might have.
+            return None
+
+    def patch_cached_hook_weights(self, cached_weights: dict, key: str, memory_counter: MemoryCounter):
+        assert False #Should be unreachable - we dont ever cache in the new implementation
+
+    def patch_hook_weight_to_device(self, hooks: comfy.hooks.HookGroup, combined_patches: dict, key: str, original_weights: dict, memory_counter: MemoryCounter):
+        if key not in combined_patches:
+            return
+
+        raise RuntimeError("Hooks not implemented in ModelPatcherDynamic. Please remove --fast arguments form ComfyUI startup")
+
+    def unpatch_hooks(self, whitelist_keys_set: set[str]=None) -> None:
+        pass
+
+    def get_non_dynamic_delegate(self):
+        model_patcher = self.clone(disable_dynamic=True, model_override=self.non_dynamic_delegate_model)
+        self.non_dynamic_delegate_model = model_patcher.get_clone_model_override()
+        return model_patcher
+
+
+CoreModelPatcher = ModelPatcher

@@ -4,10 +4,13 @@ from dataclasses import dataclass
 import torch
 from torch import Tensor, nn
 
+import comfy.model_management
+import comfy.quant_ops
+from comfy.ldm.modules.attention import AttentionTensorContainer, ComfyAttention
 from .math import attention, rope
-import comfy.ops
-import comfy.ldm.common_dit
 
+# Fix import for some custom nodes, TODO: delete eventually.
+RMSNorm = None
 
 class EmbedND(nn.Module):
     def __init__(self, dim: int, theta: int, axes_dim: list):
@@ -87,20 +90,12 @@ def build_mlp(hidden_size, mlp_hidden_dim, mlp_silu_act=False, yak_mlp=False, dt
             operations.Linear(mlp_hidden_dim, hidden_size, bias=True, dtype=dtype, device=device),
         )
 
-class RMSNorm(torch.nn.Module):
-    def __init__(self, dim: int, dtype=None, device=None, operations=None):
-        super().__init__()
-        self.scale = nn.Parameter(torch.empty((dim), dtype=dtype, device=device))
-
-    def forward(self, x: Tensor):
-        return comfy.ldm.common_dit.rms_norm(x, self.scale, 1e-6)
-
 
 class QKNorm(torch.nn.Module):
     def __init__(self, dim: int, dtype=None, device=None, operations=None):
         super().__init__()
-        self.query_norm = RMSNorm(dim, dtype=dtype, device=device, operations=operations)
-        self.key_norm = RMSNorm(dim, dtype=dtype, device=device, operations=operations)
+        self.query_norm = operations.RMSNorm(dim, dtype=dtype, device=device)
+        self.key_norm = operations.RMSNorm(dim, dtype=dtype, device=device)
 
     def forward(self, q: Tensor, k: Tensor, v: Tensor) -> tuple:
         q = self.query_norm(q)
@@ -152,10 +147,16 @@ def apply_mod(tensor, m_mult, m_add=None, modulation_dims=None):
             return tensor * m_mult
     else:
         for d in modulation_dims:
-            tensor[:, d[0]:d[1]] *= m_mult[:, d[2]]
+            tensor[:, d[0]:d[1]] *= m_mult[:, d[2]:d[2] + 1]
             if m_add is not None:
-                tensor[:, d[0]:d[1]] += m_add[:, d[2]]
+                tensor[:, d[0]:d[1]] += m_add[:, d[2]:d[2] + 1]
         return tensor
+
+
+def modulated_norm(x, norm, scale, shift, modulation_dims=None):
+    if modulation_dims is not None or comfy.model_management.in_training:
+        return apply_mod(norm(x), 1 + scale, shift, modulation_dims)
+    return comfy.quant_ops.ck.adaln(x, scale, shift, norm.eps)
 
 
 class SiLUActivation(nn.Module):
@@ -169,8 +170,9 @@ class SiLUActivation(nn.Module):
 
 
 class DoubleStreamBlock(nn.Module):
-    def __init__(self, hidden_size: int, num_heads: int, mlp_ratio: float, qkv_bias: bool = False, flipped_img_txt=False, modulation=True, mlp_silu_act=False, proj_bias=True, yak_mlp=False, dtype=None, device=None, operations=None):
+    def __init__(self, hidden_size: int, num_heads: int, mlp_ratio: float, qkv_bias: bool = False, modulation=True, mlp_silu_act=False, proj_bias=True, yak_mlp=False, dtype=None, device=None, operations=None):
         super().__init__()
+        self.comfy_attention = ComfyAttention()
 
         mlp_hidden_dim = int(hidden_size * mlp_ratio)
         self.num_heads = num_heads
@@ -197,8 +199,6 @@ class DoubleStreamBlock(nn.Module):
 
         self.txt_mlp = build_mlp(hidden_size, mlp_hidden_dim, mlp_silu_act=mlp_silu_act, yak_mlp=yak_mlp, dtype=dtype, device=device, operations=operations)
 
-        self.flipped_img_txt = flipped_img_txt
-
     def forward(self, img: Tensor, txt: Tensor, vec: Tensor, pe: Tensor, attn_mask=None, modulation_dims_img=None, modulation_dims_txt=None, transformer_options={}):
         if self.modulation:
             img_mod1, img_mod2 = self.img_mod(vec)
@@ -206,9 +206,11 @@ class DoubleStreamBlock(nn.Module):
         else:
             (img_mod1, img_mod2), (txt_mod1, txt_mod2) = vec
 
+        transformer_patches = transformer_options.get("patches", {})
+        extra_options = transformer_options.copy()
+
         # prepare image for attention
-        img_modulated = self.img_norm1(img)
-        img_modulated = apply_mod(img_modulated, (1 + img_mod1.scale), img_mod1.shift, modulation_dims_img)
+        img_modulated = modulated_norm(img, self.img_norm1, img_mod1.scale, img_mod1.shift, modulation_dims_img)
         img_qkv = self.img_attn.qkv(img_modulated)
         del img_modulated
         img_q, img_k, img_v = img_qkv.view(img_qkv.shape[0], img_qkv.shape[1], 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
@@ -216,50 +218,48 @@ class DoubleStreamBlock(nn.Module):
         img_q, img_k = self.img_attn.norm(img_q, img_k, img_v)
 
         # prepare txt for attention
-        txt_modulated = self.txt_norm1(txt)
-        txt_modulated = apply_mod(txt_modulated, (1 + txt_mod1.scale), txt_mod1.shift, modulation_dims_txt)
+        txt_modulated = modulated_norm(txt, self.txt_norm1, txt_mod1.scale, txt_mod1.shift, modulation_dims_txt)
         txt_qkv = self.txt_attn.qkv(txt_modulated)
         del txt_modulated
         txt_q, txt_k, txt_v = txt_qkv.view(txt_qkv.shape[0], txt_qkv.shape[1], 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
         del txt_qkv
         txt_q, txt_k = self.txt_attn.norm(txt_q, txt_k, txt_v)
 
-        if self.flipped_img_txt:
-            q = torch.cat((img_q, txt_q), dim=2)
-            del img_q, txt_q
-            k = torch.cat((img_k, txt_k), dim=2)
-            del img_k, txt_k
-            v = torch.cat((img_v, txt_v), dim=2)
-            del img_v, txt_v
-            # run actual attention
-            attn = attention(q, k, v,
-                             pe=pe, mask=attn_mask, transformer_options=transformer_options)
-            del q, k, v
+        q = torch.cat((txt_q, img_q), dim=2)
+        del txt_q, img_q
+        k = torch.cat((txt_k, img_k), dim=2)
+        del txt_k, img_k
+        v = torch.cat((txt_v, img_v), dim=2)
+        del txt_v, img_v
 
-            img_attn, txt_attn = attn[:, : img.shape[1]], attn[:, img.shape[1]:]
-        else:
-            q = torch.cat((txt_q, img_q), dim=2)
-            del txt_q, img_q
-            k = torch.cat((txt_k, img_k), dim=2)
-            del txt_k, img_k
-            v = torch.cat((txt_v, img_v), dim=2)
-            del txt_v, img_v
-            # run actual attention
-            attn = attention(q, k, v,
-                             pe=pe, mask=attn_mask, transformer_options=transformer_options)
-            del q, k, v
+        extra_options["img_slice"] = [txt.shape[1], q.shape[2]]
+        if "attn1_patch" in transformer_patches:
+            patch = transformer_patches["attn1_patch"]
+            for p in patch:
+                out = p(q, k, v, pe=pe, attn_mask=attn_mask, extra_options=extra_options)
+                q, k, v, pe, attn_mask = out.get("q", q), out.get("k", k), out.get("v", v), out.get("pe", pe), out.get("attn_mask", attn_mask)
 
-            txt_attn, img_attn = attn[:, : txt.shape[1]], attn[:, txt.shape[1]:]
+        # run actual attention
+        q, k, v = AttentionTensorContainer(q), AttentionTensorContainer(k), AttentionTensorContainer(v)
+        attn = attention(q, k, v, pe=pe, mask=attn_mask, transformer_options=transformer_options, preferred_attention=self.comfy_attention)
+        del q, k, v
+
+        if "attn1_output_patch" in transformer_patches:
+            patch = transformer_patches["attn1_output_patch"]
+            for p in patch:
+                attn = p(attn, extra_options)
+
+        txt_attn, img_attn = attn[:, : txt.shape[1]], attn[:, txt.shape[1]:]
 
         # calculate the img bloks
         img += apply_mod(self.img_attn.proj(img_attn), img_mod1.gate, None, modulation_dims_img)
         del img_attn
-        img += apply_mod(self.img_mlp(apply_mod(self.img_norm2(img), (1 + img_mod2.scale), img_mod2.shift, modulation_dims_img)), img_mod2.gate, None, modulation_dims_img)
+        img += apply_mod(self.img_mlp(modulated_norm(img, self.img_norm2, img_mod2.scale, img_mod2.shift, modulation_dims_img)), img_mod2.gate, None, modulation_dims_img)
 
         # calculate the txt bloks
         txt += apply_mod(self.txt_attn.proj(txt_attn), txt_mod1.gate, None, modulation_dims_txt)
         del txt_attn
-        txt += apply_mod(self.txt_mlp(apply_mod(self.txt_norm2(txt), (1 + txt_mod2.scale), txt_mod2.shift, modulation_dims_txt)), txt_mod2.gate, None, modulation_dims_txt)
+        txt += apply_mod(self.txt_mlp(modulated_norm(txt, self.txt_norm2, txt_mod2.scale, txt_mod2.shift, modulation_dims_txt)), txt_mod2.gate, None, modulation_dims_txt)
 
         if txt.dtype == torch.float16:
             txt = torch.nan_to_num(txt, nan=0.0, posinf=65504, neginf=-65504)
@@ -288,6 +288,7 @@ class SingleStreamBlock(nn.Module):
         operations=None
     ):
         super().__init__()
+        self.comfy_attention = ComfyAttention()
         self.hidden_dim = hidden_size
         self.num_heads = num_heads
         head_dim = hidden_size // num_heads
@@ -328,15 +329,31 @@ class SingleStreamBlock(nn.Module):
         else:
             mod = vec
 
-        qkv, mlp = torch.split(self.linear1(apply_mod(self.pre_norm(x), (1 + mod.scale), mod.shift, modulation_dims)), [3 * self.hidden_size, self.mlp_hidden_dim_first], dim=-1)
+        transformer_patches = transformer_options.get("patches", {})
+        extra_options = transformer_options.copy()
+
+        qkv, mlp = torch.split(self.linear1(modulated_norm(x, self.pre_norm, mod.scale, mod.shift, modulation_dims)), [3 * self.hidden_size, self.mlp_hidden_dim_first], dim=-1)
 
         q, k, v = qkv.view(qkv.shape[0], qkv.shape[1], 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
         del qkv
         q, k = self.norm(q, k, v)
 
+        if "attn1_patch" in transformer_patches:
+            patch = transformer_patches["attn1_patch"]
+            for p in patch:
+                out = p(q, k, v, pe=pe, attn_mask=attn_mask, extra_options=extra_options)
+                q, k, v, pe, attn_mask = out.get("q", q), out.get("k", k), out.get("v", v), out.get("pe", pe), out.get("attn_mask", attn_mask)
+
         # compute attention
-        attn = attention(q, k, v, pe=pe, mask=attn_mask, transformer_options=transformer_options)
+        q, k, v = AttentionTensorContainer(q), AttentionTensorContainer(k), AttentionTensorContainer(v)
+        attn = attention(q, k, v, pe=pe, mask=attn_mask, transformer_options=transformer_options, preferred_attention=self.comfy_attention)
         del q, k, v
+
+        if "attn1_output_patch" in transformer_patches:
+            patch = transformer_patches["attn1_output_patch"]
+            for p in patch:
+                attn = p(attn, extra_options)
+
         # compute activation in mlp stream, cat again and run second linear layer
         if self.yak_mlp:
             mlp = self.mlp_act(mlp[..., self.mlp_hidden_dim_first // 2:]) * mlp[..., :self.mlp_hidden_dim_first // 2]
@@ -361,6 +378,6 @@ class LastLayer(nn.Module):
             vec = vec[:, None, :]
 
         shift, scale = self.adaLN_modulation(vec).chunk(2, dim=-1)
-        x = apply_mod(self.norm_final(x), (1 + scale), shift, modulation_dims)
+        x = modulated_norm(x, self.norm_final, scale, shift, modulation_dims)
         x = self.linear(x)
         return x

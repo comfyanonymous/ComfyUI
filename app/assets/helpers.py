@@ -1,217 +1,186 @@
-import contextlib
+"""Small conversions the asset system needs in more than one layer: canonical
+stored-hash strings, UTC timestamps, tag normalization, and path containment
+checks. The SQL predicate is deliberately case-sensitive and component-bounded,
+because callers use it to choose rows for hard deletion; the Python matcher
+follows ``Path.is_relative_to`` instead, including its platform case rules.
+"""
+
+import functools
 import os
-from aiohttp import web
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Literal, Any
+from collections.abc import Callable, Iterable
+from datetime import datetime, timedelta, timezone
 
-import folder_paths
+import sqlalchemy as sa
+from sqlalchemy.sql import ColumnElement
 
 
-RootType = Literal["models", "input", "output"]
-ALLOWED_ROOTS: tuple[RootType, ...] = ("models", "input", "output")
+def sql_path_under_prefix(
+    column: ColumnElement[str], prefix: str
+) -> ColumnElement[bool]:
+    """SQL predicate for ``Path(column).is_relative_to(prefix)`` on this platform.
 
-def get_query_dict(request: web.Request) -> dict[str, Any]:
+    Case-SENSITIVE and component-bounded: prefix ``/a/b`` matches ``/a/b`` and
+    ``/a/b/c`` but not ``/a/bc``, ``/a/b-other`` or ``/a/B/c``.
+
+    ``LIKE`` cannot express this. SQLite's ``LIKE`` is ASCII case-insensitive by
+    default, so ``'/data/TEMP/f' LIKE '/data/temp/%'`` is TRUE — which let the
+    temp wipe hard-delete records under a case-different persistent directory,
+    and let the enrichment scan mutate rows outside the requested root.
+    ``GLOB`` is case-sensitive but carries its own metacharacters (``*``, ``?``,
+    ``[``) with no ESCAPE clause, so every caller would need bracket-quoting.
+    ``substr(column, 1, n) = <prefix>`` compares under the column's BINARY
+    collation and has no metacharacters at all, so a path containing ``%``,
+    ``_``, ``*``, ``?`` or ``[`` needs no escaping and cannot inject.
+
+    Only the PREFIX is normalized here. That is sound because the column holds
+    normalized absolute paths — ``records.create_content`` is the sole writer
+    and normalizes there. Normalizing the column in SQL is not an option anyway:
+    it would need a per-row Python call and would defeat the index.
     """
-    Gets a dictionary of query parameters from the request.
+    base, stem = _base_and_stem(prefix)
+    return sa.or_(
+        column == base,
+        sa.func.substr(column, 1, len(stem)) == stem,
+    )
 
-    'request.query' is a MultiMapping[str], needs to be converted to a dictionary to be validated by Pydantic.
+
+def _base_and_stem(prefix: str) -> tuple[str, str]:
+    base = os.path.abspath(prefix)
+    return base, base if base.endswith(os.sep) else base + os.sep
+
+
+def stored_path_under_prefixes(prefixes: list[str]) -> Callable[[str], bool]:
+    """The Python twin of sql_path_under_prefix OR'd over ``prefixes``: the same
+    case-sensitive string test on a stored path, for filtering rows already fetched.
+
+    Unlike path_prefix_matcher, it neither normalizes nor normcases the path.
     """
-    query_dict = {
-        key: request.query.getall(key) if len(request.query.getall(key)) > 1 else request.query.get(key)
-        for key in request.query.keys()
-    }
-    return query_dict
+    pairs = [_base_and_stem(prefix) for prefix in prefixes]
+    bases = frozenset(base for base, _ in pairs)
+    stems = tuple(stem for _, stem in pairs)
+    return lambda path: path in bases or path.startswith(stems)
 
-def list_tree(base_dir: str) -> list[str]:
-    out: list[str] = []
-    base_abs = os.path.abspath(base_dir)
-    if not os.path.isdir(base_abs):
-        return out
-    for dirpath, _subdirs, filenames in os.walk(base_abs, topdown=True, followlinks=False):
-        for name in filenames:
-            out.append(os.path.abspath(os.path.join(dirpath, name)))
-    return out
 
-def prefixes_for_root(root: RootType) -> list[str]:
-    if root == "models":
-        bases: list[str] = []
-        for _bucket, paths in get_comfy_models_folders():
-            bases.extend(paths)
-        return [os.path.abspath(p) for p in bases]
-    if root == "input":
-        return [os.path.abspath(folder_paths.get_input_directory())]
-    if root == "output":
-        return [os.path.abspath(folder_paths.get_output_directory())]
-    return []
+# Each prefix adds two terms to one flat OR, and SQLite rejects an expression deeper than
+# 1000, so about 500 prefixes in one statement fail with "Expression tree is too large".
+# SQLAlchemy flattens nested ORs, so more prefixes than this are split across statements,
+# or filtered in Python with stored_path_under_prefixes.
+PREFIX_BATCH_SIZE = 200
 
-def escape_like_prefix(s: str, escape: str = "!") -> tuple[str, str]:
-    """Escapes %, _ and the escape char itself in a LIKE prefix.
-    Returns (escaped_prefix, escape_char). Caller should append '%' and pass escape=escape_char to .like().
+
+def sql_path_under_prefix_batches(
+    column: ColumnElement[str], prefixes: list[str]
+) -> list[ColumnElement[bool]]:
+    """sql_path_under_prefix OR'd over each run of at most PREFIX_BATCH_SIZE prefixes.
+
+    Run one statement per predicate and merge. Nested or overlapping prefixes can put a
+    row in more than one batch, so the caller dedupes.
+    """
+    return [
+        sa.or_(*(sql_path_under_prefix(column, p) for p in prefixes[i:i + PREFIX_BATCH_SIZE]))
+        for i in range(0, len(prefixes), PREFIX_BATCH_SIZE)
+    ]
+
+
+def path_prefix_matcher(prefixes: Iterable[str]) -> Callable[[str], bool]:
+    """Return ``path -> Path(path).is_relative_to(<any prefix>)``, with the prefixes
+    normalized once.
+
+    The startup prune tests every catalogued row against every owned prefix, and
+    ``Path.is_relative_to`` walks the path's parents on each call, so a pathlib
+    check there costs rows x prefixes x depth. A normcase'd, separator-bounded
+    string prefix keeps its component bounds and platform case rules.
+    """
+    # abspath keeps exactly two leading separators, and pathlib treats that "//" as an
+    # anchor of its own: "//server/f" is not under "/". Such paths are only matched
+    # against prefixes with the same anchor.
+    double = os.sep * 2
+    exact: dict[bool, set[str]] = {False: set(), True: set()}
+    stems: dict[bool, list[str]] = {False: [], True: []}
+    for prefix in prefixes:
+        base = os.path.normcase(os.path.abspath(prefix))
+        is_double = base.startswith(double)
+        exact[is_double].add(base)
+        stems[is_double].append(base if base.endswith(os.sep) else base + os.sep)
+    stem_tuples = {key: tuple(value) for key, value in stems.items()}
+
+    def matches(path: str) -> bool:
+        candidate = os.path.normcase(os.path.abspath(path))
+        is_double = candidate.startswith(double)
+        return candidate in exact[is_double] or candidate.startswith(stem_tuples[is_double])
+
+    return matches
+
+
+@functools.lru_cache(maxsize=None)
+def cached_prefix_matcher(prefixes: tuple[str, ...]) -> Callable[[str], bool]:
+    """path_prefix_matcher, built once per distinct prefix tuple, for callers that check
+    every scanned file against the same folders.
+
+    Keyed on the raw prefixes: normalizing them in the key would bring back the per-call
+    cost this avoids. A folder-config change is just a new key.
+
+    Precondition: the prefixes are absolute. That is not checked. main.py and
+    extra_model_paths make their folders absolute, but folder_paths' setters and
+    add_model_folder_path store whatever they are given, so a custom node can register a
+    relative one. A relative prefix is resolved against the working directory once, on
+    first use, and that resolution is then frozen for as long as the key is unchanged.
+    """
+    return path_prefix_matcher(prefixes)
+
+
+def escape_sql_like_string(s: str, escape: str = "!") -> tuple[str, str]:
+    """Escapes %, _ and the escape char in a LIKE prefix.
+
+    Returns (escaped_prefix, escape_char).
     """
     s = s.replace(escape, escape + escape)  # escape the escape char first
     s = s.replace("%", escape + "%").replace("_", escape + "_")  # escape LIKE wildcards
     return s, escape
 
-def fast_asset_file_check(
-    *,
-    mtime_db: int | None,
-    size_db: int | None,
-    stat_result: os.stat_result,
-) -> bool:
-    if mtime_db is None:
-        return False
-    actual_mtime_ns = getattr(stat_result, "st_mtime_ns", int(stat_result.st_mtime * 1_000_000_000))
-    if int(mtime_db) != int(actual_mtime_ns):
-        return False
-    sz = int(size_db or 0)
-    if sz > 0:
-        return int(stat_result.st_size) == sz
-    return True
 
-def utcnow() -> datetime:
+def get_utc_now() -> datetime:
     """Naive UTC timestamp (no tzinfo). We always treat DB datetimes as UTC."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
-def get_comfy_models_folders() -> list[tuple[str, list[str]]]:
-    """Build a list of (folder_name, base_paths[]) categories that are configured for model locations.
 
-    We trust `folder_paths.folder_names_and_paths` and include a category if
-    *any* of its base paths lies under the Comfy `models_dir`.
-    """
-    targets: list[tuple[str, list[str]]] = []
-    models_root = os.path.abspath(folder_paths.models_dir)
-    for name, values in folder_paths.folder_names_and_paths.items():
-        paths, _exts = values[0], values[1]  # NOTE: this prevents nodepacks that hackily edit folder_... from breaking ComfyUI
-        if any(os.path.abspath(p).startswith(models_root + os.sep) for p in paths):
-            targets.append((name, paths))
-    return targets
+def mtime_ns_to_utc(mtime_ns: int, ctime_ns: int) -> datetime:
+    """Naive UTC time of a file mtime. A future mtime falls back to the ctime, capped at now: the
+    creation time on Windows, the last metadata change elsewhere."""
+    now = get_utc_now()
+    made = datetime(1970, 1, 1) + timedelta(microseconds=mtime_ns // 1000)
+    if made <= now:
+        return made
+    # A ctime before 1970 (an unset Windows creation time reads as 1601) can't be paged by cursor.
+    return min(datetime(1970, 1, 1) + timedelta(microseconds=ctime_ns // 1000), now) if ctime_ns >= 0 else now
 
-def compute_relative_filename(file_path: str) -> str | None:
-    """
-    Return the model's path relative to the last well-known folder (the model category),
-    using forward slashes, eg:
-      /.../models/checkpoints/flux/123/flux.safetensors -> "flux/123/flux.safetensors"
-      /.../models/text_encoders/clip_g.safetensors -> "clip_g.safetensors"
-
-    For non-model paths, returns None.
-    NOTE: this is a temporary helper, used only for initializing metadata["filename"] field.
-    """
-    try:
-        root_category, rel_path = get_relative_to_root_category_path_of_asset(file_path)
-    except ValueError:
-        return None
-
-    p = Path(rel_path)
-    parts = [seg for seg in p.parts if seg not in (".", "..", p.anchor)]
-    if not parts:
-        return None
-
-    if root_category == "models":
-        # parts[0] is the category ("checkpoints", "vae", etc) – drop it
-        inside = parts[1:] if len(parts) > 1 else [parts[0]]
-        return "/".join(inside)
-    return "/".join(parts)  # input/output: keep all parts
-
-
-def get_relative_to_root_category_path_of_asset(file_path: str) -> tuple[Literal["input", "output", "models"], str]:
-    """Given an absolute or relative file path, determine which root category the path belongs to:
-      - 'input' if the file resides under `folder_paths.get_input_directory()`
-      - 'output' if the file resides under `folder_paths.get_output_directory()`
-      - 'models' if the file resides under any base path of categories returned by `get_comfy_models_folders()`
-
-    Returns:
-        (root_category, relative_path_inside_that_root)
-        For 'models', the relative path is prefixed with the category name:
-            e.g. ('models', 'vae/test/sub/ae.safetensors')
-
-    Raises:
-        ValueError: if the path does not belong to input, output, or configured model bases.
-    """
-    fp_abs = os.path.abspath(file_path)
-
-    def _is_within(child: str, parent: str) -> bool:
-        try:
-            return os.path.commonpath([child, parent]) == parent
-        except Exception:
-            return False
-
-    def _rel(child: str, parent: str) -> str:
-        return os.path.relpath(os.path.join(os.sep, os.path.relpath(child, parent)), os.sep)
-
-    # 1) input
-    input_base = os.path.abspath(folder_paths.get_input_directory())
-    if _is_within(fp_abs, input_base):
-        return "input", _rel(fp_abs, input_base)
-
-    # 2) output
-    output_base = os.path.abspath(folder_paths.get_output_directory())
-    if _is_within(fp_abs, output_base):
-        return "output", _rel(fp_abs, output_base)
-
-    # 3) models (check deepest matching base to avoid ambiguity)
-    best: tuple[int, str, str] | None = None  # (base_len, bucket, rel_inside_bucket)
-    for bucket, bases in get_comfy_models_folders():
-        for b in bases:
-            base_abs = os.path.abspath(b)
-            if not _is_within(fp_abs, base_abs):
-                continue
-            cand = (len(base_abs), bucket, _rel(fp_abs, base_abs))
-            if best is None or cand[0] > best[0]:
-                best = cand
-
-    if best is not None:
-        _, bucket, rel_inside = best
-        combined = os.path.join(bucket, rel_inside)
-        return "models", os.path.relpath(os.path.join(os.sep, combined), os.sep)
-
-    raise ValueError(f"Path is not within input, output, or configured model bases: {file_path}")
-
-def get_name_and_tags_from_asset_path(file_path: str) -> tuple[str, list[str]]:
-    """Return a tuple (name, tags) derived from a filesystem path.
-
-    Semantics:
-      - Root category is determined by `get_relative_to_root_category_path_of_asset`.
-      - The returned `name` is the base filename with extension from the relative path.
-      - The returned `tags` are:
-            [root_category] + parent folders of the relative path (in order)
-        For 'models', this means:
-            file '/.../ModelsDir/vae/test_tag/ae.safetensors'
-            -> root_category='models', some_path='vae/test_tag/ae.safetensors'
-            -> name='ae.safetensors', tags=['models', 'vae', 'test_tag']
-
-    Raises:
-        ValueError: if the path does not belong to input, output, or configured model bases.
-    """
-    root_category, some_path = get_relative_to_root_category_path_of_asset(file_path)
-    p = Path(some_path)
-    parent_parts = [part for part in p.parent.parts if part not in (".", "..", p.anchor)]
-    return p.name, list(dict.fromkeys(normalize_tags([root_category, *parent_parts])))
 
 def normalize_tags(tags: list[str] | None) -> list[str]:
     """
     Normalize a list of tags by:
-      - Stripping whitespace and converting to lowercase.
-      - Removing duplicates.
+      - Stripping whitespace.
+      - Removing exact duplicates while preserving order and case.
     """
-    return [t.strip().lower() for t in (tags or []) if (t or "").strip()]
+    return list(dict.fromkeys(t.strip() for t in (tags or []) if (t or "").strip()))
 
-def collect_models_files() -> list[str]:
-    out: list[str] = []
-    for folder_name, bases in get_comfy_models_folders():
-        rel_files = folder_paths.get_filename_list(folder_name) or []
-        for rel_path in rel_files:
-            abs_path = folder_paths.get_full_path(folder_name, rel_path)
-            if not abs_path:
-                continue
-            abs_path = os.path.abspath(abs_path)
-            allowed = False
-            for b in bases:
-                base_abs = os.path.abspath(b)
-                with contextlib.suppress(Exception):
-                    if os.path.commonpath([abs_path, base_abs]) == base_abs:
-                        allowed = True
-                        break
-            if allowed:
-                out.append(abs_path)
-    return out
+
+def to_stored_hash(digest: str) -> str:
+    return f"blake3:{digest}"
+
+
+def validate_blake3_hash(s: str) -> str:
+    """Validate and normalize a blake3 hash string.
+
+    Returns canonical 'blake3:<hex>' or raises ValueError.
+    """
+    s = s.strip().lower()
+    if not s or ":" not in s:
+        raise ValueError("hash must be 'blake3:<hex>'")
+    algo, digest = s.split(":", 1)
+    if (
+        algo != "blake3"
+        or len(digest) != 64
+        or any(c for c in digest if c not in "0123456789abcdef")
+    ):
+        raise ValueError("hash must be 'blake3:<hex>'")
+    return f"{algo}:{digest}"

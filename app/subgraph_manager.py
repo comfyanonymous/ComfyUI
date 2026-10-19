@@ -53,7 +53,7 @@ class SubgraphManager:
         return entry_id, entry
 
     async def load_entry_data(self, entry: SubgraphEntry):
-        with open(entry['path'], 'r') as f:
+        with open(entry['path'], 'r', encoding='utf-8') as f:
             entry['data'] = f.read()
         return entry
 

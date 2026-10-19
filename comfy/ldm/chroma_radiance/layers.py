@@ -4,8 +4,6 @@ from functools import lru_cache
 import torch
 from torch import nn
 
-from comfy.ldm.flux.layers import RMSNorm
-
 
 class NerfEmbedder(nn.Module):
     """
@@ -145,7 +143,7 @@ class NerfGLUBlock(nn.Module):
         # We now need to generate parameters for 3 matrices.
         total_params = 3 * hidden_size_x**2 * mlp_ratio
         self.param_generator = operations.Linear(hidden_size_s, total_params, dtype=dtype, device=device)
-        self.norm = RMSNorm(hidden_size_x, dtype=dtype, device=device, operations=operations)
+        self.norm = operations.RMSNorm(hidden_size_x, dtype=dtype, device=device)
         self.mlp_ratio = mlp_ratio
 
 
@@ -178,7 +176,7 @@ class NerfGLUBlock(nn.Module):
 class NerfFinalLayer(nn.Module):
     def __init__(self, hidden_size, out_channels, dtype=None, device=None, operations=None):
         super().__init__()
-        self.norm = RMSNorm(hidden_size, dtype=dtype, device=device, operations=operations)
+        self.norm = operations.RMSNorm(hidden_size, dtype=dtype, device=device)
         self.linear = operations.Linear(hidden_size, out_channels, dtype=dtype, device=device)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -190,7 +188,7 @@ class NerfFinalLayer(nn.Module):
 class NerfFinalLayerConv(nn.Module):
     def __init__(self, hidden_size: int, out_channels: int, dtype=None, device=None, operations=None):
         super().__init__()
-        self.norm = RMSNorm(hidden_size, dtype=dtype, device=device, operations=operations)
+        self.norm = operations.RMSNorm(hidden_size, dtype=dtype, device=device)
         self.conv = operations.Conv2d(
             in_channels=hidden_size,
             out_channels=out_channels,

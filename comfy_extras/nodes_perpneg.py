@@ -24,12 +24,12 @@ class PerpNeg(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="PerpNeg",
-            display_name="Perp-Neg (DEPRECATED by PerpNegGuider)",
-            category="_for_testing",
+            display_name="Perp-Neg (DEPRECATED by Perp-Neg Guider)",
+            category="experimental",
             inputs=[
                 io.Model.Input("model"),
                 io.Conditioning.Input("empty_conditioning"),
-                io.Float.Input("neg_scale", default=1.0, min=0.0, max=100.0, step=0.01),
+                io.Float.Input("neg_scale", default=1.0, min=0.0, max=100.0, step=0.01, advanced=True),
             ],
             outputs=[
                 io.Model.Output(),
@@ -127,14 +127,15 @@ class PerpNegGuider(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="PerpNegGuider",
-            category="_for_testing",
+            display_name="Perp-Neg Guider",
+            category="experimental",
             inputs=[
                 io.Model.Input("model"),
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),
                 io.Conditioning.Input("empty_conditioning"),
                 io.Float.Input("cfg", default=8.0, min=0.0, max=100.0, step=0.1, round=0.01),
-                io.Float.Input("neg_scale", default=1.0, min=0.0, max=100.0, step=0.01),
+                io.Float.Input("neg_scale", default=1.0, min=0.0, max=100.0, step=0.01, advanced=True),
             ],
             outputs=[
                 io.Guider.Output(),

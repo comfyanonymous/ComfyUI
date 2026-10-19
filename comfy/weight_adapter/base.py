@@ -49,6 +49,12 @@ class WeightAdapterBase:
         """
         raise NotImplementedError
 
+    def calculate_shape(
+        self,
+        key
+    ):
+        return None
+
     def calculate_weight(
         self,
         weight,

@@ -10,12 +10,13 @@ class TorchCompileModel(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="TorchCompileModel",
-            category="_for_testing",
+            category="experimental",
             inputs=[
                 io.Model.Input("model"),
                 io.Combo.Input(
                     "backend",
                     options=["inductor", "cudagraphs"],
+                    advanced=True,
                 ),
             ],
             outputs=[io.Model.Output()],
@@ -24,7 +25,7 @@ class TorchCompileModel(io.ComfyNode):
 
     @classmethod
     def execute(cls, model, backend) -> io.NodeOutput:
-        m = model.clone()
+        m = model.clone(disable_dynamic=True)
         set_torch_compile_wrapper(model=m, backend=backend, options={"guard_filter_fn": skip_torch_compile_dict})
         return io.NodeOutput(m)
 

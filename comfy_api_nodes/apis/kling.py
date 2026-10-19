@@ -1,4 +1,10 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+class MultiPromptEntry(BaseModel):
+    index: int = Field(...)
+    prompt: str = Field(...)
+    duration: str = Field(...)
 
 
 class OmniProText2VideoRequest(BaseModel):
@@ -7,6 +13,10 @@ class OmniProText2VideoRequest(BaseModel):
     duration: str = Field(..., description="'5' or '10'")
     prompt: str = Field(...)
     mode: str = Field("pro")
+    multi_shot: bool | None = Field(None)
+    multi_prompt: list[MultiPromptEntry] | None = Field(None)
+    shot_type: str | None = Field(None)
+    sound: str = Field(..., description="'on' or 'off'")
 
 
 class OmniParamImage(BaseModel):
@@ -26,6 +36,10 @@ class OmniProFirstLastFrameRequest(BaseModel):
     duration: str = Field(..., description="'5' or '10'")
     prompt: str = Field(...)
     mode: str = Field("pro")
+    sound: str | None = Field(None, description="'on' or 'off'")
+    multi_shot: bool | None = Field(None)
+    multi_prompt: list[MultiPromptEntry] | None = Field(None)
+    shot_type: str | None = Field(None)
 
 
 class OmniProReferences2VideoRequest(BaseModel):
@@ -38,6 +52,10 @@ class OmniProReferences2VideoRequest(BaseModel):
     duration: str | None = Field(..., description="From 3 to 10.")
     prompt: str = Field(...)
     mode: str = Field("pro")
+    sound: str | None = Field(None, description="'on' or 'off'")
+    multi_shot: bool | None = Field(None)
+    multi_prompt: list[MultiPromptEntry] | None = Field(None)
+    shot_type: str | None = Field(None)
 
 
 class TaskStatusVideoResult(BaseModel):
@@ -54,6 +72,7 @@ class TaskStatusImageResult(BaseModel):
 class TaskStatusResults(BaseModel):
     videos: list[TaskStatusVideoResult] | None = Field(None)
     images: list[TaskStatusImageResult] | None = Field(None)
+    series_images: list[TaskStatusImageResult] | None = Field(None)
 
 
 class TaskStatusResponseData(BaseModel):
@@ -77,31 +96,49 @@ class OmniImageParamImage(BaseModel):
 
 
 class OmniProImageRequest(BaseModel):
-    model_name: str = Field(..., description="kling-image-o1")
-    resolution: str = Field(..., description="'1k' or '2k'")
+    model_name: str = Field(...)
+    resolution: str = Field(...)
     aspect_ratio: str | None = Field(...)
     prompt: str = Field(...)
     mode: str = Field("pro")
     n: int | None = Field(1, le=9)
     image_list: list[OmniImageParamImage] | None = Field(..., max_length=10)
+    result_type: str | None = Field(None, description="Set to 'series' for series generation")
+    series_amount: int | None = Field(None, ge=2, le=9, description="Number of images in a series")
 
 
 class TextToVideoWithAudioRequest(BaseModel):
-    model_name: str = Field(..., description="kling-v2-6")
+    model_name: str = Field(...)
     aspect_ratio: str = Field(..., description="'16:9', '9:16' or '1:1'")
-    duration: str = Field(..., description="'5' or '10'")
-    prompt: str = Field(...)
+    duration: str = Field(...)
+    prompt: str | None = Field(...)
+    negative_prompt: str | None = Field(None)
     mode: str = Field("pro")
     sound: str = Field(..., description="'on' or 'off'")
+    multi_shot: bool | None = Field(None)
+    multi_prompt: list[MultiPromptEntry] | None = Field(None)
+    shot_type: str | None = Field(None)
 
 
 class ImageToVideoWithAudioRequest(BaseModel):
-    model_name: str = Field(..., description="kling-v2-6")
+    model_name: str = Field(...)
     image: str = Field(...)
-    duration: str = Field(..., description="'5' or '10'")
-    prompt: str = Field(...)
+    image_tail: str | None = Field(None)
+    duration: str = Field(...)
+    prompt: str | None = Field(...)
+    negative_prompt: str | None = Field(None)
     mode: str = Field("pro")
     sound: str = Field(..., description="'on' or 'off'")
+    multi_shot: bool | None = Field(None)
+    multi_prompt: list[MultiPromptEntry] | None = Field(None)
+    shot_type: str | None = Field(None)
+
+
+class KlingAvatarRequest(BaseModel):
+    image: str = Field(...)
+    sound_file: str = Field(...)
+    prompt: str | None = Field(None)
+    mode: str = Field(...)
 
 
 class MotionControlRequest(BaseModel):
@@ -111,3 +148,110 @@ class MotionControlRequest(BaseModel):
     keep_original_sound: str = Field(...)
     character_orientation: str = Field(...)
     mode: str = Field(..., description="'pro' or 'std'")
+    model_name: str = Field(...)
+
+
+class Kling3TurboSettings(BaseModel):
+    resolution: str = Field("720p", description="'720p' or '1080p'")
+    aspect_ratio: str | None = Field(None, description="'16:9'/'9:16'/'1:1'; text-to-video only")
+    duration: int = Field(5, description="3-15 second")
+
+
+class Kling3TurboText2VideoRequest(BaseModel):
+    prompt: str = Field(..., description="<=3072 chars; may use multi-shot 'shot n, m, words; ...'")
+    settings: Kling3TurboSettings | None = Field(None)
+
+
+class Kling3TurboContent(BaseModel):
+    type: str = Field(..., description="'prompt' or 'first_frame'")
+    text: str | None = Field(None, description="for type=prompt; <=2500 chars")
+    url: str | None = Field(None, description="for type=first_frame")
+
+
+class Kling3TurboImage2VideoRequest(BaseModel):
+    contents: list[Kling3TurboContent] = Field(..., description="prompt + first_frame materials")
+    settings: Kling3TurboSettings | None = Field(None)
+
+
+class Kling3TurboCreateData(BaseModel):
+    id: str | None = Field(None, description="Task ID")
+    status: str | None = Field(None)
+    message: str | None = Field(None)
+
+
+class Kling3TurboCreateResponse(BaseModel):
+    code: int | None = Field(None)
+    message: str | None = Field(None)
+    request_id: str | None = Field(None)
+    data: Kling3TurboCreateData | None = Field(None)
+
+
+class Kling3TurboOutput(BaseModel):
+    type: str | None = Field(None, description="'video', 'image', 'audio', ...")
+    id: str | None = Field(None)
+    url: str | None = Field(None)
+    duration: str | None = Field(None)
+
+
+class Kling3TurboTaskData(BaseModel):
+    id: str | None = Field(None)
+    status: str | None = Field(None, description="submitted | processing | succeeded | failed")
+    message: str | None = Field(None)
+    outputs: list[Kling3TurboOutput] | None = Field(None)
+
+
+class Kling3TurboQueryResponse(BaseModel):
+    code: int | None = Field(None)
+    message: str | None = Field(None)
+    request_id: str | None = Field(None)
+    data: list[Kling3TurboTaskData] | None = Field(None)
+
+
+class KlingSolutionContent(BaseModel):
+    type: str = Field(..., description="'product_image' or 'person_image'")
+    url: str = Field(...)
+
+
+class KlingTryOnSettings(BaseModel):
+    keep_pose: bool = Field(...)
+
+
+class KlingTryOnRequest(BaseModel):
+    contents: list[KlingSolutionContent] = Field(...)
+    settings: KlingTryOnSettings = Field(...)
+
+
+class KlingSolutionCreateData(BaseModel):
+    task_id: str | None = Field(None)
+    status: str | None = Field(None)
+
+
+class KlingSolutionCreateResponse(BaseModel):
+    code: int | None = Field(None)
+    message: str | None = Field(None)
+    request_id: str | None = Field(None)
+    data: KlingSolutionCreateData | None = Field(None)
+
+
+class KlingSolutionOutput(BaseModel):
+    type: str | None = Field(None)
+    url: str | None = Field(None)
+
+
+class KlingSolutionTask(BaseModel):
+    id: str | None = Field(None)
+    status: str | None = Field(None, description="submitted | processing | succeed | failed")
+    message: str | None = Field(None)
+    outputs: list[KlingSolutionOutput] | None = Field(None)
+
+
+class KlingSolutionQueryResponse(BaseModel):
+    code: int | None = Field(None)
+    message: str | None = Field(None)
+    request_id: str | None = Field(None)
+    data: list[KlingSolutionTask] | None = Field(None)
+
+    @field_validator("data", mode="before")
+    @classmethod
+    def single_task_as_list(cls, v):
+        return [v] if isinstance(v, dict) else v

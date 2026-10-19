@@ -13,10 +13,9 @@ from pydantic import BaseModel, Field
 from comfy_api.latest import IO, Input, Types
 
 from . import request_logger
-from ._helpers import is_processing_interrupted, sleep_with_interrupt
+from ._helpers import diagnose_connectivity, is_processing_interrupted, sleep_with_interrupt
 from .client import (
     ApiEndpoint,
-    _diagnose_connectivity,
     _display_time_progress,
     sync_op,
 )
@@ -94,7 +93,7 @@ async def upload_image_to_comfyapi(
     *,
     mime_type: str | None = None,
     wait_label: str | None = "Uploading",
-    total_pixels: int = 2048 * 2048,
+    total_pixels: int | None = 2048 * 2048,
 ) -> str:
     """Uploads a single image to ComfyUI API and returns its download URL."""
     return (
@@ -158,10 +157,38 @@ async def upload_video_to_comfyapi(
 
     # Convert VideoInput to BytesIO using specified container/codec
     video_bytes_io = BytesIO()
-    video.save_to(video_bytes_io, format=container, codec=codec)
+    try:
+        video.save_to(video_bytes_io, format=container, codec=codec)
+    except Exception as e:
+        raise ValueError(
+            f"Could not convert the input video to {container.value.upper()} for upload; "
+            f"the file may be corrupted or use an unsupported codec. "
+            f"Try re-exporting it as MP4 (H.264). Original error: {e}"
+        ) from e
     video_bytes_io.seek(0)
 
     return await upload_file_to_comfyapi(cls, video_bytes_io, filename, upload_mime_type, wait_label)
+
+
+_3D_MIME_TYPES = {
+    "glb": "model/gltf-binary",
+    "obj": "model/obj",
+    "fbx": "application/octet-stream",
+}
+
+
+async def upload_3d_model_to_comfyapi(
+    cls: type[IO.ComfyNode],
+    model_3d: Types.File3D,
+    file_format: str,
+) -> str:
+    """Uploads a 3D model file to ComfyUI API and returns its download URL."""
+    return await upload_file_to_comfyapi(
+        cls,
+        model_3d.get_data(),
+        f"{uuid.uuid4()}.{file_format}",
+        _3D_MIME_TYPES.get(file_format, "application/octet-stream"),
+    )
 
 
 async def upload_file_to_comfyapi(
@@ -255,17 +282,14 @@ async def upload_file(
         monitor_task = asyncio.create_task(_monitor())
         sess: aiohttp.ClientSession | None = None
         try:
-            try:
-                request_logger.log_request_response(
-                    operation_id=operation_id,
-                    request_method="PUT",
-                    request_url=upload_url,
-                    request_headers=headers or None,
-                    request_params=None,
-                    request_data=f"[File data {len(data)} bytes]",
-                )
-            except Exception as e:
-                logging.debug("[DEBUG] upload request logging failed: %s", e)
+            request_logger.log_request_response(
+                operation_id=operation_id,
+                request_method="PUT",
+                request_url=upload_url,
+                request_headers=headers or None,
+                request_params=None,
+                request_data=f"[File data {len(data)} bytes]",
+            )
 
             sess = aiohttp.ClientSession(timeout=timeout)
             req = sess.put(upload_url, data=data, headers=headers, skip_auto_headers=skip_auto_headers)
@@ -305,49 +329,43 @@ async def upload_file(
                             cls,
                             wait_label,
                             start_ts,
-                            None,
                             display_callback=_display_time_progress if wait_label else None,
                         )
                         delay *= retry_backoff
                         continue
                     raise Exception(f"Failed to upload (HTTP {resp.status}).")
-                try:
-                    request_logger.log_request_response(
-                        operation_id=operation_id,
-                        request_method="PUT",
-                        request_url=upload_url,
-                        response_status_code=resp.status,
-                        response_headers=dict(resp.headers),
-                        response_content="File uploaded successfully.",
-                    )
-                except Exception as e:
-                    logging.debug("[DEBUG] upload response logging failed: %s", e)
+                request_logger.log_request_response(
+                    operation_id=operation_id,
+                    request_method="PUT",
+                    request_url=upload_url,
+                    response_status_code=resp.status,
+                    response_headers=dict(resp.headers),
+                    response_content="File uploaded successfully.",
+                )
                 return
         except asyncio.CancelledError:
             raise ProcessingInterrupted("Task cancelled") from None
         except (aiohttp.ClientError, OSError) as e:
             if attempt <= max_retries:
-                with contextlib.suppress(Exception):
-                    request_logger.log_request_response(
-                        operation_id=operation_id,
-                        request_method="PUT",
-                        request_url=upload_url,
-                        request_headers=headers or None,
-                        request_data=f"[File data {len(data)} bytes]",
-                        error_message=f"{type(e).__name__}: {str(e)} (will retry)",
-                    )
+                request_logger.log_request_response(
+                    operation_id=operation_id,
+                    request_method="PUT",
+                    request_url=upload_url,
+                    request_headers=headers or None,
+                    request_data=f"[File data {len(data)} bytes]",
+                    error_message=f"{type(e).__name__}: {str(e)} (will retry)",
+                )
                 await sleep_with_interrupt(
                     delay,
                     cls,
                     wait_label,
                     start_ts,
-                    None,
                     display_callback=_display_time_progress if wait_label else None,
                 )
                 delay *= retry_backoff
                 continue
 
-            diag = await _diagnose_connectivity()
+            diag = await diagnose_connectivity()
             if not diag["internet_accessible"]:
                 raise LocalNetworkError(
                     "Unable to connect to the network. Please check your internet connection and try again."

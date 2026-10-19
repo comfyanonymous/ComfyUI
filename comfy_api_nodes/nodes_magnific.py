@@ -30,14 +30,13 @@ from comfy_api_nodes.util import (
     validate_image_dimensions,
 )
 
-
 class MagnificImageUpscalerCreativeNode(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
         return IO.Schema(
             node_id="MagnificImageUpscalerCreativeNode",
             display_name="Magnific Image Upscale (Creative)",
-            category="api node/image/Magnific",
+            category="partner/image/Magnific",
             description="Prompt‑guided enhancement, stylization, and 2x/4x/8x/16x upscaling. "
             "Maximum output: 25.3 megapixels.",
             inputs=[
@@ -86,11 +85,13 @@ class MagnificImageUpscalerCreativeNode(IO.ComfyNode):
                 IO.Combo.Input(
                     "engine",
                     options=["automatic", "magnific_illusio", "magnific_sharpy", "magnific_sparkle"],
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "auto_downscale",
                     default=False,
                     tooltip="Automatically downscale input image if output would exceed maximum pixel limit.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -103,11 +104,20 @@ class MagnificImageUpscalerCreativeNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["scale_factor"]),
+                depends_on=IO.PriceBadgeDepends(widgets=["scale_factor", "auto_downscale"]),
                 expr="""
                 (
-                  $max := widgets.scale_factor = "2x" ? 1.326 : 1.657;
-                  {"type": "range_usd", "min_usd": 0.11, "max_usd": $max}
+                  $ad := widgets.auto_downscale;
+                  $mins := $ad
+                    ? {"2x": 0.172, "4x": 0.343, "8x": 0.515, "16x": 0.515}
+                    : {"2x": 0.172, "4x": 0.343, "8x": 0.515, "16x": 0.844};
+                  $maxs := {"2x": 0.515, "4x": 0.844, "8x": 1.015, "16x": 1.187};
+                  {
+                    "type": "range_usd",
+                    "min_usd": $lookup($mins, widgets.scale_factor),
+                    "max_usd": $lookup($maxs, widgets.scale_factor),
+                    "format": { "approximate": true }
+                  }
                 )
                 """,
             ),
@@ -190,7 +200,6 @@ class MagnificImageUpscalerCreativeNode(IO.ComfyNode):
             response_model=TaskResponse,
             status_extractor=lambda x: x.status,
             poll_interval=10.0,
-            max_poll_attempts=480,
         )
         return IO.NodeOutput(await download_url_to_image_tensor(final_response.generated[0]))
 
@@ -201,7 +210,7 @@ class MagnificImageUpscalerPreciseV2Node(IO.ComfyNode):
         return IO.Schema(
             node_id="MagnificImageUpscalerPreciseV2Node",
             display_name="Magnific Image Upscale (Precise V2)",
-            category="api node/image/Magnific",
+            category="partner/image/Magnific",
             description="High-fidelity upscaling with fine control over sharpness, grain, and detail. "
             "Maximum output: 10060×10060 pixels.",
             inputs=[
@@ -242,6 +251,7 @@ class MagnificImageUpscalerPreciseV2Node(IO.ComfyNode):
                     "auto_downscale",
                     default=False,
                     tooltip="Automatically downscale input image if output would exceed maximum resolution.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -257,8 +267,14 @@ class MagnificImageUpscalerPreciseV2Node(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["scale_factor"]),
                 expr="""
                 (
-                  $max := widgets.scale_factor = "2x" ? 1.326 : 1.657;
-                  {"type": "range_usd", "min_usd": 0.11, "max_usd": $max}
+                  $mins := {"2x": 0.172, "4x": 0.343, "8x": 0.515, "16x": 0.844};
+                  $maxs := {"2x": 2.045, "4x": 2.545, "8x": 2.889, "16x": 3.06};
+                  {
+                    "type": "range_usd",
+                    "min_usd": $lookup($mins, widgets.scale_factor),
+                    "max_usd": $lookup($maxs, widgets.scale_factor),
+                    "format": { "approximate": true }
+                  }
                 )
                 """,
             ),
@@ -340,7 +356,6 @@ class MagnificImageUpscalerPreciseV2Node(IO.ComfyNode):
             response_model=TaskResponse,
             status_extractor=lambda x: x.status,
             poll_interval=10.0,
-            max_poll_attempts=480,
         )
         return IO.NodeOutput(await download_url_to_image_tensor(final_response.generated[0]))
 
@@ -351,7 +366,7 @@ class MagnificImageStyleTransferNode(IO.ComfyNode):
         return IO.Schema(
             node_id="MagnificImageStyleTransferNode",
             display_name="Magnific Image Style Transfer",
-            category="api node/image/Magnific",
+            category="partner/image/Magnific",
             description="Transfer the style from a reference image to your input image.",
             inputs=[
                 IO.Image.Input("image", tooltip="The image to apply style transfer to."),
@@ -392,6 +407,7 @@ class MagnificImageStyleTransferNode(IO.ComfyNode):
                         "softy",
                     ],
                     tooltip="Processing engine selection.",
+                    advanced=True,
                 ),
                 IO.DynamicCombo.Input(
                     "portrait_mode",
@@ -420,6 +436,7 @@ class MagnificImageStyleTransferNode(IO.ComfyNode):
                     default=True,
                     tooltip="When disabled, expect each generation to introduce a degree of randomness, "
                     "leading to more diverse outcomes.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -488,7 +505,6 @@ class MagnificImageStyleTransferNode(IO.ComfyNode):
             response_model=TaskResponse,
             status_extractor=lambda x: x.status,
             poll_interval=10.0,
-            max_poll_attempts=480,
         )
         return IO.NodeOutput(await download_url_to_image_tensor(final_response.generated[0]))
 
@@ -499,7 +515,7 @@ class MagnificImageRelightNode(IO.ComfyNode):
         return IO.Schema(
             node_id="MagnificImageRelightNode",
             display_name="Magnific Image Relight",
-            category="api node/image/Magnific",
+            category="partner/image/Magnific",
             description="Relight an image with lighting adjustments and optional reference-based light transfer.",
             inputs=[
                 IO.Image.Input("image", tooltip="The image to relight."),
@@ -534,16 +550,19 @@ class MagnificImageRelightNode(IO.ComfyNode):
                     "interpolate_from_original",
                     default=False,
                     tooltip="Restricts generation freedom to match original more closely.",
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "change_background",
                     default=True,
                     tooltip="Modifies background based on prompt/reference.",
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "preserve_details",
                     default=True,
                     tooltip="Maintains texture and fine details from original.",
+                    advanced=True,
                 ),
                 IO.DynamicCombo.Input(
                     "advanced_settings",
@@ -726,7 +745,6 @@ class MagnificImageRelightNode(IO.ComfyNode):
             response_model=TaskResponse,
             status_extractor=lambda x: x.status,
             poll_interval=10.0,
-            max_poll_attempts=480,
         )
         return IO.NodeOutput(await download_url_to_image_tensor(final_response.generated[0]))
 
@@ -737,7 +755,7 @@ class MagnificImageSkinEnhancerNode(IO.ComfyNode):
         return IO.Schema(
             node_id="MagnificImageSkinEnhancerNode",
             display_name="Magnific Image Skin Enhancer",
-            category="api node/image/Magnific",
+            category="partner/image/Magnific",
             description="Skin enhancement for portraits with multiple processing modes.",
             inputs=[
                 IO.Image.Input("image", tooltip="The portrait image to enhance."),
@@ -868,7 +886,6 @@ class MagnificImageSkinEnhancerNode(IO.ComfyNode):
             response_model=TaskResponse,
             status_extractor=lambda x: x.status,
             poll_interval=10.0,
-            max_poll_attempts=480,
         )
         return IO.NodeOutput(await download_url_to_image_tensor(final_response.generated[0]))
 
@@ -877,8 +894,8 @@ class MagnificExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
-            # MagnificImageUpscalerCreativeNode,
-            # MagnificImageUpscalerPreciseV2Node,
+            MagnificImageUpscalerCreativeNode,
+            MagnificImageUpscalerPreciseV2Node,
             MagnificImageStyleTransferNode,
             MagnificImageRelightNode,
             MagnificImageSkinEnhancerNode,

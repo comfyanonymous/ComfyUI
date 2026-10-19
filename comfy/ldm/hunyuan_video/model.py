@@ -4,7 +4,7 @@ import torch
 import comfy.patcher_extension
 import comfy.ldm.flux.layers
 import comfy.ldm.modules.diffusionmodules.mmdit
-from comfy.ldm.modules.attention import optimized_attention
+from comfy.ldm.modules.attention import AttentionTensorContainer, ComfyAttention, optimized_attention
 
 from dataclasses import dataclass
 from einops import repeat
@@ -63,6 +63,7 @@ class TokenRefinerBlock(nn.Module):
         operations=None
     ):
         super().__init__()
+        self.comfy_attention = ComfyAttention()
         self.heads = heads
         mlp_hidden_dim = hidden_size * 4
 
@@ -88,7 +89,9 @@ class TokenRefinerBlock(nn.Module):
         norm_x = self.norm1(x)
         qkv = self.self_attn.qkv(norm_x)
         q, k, v = qkv.reshape(qkv.shape[0], qkv.shape[1], 3, self.heads, -1).permute(2, 0, 3, 1, 4)
-        attn = optimized_attention(q, k, v, self.heads, mask=mask, skip_reshape=True, transformer_options=transformer_options)
+        q, k, v = AttentionTensorContainer(q), AttentionTensorContainer(k), AttentionTensorContainer(v)
+        del qkv
+        attn = optimized_attention(q, k, v, self.heads, mask=mask, skip_reshape=True, preferred_attention=self.comfy_attention, transformer_options=transformer_options)
 
         x = x + self.self_attn.proj(attn) * mod1.unsqueeze(1)
         x = x + self.mlp(self.norm2(x)) * mod2.unsqueeze(1)
@@ -241,7 +244,6 @@ class HunyuanVideo(nn.Module):
                     self.num_heads,
                     mlp_ratio=params.mlp_ratio,
                     qkv_bias=params.qkv_bias,
-                    flipped_img_txt=True,
                     dtype=dtype, device=device, operations=operations
                 )
                 for _ in range(params.depth)
@@ -305,6 +307,7 @@ class HunyuanVideo(nn.Module):
         control=None,
         transformer_options={},
     ) -> Tensor:
+        transformer_options = transformer_options.copy()
         patches_replace = transformer_options.get("patches_replace", {})
 
         initial_shape = list(img.shape)
@@ -378,14 +381,14 @@ class HunyuanVideo(nn.Module):
             extra_txt_ids = torch.zeros((txt_ids.shape[0], txt_vision_states.shape[1], txt_ids.shape[-1]), device=txt_ids.device, dtype=txt_ids.dtype)
             txt_ids = torch.cat((txt_ids, extra_txt_ids), dim=1)
 
-        ids = torch.cat((img_ids, txt_ids), dim=1)
+        ids = torch.cat((txt_ids, img_ids), dim=1)
         pe = self.pe_embedder(ids)
 
         img_len = img.shape[1]
         if txt_mask is not None:
             attn_mask_len = img_len + txt.shape[1]
             attn_mask = torch.zeros((1, 1, attn_mask_len), dtype=img.dtype, device=img.device)
-            attn_mask[:, 0, img_len:] = txt_mask
+            attn_mask[:, 0, :txt.shape[1]] = txt_mask
         else:
             attn_mask = None
 
@@ -413,10 +416,11 @@ class HunyuanVideo(nn.Module):
                     if add is not None:
                         img += add
 
-        img = torch.cat((img, txt), 1)
+        img = torch.cat((txt, img), 1)
 
         transformer_options["total_blocks"] = len(self.single_blocks)
         transformer_options["block_type"] = "single"
+        transformer_options["img_slice"] = [txt.shape[1], img.shape[1]]
         for i, block in enumerate(self.single_blocks):
             transformer_options["block_index"] = i
             if ("single_block", i) in blocks_replace:
@@ -435,9 +439,9 @@ class HunyuanVideo(nn.Module):
                 if i < len(control_o):
                     add = control_o[i]
                     if add is not None:
-                        img[:, : img_len] += add
+                        img[:, txt.shape[1]: img_len + txt.shape[1]] += add
 
-        img = img[:, : img_len]
+        img = img[:, txt.shape[1]: img_len + txt.shape[1]]
         if ref_latent is not None:
             img = img[:, ref_latent.shape[1]:]
 

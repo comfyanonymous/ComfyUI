@@ -1,123 +1,236 @@
-from typing import Sequence
+"""Selects and implements the enabled and disabled asset managers.
 
-from app.database.db import create_session
-from app.assets.api import schemas_out
-from app.assets.database.queries import (
-    asset_exists_by_hash,
-    fetch_asset_info_asset_and_tags,
-    list_asset_infos_page,
-    list_tags_with_usage,
-)
+``default_asset_manager`` chooses ``NoAssets`` unless assets are enabled (see cli_args); main.py
+stops startup before that if assets are on and the database packages are missing.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any, Callable, Protocol
+
+from aiohttp import web
+
+from app.assets import mode
+from app.assets.lifecycle import record_hash_mode_transition_intent, run_shutdown, run_startup
+from app.database.db import dependencies_available
+from app.user_manager import UserManager
+from comfy.cli_args import args
+
+# These need the database packages. Without them only NoAssets is used, and it
+# does not touch these names.
+if dependencies_available():
+    from app.assets.api.routes import register_assets_routes
+    from app.assets.seeder import ScanPhase, asset_seeder
+    from app.assets.services.ingest import (
+        register_cached_output as ingest_register_cached_output,
+        register_executed_output as ingest_register_executed_output,
+        register_file_in_place,
+    )
+    from app.assets.services.path_utils import get_known_subfolder_tags
+    from app.assets.services.schemas import RegisteredAsset, UploadAssetView
 
 
-def _safe_sort_field(requested: str | None) -> str:
-    if not requested:
-        return "created_at"
-    v = requested.lower()
-    if v in {"name", "created_at", "updated_at", "size", "last_access_time"}:
-        return v
-    return "created_at"
+class AssetManager(Protocol):
+    @property
+    def enabled(self) -> bool: ...
+
+    def startup(self) -> None: ...
+
+    def shutdown(self) -> None: ...
+
+    def register_routes(
+        self, app: web.Application, user_manager: UserManager | None
+    ) -> None: ...
+
+    def ensure_scan_started(self) -> None: ...
+
+    def pause_background_scan(self) -> None: ...
+
+    def queue_output_scan(self) -> None: ...
+
+    def resume_background_scan(self) -> None: ...
+
+    def register_upload(
+        self,
+        abs_path: str,
+        name: str,
+        upload_type: str,
+        subfolder: str,
+        *,
+        content_written: bool,
+    ) -> UploadAssetView | None: ...
+
+    def register_executed_output(
+        self, abs_path: str, job_id: str | None, preview_ref: dict | None = None
+    ) -> RegisteredAsset | None: ...
+
+    def register_cached_output(
+        self, abs_path: str, job_id: str | None
+    ) -> RegisteredAsset | None: ...
+
+    def set_event_sink(self, sink: Callable[[str, dict[str, Any]], None] | None) -> None: ...
 
 
-def asset_exists(asset_hash: str) -> bool:
-    with create_session() as session:
-        return asset_exists_by_hash(session, asset_hash=asset_hash)
+class _ArgsLike(Protocol):
+    disable_assets: bool
+    enable_asset_hashing: bool
 
-def list_assets(
-    include_tags: Sequence[str] | None = None,
-    exclude_tags: Sequence[str] | None = None,
-    name_contains: str | None = None,
-    metadata_filter: dict | None = None,
-    limit: int = 20,
-    offset: int = 0,
-    sort: str = "created_at",
-    order: str = "desc",
-    owner_id: str = "",
-) -> schemas_out.AssetsList:
-    sort = _safe_sort_field(sort)
-    order = "desc" if (order or "desc").lower() not in {"asc", "desc"} else order.lower()
 
-    with create_session() as session:
-        infos, tag_map, total = list_asset_infos_page(
-            session,
-            owner_id=owner_id,
-            include_tags=include_tags,
-            exclude_tags=exclude_tags,
-            name_contains=name_contains,
-            metadata_filter=metadata_filter,
-            limit=limit,
-            offset=offset,
-            sort=sort,
-            order=order,
-        )
+def _shutdown_assets() -> None:
+    if dependencies_available():
+        asset_seeder.shutdown()
+    run_shutdown()
 
-    summaries: list[schemas_out.AssetSummary] = []
-    for info in infos:
-        asset = info.asset
-        tags = tag_map.get(info.id, [])
-        summaries.append(
-            schemas_out.AssetSummary(
-                id=info.id,
-                name=info.name,
-                asset_hash=asset.hash if asset else None,
-                size=int(asset.size_bytes) if asset else None,
-                mime_type=asset.mime_type if asset else None,
-                tags=tags,
-                preview_url=f"/api/assets/{info.id}/content",
-                created_at=info.created_at,
-                updated_at=info.updated_at,
-                last_access_time=info.last_access_time,
+
+class NoAssets:
+    def __init__(self, args: _ArgsLike) -> None:
+        self._args = args
+
+    @property
+    def enabled(self) -> bool:
+        return False
+
+    def startup(self) -> None:
+        mode.init(self._args)
+        run_startup(enable_assets=False)
+
+    def shutdown(self) -> None:
+        _shutdown_assets()
+
+    def register_routes(
+        self, app: web.Application, user_manager: UserManager | None
+    ) -> None:
+        if not dependencies_available():
+            return
+        register_assets_routes(app)
+        asset_seeder.disable()
+
+    def ensure_scan_started(self) -> None:
+        return None
+
+    def pause_background_scan(self) -> None:
+        return None
+
+    def queue_output_scan(self) -> None:
+        return None
+
+    def resume_background_scan(self) -> None:
+        return None
+
+    def register_upload(
+        self,
+        abs_path: str,
+        name: str,
+        upload_type: str,
+        subfolder: str,
+        *,
+        content_written: bool,
+    ) -> UploadAssetView | None:
+        return None
+
+    def register_executed_output(
+        self, abs_path: str, job_id: str | None, preview_ref: dict | None = None
+    ) -> RegisteredAsset | None:
+        return None
+
+    def register_cached_output(
+        self, abs_path: str, job_id: str | None
+    ) -> RegisteredAsset | None:
+        return None
+
+    def set_event_sink(self, sink: Callable[[str, dict[str, Any]], None] | None) -> None:
+        return None
+
+
+class AssetsEnabled:
+    def __init__(self, args: _ArgsLike) -> None:
+        self._args = args
+
+    @property
+    def enabled(self) -> bool:
+        return True
+
+    def startup(self) -> None:
+        mode.init(self._args)
+        record_hash_mode_transition_intent()
+        run_startup(enable_assets=True)
+
+    def shutdown(self) -> None:
+        _shutdown_assets()
+
+    def register_routes(
+        self, app: web.Application, user_manager: UserManager | None
+    ) -> None:
+        register_assets_routes(app, user_manager)
+
+    def ensure_scan_started(self) -> None:
+        asset_seeder.start(roots=("models", "input", "output"))
+
+    def pause_background_scan(self) -> None:
+        asset_seeder.pause()
+
+    def queue_output_scan(self) -> None:
+        if not asset_seeder.is_disabled():
+            # FULL, not ENRICH: only a walk finds outputs a node never declared. Do not downgrade without re-weighing the cost.
+            asset_seeder.enqueue_scan(
+                roots=("output",),
+                phase=ScanPhase.FULL,
+                compute_hashes=self._args.enable_asset_hashing,
             )
-        )
 
-    return schemas_out.AssetsList(
-        assets=summaries,
-        total=total,
-        has_more=(offset + len(summaries)) < total,
-    )
+    def resume_background_scan(self) -> None:
+        asset_seeder.resume()
 
-def get_asset(asset_info_id: str, owner_id: str = "") -> schemas_out.AssetDetail:
-    with create_session() as session:
-        res = fetch_asset_info_asset_and_tags(session, asset_info_id=asset_info_id, owner_id=owner_id)
-        if not res:
-            raise ValueError(f"AssetInfo {asset_info_id} not found")
-        info, asset, tag_names = res
-        preview_id = info.preview_id
+    def register_upload(
+        self,
+        abs_path: str,
+        name: str,
+        upload_type: str,
+        subfolder: str,
+        *,
+        content_written: bool,
+    ) -> UploadAssetView | None:
+        try:
+            tag = upload_type if upload_type in ("input", "output") else "input"
+            tags = [tag] + get_known_subfolder_tags(subfolder)
+            result = register_file_in_place(
+                abs_path=abs_path,
+                name=name,
+                tags=tags,
+                content_written=content_written,
+            )
+            asset = RegisteredAsset(
+                id=result.ref.id,
+                content_id=result.content_id,
+                job_id=result.ref.job_id,
+                name=result.ref.name,
+                preview_id=result.ref.preview_id,
+            )
+            return UploadAssetView(
+                asset=asset,
+                asset_hash=result.asset.hash,
+                size=result.asset.size_bytes,
+                mime_type=result.asset.mime_type,
+                tags=result.tags,
+            )
+        except Exception:
+            logging.warning("Failed to register uploaded image as asset", exc_info=True)
+            return None
 
-    return schemas_out.AssetDetail(
-        id=info.id,
-        name=info.name,
-        asset_hash=asset.hash if asset else None,
-        size=int(asset.size_bytes) if asset and asset.size_bytes is not None else None,
-        mime_type=asset.mime_type if asset else None,
-        tags=tag_names,
-        user_metadata=info.user_metadata or {},
-        preview_id=preview_id,
-        created_at=info.created_at,
-        last_access_time=info.last_access_time,
-    )
+    def register_executed_output(
+        self, abs_path: str, job_id: str | None, preview_ref: dict | None = None
+    ) -> RegisteredAsset | None:
+        return ingest_register_executed_output(abs_path, job_id, preview_ref)
 
-def list_tags(
-    prefix: str | None = None,
-    limit: int = 100,
-    offset: int = 0,
-    order: str = "count_desc",
-    include_zero: bool = True,
-    owner_id: str = "",
-) -> schemas_out.TagsList:
-    limit = max(1, min(1000, limit))
-    offset = max(0, offset)
+    def register_cached_output(
+        self, abs_path: str, job_id: str | None
+    ) -> RegisteredAsset | None:
+        return ingest_register_cached_output(abs_path, job_id)
 
-    with create_session() as session:
-        rows, total = list_tags_with_usage(
-            session,
-            prefix=prefix,
-            limit=limit,
-            offset=offset,
-            include_zero=include_zero,
-            order=order,
-            owner_id=owner_id,
-        )
+    def set_event_sink(self, sink: Callable[[str, dict[str, Any]], None] | None) -> None:
+        asset_seeder.set_event_sink(sink)
 
-    tags = [schemas_out.TagUsage(name=name, count=count, type=tag_type) for (name, tag_type, count) in rows]
-    return schemas_out.TagsList(tags=tags, total=total, has_more=(offset + len(tags)) < total)
+
+def default_asset_manager() -> AssetManager:
+    return NoAssets(args) if args.disable_assets else AssetsEnabled(args)

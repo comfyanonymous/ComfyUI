@@ -4,6 +4,7 @@ import os
 import numpy as np
 import safetensors
 import torch
+import torch.nn as nn
 import torch.utils.checkpoint
 from tqdm.auto import trange
 from PIL import Image, ImageDraw, ImageFont
@@ -14,6 +15,8 @@ import comfy.sampler_helpers
 import comfy.sd
 import comfy.utils
 import comfy.model_management
+from comfy.conds import CONDRegular, CONDList
+from comfy.cli_args import args, PerformanceFeature
 import comfy_extras.nodes_custom_sampler
 import folder_paths
 import node_helpers
@@ -27,6 +30,11 @@ class TrainGuider(comfy_extras.nodes_custom_sampler.Guider_Basic):
     """
     CFGGuider with modifications for training specific logic
     """
+
+    def __init__(self, *args, offloading=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.offloading = offloading
+
     def outer_sample(
         self,
         noise,
@@ -45,9 +53,11 @@ class TrainGuider(comfy_extras.nodes_custom_sampler.Guider_Basic):
                 noise.shape,
                 self.conds,
                 self.model_options,
-                force_full_load=True,  # mirror behavior in TrainLoraNode.execute() to keep model loaded
+                force_full_load=not self.offloading,
+                force_offload=self.offloading,
             )
         )
+        torch.cuda.empty_cache()
         device = self.model_patcher.load_device
 
         if denoise_mask is not None:
@@ -111,6 +121,11 @@ def process_cond_list(d, prefix=""):
                 process_cond_list(v, f"{prefix}.{k}")
             elif isinstance(v, torch.Tensor):
                 d[k] = v.clone()
+            elif isinstance(v, CONDList):
+                v.cond = [t.detach() if isinstance(t, torch.Tensor) else t for t in v.cond]
+            elif isinstance(v, CONDRegular):
+                if isinstance(v.cond, torch.Tensor):
+                    v.cond = v.cond.detach()
             elif isinstance(v, (list, tuple)):
                 for index, item in enumerate(v):
                     process_cond_list(item, f"{prefix}.{k}.{index}")
@@ -130,6 +145,7 @@ class TrainSampler(comfy.samplers.Sampler):
         training_dtype=torch.bfloat16,
         real_dataset=None,
         bucket_latents=None,
+        use_grad_scaler=False,
     ):
         self.loss_fn = loss_fn
         self.optimizer = optimizer
@@ -144,6 +160,8 @@ class TrainSampler(comfy.samplers.Sampler):
         self.bucket_latents: list[torch.Tensor] | None = (
             bucket_latents  # list of (Bi, C, Hi, Wi)
         )
+        # GradScaler for fp16 training
+        self.grad_scaler = torch.amp.GradScaler() if use_grad_scaler else None
         # Precompute bucket offsets and weights for sampling
         if bucket_latents is not None:
             self._init_bucket_data(bucket_latents)
@@ -196,10 +214,13 @@ class TrainSampler(comfy.samplers.Sampler):
                 batch_sigmas.requires_grad_(True),
                 **batch_extra_args,
             )
-            loss = self.loss_fn(x0_pred, x0)
+            loss = self.loss_fn(x0_pred.float(), x0.float())
         if bwd:
             bwd_loss = loss / self.grad_acc
-            bwd_loss.backward()
+            if self.grad_scaler is not None:
+                self.grad_scaler.scale(bwd_loss).backward()
+            else:
+                bwd_loss.backward()
         return loss
 
     def _generate_batch_sigmas(self, model_wrap, batch_size, device):
@@ -299,7 +320,10 @@ class TrainSampler(comfy.samplers.Sampler):
             )
             total_loss += loss
         total_loss = total_loss / self.grad_acc / len(indicies)
-        total_loss.backward()
+        if self.grad_scaler is not None:
+            self.grad_scaler.scale(total_loss).backward()
+        else:
+            total_loss.backward()
         if self.loss_callback:
             self.loss_callback(total_loss.item())
         pbar.set_postfix({"loss": f"{total_loss.item():.4f}"})
@@ -340,12 +364,18 @@ class TrainSampler(comfy.samplers.Sampler):
                 self._train_step_multires_mode(model_wrap, cond, extra_args, noisegen, latent_image, dataset_size, pbar)
 
             if (i + 1) % self.grad_acc == 0:
+                if self.grad_scaler is not None:
+                    self.grad_scaler.unscale_(self.optimizer)
                 for param_groups in self.optimizer.param_groups:
                     for param in param_groups["params"]:
                         if param.grad is None:
                             continue
                         param.grad.data = param.grad.data.to(param.data.dtype)
-                self.optimizer.step()
+                if self.grad_scaler is not None:
+                    self.grad_scaler.step(self.optimizer)
+                    self.grad_scaler.update()
+                else:
+                    self.optimizer.step()
                 self.optimizer.zero_grad()
             ui_pbar.update(1)
         torch.cuda.empty_cache()
@@ -404,16 +434,97 @@ def find_all_highest_child_module_with_forward(
     return result
 
 
-def patch(m):
+def find_modules_at_depth(
+    model: nn.Module, depth: int = 1, result=None, current_depth=0, name=None
+) -> list[nn.Module]:
+    """
+    Find modules at a specific depth level for gradient checkpointing.
+
+    Args:
+        model: The model to search
+        depth: Target depth level (1 = top-level blocks, 2 = their children, etc.)
+        result: Accumulator for results
+        current_depth: Current recursion depth
+        name: Current module name for logging
+
+    Returns:
+        List of modules at the target depth
+    """
+    if result is None:
+        result = []
+    name = name or "root"
+
+    # Skip container modules (they don't have meaningful forward)
+    is_container = isinstance(model, (nn.ModuleList, nn.Sequential, nn.ModuleDict))
+    has_forward = hasattr(model, "forward") and not is_container
+
+    if has_forward:
+        current_depth += 1
+        if current_depth == depth:
+            result.append(model)
+            logging.debug(f"Found module at depth {depth}: {name} ({model.__class__.__name__})")
+            return result
+
+    # Recurse into children
+    for next_name, child in model.named_children():
+        find_modules_at_depth(child, depth, result, current_depth, f"{name}.{next_name}")
+
+    return result
+
+
+class OffloadCheckpointFunction(torch.autograd.Function):
+    """
+    Gradient checkpointing that works with weight offloading.
+
+    Forward: no_grad -> compute -> weights can be freed
+    Backward: enable_grad -> recompute -> backward -> weights can be freed
+
+    For single input, single output modules (Linear, Conv*).
+    """
+
+    @staticmethod
+    def forward(ctx, x: torch.Tensor, forward_fn):
+        ctx.save_for_backward(x)
+        ctx.forward_fn = forward_fn
+        with torch.no_grad():
+            return forward_fn(x)
+
+    @staticmethod
+    def backward(ctx, grad_out: torch.Tensor):
+        x, = ctx.saved_tensors
+        forward_fn = ctx.forward_fn
+
+        # Clear context early
+        ctx.forward_fn = None
+
+        with torch.enable_grad():
+            x_detached = x.detach().requires_grad_(True)
+            y = forward_fn(x_detached)
+            y.backward(grad_out)
+            grad_x = x_detached.grad
+
+        # Explicit cleanup
+        del y, x_detached, forward_fn
+
+        return grad_x, None
+
+
+def patch(m, offloading=False):
     if not hasattr(m, "forward"):
         return
     org_forward = m.forward
 
-    def fwd(args, kwargs):
-        return org_forward(*args, **kwargs)
+    # Branch 1: Linear/Conv* -> offload-compatible checkpoint (single input/output)
+    if offloading and isinstance(m, (nn.Linear, nn.Conv1d, nn.Conv2d, nn.Conv3d)):
+        def checkpointing_fwd(x):
+            return OffloadCheckpointFunction.apply(x, org_forward)
+    # Branch 2: Others -> standard checkpoint
+    else:
+        def fwd(args, kwargs):
+            return org_forward(*args, **kwargs)
 
-    def checkpointing_fwd(*args, **kwargs):
-        return torch.utils.checkpoint.checkpoint(fwd, args, kwargs, use_reentrant=False)
+        def checkpointing_fwd(*args, **kwargs):
+            return torch.utils.checkpoint.checkpoint(fwd, args, kwargs, use_reentrant=False)
 
     m.org_forward = org_forward
     m.forward = checkpointing_fwd
@@ -809,10 +920,11 @@ def _run_training_loop(
     """
     sigmas = torch.tensor(range(num_images))
     noise = comfy_extras.nodes_custom_sampler.Noise_RandomNoise(seed)
+    ndim = latents[0].ndim
 
     if bucket_mode:
         # Use first bucket's first latent as dummy for guider
-        dummy_latent = latents[0][:1].repeat(num_images, 1, 1, 1)
+        dummy_latent = latents[0][:1].repeat(num_images, *[1]*(ndim-1))
         guider.sample(
             noise.generate_noise({"samples": dummy_latent}),
             dummy_latent,
@@ -822,7 +934,7 @@ def _run_training_loop(
         )
     elif multi_res:
         # use first latent as dummy latent if multi_res
-        latents = latents[0].repeat(num_images, 1, 1, 1)
+        latents = latents[0].repeat(num_images, *[1]*(ndim-1))
         guider.sample(
             noise.generate_noise({"samples": latents}),
             latents,
@@ -846,7 +958,7 @@ class TrainLoraNode(io.ComfyNode):
         return io.Schema(
             node_id="TrainLoraNode",
             display_name="Train LoRA",
-            category="training",
+            category="model/training",
             is_experimental=True,
             is_input_list=True,  # All inputs become lists
             inputs=[
@@ -915,15 +1027,20 @@ class TrainLoraNode(io.ComfyNode):
                 ),
                 io.Combo.Input(
                     "training_dtype",
-                    options=["bf16", "fp32"],
+                    options=["bf16", "fp32", "none"],
                     default="bf16",
-                    tooltip="The dtype to use for training.",
+                    tooltip="The dtype to use for training. 'none' preserves the model's native compute dtype instead of overriding it. For fp16 models, GradScaler is automatically enabled.",
                 ),
                 io.Combo.Input(
                     "lora_dtype",
                     options=["bf16", "fp32"],
                     default="bf16",
                     tooltip="The dtype to use for lora.",
+                ),
+                io.Boolean.Input(
+                    "quantized_backward",
+                    default=False,
+                    tooltip="When using training_dtype 'none' and training on quantized model, doing backward with quantized matmul when enabled.",
                 ),
                 io.Combo.Input(
                     "algorithm",
@@ -935,6 +1052,18 @@ class TrainLoraNode(io.ComfyNode):
                     "gradient_checkpointing",
                     default=True,
                     tooltip="Use gradient checkpointing for training.",
+                ),
+                io.Int.Input(
+                    "checkpoint_depth",
+                    default=1,
+                    min=1,
+                    max=5,
+                    tooltip="Depth level for gradient checkpointing.",
+                ),
+                io.Boolean.Input(
+                    "offloading",
+                    default=False,
+                    tooltip="Offload model weights to CPU during training to save GPU memory.",
                 ),
                 io.Combo.Input(
                     "existing_lora",
@@ -980,8 +1109,11 @@ class TrainLoraNode(io.ComfyNode):
         seed,
         training_dtype,
         lora_dtype,
+        quantized_backward,
         algorithm,
         gradient_checkpointing,
+        checkpoint_depth,
+        offloading,
         existing_lora,
         bucket_mode,
         bypass_mode,
@@ -998,11 +1130,16 @@ class TrainLoraNode(io.ComfyNode):
         seed = seed[0]
         training_dtype = training_dtype[0]
         lora_dtype = lora_dtype[0]
+        quantized_backward = quantized_backward[0]
         algorithm = algorithm[0]
         gradient_checkpointing = gradient_checkpointing[0]
+        offloading = offloading[0]
+        checkpoint_depth = checkpoint_depth[0]
         existing_lora = existing_lora[0]
         bucket_mode = bucket_mode[0]
         bypass_mode = bypass_mode[0]
+
+        comfy.model_management.training_fp8_bwd = quantized_backward
 
         # Process latents based on mode
         if bucket_mode:
@@ -1013,23 +1150,45 @@ class TrainLoraNode(io.ComfyNode):
         # Process conditioning
         positive = _process_conditioning(positive)
 
-        # Setup model and dtype
-        mp = model.clone()
-        dtype = node_helpers.string_to_torch_dtype(training_dtype)
-        lora_dtype = node_helpers.string_to_torch_dtype(lora_dtype)
-        mp.set_model_compute_dtype(dtype)
-
-        # Prepare latents and compute counts
-        latents, num_images, multi_res = _prepare_latents_and_count(
-            latents, dtype, bucket_mode
-        )
-
-        # Validate and expand conditioning
-        positive = _validate_and_expand_conditioning(positive, num_images, bucket_mode)
-
         with torch.inference_mode(False):
+            # Setup model and dtype
+            mp = model.clone(force_deepcopy=True)
+            use_grad_scaler = False
+            lora_dtype = node_helpers.string_to_torch_dtype(lora_dtype)
+            if training_dtype != "none":
+                dtype = node_helpers.string_to_torch_dtype(training_dtype)
+                mp.set_model_compute_dtype(dtype)
+            else:
+                # Detect model's native dtype for autocast
+                model_dtype = mp.model.get_dtype()
+                if model_dtype == torch.float16:
+                    dtype = torch.float16
+                    # GradScaler only supports float16 gradients, not bfloat16.
+                    # Only enable it when lora params will also be in float16.
+                    if lora_dtype != torch.bfloat16:
+                        use_grad_scaler = True
+                    # Warn about fp16 accumulation instability during training
+                    if PerformanceFeature.Fp16Accumulation in args.fast:
+                        logging.warning(
+                            "WARNING: FP16 model detected with fp16_accumulation enabled. "
+                            "This combination can be numerically unstable during training and may cause NaN values. "
+                            "Suggested fixes: 1) Set training_dtype to 'bf16', or 2) Disable fp16_accumulation (remove from --fast flags)."
+                        )
+                else:
+                    # For fp8, bf16, or other dtypes, use bf16 autocast
+                    dtype = torch.bfloat16
+
+            # Prepare latents and compute counts
+            latents_dtype = dtype if dtype not in (None,) else torch.bfloat16
+            latents, num_images, multi_res = _prepare_latents_and_count(
+                latents, latents_dtype, bucket_mode
+            )
+
+            # Validate and expand conditioning
+            positive = _validate_and_expand_conditioning(positive, num_images, bucket_mode)
+
             # Setup models for training
-            mp.model.requires_grad_(False)
+            mp.model.requires_grad_(False).train()
 
             # Load existing LoRA weights if provided
             existing_weights, existing_steps = _load_existing_lora(existing_lora)
@@ -1054,16 +1213,18 @@ class TrainLoraNode(io.ComfyNode):
 
             # Setup gradient checkpointing
             if gradient_checkpointing:
-                for m in find_all_highest_child_module_with_forward(
-                    mp.model.diffusion_model
-                ):
-                    patch(m)
+                modules_to_patch = find_modules_at_depth(
+                    mp.model.diffusion_model, depth=checkpoint_depth
+                )
+                logging.info(f"Gradient checkpointing: patching {len(modules_to_patch)} modules at depth {checkpoint_depth}")
+                for m in modules_to_patch:
+                    patch(m, offloading=offloading)
 
             torch.cuda.empty_cache()
             # With force_full_load=False we should be able to have offloading
             # But for offloading in training we need custom AutoGrad hooks for fwd/bwd
             comfy.model_management.load_models_gpu(
-                [mp], memory_required=1e20, force_full_load=True
+                [mp], memory_required=1e20, force_full_load=not offloading
             )
             torch.cuda.empty_cache()
 
@@ -1085,6 +1246,7 @@ class TrainLoraNode(io.ComfyNode):
                     seed=seed,
                     training_dtype=dtype,
                     bucket_latents=latents,
+                    use_grad_scaler=use_grad_scaler,
                 )
             else:
                 train_sampler = TrainSampler(
@@ -1097,10 +1259,11 @@ class TrainLoraNode(io.ComfyNode):
                     seed=seed,
                     training_dtype=dtype,
                     real_dataset=latents if multi_res else None,
+                    use_grad_scaler=use_grad_scaler,
                 )
 
             # Setup guider
-            guider = TrainGuider(mp)
+            guider = TrainGuider(mp, offloading=offloading)
             guider.set_conds(positive)
 
             # Inject bypass hooks if bypass mode is enabled
@@ -1113,6 +1276,7 @@ class TrainLoraNode(io.ComfyNode):
 
             # Run training loop
             try:
+                comfy.model_management.in_training = True
                 _run_training_loop(
                     guider,
                     train_sampler,
@@ -1123,6 +1287,7 @@ class TrainLoraNode(io.ComfyNode):
                     multi_res,
                 )
             finally:
+                comfy.model_management.in_training = False
                 # Eject bypass hooks if they were injected
                 if bypass_injections is not None:
                     for injection in bypass_injections:
@@ -1132,25 +1297,26 @@ class TrainLoraNode(io.ComfyNode):
                     unpatch(m)
             del train_sampler, optimizer
 
-            # Finalize adapters
+            for param in lora_sd:
+                lora_sd[param] = lora_sd[param].to(lora_dtype).detach()
+
             for adapter in all_weight_adapters:
                 adapter.requires_grad_(False)
-
-            for param in lora_sd:
-                lora_sd[param] = lora_sd[param].to(lora_dtype)
+                del adapter
+            del all_weight_adapters
 
             # mp in train node is highly specialized for training
             # use it in inference will result in bad behavior so we don't return it
             return io.NodeOutput(lora_sd, loss_map, steps + existing_steps)
 
 
-class LoraModelLoader(io.ComfyNode):#
+class LoraModelLoader(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
             node_id="LoraModelLoader",
             display_name="Load LoRA Model",
-            category="loaders",
+            category="model/loaders",
             is_experimental=True,
             inputs=[
                 io.Model.Input(
@@ -1166,6 +1332,11 @@ class LoraModelLoader(io.ComfyNode):#
                     max=100.0,
                     tooltip="How strongly to modify the diffusion model. This value can be negative.",
                 ),
+                io.Boolean.Input(
+                    "bypass",
+                    default=False,
+                    tooltip="When enabled, applies LoRA in bypass mode without modifying base model weights. Useful for training and when model weights are offloaded.",
+                ),
             ],
             outputs=[
                 io.Model.Output(
@@ -1175,13 +1346,18 @@ class LoraModelLoader(io.ComfyNode):#
         )
 
     @classmethod
-    def execute(cls, model, lora, strength_model):
+    def execute(cls, model, lora, strength_model, bypass=False):
         if strength_model == 0:
             return io.NodeOutput(model)
 
-        model_lora, _ = comfy.sd.load_lora_for_models(
-            model, None, lora, strength_model, 0
-        )
+        if bypass:
+            model_lora, _ = comfy.sd.load_bypass_lora_for_models(
+                model, None, lora, strength_model, 0
+            )
+        else:
+            model_lora, _ = comfy.sd.load_lora_for_models(
+                model, None, lora, strength_model, 0
+            )
         return io.NodeOutput(model_lora)
 
 
@@ -1192,7 +1368,7 @@ class SaveLoRA(io.ComfyNode):
             node_id="SaveLoRA",
             search_aliases=["export lora"],
             display_name="Save LoRA Weights",
-            category="loaders",
+            category="model/merging",
             is_experimental=True,
             is_output_node=True,
             inputs=[
@@ -1208,7 +1384,7 @@ class SaveLoRA(io.ComfyNode):
                 io.Int.Input(
                     "steps",
                     optional=True,
-                    tooltip="Optional: The number of steps to LoRA has been trained for, used to name the saved file.",
+                    tooltip="Optional: The number of steps the LoRA has been trained for, used to name the saved file.",
                 ),
             ],
             outputs=[],
@@ -1236,7 +1412,7 @@ class LossGraphNode(io.ComfyNode):
             node_id="LossGraphNode",
             search_aliases=["training chart", "training visualization", "plot loss"],
             display_name="Plot Loss Graph",
-            category="training",
+            category="model/training",
             is_experimental=True,
             is_output_node=True,
             inputs=[

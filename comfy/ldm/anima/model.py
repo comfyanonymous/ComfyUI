@@ -179,8 +179,8 @@ class LLMAdapter(nn.Module):
             if source_attention_mask.ndim == 2:
                 source_attention_mask = source_attention_mask.unsqueeze(1).unsqueeze(1)
 
-        x = self.in_proj(self.embed(target_input_ids))
         context = source_hidden_states
+        x = self.in_proj(self.embed(target_input_ids, out_dtype=context.dtype))
         position_ids = torch.arange(x.shape[1], device=x.device).unsqueeze(0)
         position_ids_context = torch.arange(context.shape[1], device=x.device).unsqueeze(0)
         position_embeddings = self.rotary_emb(x, position_ids)
@@ -195,8 +195,20 @@ class Anima(MiniTrainDIT):
         super().__init__(*args, **kwargs)
         self.llm_adapter = LLMAdapter(device=kwargs.get("device"), dtype=kwargs.get("dtype"), operations=kwargs.get("operations"))
 
-    def preprocess_text_embeds(self, text_embeds, text_ids):
+    def preprocess_text_embeds(self, text_embeds, text_ids, t5xxl_weights=None):
         if text_ids is not None:
-            return self.llm_adapter(text_embeds, text_ids)
+            out = self.llm_adapter(text_embeds, text_ids)
+            if t5xxl_weights is not None:
+                out = out * t5xxl_weights
+
+            if out.shape[1] < 512:
+                out = torch.nn.functional.pad(out, (0, 0, 0, 512 - out.shape[1]))
+            return out
         else:
             return text_embeds
+
+    def forward(self, x, timesteps, context, **kwargs):
+        t5xxl_ids = kwargs.pop("t5xxl_ids", None)
+        if t5xxl_ids is not None:
+            context = self.preprocess_text_embeds(context, t5xxl_ids, t5xxl_weights=kwargs.pop("t5xxl_weights", None))
+        return super().forward(x, timesteps, context, **kwargs)
