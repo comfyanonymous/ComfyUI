@@ -11,13 +11,21 @@ from comfy.ldm.modules import attention
 @pytest.mark.parametrize("backend,mask_kind", [
     ("pytorch", None), ("pytorch", "bool"), ("pytorch", "additive"), ("sub_quad", None),
 ])
-def test_krea_passes_grouped_heads_to_selected_attention(kvheads, backend, mask_kind):
+def test_krea_passes_grouped_heads_to_selected_attention(monkeypatch, kvheads, backend, mask_kind):
     torch.manual_seed(42)
     model = Attention(32, 4, kvheads=kvheads, operations=comfy.ops.manual_cast)
     for parameter in model.parameters():
         parameter.data.normal_(0, 0.1)
     patcher = comfy.model_patcher.ModelPatcher(model, torch.device("cpu"), torch.device("cpu"))
     selected = attention.get_attention_function(backend)
+    sdpa = torch.nn.functional.scaled_dot_product_attention
+    sdpa_inputs = []
+
+    def record_sdpa(q, k, v, *args, **kwargs):
+        sdpa_inputs.append((k.shape[1], v.shape[1], kwargs.get("enable_gqa", False)))
+        return sdpa(q, k, v, *args, **kwargs)
+
+    monkeypatch.setattr(torch.nn.functional, "scaled_dot_product_attention", record_sdpa)
     x = torch.randn(2, 5, 32)
     mask = None
     if mask_kind is not None:
@@ -56,6 +64,9 @@ def test_krea_passes_grouped_heads_to_selected_attention(kvheads, backend, mask_
     options = {**patcher.model_options["transformer_options"], "block_index": 0}
     actual = model(x, mask=mask, transformer_options=options)
     assert events == ["input", "backend", "output"]
+    if backend == "pytorch":
+        expected_heads = kvheads if mask is None else 4
+        assert sdpa_inputs == [(expected_heads, expected_heads, kvheads != 4 and mask is None)]
     events.clear()
     patcher.set_model_optimized_attention(expanded)
     options = {**patcher.model_options["transformer_options"], "block_index": 0}
