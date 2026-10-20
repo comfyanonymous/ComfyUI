@@ -1042,20 +1042,29 @@ def _try_quantized_linear_input_act(x, weight, bias, input_act, act_weight, act_
         )
 
 
-def linear_group(x, layers):
-    """Share an operation's prepared input across sibling linear calls."""
+def prepare_linear_group(x, layers):
+    """Prepare one input for sibling linears that can share its representation."""
     # Hooks can mutate x between siblings, including tensors without version counters.
     module = torch.nn.modules.module
     if (module._global_forward_pre_hooks or module._global_forward_hooks
             or any(not isinstance(layer, CastWeightBiasOp) or layer.comfy_force_forward
                    or layer._forward_pre_hooks or layer._forward_hooks for layer in layers)):
-        return tuple(layer(x) for layer in layers)
-    prepared = None
+        return None
     for layer in layers:
         prepared = layer.prepare_input(x)
         if prepared is not None:
-            break
-    return tuple(layer.forward_prepared(x, prepared) for layer in layers)
+            return prepared
+    return None
+
+
+def linear_prepared(linear, x, prepared):
+    return linear(x) if prepared is None else linear.forward_prepared(x, prepared)
+
+
+def linear_group(x, layers):
+    """Share an operation's prepared input across sibling linear calls."""
+    prepared = prepare_linear_group(x, layers)
+    return tuple(linear_prepared(layer, x, prepared) for layer in layers)
 
 
 def linear_input_act(linear, x, input_act, act_weight=None, act_eps=0.0,

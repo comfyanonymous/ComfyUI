@@ -57,9 +57,10 @@ class SwiGLU(nn.Module):
         self.down = operations.Linear(mlpdim, features, bias=bias, device=device, dtype=dtype)
 
     def forward(self, x):
-        gate, up = comfy.ops.linear_group(x, (self.gate, self.up))
-        gate = F.silu(gate).mul_(up)
-        del up
+        prepared = comfy.ops.prepare_linear_group(x, (self.gate, self.up))
+        gate = F.silu(comfy.ops.linear_prepared(self.gate, x, prepared))
+        gate.mul_(comfy.ops.linear_prepared(self.up, x, prepared))
+        del prepared
         return self.down(gate)
 
 

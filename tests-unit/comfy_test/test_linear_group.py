@@ -137,12 +137,12 @@ def test_krea_grouped_projections_match_separate_calls(module, monkeypatch):
         parameter.data.normal_(0, 0.1)
     x = torch.randn(2, 5, 32)
     actual = model(x)
-    monkeypatch.setattr(comfy.ops, "linear_group", lambda x, layers: tuple(layer(x) for layer in layers))
+    monkeypatch.setattr(comfy.ops, "prepare_linear_group", lambda x, layers: None)
     expected = model(x)
     torch.testing.assert_close(actual, expected, rtol=0, atol=0)
 
 
-def test_krea_mlp_releases_projection_outputs_before_down():
+def test_krea_mlp_releases_raw_gate_before_up_and_projections_before_down():
     model = SwiGLU(32, 4, multiple=16, operations=comfy.ops.manual_cast)
     for parameter in model.parameters():
         parameter.data.normal_(0, 0.1)
@@ -153,9 +153,14 @@ def test_krea_mlp_releases_projection_outputs_before_down():
             lambda module, inputs, output: outputs.append(weakref.ref(output))
         )
 
+    def before_up(module, inputs):
+        assert len(outputs) == 1
+        assert outputs[0]() is None
+
     def before_down(module, inputs):
         assert len(outputs) == 2
         assert all(output() is None for output in outputs)
 
+    model.up.register_forward_pre_hook(before_up)
     model.down.register_forward_pre_hook(before_down)
     model(torch.randn(2, 5, 32))
