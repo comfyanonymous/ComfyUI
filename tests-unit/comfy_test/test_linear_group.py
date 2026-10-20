@@ -164,3 +164,39 @@ def test_krea_mlp_releases_raw_gate_before_up_and_projections_before_down():
     model.up.register_forward_pre_hook(before_up)
     model.down.register_forward_pre_hook(before_down)
     model(torch.randn(2, 5, 32))
+
+
+def test_krea_mlp_releases_preparation_before_down(monkeypatch):
+    model = SwiGLU(32, 4, multiple=16, operations=comfy.ops.manual_cast)
+    for parameter in model.parameters():
+        parameter.data.normal_(0, 0.1)
+        parameter.requires_grad_(False)
+    prepared_refs, gate_outputs = [], []
+
+    class Prepared:
+        pass
+
+    def prepare(x):
+        prepared = Prepared()
+        prepared_refs.append(weakref.ref(prepared))
+        return prepared
+
+    def gate(x, prepared):
+        output = model.gate(x)
+        gate_outputs.append(weakref.ref(output))
+        return output
+
+    def up(x, prepared):
+        assert gate_outputs[0]() is None
+        assert prepared_refs[0]() is prepared
+        return model.up(x)
+
+    def before_down(module, inputs):
+        assert len(prepared_refs) == 1
+        assert prepared_refs[0]() is None
+
+    monkeypatch.setattr(model.gate, "prepare_input", prepare)
+    monkeypatch.setattr(model.gate, "forward_prepared", gate)
+    monkeypatch.setattr(model.up, "forward_prepared", up)
+    model.down.register_forward_pre_hook(before_down)
+    model(torch.randn(2, 5, 32))
