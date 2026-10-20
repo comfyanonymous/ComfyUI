@@ -703,9 +703,11 @@ def attention_comfy_kitchen_sol(q, k, v, heads, mask=None, attn_precision=None, 
     dim_head = q.shape[-1] if skip_reshape else q.shape[-1] // heads
     b = q.shape[0]
     if skip_reshape:
+        if kwargs.get("enable_gqa", False):
+            k, v = comfy.ops.repeat_kv_for_gqa(k, v, q.shape[-3], -3)
         q, k, v = map(lambda t: t.transpose(1, 2), (q, k, v))
     else:
-        q, k, v = _reshape_qkv_to_heads(q, k, v, b, heads, dim_head)
+        q, k, v = _reshape_qkv_to_heads(q, k, v, b, heads, dim_head, kwargs.get("enable_gqa", False))
     out = comfy_kitchen.sol_attn(q, k, v, tau=tau, scale=kwargs.get("scale"))
     if skip_output_reshape:
         return out.transpose(1, 2)

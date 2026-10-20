@@ -91,13 +91,10 @@ class Attention(nn.Module):
 
         if freqs is not None:
             q, k = apply_rope(q, k, freqs)
-        if self.kvheads != self.heads:
-            rep = self.heads // self.kvheads
-            k = k.repeat_interleave(rep, dim=1)
-            v = v.repeat_interleave(rep, dim=1)
         q, k, v = AttentionTensorContainer(q), AttentionTensorContainer(k), AttentionTensorContainer(v)
         out = optimized_attention_masked(q, k, v, self.heads, mask=mask, skip_reshape=True,
-                                         preferred_attention=self.comfy_attention, transformer_options=transformer_options)
+                                         preferred_attention=self.comfy_attention, transformer_options=transformer_options,
+                                         enable_gqa=self.kvheads != self.heads)
 
         if "block_index" in transformer_options and "attn1_output_patch" in transformer_patches:
             for p in transformer_patches["attn1_output_patch"]:
