@@ -3,10 +3,13 @@ from typing_extensions import override
 
 import comfy.model_management
 import comfy.utils
+from comfy.ldm.sensenova.conditioning import (
+    IMAGE_CONTEXT_ID,
+    IMAGE_END_ID,
+    IMAGE_START_ID,
+    THINK_SUFFIX_IDS,
+)
 from comfy.ldm.sensenova.interleave import (
-    IMAGE_CONTEXT_TOKEN_ID,
-    IMAGE_END_TOKEN_ID,
-    IMAGE_START_TOKEN_ID,
     append_interleave_image,
     append_interleave_tokens,
     expand_interleave_metadata,
@@ -14,7 +17,6 @@ from comfy.ldm.sensenova.interleave import (
     prefix_arguments,
     split_interleave_text,
 )
-from comfy.ldm.sensenova.model import THINK_SUFFIX_TOKEN_IDS
 from comfy.ldm.sensenova.sampling import SenseNovaModelSampling
 from comfy_api.latest import ComfyExtension, io, ui
 from comfy_execution.graph_utils import ExecutionBlocker
@@ -197,14 +199,12 @@ class SenseNovaGenerate(io.ComfyNode):
                 metadata, device, dtype, image_only=False
             )
             progress = comfy.utils.ProgressBar(max_think_tokens)
-            token_ids = (
-                diffusion_model.preprocess_thinking_prefix_with_tokens(
-                    *prefix_args,
-                    max_think_tokens=max_think_tokens,
-                    transformer_options=transformer_options,
-                    progress=progress.update_absolute,
-                    interrupt=comfy.model_management.throw_exception_if_processing_interrupted,
-                )
+            token_ids = diffusion_model.generate_thinking_tokens(
+                *prefix_args,
+                max_think_tokens=max_think_tokens,
+                transformer_options=transformer_options,
+                progress=progress.update_absolute,
+                interrupt=comfy.model_management.throw_exception_if_processing_interrupted,
             )
         finally:
             model.cleanup()
@@ -216,7 +216,7 @@ class SenseNovaGenerate(io.ComfyNode):
             thinking = "SenseNova thinking completed without visible text."
 
         input_ids = metadata["text_input_ids"]
-        suffix = input_ids.new_tensor([*token_ids, *THINK_SUFFIX_TOKEN_IDS]).unsqueeze(0)
+        suffix = input_ids.new_tensor([*token_ids, *THINK_SUFFIX_IDS]).unsqueeze(0)
         updated_metadata = {
             **metadata,
             "text_input_ids": torch.cat((input_ids, suffix), dim=1),
@@ -248,6 +248,10 @@ class SenseNovaGenerate(io.ComfyNode):
         if negative is None or len(positive) != 1 or len(negative) != 1:
             raise ValueError(
                 "SenseNova interleave requires one positive and one negative conditioning entry."
+            )
+        if positive[0][1].get("sensenova_interleave_finished"):
+            return io.NodeOutput(
+                positive, "", negative, False, ui=ui.PreviewText("")
             )
         positive_metadata = expand_interleave_metadata(positive[0][1], image_only=False)
         negative_metadata = expand_interleave_metadata(negative[0][1], image_only=True)
@@ -303,11 +307,12 @@ class SenseNovaGenerate(io.ComfyNode):
         positive_metadata = append_interleave_tokens(
             positive_metadata, event.token_ids, event.image_requested
         )
+        positive_metadata["sensenova_interleave_finished"] = event.stop_reason == "eos"
         if event.image_requested:
             negative_metadata = append_interleave_tokens(
-                negative_metadata, [151670], True
+                negative_metadata, [IMAGE_START_ID], True
             )
-        text_token_ids = [value for value in event.token_ids if value != 151670]
+        text_token_ids = [value for value in event.token_ids if value != IMAGE_START_ID]
         text = (
             clip.decode(text_token_ids, skip_special_tokens=True).strip()
             if text_token_ids
@@ -382,11 +387,11 @@ class SenseNovaDecode(io.ComfyNode):
         text_parts = []
         text_tokens = []
         for token_id in token_ids:
-            if token_id == IMAGE_START_TOKEN_ID:
+            if token_id == IMAGE_START_ID:
                 text_parts.append(clip.decode(text_tokens, skip_special_tokens=True))
                 text_tokens = []
                 text_parts.append("<image>")
-            elif token_id not in (IMAGE_CONTEXT_TOKEN_ID, IMAGE_END_TOKEN_ID):
+            elif token_id not in (IMAGE_CONTEXT_ID, IMAGE_END_ID):
                 text_tokens.append(token_id)
         text_parts.append(clip.decode(text_tokens, skip_special_tokens=True))
 

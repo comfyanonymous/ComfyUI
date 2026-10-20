@@ -9,6 +9,7 @@ from comfy.ldm.flux.math import apply_rope1
 from comfy.ldm.modules.attention import AttentionTensorContainer, ComfyAttention, optimized_attention
 from comfy.ldm.modules.diffusionmodules.mmdit import TimestepEmbedder
 
+from .conditioning import IMAGE_CONTEXT_ID, IM_END_ID, THINK_END_ID
 from .sampling import resolution_noise_scale
 
 
@@ -20,9 +21,6 @@ NUM_KV_HEADS = 8
 HEAD_DIM = 128
 MERGED_PATCH_SIZE = 32
 VOCAB_SIZE = 151936
-EOS_TOKEN_ID = 151645
-THINK_END_TOKEN_ID = 151668
-THINK_SUFFIX_TOKEN_IDS = (271, 151670)
 
 
 def _pad_to_merged_patch_size(value):
@@ -530,7 +528,7 @@ class SenseNovaU15(nn.Module):
                 self.vision_model(_pad_to_merged_patch_size(reference))
                 for reference in reference_images
             ]
-            selected = text_input_ids == 151669
+            selected = text_input_ids == IMAGE_CONTEXT_ID
             prefix = prefix.clone()
             prefix[selected] = torch.cat(reference_embeds, dim=1).reshape(
                 -1, HIDDEN_SIZE
@@ -648,7 +646,7 @@ class SenseNovaU15(nn.Module):
             next_values.append(value)
         return hidden_states, next_keys, next_values, prefix_time + 1
 
-    def preprocess_thinking_prefix_with_tokens(
+    def generate_thinking_tokens(
         self,
         text_input_ids,
         reference_images=None,
@@ -667,13 +665,13 @@ class SenseNovaU15(nn.Module):
             prefix_indexes,
             prefix_mask,
             max_tokens=max_think_tokens,
-            stop_token_ids=(THINK_END_TOKEN_ID,),
+            stop_token_ids=(THINK_END_ID,),
             transformer_options=transformer_options,
             progress=progress,
             interrupt=interrupt,
         )
-        if stop_token_id != THINK_END_TOKEN_ID:
-            token_ids.append(THINK_END_TOKEN_ID)
+        if stop_token_id != THINK_END_ID:
+            token_ids.append(THINK_END_ID)
         return token_ids
 
     def generate_text_tokens(
@@ -718,7 +716,7 @@ class SenseNovaU15(nn.Module):
             if interrupt is not None:
                 interrupt()
             token_id = int(next_token.item())
-            if token_id == EOS_TOKEN_ID:
+            if token_id == IM_END_ID:
                 return token_ids, token_id
             token_ids.append(token_id)
             if progress is not None:

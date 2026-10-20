@@ -3,18 +3,16 @@ from dataclasses import dataclass
 import torch
 
 from .conditioning import (
+    IMAGE_CONTEXT_ID,
+    IMAGE_END_ID,
+    IMAGE_START_ID,
+    IM_END_ID,
     block_causal_mask,
     condition_input_ids,
     preprocess_references,
     thw_indexes,
 )
 from .model import MERGED_PATCH_SIZE
-
-
-IMAGE_CONTEXT_TOKEN_ID = 151669
-IMAGE_START_TOKEN_ID = 151670
-IMAGE_END_TOKEN_ID = 151671
-EOS_TOKEN_ID = 151645
 
 
 @dataclass
@@ -42,14 +40,14 @@ def generate_text_event(
     token_ids, stop_token_id = model.generate_text_tokens(
         *prefix_args,
         max_tokens=max_text_tokens,
-        stop_token_ids=(IMAGE_START_TOKEN_ID,),
+        stop_token_ids=(IMAGE_START_ID,),
         transformer_options=transformer_options,
         progress=progress,
         interrupt=interrupt,
     )
     stop_reason = {
-        EOS_TOKEN_ID: "eos",
-        IMAGE_START_TOKEN_ID: "image",
+        IM_END_ID: "eos",
+        IMAGE_START_ID: "image",
     }.get(stop_token_id, "max_text_tokens")
     return InterleaveTextEvent(token_ids, stop_reason)
 
@@ -170,8 +168,8 @@ def append_interleave_image(metadata, latent_samples):
         1, (latent_samples.shape[-1] + MERGED_PATCH_SIZE - 1) // MERGED_PATCH_SIZE
     )
     suffix = metadata["text_input_ids"].new_tensor(
-        [IMAGE_CONTEXT_TOKEN_ID] * (token_height * token_width)
-        + [IMAGE_END_TOKEN_ID]
+        [IMAGE_CONTEXT_ID] * (token_height * token_width)
+        + [IMAGE_END_ID]
     ).unsqueeze(0)
     updated = dict(metadata)
     updated["text_input_ids"] = torch.cat(
@@ -185,9 +183,8 @@ def append_interleave_image(metadata, latent_samples):
     return updated
 
 
-def _parse_interleave_parts(text, num_images, include_context=False):
+def _parse_interleave_parts(text):
     parts = []
-    image_index = 0
     in_think = False
     cursor = 0
     tags = ("<think>", "</think>", "<image>")
@@ -217,17 +214,8 @@ def _parse_interleave_parts(text, num_images, include_context=False):
         elif tag == "</think>":
             in_think = False
         else:
-            image_part = {"type": "image", "index": image_index}
-            if include_context:
-                image_part["in_think"] = in_think
-            if image_index >= num_images:
-                image_part["missing"] = True
-            parts.append(image_part)
-            image_index += 1
+            parts.append({"type": "image", "in_think": in_think})
 
-    while image_index < num_images:
-        parts.append({"type": "image", "index": image_index})
-        image_index += 1
     return parts
 
 
@@ -242,9 +230,7 @@ def split_interleave_text(text):
 
     visible_parts = []
     thinking_parts = []
-    for part in _parse_interleave_parts(
-        text, text.count("<image>"), include_context=True
-    ):
+    for part in _parse_interleave_parts(text):
         part_type = part["type"]
         if part_type == "think":
             thinking_parts.append(part["text"])
