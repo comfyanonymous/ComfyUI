@@ -65,7 +65,7 @@ class TextEncodeFibo2(io.ComfyNode):
 
         # as Bria's pipeline: a single image is cropped to the result's size, several images each to their own trained size
         default = trained_size(images[0].shape[2] / images[0].shape[1]) if len(images) > 0 else (1024, 1024)
-        width, height = (width or default[0]) // 16 * 16, (height or default[1]) // 16 * 16
+        width, height = max(16, (width or default[0]) // 16 * 16), max(16, (height or default[1]) // 16 * 16)
         sizes = [(width, height)] if len(images) == 1 else [trained_size(image.shape[2] / image.shape[1]) for image in images]
         images = [image if (image.shape[2], image.shape[1]) == size else comfy.utils.common_upscale(image.movedim(-1, 1), *size, "lanczos", "center").movedim(1, -1)
                   for image, size in zip(images, sizes)]
