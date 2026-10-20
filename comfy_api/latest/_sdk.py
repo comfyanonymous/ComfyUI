@@ -2283,10 +2283,21 @@ class OutputDomain(Protocol):
         image_format: str = "png", quality: int = 95,
         filenames: Optional[list[str]] = None,
         lossless: bool = False, optimize: bool = False,
-        *, png_text: Optional[dict[str, str]] = None,
+        *, png_text: Optional[dict[str, str] | list[tuple[str, str] | list[str]]] = None,
         overwrite: bool = False,
         webp_workflow_json: Optional[str] = None,
-    ) -> dict: ...
+        jpeg_subsampling: int = 0,
+    ) -> dict:
+        """Save bounded images with explicit relative names and metadata.
+
+        png_text accepts a string dict or <=4096 ordered string pairs; pairs
+        preserve duplicate PNG keywords. Text JSON is bounded to 1 MiB.
+        jpeg_subsampling is exactly -1, 0, 1 or 2; default 0 preserves
+        existing encoding. -1 omits Pillow subsampling, using its default.
+        Nonzero values require JPEG. Output/overwrite permissions and
+        relative-name confinement are unchanged.
+        """
+        ...
     async def save_images_with_alpha(
         self, images: ImageRef, mask: MaskRef,
         filename_prefix: str = "ComfyUI",
@@ -5655,14 +5666,23 @@ def _mask_from_value(value):
     return _tensor_from_value(value, "MASK", _mask_buffer_shape)
 
 
-def _png_text_metadata(values: dict[str, str]):
+def _png_text_entries(values):
+    """Closed bounded text data; dict behavior and ordered duplicates retained."""
     import json
-    from PIL.PngImagePlugin import PngInfo
 
-    if type(values) is not dict:
-        raise TypeError("PNG text must be a dictionary of strings")
+    if type(values) is dict:
+        entries = values.items()
+    elif type(values) is list:
+        if len(values) > 4096:
+            raise ValueError("PNG text exceeds 4096 ordered entries")
+        entries = values
+    else:
+        raise TypeError("PNG text must be a dictionary or ordered string pairs")
     size = 0
-    for key, value in values.items():
+    for entry in entries:
+        if type(entry) not in (tuple, list) or len(entry) != 2:
+            raise TypeError("PNG text entries must be string pairs")
+        key, value = entry
         if type(key) is not str or type(value) is not str:
             raise TypeError("PNG text keys and values must be strings")
         if not key or "\x00" in key or len(key.encode("latin-1")) > 79:
@@ -5672,8 +5692,14 @@ def _png_text_metadata(values: dict[str, str]):
             raise ValueError("PNG text exceeds 1 MiB")
     if len(json.dumps(values).encode("utf-8")) > 1024 * 1024:
         raise ValueError("PNG text exceeds 1 MiB")
+    return values.items() if type(values) is dict else values
+
+
+def _png_text_metadata(values):
+    from PIL.PngImagePlugin import PngInfo
+
     metadata = PngInfo()
-    for key, value in values.items():
+    for key, value in _png_text_entries(values):
         metadata.add_text(key, value)
     return metadata
 
@@ -6119,9 +6145,10 @@ class _InProcessOutput:
         image_format: str = "png", quality: int = 95,
         filenames: Optional[list[str]] = None,
         lossless: bool = False, optimize: bool = False,
-        *, png_text: Optional[dict[str, str]] = None,
+        *, png_text: Optional[dict[str, str] | list[tuple[str, str] | list[str]]] = None,
         overwrite: bool = False,
         webp_workflow_json: Optional[str] = None,
+        jpeg_subsampling: int = 0,
     ) -> dict:
         if type(overwrite) is not bool:
             raise TypeError("image overwrite must be a boolean")
@@ -6149,6 +6176,10 @@ class _InProcessOutput:
             raise ValueError("PNG compression level must be in [0, 9]")
         pil_format, allowed_suffixes, default_suffix = self._still_format(
             image_format)
+        if type(jpeg_subsampling) is not int or jpeg_subsampling not in (-1, 0, 1, 2):
+            raise ValueError("JPEG subsampling must be -1, 0, 1, or 2")
+        if pil_format != "JPEG" and jpeg_subsampling != 0:
+            raise ValueError("non-default JPEG subsampling requires JPEG output")
         a1111_text, a1111_exif = _a1111_parameters_payload(
             a1111_parameters, pil_format)
         workflow_description = _webp_workflow_description(
@@ -6239,8 +6270,9 @@ class _InProcessOutput:
                 if pil_format == "PNG":
                     options["compress_level"] = level
             elif pil_format == "JPEG":
-                options.update(
-                    quality=quality, optimize=optimize, subsampling=0)
+                options.update(quality=quality, optimize=optimize)
+                if jpeg_subsampling != -1:
+                    options["subsampling"] = jpeg_subsampling
             elif pil_format in {"WEBP", "AVIF"}:
                 options.update(
                     quality=quality, lossless=lossless, optimize=optimize)
