@@ -171,7 +171,7 @@ def test_krea_mlp_releases_preparation_before_down(monkeypatch):
     for parameter in model.parameters():
         parameter.data.normal_(0, 0.1)
         parameter.requires_grad_(False)
-    prepared_refs, gate_outputs = [], []
+    prepared_refs, gate_outputs, activated_gates = [], [], []
 
     class Prepared:
         pass
@@ -184,16 +184,18 @@ def test_krea_mlp_releases_preparation_before_down(monkeypatch):
     def gate(x, prepared, *, output_act=None):
         output = model.gate(x)
         gate_outputs.append(weakref.ref(output))
-        return comfy.ops._eager_output_act(output, output_act)
+        return comfy.ops._eager_linear_output(output, output_act)
 
-    def up(x, prepared):
+    def up(x, prepared, *, output_mul=None):
         assert gate_outputs[0]() is None
         assert prepared_refs[0]() is prepared
-        return model.up(x)
+        activated_gates.append(weakref.ref(output_mul))
+        return comfy.ops._eager_linear_output(model.up(x), output_mul=output_mul)
 
     def before_down(module, inputs):
         assert len(prepared_refs) == 1
         assert prepared_refs[0]() is None
+        assert activated_gates[0]() is None
 
     monkeypatch.setattr(model.gate, "prepare_input", prepare)
     monkeypatch.setattr(model.gate, "forward_prepared", gate)
@@ -236,7 +238,56 @@ def test_default_prepared_linear_applies_output_activation_after_module_call():
         handle.remove()
 
 
-def test_krea_requests_output_activation_only_for_prepared_gate():
+@pytest.mark.parametrize("prepared", [None, object()])
+@pytest.mark.parametrize("output_act", [None, "silu"])
+def test_output_product_follows_hooks_and_preserves_multiplier_and_gradients(prepared, output_act):
+    layer = comfy.ops.manual_cast.Linear(4, 3)
+    layer.load_state_dict(torch.nn.Linear(4, 3).state_dict())
+    x = torch.randn(5, 4, requires_grad=True)
+    multiplier = torch.randn(5, 3, requires_grad=True)
+    saved_multiplier = multiplier.detach().clone()
+    hooked_outputs = []
+
+    def hook(module, inputs, output):
+        result = output + 2
+        hooked_outputs.append((result, result.detach().clone()))
+        return result
+
+    handle = layer.register_forward_hook(hook)
+    try:
+        actual = comfy.ops.linear_prepared(
+            layer, x, prepared, output_act=output_act, output_mul=multiplier
+        )
+        assert len(hooked_outputs) == 1
+        torch.testing.assert_close(*hooked_outputs[0], rtol=0, atol=0)
+        torch.testing.assert_close(multiplier, saved_multiplier, rtol=0, atol=0)
+        expected = layer(x)
+        if output_act == "silu":
+            expected = torch.nn.functional.silu(expected)
+        expected = expected * multiplier
+        torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+        inputs = (x, layer.weight, layer.bias, multiplier)
+        actual_grad = torch.autograd.grad(actual.sum(), inputs)
+        expected_grad = torch.autograd.grad(expected.sum(), inputs)
+        for a, b in zip(actual_grad, expected_grad):
+            torch.testing.assert_close(a, b, rtol=0, atol=0)
+    finally:
+        handle.remove()
+
+
+@pytest.mark.parametrize("prepared", [None, object()])
+def test_output_product_preserves_bf16_projection_rounding_and_broadcast(prepared):
+    layer = comfy.ops.manual_cast.Linear(4, 3, dtype=torch.bfloat16)
+    layer.load_state_dict(torch.nn.Linear(4, 3, dtype=torch.bfloat16).state_dict())
+    x = torch.randn(5, 4, dtype=torch.bfloat16)
+    multiplier = torch.tensor([0.50390625, 1.0078125, 1.9921875], dtype=torch.bfloat16)
+    actual = comfy.ops.linear_prepared(layer, x, prepared, output_mul=multiplier)
+    expected = layer(x) * multiplier
+    assert actual.dtype == torch.bfloat16
+    torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+
+
+def test_krea_requests_silu_for_gate_and_product_for_prepared_up():
     requests = []
 
     class Operations(comfy.ops.manual_cast):
@@ -244,10 +295,10 @@ def test_krea_requests_output_activation_only_for_prepared_gate():
             def prepare_input(self, x):
                 return x
 
-            def forward_prepared(self, x, prepared, *, output_act=None):
+            def forward_prepared(self, x, prepared, *, output_act=None, output_mul=None):
                 assert prepared is x
-                requests.append((self, output_act))
-                return comfy.ops._eager_output_act(self(x), output_act)
+                requests.append((self, output_act, output_mul))
+                return comfy.ops._eager_linear_output(self(x), output_act, output_mul)
 
     model = SwiGLU(32, 4, multiple=16, operations=Operations)
     for parameter in model.parameters():
@@ -255,5 +306,10 @@ def test_krea_requests_output_activation_only_for_prepared_gate():
     x = torch.randn(2, 5, 32)
     expected = model.down(torch.nn.functional.silu(model.gate(x)) * model.up(x))
     actual = model(x)
-    assert requests == [(model.gate, "silu"), (model.up, None)]
+    assert len(requests) == 2
+    assert requests[0] == (model.gate, "silu", None)
+    assert requests[1][:2] == (model.up, None)
+    torch.testing.assert_close(
+        requests[1][2], torch.nn.functional.silu(model.gate(x)), rtol=0, atol=0
+    )
     torch.testing.assert_close(actual, expected, rtol=0, atol=0)

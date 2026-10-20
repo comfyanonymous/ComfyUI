@@ -511,8 +511,8 @@ class CastWeightBiasOp:
     def prepare_input(self, input):
         return None
 
-    def forward_prepared(self, input, prepared, *, output_act=None):
-        return _eager_output_act(self(input), output_act)
+    def forward_prepared(self, input, prepared, *, output_act=None, output_mul=None):
+        return _eager_linear_output(self(input), output_act, output_mul)
 
 class disable_weight_init:
     @staticmethod
@@ -1020,12 +1020,12 @@ def _eager_input_act(x, input_act, act_weight=None, act_eps=0.0):
     return INPUT_ACT_EAGER[input_act](x)
 
 
-def _eager_output_act(x, output_act):
-    if output_act is None:
-        return x
+def _eager_linear_output(x, output_act=None, output_mul=None):
     if output_act == "silu":
-        return torch.nn.functional.silu(x)
-    raise ValueError(f"Unsupported linear output activation: {output_act}")
+        x = torch.nn.functional.silu(x)
+    elif output_act is not None:
+        raise ValueError(f"Unsupported linear output activation: {output_act}")
+    return x if output_mul is None else x * output_mul
 
 
 def _linear_residual(out, residual, residual_scale):
@@ -1065,12 +1065,16 @@ def prepare_linear_group(x, layers):
     return None
 
 
-def linear_prepared(linear, x, prepared, *, output_act=None):
+def linear_prepared(linear, x, prepared, *, output_act=None, output_mul=None):
+    """Apply optional activation and multiplication after the linear, without mutating output_mul."""
     if prepared is None:
-        return _eager_output_act(linear(x), output_act)
-    if output_act is None:
-        return linear.forward_prepared(x, prepared)
-    return linear.forward_prepared(x, prepared, output_act=output_act)
+        return _eager_linear_output(linear(x), output_act, output_mul)
+    kwargs = {}
+    if output_act is not None:
+        kwargs["output_act"] = output_act
+    if output_mul is not None:
+        kwargs["output_mul"] = output_mul
+    return linear.forward_prepared(x, prepared, **kwargs)
 
 
 def linear_group(x, layers):

@@ -59,7 +59,10 @@ class SwiGLU(nn.Module):
     def forward(self, x):
         prepared = comfy.ops.prepare_linear_group(x, (self.gate, self.up))
         gate = comfy.ops.linear_prepared(self.gate, x, prepared, output_act="silu")
-        gate.mul_(comfy.ops.linear_prepared(self.up, x, prepared))
+        if prepared is None:
+            gate.mul_(self.up(x))
+        else:
+            gate = comfy.ops.linear_prepared(self.up, x, prepared, output_mul=gate)
         del prepared
         return self.down(gate)
 
