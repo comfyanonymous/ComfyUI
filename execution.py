@@ -78,7 +78,7 @@ class IsChangedCache:
         node = self.dynprompt.get_node(node_id)
         class_type = node["class_type"]
         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
-        if {"graph.metadata", "graph.expand.upstream"}.intersection(
+        if {"graph.metadata", "graph.metadata.write", "graph.expand.upstream"}.intersection(
                 getattr(class_def, "SDK_PERMISSIONS", ()) or ()):
             self.is_changed[node_id] = float("nan")
             return self.is_changed[node_id]
@@ -457,6 +457,14 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
                         output_layout=((v3_data or {}).get("output_layout")
                                        if _comfy_sdk._normalize_v2_node_method(func) == "execute" else None),
                     )
+                    if (_sdk_plan.method == "execute"
+                            and "graph.metadata.write" in _sdk_plan.permissions):
+                        def metadata_write_guard():
+                            nodes.before_node_execution()
+                            if invocation_guard is not None:
+                                invocation_guard()
+                        _sdk_plan.execution_metadata_write = _execution_metadata.ExecutionMetadataWriteScope(
+                            _sdk_plan.execution_metadata, str(unique_id), metadata_write_guard)
                     _sdk_refs = _comfy_sdk.providers.ref_resolver_factory()
                     _sdk_runtime = _comfy_sdk.bind_runtime(
                         _sdk_refs,
@@ -496,6 +504,14 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
                             type_obj, "SDK_REQUIRED_WEIGHTS", ()) or ()),
                         execution_metadata=_execution_metadata.current(prompt_id),
                     )
+                    if (_sdk_plan.method == "execute"
+                            and "graph.metadata.write" in _sdk_plan.permissions):
+                        def metadata_write_guard():
+                            nodes.before_node_execution()
+                            if invocation_guard is not None:
+                                invocation_guard()
+                        _sdk_plan.execution_metadata_write = _execution_metadata.ExecutionMetadataWriteScope(
+                            _sdk_plan.execution_metadata, str(unique_id), metadata_write_guard)
                     _sdk_refs = _comfy_sdk.providers.ref_resolver_factory()
                     _sdk_runtime = _comfy_sdk.bind_runtime(
                         _sdk_refs,
@@ -511,6 +527,9 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
                 if inspect.iscoroutinefunction(f):
                     async def async_wrapper(f, prompt_id, unique_id, list_index, args):
                         with CurrentNodeContext(prompt_id, unique_id, list_index), _invoke_scope():
+                            if (_sdk_plan is not None
+                                    and _sdk_plan.execution_metadata_write is not None):
+                                _sdk_plan.execution_metadata_write.bind_native_task(prompt_id, unique_id)
                             if invocation_guard is not None:
                                 invocation_guard()
                             return await f(**args)
@@ -528,6 +547,8 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
 
             if _sdk_plan is not None:
                 try:
+                    if _sdk_plan.execution_metadata_write is not None:
+                        _sdk_plan.execution_metadata_write.activate()
                     if invocation_guard is not None:
                         invocation_guard()
                     result = await _comfy_sdk.providers.execution_backend.dispatch(
@@ -546,6 +567,8 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
                     # to collection, and in `finally` because the path that most
                     # needs it is the one where the node raised or its guest
                     # died: that is exactly when nothing else is going to run.
+                    if _sdk_plan.execution_metadata_write is not None:
+                        _sdk_plan.execution_metadata_write.close()
                     _sdk_refs.clear()
             else:
                 result = await local_call()

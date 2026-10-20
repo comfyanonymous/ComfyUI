@@ -1,5 +1,8 @@
-"""Owner-side observations for one prompt, exposed only as detached metadata."""
+"""Prompt-owned observations and explicitly scoped shared PNG metadata writes."""
+import asyncio
 import contextvars
+import math
+import threading
 import json
 import uuid
 import weakref
@@ -32,6 +35,7 @@ class ExecutionMetadataScope:
         self.extra_pnginfo = extra_pnginfo
         self.observe = observe
         self.closed = False
+        self._write_lock = threading.RLock()
         self.execution_order = []
         self.observations = {}
         self._record_sizes = {}
@@ -52,7 +56,8 @@ class ExecutionMetadataScope:
         _active.reset(self._token)
 
     def close(self):
-        self.closed = True
+        with self._write_lock:
+            self.closed = True
         self._identities.clear()
         self.observations.clear()
         self.execution_order.clear()
@@ -218,3 +223,152 @@ class ExecutionMetadataScope:
             result["execution_order"] = self.execution_order
             result["observations"] = self.observations
         return json_copy(result)
+
+
+def _bounded_pnginfo_json(value):
+    remaining = 4096
+    def check(item, depth=0):
+        nonlocal remaining
+        remaining -= 1
+        if remaining < 0 or depth > 32:
+            raise ValueError("PNG metadata exceeds 4096 values or 32 nesting levels")
+        exact = type(item)
+        if item is None or exact in {bool, int, str}:
+            if exact is str and len(item) > MAX_METADATA_BYTES:
+                raise ValueError("PNG metadata string exceeds 1 MiB")
+            return
+        if exact is float and math.isfinite(item):
+            return
+        if exact is dict:
+            for key, child in item.items():
+                if type(key) is not str or len(key) > 1024:
+                    raise TypeError("PNG metadata keys must be strings of at most 1024 characters")
+                check(child, depth + 1)
+            return
+        if exact is list:
+            for child in item:
+                check(child, depth + 1)
+            return
+        raise TypeError("PNG metadata accepts only finite JSON values")
+    check(value)
+    parts = []
+    size = 0
+    for part in json.JSONEncoder(ensure_ascii=False, allow_nan=False, separators=(",", ":")).iterencode(value):
+        size += len(part.encode("utf-8"))
+        if size > MAX_METADATA_BYTES:
+            raise ValueError("PNG metadata exceeds 1 MiB")
+        parts.append(part)
+    return "".join(parts)
+
+
+def encode_pnginfo_update(updates, expected=None):
+    if type(updates) is not dict or (expected is not None and type(expected) is not dict):
+        raise TypeError("PNG metadata update and expected value must be JSON objects")
+    return _bounded_pnginfo_json({"updates": updates, "expected": expected})
+
+
+def decode_pnginfo_update(payload):
+    if type(payload) is not str or len(payload.encode("utf-8")) > MAX_METADATA_BYTES:
+        raise ValueError("PNG metadata update must be a JSON string of at most 1 MiB")
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("PNG metadata update contains duplicate JSON keys")
+            result[key] = value
+        return result
+    try:
+        value = json.loads(payload, object_pairs_hook=unique_object)
+    except RecursionError as error:
+        raise ValueError("PNG metadata nesting is too deep") from error
+    if type(value) is not dict or set(value) != {"updates", "expected"}:
+        raise ValueError("PNG metadata update requires only updates and expected")
+    encode_pnginfo_update(value["updates"], value["expected"])
+    return value["updates"], value["expected"]
+
+
+def _same_pnginfo_json(left, right):
+    # JSON booleans must never compare equal to numbers. Keep numeric types
+    # exact too, while object key insertion order has no semantic effect.
+    if type(left) is not type(right):
+        return False
+    if type(left) is dict:
+        return left.keys() == right.keys() and all(
+            _same_pnginfo_json(left[key], right[key]) for key in left)
+    if type(left) is list:
+        return len(left) == len(right) and all(
+            _same_pnginfo_json(a, b) for a, b in zip(left, right))
+    return left == right
+
+
+class ExecutionMetadataWriteScope:
+    """Host-only authority for one actual execute invocation, never a Guest ref."""
+    def __init__(self, owner, node_id, guard):
+        if type(owner) is not ExecutionMetadataScope:
+            raise TypeError("PNG metadata write requires the native execution owner")
+        self.owner = owner
+        self.node_id = str(node_id)
+        self.prompt_id = owner.prompt_id
+        self.token = uuid.uuid4().hex
+        self._guard = guard
+        self._active = False
+        self._closed = False
+        self._task = None
+        self._dispatch_task = None
+        self._context = None
+
+    def activate(self):
+        with self.owner._write_lock:
+            if self._closed or self._active or current(self.prompt_id) is not self.owner:
+                raise PermissionError("PNG metadata write scope is not current")
+            self.owner.dynamic_prompt.get_node(self.node_id)
+            self._task = asyncio.current_task()
+            self._dispatch_task = self._task
+            self._context = contextvars.copy_context()
+            self._active = True
+            self.check(self.prompt_id, self.node_id)
+
+    def bind_native_task(self, prompt_id, node_id):
+        """Core binds its actual async callback, in addition to the dispatch."""
+        with self.owner._write_lock:
+            self.check(prompt_id, node_id)
+            task = asyncio.current_task()
+            if (self._task is not self._dispatch_task or task is self._dispatch_task
+                    or task is None or task.done() or task.cancelling()
+                    or current(self.prompt_id) is not self.owner):
+                raise PermissionError("PNG metadata native callback is not current or is already bound")
+            self._task = task
+            self._context = contextvars.copy_context()
+
+    def check(self, prompt_id, node_id):
+        if (not self._active or self._closed or self.owner.closed
+                or self.prompt_id != str(prompt_id) or self.node_id != str(node_id)
+                or self._dispatch_task is None or self._dispatch_task.done() or self._dispatch_task.cancelling()
+                or self._task is None or self._task.done() or self._task.cancelling()
+                or self._context is None):
+            raise PermissionError("PNG metadata write scope is closed, cancelled, or belongs to another invocation")
+        self._context.copy().run(self._guard)
+
+    def close(self):
+        with self.owner._write_lock:
+            self._active = False
+            self._closed = True
+            self._task = None
+            self._dispatch_task = None
+            self._context = None
+
+    def update(self, updates, expected=None):
+        # Validation and the final check precede one synchronous in-place commit.
+        updates, expected = decode_pnginfo_update(encode_pnginfo_update(updates, expected))
+        with self.owner._write_lock:
+            self.check(self.prompt_id, self.node_id)
+            target = self.owner.extra_pnginfo
+            if type(target) is not dict:
+                raise RuntimeError("no shared EXTRA_PNGINFO object is bound")
+            if expected is not None and not _same_pnginfo_json(target, expected):
+                return False
+            merged = {**target, **updates}
+            _bounded_pnginfo_json(merged)
+            self.check(self.prompt_id, self.node_id)
+            target.update(updates)
+            return True

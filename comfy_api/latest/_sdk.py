@@ -1981,6 +1981,7 @@ class ExecutionPlan:
     method: str = "execute"
     execution_metadata: Any = None  # host-owned prompt observation lifetime
     output_layout: Any = None  # immutable per-node execute output layout; None for lifecycle methods
+    execution_metadata_write: Any = None  # host-only, one execute invocation
 
     def __post_init__(self) -> None:
         self.method = _normalize_v2_node_method(self.method)
@@ -2362,6 +2363,17 @@ class OutputDomain(Protocol):
 
 
 class GraphDomain(Protocol):
+    async def update_extra_pnginfo(
+        self, updates: dict[str, Any], *, expected: dict[str, Any] | None = None,
+    ) -> bool:
+        """Merge bounded JSON into this job's shared EXTRA_PNGINFO in place.
+
+        Requires graph.metadata.write, separately from graph.metadata. Only an
+        active execute invocation may write. expected, if supplied, is the
+        complete previously read object: return False on a conflict, with no
+        mutation. Return True after commit. This creates no save or output port.
+        """
+        ...
     async def input_options(self, node_id: str, input_name: str) -> dict:
         """Read a selected workflow target's scalar type or authorized enum choices.
 
@@ -7188,7 +7200,8 @@ class _InProcessOutput:
 class _InProcessGraph:
     def __init__(self, current_node_id: str, prompt: Any = None,
                  extra_pnginfo: Any = None, dynamic_prompt: Any = None, *,
-                 execution_metadata: Any = None, permissions=(), prompt_id="") -> None:
+                 execution_metadata: Any = None, permissions=(), prompt_id="",
+                 execution_metadata_write=None) -> None:
         self._execution_owner = None
         if {'graph.expand.upstream', 'graph.input_options'}.intersection(permissions):
             from comfy_execution.upstream_variants import current, active_dynamic_prompt
@@ -7204,6 +7217,8 @@ class _InProcessGraph:
         self._dynamic_prompt = dynamic_prompt
         self._execution_metadata = execution_metadata
         self._metadata_permission = "graph.metadata" in permissions
+        self._metadata_write_permission = "graph.metadata.write" in permissions
+        self._metadata_write_scope = execution_metadata_write
         self._metadata_prompt_id = str(prompt_id)
         self._source_label_permission = "graph" in permissions
 
@@ -7213,6 +7228,19 @@ class _InProcessGraph:
         if _provider is None:
             raise PermissionError('no host input-options selection is bound')
         return _provider(self, node_id, input_name)
+
+    async def update_extra_pnginfo(self, updates, *, expected=None):
+        if current_context().graph is not self:
+            raise PermissionError("PNG metadata context is not current")
+        if not self._metadata_write_permission:
+            raise PermissionError("graph.metadata.write was not declared for this node")
+        from ._execution_metadata import ExecutionMetadataWriteScope
+
+        scope = self._metadata_write_scope
+        if type(scope) is not ExecutionMetadataWriteScope or scope.owner is not self._execution_metadata:
+            raise PermissionError("no native PNG metadata write scope is bound")
+        scope.check(self._metadata_prompt_id, self._current_node_id)
+        return scope.update(updates, expected)
 
     async def execution_metadata(self, *, include_observations=False):
         if current_context().graph is not self:
@@ -9729,7 +9757,8 @@ class InProcessCtxProvider:
             graph=_InProcessGraph(
                 plan.node_id, plan.prompt, plan.extra_pnginfo,
                 plan.dynamic_prompt, execution_metadata=plan.execution_metadata,
-                permissions=plan.permissions, prompt_id=plan.prompt_id),
+                permissions=plan.permissions, prompt_id=plan.prompt_id,
+                execution_metadata_write=plan.execution_metadata_write),
             execution=_InProcessExecution(plan.prompt_id),
             integrations=_InProcessIntegrations(),
             models=_InProcessModels(),

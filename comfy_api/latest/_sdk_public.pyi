@@ -786,6 +786,7 @@ class OutputDomain(Protocol):
     ) -> dict: ...
 
 class GraphDomain(Protocol):
+    async def update_extra_pnginfo(self, updates: dict[str, Any], *, expected: dict[str, Any] | None = None) -> bool: ...
     async def input_options(self, node_id: str, input_name: str) -> dict:
         """Read a selected workflow target's scalar type or authorized enum choices.
 
@@ -1089,6 +1090,7 @@ class ExecutionPlan:
     dynamic_prompt: Any
     execution_metadata: Any
     output_layout: Any
+    execution_metadata_write: Any
     def __init__(
         self,
         prompt_id: str,
@@ -1102,6 +1104,7 @@ class ExecutionPlan:
         dynamic_prompt: Any = ...,
         execution_metadata: Any = ...,
         output_layout: Any = ...,
+        execution_metadata_write: Any = ...,
     ) -> None: ...
 
 @runtime_checkable
