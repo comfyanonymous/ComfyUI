@@ -1082,6 +1082,80 @@ class DynamicOutput(Output, ABC):
     pass
 
 
+@dataclass(frozen=True)
+class OutputLayout:
+    """Final output slots for one node invocation, independent of class caches."""
+
+    slots: tuple[tuple[str, str, str, bool], ...]
+
+    def __post_init__(self):
+        slots = tuple(tuple(slot) for slot in self.slots)
+        if any(len(slot) != 4 or not all(isinstance(value, str) for value in slot[:3])
+               or type(slot[3]) is not bool for slot in slots):
+            raise TypeError("Output layout slots require id, type, name and boolean list flag")
+        object.__setattr__(self, "slots", slots)
+
+    def as_dict(self) -> dict:
+        return {"version": 1, "slots": [list(slot) for slot in self.slots]}
+
+
+class RepeatedOutput(DynamicOutput):
+    """Repeat a socket template for literal delimited names in a prompt input.
+
+    A missing/None selector adds no slots. An empty string adds one empty-name
+    slot. Names retain order, case, whitespace and duplicates. Linked selectors
+    are not supported because the layout is required before graph validation.
+    """
+
+    io_type = "COMFY_REPEATED_OUTPUT_V3"
+
+    def __init__(self, id: str, template: Output, selector_input: str, *,
+                 max_outputs: int, max_selector_bytes: int, delimiter: str=","):
+        super().__init__(id)
+        self.template = template
+        self.selector_input = selector_input
+        self.max_outputs = max_outputs
+        self.max_selector_bytes = max_selector_bytes
+        self.delimiter = delimiter
+        self.validate()
+
+    def validate(self):
+        for value in (self.id, self.selector_input):
+            if not isinstance(value, str) or not value or len(value) > 256:
+                raise ValueError("Repeated output id and selector must be nonempty strings of at most 256 characters")
+        if not isinstance(self.template, Output) or isinstance(self.template, (DynamicOutput, MatchType.Output, Combo.Output)):
+            raise TypeError("Repeated output template must be an ordinary socket Output without dynamic, match-type or combo metadata")
+        if not isinstance(self.template.io_type, str):
+            raise TypeError("Repeated output template must declare a string socket type")
+        if type(self.template.is_output_list) is not bool:
+            raise TypeError("Repeated output template must declare a boolean list flag")
+        self.template.validate()
+        if type(self.max_outputs) is not int or not 1 <= self.max_outputs <= 1024:
+            raise ValueError("Repeated outputs must declare max_outputs between 1 and 1024")
+        if type(self.max_selector_bytes) is not int or not 1 <= self.max_selector_bytes <= 65536:
+            raise ValueError("Repeated outputs must declare max_selector_bytes between 1 and 65536")
+        if not isinstance(self.delimiter, str) or not 1 <= len(self.delimiter.encode('utf-8')) <= 8:
+            raise ValueError("Repeated output delimiter must contain 1 to 8 UTF-8 bytes")
+
+    def names(self, inputs: dict[str, Any]) -> tuple[str, ...]:
+        value = inputs.get(self.selector_input)
+        if value is None:
+            return ()
+        if not isinstance(value, str):
+            raise TypeError(f"Repeated output selector {self.selector_input!r} must be a literal string or None; links are unsupported")
+        if len(value) > self.max_selector_bytes or len(value.encode('utf-8')) > self.max_selector_bytes:
+            raise ValueError(f"Repeated output selector {self.selector_input!r} exceeds its declared byte limit")
+        if value.count(self.delimiter) + 1 > self.max_outputs:
+            raise ValueError(f"Repeated output selector {self.selector_input!r} exceeds its declared slot limit")
+        return tuple(value.split(self.delimiter))
+
+    def as_dict(self):
+        return {"id": self.id, "selector_input": self.selector_input,
+                "type": self.template.io_type, "is_output_list": self.template.is_output_list,
+                "delimiter": self.delimiter, "max_outputs": self.max_outputs,
+                "max_selector_bytes": self.max_selector_bytes}
+
+
 def handle_prefix(prefix_list: list[str] | None, id: str | None = None) -> list[str]:
     if prefix_list is None:
         prefix_list = []
@@ -1673,6 +1747,7 @@ if len(DYNAMIC_INPUT_LOOKUP) == 0:
     setup_dynamic_input_funcs()
 
 class V3Data(TypedDict):
+    output_layout: NotRequired[OutputLayout | None]
     hidden_inputs: dict[str, Any]
     'Dictionary where the keys are the hidden input ids and the values are the values of the hidden inputs.'
     dynamic_paths: dict[str, Any]
@@ -1761,6 +1836,7 @@ class NodeInfoV1:
     output_name: list[str]=None
     output_tooltips: list[str]=None
     output_matchtypes: list[str]=None
+    repeated_outputs: list[dict] | None=None
     name: str=None
     display_name: str=None
     description: str=None
@@ -1914,6 +1990,26 @@ class Schema:
     loop_boundary: Literal["start", "end"] | None = None
     """Identifies this node as the start or end of a loop for prompt validation."""
 
+    @property
+    def has_repeated_outputs(self) -> bool:
+        return any(isinstance(output, RepeatedOutput) for output in self.outputs)
+
+    def resolve_outputs(self, inputs: dict[str, Any]) -> OutputLayout:
+        """Resolve a bounded immutable layout without mutating this schema."""
+        slots = []
+        for index, output in enumerate(self.outputs):
+            if isinstance(output, RepeatedOutput):
+                output.validate()
+                slots.extend((f"{output.id}:{i}", output.template.io_type, name, output.template.is_output_list)
+                             for i, name in enumerate(output.names(inputs)))
+            else:
+                identifier = output.id if output.id is not None else f"_{index}_{output.io_type}_"
+                name = output.display_name if output.display_name is not None else output.io_type
+                slots.append((identifier, output.io_type, name, output.is_output_list))
+        if len({slot[0] for slot in slots}) != len(slots):
+            raise ValueError("Resolved output ids must be unique")
+        return OutputLayout(tuple(slots))
+
     def validate(self):
         '''Validate the schema:
         - verify ids on inputs and outputs are unique - both internally and in relation to each other
@@ -1927,6 +2023,15 @@ class Schema:
         input_set = set(input_ids)
         output_set = set(output_ids)
         issues: list[str] = []
+        repeated = [index for index, output in enumerate(self.outputs) if isinstance(output, RepeatedOutput)]
+        if repeated and repeated != [len(self.outputs) - 1]:
+            issues.append("A schema may declare one repeated-output group, after all fixed outputs")
+        if repeated and (self.is_input_list or self.enable_expand):
+            issues.append("Repeated outputs currently require ordinary, non-expanding node execution")
+        for index in repeated:
+            selector = self.outputs[index].selector_input
+            if not self.accept_all_inputs and selector not in {input.id for input in self.inputs}:
+                issues.append("Repeated output selector must be an accepted top-level input")
         # verify ids are unique per list
         if len(input_set) != len(input_ids):
             issues.append(f"Input ids must be unique, but {[item for item, count in Counter(input_ids).items() if count > 1]} are not.")
@@ -1985,6 +2090,8 @@ class Schema:
         any_matchtypes = False
         if self.outputs:
             for o in self.outputs:
+                if isinstance(o, RepeatedOutput):
+                    continue
                 output.append(o.io_type)
                 output_is_list.append(o.is_output_list)
                 output_name.append(o.display_name if o.display_name else o.io_type)
@@ -2009,6 +2116,7 @@ class Schema:
             output_name=output_name,
             output_tooltips=output_tooltips,
             output_matchtypes=output_matchtypes,
+            repeated_outputs=[o.as_dict() for o in self.outputs if isinstance(o, RepeatedOutput)] or None,
             name=self.node_id,
             display_name=self.display_name,
             category=self.category,
@@ -2451,6 +2559,8 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
             output_tooltips = []
             if schema.outputs:
                 for o in schema.outputs:
+                    if isinstance(o, RepeatedOutput):
+                        continue
                     output.append(o.io_type)
                     output_name.append(o.display_name if o.display_name else o.io_type)
                     output_is_list.append(o.is_output_list)
@@ -2717,6 +2827,8 @@ __all__ = [
     "Array",
     "Color",
     # Dynamic Types
+    "RepeatedOutput",
+    "OutputLayout",
     "MatchType",
     "DynamicCombo",
     "Autogrow",

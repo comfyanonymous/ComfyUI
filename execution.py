@@ -273,6 +273,14 @@ def _sdk_seam_engaged(type_obj) -> bool:
     return _comfy_sdk.providers.engaged
 
 
+def _node_output_layout(class_def, inputs):
+    if issubclass(class_def, _ComfyNodeInternal):
+        schema = class_def.GET_SCHEMA()
+        if schema.has_repeated_outputs:
+            return schema.resolve_outputs(inputs)
+    return None
+
+
 def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=None, extra_data={}):
     is_v3 = issubclass(class_def, _ComfyNodeInternal)
     v3_data: io.V3Data = {}
@@ -280,6 +288,7 @@ def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=
     valid_inputs = class_def.INPUT_TYPES()
     if is_v3:
         valid_inputs, hidden, v3_data = _io.get_finalized_class_inputs(valid_inputs, inputs)
+        v3_data["output_layout"] = _node_output_layout(class_def, inputs)
     input_data_all = {}
     missing_keys = {}
     for x in inputs:
@@ -445,6 +454,8 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
                         dynamic_prompt=getattr(
                             class_clone.hidden, "dynprompt", None),
                         execution_metadata=_execution_metadata.current(prompt_id),
+                        output_layout=((v3_data or {}).get("output_layout")
+                                       if _comfy_sdk._normalize_v2_node_method(func) == "execute" else None),
                     )
                     _sdk_refs = _comfy_sdk.providers.ref_resolver_factory()
                     _sdk_runtime = _comfy_sdk.bind_runtime(
@@ -553,11 +564,15 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
     return results
 
 
-def merge_result_data(results, obj):
+def merge_result_data(results, obj, output_layout=None):
     # check which outputs need concatenating
     output = []
     output_is_list = [False] * len(results[0])
-    if hasattr(obj, "OUTPUT_IS_LIST"):
+    if output_layout is not None:
+        if any(len(result) != len(output_layout.slots) for result in results):
+            raise ValueError("Node returned a different number of outputs than its resolved layout")
+        output_is_list = [slot[3] for slot in output_layout.slots]
+    elif hasattr(obj, "OUTPUT_IS_LIST"):
         output_is_list = obj.OUTPUT_IS_LIST
 
     # merge node execution results
@@ -579,14 +594,15 @@ async def get_output_data(prompt_id, unique_id, obj, input_data_all, execution_b
     has_pending_task = any(isinstance(r, asyncio.Task) and not r.done() for r in return_values)
     if has_pending_task:
         return return_values, {}, False, has_pending_task
-    output, ui, has_subgraph = get_output_from_returns(return_values, obj)
+    output, ui, has_subgraph = get_output_from_returns(return_values, obj, (v3_data or {}).get("output_layout"))
     return output, ui, has_subgraph, False
 
-def get_output_from_returns(return_values, obj):
+def get_output_from_returns(return_values, obj, output_layout=None):
     results = []
     uis = []
     subgraph_results = []
     has_subgraph = False
+    output_count = len(output_layout.slots) if output_layout is not None else None
     for i in range(len(return_values)):
         r = return_values[i]
         if isinstance(r, dict):
@@ -598,12 +614,12 @@ def get_output_from_returns(return_values, obj):
                 new_graph = r['expand']
                 result = r.get("result", None)
                 if isinstance(result, ExecutionBlocker):
-                    result = tuple([result] * len(obj.RETURN_TYPES))
+                    result = tuple([result] * (output_count if output_count is not None else len(obj.RETURN_TYPES)))
                 subgraph_results.append((new_graph, result))
             elif 'result' in r:
                 result = r.get("result", None)
                 if isinstance(result, ExecutionBlocker):
-                    result = tuple([result] * len(obj.RETURN_TYPES))
+                    result = tuple([result] * (output_count if output_count is not None else len(obj.RETURN_TYPES)))
                 results.append(result)
                 subgraph_results.append((None, result))
         elif isinstance(r, _NodeOutputInternal):
@@ -618,26 +634,28 @@ def get_output_from_returns(return_values, obj):
                 new_graph = r.expand
                 result = r.result
                 if r.block_execution is not None:
-                    result = tuple([ExecutionBlocker(r.block_execution)] * len(obj.RETURN_TYPES))
+                    result = tuple([ExecutionBlocker(r.block_execution)] * (output_count if output_count is not None else len(obj.RETURN_TYPES)))
                 subgraph_results.append((new_graph, result))
             elif r.result is not None:
                 result = r.result
                 if r.block_execution is not None:
-                    result = tuple([ExecutionBlocker(r.block_execution)] * len(obj.RETURN_TYPES))
+                    result = tuple([ExecutionBlocker(r.block_execution)] * (output_count if output_count is not None else len(obj.RETURN_TYPES)))
                 results.append(result)
                 subgraph_results.append((None, result))
         else:
             if isinstance(r, ExecutionBlocker):
-                r = tuple([r] * len(obj.RETURN_TYPES))
+                r = tuple([r] * (output_count if output_count is not None else len(obj.RETURN_TYPES)))
             results.append(r)
             subgraph_results.append((None, r))
 
     if has_subgraph:
         output = subgraph_results
     elif len(results) > 0:
-        output = merge_result_data(results, obj)
+        output = merge_result_data(results, obj, output_layout)
     else:
         output = []
+    if output_layout is not None and not has_subgraph and len(output) != len(output_layout.slots):
+        raise ValueError("Node output count does not match its resolved layout")
     ui = dict()
     # TODO: Think there's an existing bug here
     # If we're performing a subgraph expansion, we probably shouldn't be returning UI values yet.
@@ -661,7 +679,7 @@ def _is_intermediate_output(dynprompt, node_id):
     return getattr(class_def, 'HAS_INTERMEDIATE_OUTPUT', False)
 
 
-async def execute(server: "ExecutionServer", dynprompt, caches, current_item, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_outputs, asset_manager: AssetManager):
+async def execute(server: "ExecutionServer", dynprompt, caches, current_item, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_outputs, asset_manager: AssetManager, output_layouts=None):
     unique_id = current_item
     real_node_id = dynprompt.get_real_node_id(unique_id)
     display_node_id = dynprompt.get_display_node_id(unique_id)
@@ -675,6 +693,11 @@ async def execute(server: "ExecutionServer", dynprompt, caches, current_item, ex
     inputs = dynprompt.get_node(unique_id)['inputs']
     class_type = dynprompt.get_node(unique_id)['class_type']
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
+    if output_layouts is None:
+        output_layouts = {}
+    if unique_id not in output_layouts:
+        output_layouts[unique_id] = _node_output_layout(class_def, inputs)
+    output_layout = output_layouts[unique_id]
     native_variant = _upstream_variants.native_control(dynprompt.get_node(unique_id))
     try:
         cached = None if native_variant is not None else await caches.outputs.get(unique_id)
@@ -686,6 +709,8 @@ async def execute(server: "ExecutionServer", dynprompt, caches, current_item, ex
             exception_message=str(ex),exception_type=full_type_name(type(ex)),
             traceback=traceback.format_exc().splitlines(),current_inputs=[]),ex)
     if cached is not None:
+        if output_layout is not None and len(cached.outputs) != len(output_layout.slots):
+            raise ValueError("Cached output count does not match the resolved layout")
         metadata_owner = _execution_metadata.current(prompt_id)
         if metadata_owner is not None and metadata_owner.observe:
             cached_inputs, missing, _ = get_input_data(
@@ -718,7 +743,7 @@ async def execute(server: "ExecutionServer", dynprompt, caches, current_item, ex
                 else:
                     results.append(r)
             del pending_async_nodes[unique_id]
-            output_data, output_ui, has_subgraph = get_output_from_returns(results, class_def)
+            output_data, output_ui, has_subgraph = get_output_from_returns(results, class_def, output_layout)
         elif unique_id in pending_subgraph_results:
             cached_results = pending_subgraph_results[unique_id]
             resolved_outputs = []
@@ -737,13 +762,14 @@ async def execute(server: "ExecutionServer", dynprompt, caches, current_item, ex
                         else:
                             resolved_output.append(r)
                     resolved_outputs.append(tuple(resolved_output))
-            output_data = merge_result_data(resolved_outputs, class_def)
+            output_data = merge_result_data(resolved_outputs, class_def, output_layout)
             output_ui = []
             del pending_subgraph_results[unique_id]
             has_subgraph = False
         else:
             get_progress_state().start_progress(unique_id)
             input_data_all, missing_keys, v3_data = get_input_data(inputs, class_def, unique_id, execution_list, dynprompt, extra_data)
+            v3_data["output_layout"] = output_layout
             if server.client_id is not None:
                 server.last_node_id = display_node_id
                 server.send_sync("executing", { "node": unique_id, "display_node": display_node_id, "prompt_id": prompt_id }, server.client_id)
@@ -1152,6 +1178,7 @@ class PromptExecutor:
                               broadcast=False)
                 pending_subgraph_results = {}
                 pending_async_nodes = {} # TODO - Unify this with pending_subgraph_results
+                output_layouts = {}
                 ui_node_outputs = {}
                 executed = set()
                 execution_list = ExecutionList(dynamic_prompt, self.caches.outputs, self.prompt_model_tracker.add)
@@ -1168,7 +1195,7 @@ class PromptExecutor:
                         break
 
                     assert node_id is not None, "Node ID should not be None at this point"
-                    result, error, ex = await execute(self.server, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_node_outputs, self.asset_manager)
+                    result, error, ex = await execute(self.server, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_node_outputs, self.asset_manager, output_layouts)
                     self.success = result != ExecutionResult.FAILURE
                     if result == ExecutionResult.FAILURE:
                         execution_failed = True
@@ -1307,9 +1334,21 @@ async def validate_inputs(prompt_id, prompt, item, validated, visiting=None, *, 
     received_types = {}
 
     valid_inputs = set(class_inputs.get('required',{})).union(set(class_inputs.get('optional',{})))
+    try:
+        output_layout = _node_output_layout(obj_class, inputs)
+    except (TypeError, ValueError) as error:
+        validated[unique_id] = (False, [{"type": "invalid_output_layout", "message": "Invalid repeated output layout",
+                                       "details": str(error), "extra_info": {"node_id": unique_id}}], unique_id)
+        return validated[unique_id]
+    if output_layout is not None:
+        v3_data["output_layout"] = output_layout
+        if obj_class.ACCEPT_ALL_INPUTS:
+            valid_inputs.update(inputs)
 
     for x in valid_inputs:
         input_type, input_category, extra_info = get_input_info(obj_class, x, class_inputs)
+        if extra_info is None and output_layout is not None and obj_class.ACCEPT_ALL_INPUTS:
+            input_type, input_category, extra_info = "*", "optional", {}
         assert extra_info is not None
         if x not in inputs:
             if input_category == "required":
@@ -1344,8 +1383,19 @@ async def validate_inputs(prompt_id, prompt, item, validated, visiting=None, *, 
 
             o_id = val[0]
             o_class_type = prompt[o_id]['class_type']
-            r = nodes.NODE_CLASS_MAPPINGS[o_class_type].RETURN_TYPES
-            received_type = r[val[1]]
+            source_class = nodes.NODE_CLASS_MAPPINGS[o_class_type]
+            try:
+                source_layout = _node_output_layout(source_class, prompt[o_id]['inputs'])
+                if source_layout is not None:
+                    if type(val[1]) is not int or not 0 <= val[1] < len(source_layout.slots):
+                        raise ValueError("Linked output index is outside its resolved layout")
+                    received_type = source_layout.slots[val[1]][1]
+                else:
+                    received_type = source_class.RETURN_TYPES[val[1]]
+            except (TypeError, ValueError, IndexError) as error:
+                errors.append({"type": "invalid_linked_output", "message": "Invalid linked output",
+                               "details": str(error), "extra_info": {"input_name": x, "source_node": o_id}})
+                continue
             received_types[x] = received_type
             if 'input_types' not in validate_function_inputs and not validate_node_input(received_type, input_type):
                 details = f"{x}, received_type({received_type}) mismatch input_type({input_type})"
