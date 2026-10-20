@@ -569,7 +569,7 @@ class VideoFromFile(VideoInput):
                             img = np.ascontiguousarray(align_graph[2].pull().to_ndarray(format=image_format)[:frame.height, :frame.width])
                         else:
                             img = frame.to_ndarray(format=image_format)
-                        display_matrix = frame.side_data.get(av.sidedata.sidedata.Type.DISPLAYMATRIX)
+                        display_matrix = av.sidedata.sidedata.SideDataContainer(frame).get(av.sidedata.sidedata.Type.DISPLAYMATRIX)
                         reflected = False
                         if display_matrix is not None:
                             matrix = np.frombuffer(display_matrix, dtype=np.int32)

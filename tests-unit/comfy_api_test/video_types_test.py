@@ -3,6 +3,7 @@ import torch
 import tempfile
 import os
 import sys
+import gc
 import av
 import io
 import numpy as np
@@ -150,6 +151,18 @@ def test_video_from_file_applies_exif_orientation(tmp_path, orientation):
 
     assert actual.shape == expected.shape
     assert np.abs(actual - expected).mean() < 1
+
+
+def test_video_from_file_releases_side_data(tmp_path):
+    path = tmp_path / "frame.jpg"
+    Image.new("RGB", (32, 32)).save(path)
+    gc.collect()
+    container_type = av.sidedata.sidedata.SideDataContainer
+    before = sum(type(obj) is container_type for obj in gc.get_objects())
+
+    VideoFromFile(str(path)).get_components()
+
+    assert sum(type(obj) is container_type for obj in gc.get_objects()) == before
 
 
 @pytest.mark.parametrize("pixel_type,storage_dtype", [("half", np.float16), ("float", np.float32)])
