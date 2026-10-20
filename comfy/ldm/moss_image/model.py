@@ -1,12 +1,13 @@
 import torch
 from torch import nn
 
+import comfy.ldm.flux.math
 import comfy.model_management
 import comfy.model_prefetch
 import comfy.ops
 import comfy.patcher_extension
 import comfy.quant_ops
-from comfy.ldm.flux.layers import EmbedND, timestep_embedding
+from comfy.ldm.flux.layers import timestep_embedding
 from comfy.ldm.modules.attention import AttentionTensorContainer, ComfyAttention, optimized_attention
 
 
@@ -128,7 +129,7 @@ class MOSSImage(nn.Module):
         self.dtype = dtype
         self.latent_channels = latent_channels
         head_dim = dim // num_heads
-        self.pe_embedder = EmbedND(dim=head_dim, theta=10000, axes_dim=[head_dim // 4] * 4)
+        self.rope_axes_dim = [head_dim // 4] * 4
         self.video_embedder = operations.Linear(latent_channels, dim, dtype=dtype, device=device)
         self.text_embedder = TextEmbedder(text_dim, dim, ffn_dim, num_heads, dtype=dtype, device=device, operations=operations)
         self.time_embedding = nn.Sequential(operations.Linear(256, dim, dtype=dtype, device=device), nn.SiLU(), operations.Linear(dim, dim, dtype=dtype, device=device))
@@ -138,14 +139,18 @@ class MOSSImage(nn.Module):
         self.final_linear_video = operations.Linear(dim, latent_channels, bias=False, dtype=dtype, device=device)
         self.video_head_modulation = operations.Linear(dim, 2 * dim, dtype=dtype, device=device)
 
-    def rope(self, h, w, text_len, device):
+    def rope(self, h, w, text_len, device, transformer_options={}):
         # (r, f, h, w): the image sits after the text on f, its rows and columns centered
-        ids = torch.zeros(h * w + text_len, 4, device=device, dtype=torch.float32)
-        ids[:h * w, 1] = text_len
-        ids[:h * w, 2] = (torch.arange(h, device=device, dtype=torch.float32) - (h - 1) / 2).repeat_interleave(w)
-        ids[:h * w, 3] = (torch.arange(w, device=device, dtype=torch.float32) - (w - 1) / 2).repeat(h)
-        ids[h * w:, 1] = torch.arange(text_len, device=device, dtype=torch.float32)
-        return self.pe_embedder(ids.unsqueeze(0)).transpose(1, 2).contiguous()
+        rope_options = transformer_options.get("rope_options", {})
+        # NTK-aware axis scales, zero collapses the axis
+        scales = (1.0, 1.0, rope_options.get("scale_y", 1.0), rope_options.get("scale_x", 1.0))
+        ids = torch.zeros(1, h * w + text_len, 4, device=device, dtype=torch.float32)
+        ids[0, :h * w, 1] = text_len + rope_options.get("shift_t", 0.0)
+        ids[0, :h * w, 2] = ((torch.arange(h, device=device, dtype=torch.float32) - (h - 1) / 2) * float(scales[2] != 0) + rope_options.get("shift_y", 0.0)).repeat_interleave(w)
+        ids[0, :h * w, 3] = ((torch.arange(w, device=device, dtype=torch.float32) - (w - 1) / 2) * float(scales[3] != 0) + rope_options.get("shift_x", 0.0)).repeat(h)
+        ids[0, h * w:, 1] = torch.arange(text_len, device=device, dtype=torch.float32)
+        pe = torch.cat([comfy.ldm.flux.math.rope(ids[..., i], d, 10000 * (s or 1.0) ** (-d / (d - 2))) for i, (d, s) in enumerate(zip(self.rope_axes_dim, scales))], dim=-3)
+        return pe.unsqueeze(1).transpose(1, 2).contiguous()
 
     def forward(self, x, timestep, context, transformer_options={}, **kwargs):
         return comfy.patcher_extension.WrapperExecutor.new_class_executor(
@@ -158,7 +163,7 @@ class MOSSImage(nn.Module):
         B, _, H, W = x.shape
         dtype, device = x.dtype, x.device
         transformer_options = transformer_options.copy()
-        pe = self.rope(H, W, context.shape[1], device)
+        pe = self.rope(H, W, context.shape[1], device, transformer_options)
 
         vec = self.time_embedding(timestep_embedding(timestep, 256).to(dtype))
         mod = self.shared_block_modulation(vec).unflatten(-1, (6, -1)).unsqueeze(2).unbind(1)
