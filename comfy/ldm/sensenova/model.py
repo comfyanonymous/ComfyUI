@@ -329,7 +329,6 @@ class Attention(nn.Module):
         prefix_key,
         prefix_value,
         transformer_options,
-        attention_mask=None,
     ):
         """Decode tokens against an existing attention KV prefix."""
 
@@ -341,7 +340,7 @@ class Attention(nn.Module):
             AttentionTensorContainer(key),
             AttentionTensorContainer(value),
             NUM_HEADS,
-            mask=attention_mask,
+            mask=None,
             skip_reshape=True,
             transformer_options=transformer_options,
             enable_gqa=True,
@@ -401,7 +400,6 @@ class DecoderLayer(nn.Module):
         prefix_key,
         prefix_value,
         transformer_options,
-        attention_mask=None,
     ):
         """Decode tokens through one transformer layer and extend its KV state."""
 
@@ -411,7 +409,6 @@ class DecoderLayer(nn.Module):
             prefix_key,
             prefix_value,
             transformer_options,
-            attention_mask,
         )
         hidden_states = hidden_states + attention
         hidden_states = hidden_states + self.mlp(
