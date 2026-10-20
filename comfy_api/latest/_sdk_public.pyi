@@ -692,9 +692,10 @@ class OutputDomain(Protocol):
         lossless: bool = ...,
         optimize: bool = ...,
         *,
-        png_text: Optional[dict[str, str]] = ...,
+        png_text: Optional[dict[str, str] | list[tuple[str, str] | list[str]]] = ...,
         overwrite: bool = ...,
         webp_workflow_json: Optional[str] = ...,
+        jpeg_subsampling: int = ...,
     ) -> dict:
         """Explicit PNG text and WebP workflow JSON are independent of automatic metadata.
 
