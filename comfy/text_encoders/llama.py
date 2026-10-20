@@ -1292,7 +1292,8 @@ class BaseGenerate:
         if top_p < 1.0:
             sorted_logits, sorted_indices = torch.sort(logits, descending=True)
             cumulative_probs = torch.cumsum(torch.nn.functional.softmax(sorted_logits, dim=-1), dim=-1)
-            sorted_indices_to_remove = cumulative_probs > top_p
+            sorted_indices_to_remove = cumulative_probs >= top_p
+            sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
             sorted_indices_to_remove[..., 0] = False
             indices_to_remove = torch.zeros_like(logits, dtype=torch.bool)
             indices_to_remove.scatter_(1, sorted_indices, sorted_indices_to_remove)
