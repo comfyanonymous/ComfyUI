@@ -31,11 +31,25 @@ def test_is_heif_detects_major_and_compatible_brands(tmp_path):
     late_brand.write_bytes(_ftyp_box(b"mif1", *([b"mif1"] * 35 + [b"heic"])))
     assert nodes.is_heif(str(late_brand))
 
+    generic_heif = tmp_path / "generic.heif"
+    generic_heif.write_bytes(_ftyp_box(b"mif1", b"mif1"))
+    assert nodes.is_heif(str(generic_heif))
+
+
+def test_is_heif_ignores_the_minor_version(tmp_path):
+    minor_heic = tmp_path / "minor.heic"
+    minor_heic.write_bytes((20).to_bytes(4, "big") + b"ftyp" + b"isom" + b"heic" + b"isom")
+    assert not nodes.is_heif(str(minor_heic))
+
 
 def test_is_heif_rejects_other_containers(tmp_path):
     avif = tmp_path / "image.avif"
     avif.write_bytes(_ftyp_box(b"avif", b"avif", b"mif1", b"miaf"))
     assert not nodes.is_heif(str(avif))
+
+    mif1_avif = tmp_path / "mif1-avif.avif"
+    mif1_avif.write_bytes(_ftyp_box(b"mif1", b"avif", b"mif1", b"miaf"))
+    assert not nodes.is_heif(str(mif1_avif))
 
     mp4 = tmp_path / "video.mp4"
     mp4.write_bytes(_ftyp_box(b"isom", b"isom", b"iso2", b"avc1"))

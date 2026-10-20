@@ -1752,8 +1752,12 @@ def is_heif(image_path):
         box_size = int.from_bytes(header[0:4], 'big')
         if box_size < 16 or box_size > 4096:
             return False
-        brands = f.read(box_size - 8)
-    return any(brands[i:i + 4] in (b'heic', b'heix', b'heim', b'heis', b'hevc', b'hevx') for i in range(0, len(brands), 4))
+        content = f.read(box_size - 8)
+    brands = {content[0:4]}
+    brands.update(content[i:i + 4] for i in range(8, len(content) - 3, 4))
+    if brands & {b'heic', b'heix', b'heim', b'heis', b'hevc', b'hevx'}:
+        return True
+    return b'mif1' in brands and not brands & {b'avif', b'avis'}
 
 class LoadImage:
     @classmethod
