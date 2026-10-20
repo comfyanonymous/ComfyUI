@@ -2183,7 +2183,21 @@ class AssetsDomain(Protocol):
     async def path(self, ref: AssetRef) -> str: ...
     async def list(
         self, folder: str, prefix: str = "", recursive: bool = True,
-    ) -> list[str]: ...
+        *, order: Literal["stable", "discovery"] = "stable",
+    ) -> list[str]:
+        """List authorized logical names without granting filesystem authority.
+
+        Stable is the unchanged default. Discovery is optional: a native
+        registered-directory provider walks configured roots in source order
+        and uses unsorted recursive os.scandir discovery within each root.
+        It preserves stable listing's logical membership and first-root
+        resolution, or refuses changing/ambiguous alias topology. It is not a
+        snapshot or a persistent order, and other backends must implement an
+        authoritative equivalent or refuse; they must not sort as a fallback.
+        Prefix/recursive select membership before ordering. No host path is
+        returned, and only assets.resolve can turn a name into a capability.
+        """
+        ...
     async def latest(
         self, folder: str, prefix: str = "", suffix: str = "",
     ) -> Optional[str]: ...
@@ -2897,7 +2911,12 @@ class _InProcessAssets:
 
     async def list(
         self, folder: str, prefix: str = "", recursive: bool = True,
+        *, order: Literal["stable", "discovery"] = "stable",
     ) -> list[str]:
+        if type(order) is not str or order not in {"stable", "discovery"}:
+            raise ValueError("asset list order must be stable or discovery")
+        if order == "discovery":
+            return await self._list_source_discovery(folder, prefix, recursive)
         import folder_paths
 
         managed_folders = {
@@ -2959,6 +2978,89 @@ class _InProcessAssets:
             if not recursive:
                 break
         return sorted(names)
+
+    async def _list_source_discovery(
+        self, folder: str, prefix: str, recursive: bool,
+    ) -> list[str]:
+        """Confined native catalogue order; never synthesize a backend order."""
+        import folder_paths
+
+        if (type(folder) is not str or type(prefix) is not str
+                or type(recursive) is not bool):
+            raise TypeError("discovery listing requires folder/prefix strings and a boolean recursive flag")
+        if folder in {"input", "output", "temp"}:
+            raise NotImplementedError("discovery order is only implemented for native registered catalogues")
+        # The existing listing remains the membership authority. This operation
+        # changes only its order, and refuses ambiguous or changing membership.
+        names = await self.list(folder, prefix=prefix, recursive=recursive)
+        if len(set(names)) != len(names):
+            raise NotImplementedError("discovery order requires unique logical catalogue names")
+        roots = folder_paths.get_folder_paths(folder)
+        if (type(roots) is not list or len(roots) > 32
+                or any(type(root) is not str for root in roots)):
+            raise ValueError("discovery catalogue exceeds its native root profile")
+        roots = [os.path.realpath(os.path.abspath(root)) for root in roots]
+        selected: dict[str, tuple[int, str]] = {}
+        parents: list[set[str]] = [set() for _ in roots]
+        for name in names:
+            if (type(name) is not str or not name or "\\" in name
+                    or name.startswith("/") or any(part in {"", ".", ".."} for part in name.split("/"))):
+                raise ValueError("invalid logical discovery catalogue name")
+            for index, base in enumerate(roots):
+                full = self._confined_path(base, name, folder)
+                if os.path.isfile(full):
+                    selected[name] = (index, full)
+                    pieces = name.split("/")
+                    parents[index].update("/".join(pieces[:n]) for n in range(1, len(pieces)))
+                    break
+            else:
+                raise RuntimeError("discovery catalogue membership changed during listing")
+        result: list[str] = []
+        seen_names: set[str] = set()
+        seen_files: set[str] = set()
+        seen_directories: set[str] = set()
+        visits = 0
+
+        def walk(index: int, directory: str, depth: int) -> None:
+            nonlocal visits
+            if depth > 64:
+                raise ValueError("discovery catalogue exceeds its native depth profile")
+            real_directory = self._confined_resolved_path(directory, [roots[index]], folder)
+            if real_directory in seen_directories:
+                return
+            seen_directories.add(real_directory)
+            # Capture one directory's real scandir order before descending,
+            # matching the original recursive scanner's sequencing.
+            entries = []
+            with os.scandir(directory) as iterator:
+                for entry in iterator:
+                    visits += 1
+                    if visits > 65536:
+                        raise ValueError("discovery catalogue exceeds its native entry profile")
+                    entries.append(entry)
+            for entry in entries:
+                name = os.path.relpath(entry.path, roots[index]).replace(os.sep, "/")
+                wanted = selected.get(name)
+                if wanted is None and name not in parents[index]:
+                    continue
+                real = self._confined_path(roots[index], name, folder)
+                if entry.is_file(follow_symlinks=True):
+                    if wanted != (index, real) or name in seen_names:
+                        continue
+                    if real in seen_files:
+                        raise NotImplementedError("discovery order cannot preserve duplicate physical aliases")
+                    seen_files.add(real)
+                    seen_names.add(name)
+                    result.append(name)
+                elif entry.is_dir(follow_symlinks=True) and name in parents[index]:
+                    walk(index, entry.path, depth + 1)
+
+        for index, base in enumerate(roots):
+            if any(selected[name][0] == index for name in selected):
+                walk(index, base, 0)
+        if seen_names != set(names):
+            raise NotImplementedError("discovery order cannot preserve this catalogue's membership or alias topology")
+        return result
 
     async def latest(
         self, folder: str, prefix: str = "", suffix: str = "",
