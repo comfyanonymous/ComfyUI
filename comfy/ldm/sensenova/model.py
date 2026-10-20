@@ -339,14 +339,15 @@ class Attention(nn.Module):
         key = torch.cat((prefix_key, key), dim=2)
         value = torch.cat((prefix_value, value), dim=2)
         output = optimized_attention(
-            query,
-            key,
-            value,
+            AttentionTensorContainer(query),
+            AttentionTensorContainer(key),
+            AttentionTensorContainer(value),
             NUM_HEADS,
             mask=attention_mask,
             skip_reshape=True,
             transformer_options=transformer_options,
             enable_gqa=True,
+            preferred_attention=self.comfy_attention,
         )
         return self.o_proj(output), key, value
 
@@ -647,33 +648,6 @@ class SenseNovaU15(nn.Module):
             next_values.append(value)
         return hidden_states, next_keys, next_values, prefix_time + 1
 
-    def preprocess_thinking_prefix(
-        self,
-        text_input_ids,
-        reference_images=None,
-        prefix_indexes=None,
-        prefix_mask=None,
-        max_think_tokens=1024,
-        transformer_options=None,
-        progress=None,
-        interrupt=None,
-    ):
-        """Autoregressively extend a prefix with the model's thinking tokens."""
-
-        prefix_keys, prefix_values, prefix_time, _ = (
-            self.preprocess_thinking_prefix_with_tokens(
-                text_input_ids,
-                reference_images,
-                prefix_indexes,
-                prefix_mask,
-                max_think_tokens=max_think_tokens,
-                transformer_options=transformer_options,
-                progress=progress,
-                interrupt=interrupt,
-            )
-        )
-        return prefix_keys, prefix_values, prefix_time
-
     def preprocess_thinking_prefix_with_tokens(
         self,
         text_input_ids,
@@ -685,15 +659,49 @@ class SenseNovaU15(nn.Module):
         progress=None,
         interrupt=None,
     ):
-        """Extend a thinking prefix and return its generated token IDs."""
+        """Return thinking token IDs, closing unfinished thinking at the limit."""
+
+        token_ids, stop_token_id = self.generate_text_tokens(
+            text_input_ids,
+            reference_images,
+            prefix_indexes,
+            prefix_mask,
+            max_tokens=max_think_tokens,
+            stop_token_ids=(THINK_END_TOKEN_ID,),
+            transformer_options=transformer_options,
+            progress=progress,
+            interrupt=interrupt,
+        )
+        if stop_token_id != THINK_END_TOKEN_ID:
+            token_ids.append(THINK_END_TOKEN_ID)
+        return token_ids
+
+    def generate_text_tokens(
+        self,
+        text_input_ids,
+        reference_images=None,
+        prefix_indexes=None,
+        prefix_mask=None,
+        *,
+        max_tokens,
+        stop_token_ids,
+        transformer_options=None,
+        progress=None,
+        interrupt=None,
+    ):
+        """Return generated IDs and the stop token (None at the token limit).
+
+        EOS is excluded from the returned IDs; other stop tokens are included.
+        KV state is local to this call.
+        """
 
         if not self.has_lm_head:
             raise RuntimeError(
                 "This SenseNova checkpoint does not contain language_model.lm_head.weight, "
-                "which is required for thinking."
+                "which is required for text generation."
             )
         if text_input_ids.shape[0] != 1:
-            raise ValueError("SenseNova thinking currently requires a single prompt batch.")
+            raise ValueError("SenseNova text generation currently requires a single prompt batch.")
 
         hidden_states, prefix_keys, prefix_values, prefix_time = (
             self._preprocess_prefix_state(
@@ -705,15 +713,20 @@ class SenseNovaU15(nn.Module):
             )
         )
         next_token = self._next_text_token(hidden_states)
-        thinking_token_ids = []
-        closed_thinking = False
-        for step in range(max_think_tokens):
+        token_ids = []
+        for step in range(max_tokens):
             if interrupt is not None:
                 interrupt()
             token_id = int(next_token.item())
             if token_id == EOS_TOKEN_ID:
+                return token_ids, token_id
+            token_ids.append(token_id)
+            if progress is not None:
+                progress(step + 1)
+            if token_id in stop_token_ids:
+                return token_ids, token_id
+            if step + 1 == max_tokens:
                 break
-            thinking_token_ids.append(token_id)
             hidden_states, prefix_keys, prefix_values, prefix_time = (
                 self._decode_text_token(
                     next_token,
@@ -723,33 +736,9 @@ class SenseNovaU15(nn.Module):
                     transformer_options,
                 )
             )
-            if progress is not None:
-                progress(step + 1)
-            if token_id == THINK_END_TOKEN_ID:
-                closed_thinking = True
-                break
             next_token = self._next_text_token(hidden_states)
 
-        if not closed_thinking:
-            closing_token = torch.full_like(next_token, THINK_END_TOKEN_ID)
-            thinking_token_ids.append(THINK_END_TOKEN_ID)
-            _, prefix_keys, prefix_values, prefix_time = self._decode_text_token(
-                closing_token,
-                prefix_keys,
-                prefix_values,
-                prefix_time,
-                transformer_options,
-            )
-        for token_id in THINK_SUFFIX_TOKEN_IDS:
-            suffix = torch.full_like(next_token, token_id)
-            _, prefix_keys, prefix_values, prefix_time = self._decode_text_token(
-                suffix,
-                prefix_keys,
-                prefix_values,
-                prefix_time,
-                transformer_options,
-            )
-        return prefix_keys, prefix_values, prefix_time, thinking_token_ids
+        return token_ids, None
 
     def _forward(
         self,
@@ -814,13 +803,12 @@ class SenseNovaU15(nn.Module):
         image = image + time_embedding[:, None, :]
 
         if prefix_keys is None:
-            if text_input_ids is not None:
-                prefix, prefix_indexes, prefix_mask, prefix_time = self._prepare_prefix(
-                    text_input_ids, reference_images, prefix_indexes, prefix_mask
-                )
-                prefix_rope = _prepare_mrope(
-                    prefix_indexes, prefix.device, prefix.dtype
-                )
+            prefix, prefix_indexes, prefix_mask, prefix_time = self._prepare_prefix(
+                text_input_ids, reference_images, prefix_indexes, prefix_mask
+            )
+            prefix_rope = _prepare_mrope(
+                prefix_indexes, prefix.device, prefix.dtype
+            )
         image_time = prefix_time.repeat_interleave(generation_batch)
 
         image_positions = torch.arange(image_length, dtype=torch.long, device=x.device)

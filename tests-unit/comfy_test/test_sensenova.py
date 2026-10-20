@@ -570,7 +570,7 @@ def test_sensenova_model_base_does_not_reinsert_expanded_interleave_images():
     assert torch.equal(calls[0][0], metadata["text_input_ids"])
 
 
-def test_sensenova_thinking_decode_appends_stop_and_image_suffix():
+def test_sensenova_thinking_returns_stop_without_decoding_suffix():
     model = object.__new__(sensenova_model.SenseNovaU15)
     torch.nn.Module.__init__(model)
     model.has_lm_head = True
@@ -593,19 +593,15 @@ def test_sensenova_thinking_decode_appends_stop_and_image_suffix():
     progress_updates = []
     interrupt_calls = []
 
-    _, _, prefix_time = model.preprocess_thinking_prefix(
+    token_ids = model.preprocess_thinking_prefix_with_tokens(
         torch.tensor([[1, 2, 3]]),
         max_think_tokens=4,
         progress=progress_updates.append,
         interrupt=lambda: interrupt_calls.append(True),
     )
 
-    assert decoded == [
-        42,
-        sensenova_model.THINK_END_TOKEN_ID,
-        *sensenova_model.THINK_SUFFIX_TOKEN_IDS,
-    ]
-    assert prefix_time.tolist() == [7]
+    assert token_ids == [42, sensenova_model.THINK_END_TOKEN_ID]
+    assert decoded == [42]
     assert progress_updates == [1, 2]
     assert interrupt_calls == [True, True]
 
@@ -629,7 +625,7 @@ def test_sensenova_thinking_decode_returns_generated_token_ids():
 
     model._decode_text_token = decode
 
-    _, _, _, token_ids = model.preprocess_thinking_prefix_with_tokens(
+    token_ids = model.preprocess_thinking_prefix_with_tokens(
         torch.tensor([[1, 2, 3]]), max_think_tokens=4
     )
 
@@ -665,17 +661,12 @@ def test_sensenova_thinking_closes_truncated_reasoning(
         return torch.zeros(1, 1, 1), keys, values, prefix_time + 1
 
     model._decode_text_token = decode
-    _, _, prefix_time = model.preprocess_thinking_prefix(
+    token_ids = model.preprocess_thinking_prefix_with_tokens(
         torch.tensor([[1, 2, 3]]), max_think_tokens=max_think_tokens
     )
 
-    assert decoded == [
-        *expected_decoded,
-        *sensenova_model.THINK_SUFFIX_TOKEN_IDS,
-    ]
-    assert prefix_time.tolist() == [
-        3 + len(expected_decoded) + len(sensenova_model.THINK_SUFFIX_TOKEN_IDS)
-    ]
+    assert token_ids == expected_decoded
+    assert decoded == []
 
 
 def test_sensenova_uses_prompt_type_for_negative_reference_conditioning():
@@ -1041,11 +1032,12 @@ def test_sensenova_text_encode_leaves_image_thinking_to_generate():
 
 
 @pytest.mark.parametrize("with_reference", [False, True])
-def test_sensenova_generate_returns_prefix_conditioning_and_text(monkeypatch, with_reference):
+@pytest.mark.parametrize("storage_dtype", [torch.float32, torch.float8_e4m3fn])
+def test_sensenova_generate_returns_prefix_conditioning_and_text(monkeypatch, with_reference, storage_dtype):
     calls = []
 
     class DiffusionModel:
-        dtype = torch.float32
+        dtype = storage_dtype
 
         def preprocess_thinking_prefix_with_tokens(
             self,
@@ -1056,12 +1048,15 @@ def test_sensenova_generate_returns_prefix_conditioning_and_text(monkeypatch, wi
             **kwargs,
         ):
             calls.append((input_ids, references, indexes, prefix_mask, kwargs))
-            return ["keys"], ["values"], torch.tensor([7]), [41, 42, 151668]
+            return [41, 42, 151668]
 
     class Model:
         load_device = torch.device("cpu")
         model_options = {}
-        model = SimpleNamespace(diffusion_model=DiffusionModel())
+        model = object.__new__(model_base.SenseNovaU15)
+        torch.nn.Module.__init__(model)
+        model.diffusion_model = DiffusionModel()
+        model.manual_cast_dtype = torch.float32
 
         def pre_run(self):
             calls.append("pre_run")
@@ -1109,8 +1104,10 @@ def test_sensenova_generate_returns_prefix_conditioning_and_text(monkeypatch, wi
     prefix_call = next(item for item in calls if isinstance(item, tuple))
     if with_reference:
         assert prefix_call[1][0].shape == (1, 3, 33, 65)
+        assert prefix_call[1][0].dtype == torch.float32
         assert prefix_call[2].shape[0:2] == (1, 3)
         assert prefix_call[3].shape[-1] == prefix_call[2].shape[-1]
+        assert prefix_call[3].dtype == torch.float32
     assert calls[0] == "load"
     assert calls[1] == "pre_run"
     assert calls[-1] == "cleanup"
@@ -1180,6 +1177,7 @@ def test_sensenova_interleave_history_expands_reference_images_once():
 def test_sensenova_interleave_text_event_stops_before_image_sampling():
     class Model:
         has_lm_head = True
+        generate_text_tokens = sensenova_model.SenseNovaU15.generate_text_tokens
 
         def __init__(self):
             self.tokens = iter((101, 151670))
@@ -1206,16 +1204,21 @@ def test_sensenova_interleave_text_event_stops_before_image_sampling():
     assert event.stop_reason == "image"
 
 
-def test_sensenova_interleave_generate_can_resume_after_ksampler(monkeypatch):
+@pytest.mark.parametrize("storage_dtype", [torch.float32, torch.float8_e4m3fn])
+def test_sensenova_interleave_generate_can_resume_after_ksampler(monkeypatch, storage_dtype):
     class DiffusionModel:
-        dtype = torch.float32
+        dtype = storage_dtype
         has_lm_head = True
+        generate_text_tokens = sensenova_model.SenseNovaU15.generate_text_tokens
 
         def __init__(self):
             self.stages = [iter((101, 151670)), iter((102, 151645))]
             self.tokens = None
 
         def _preprocess_prefix_state(self, *args):
+            if args[1]:
+                assert args[1][0].dtype == torch.float32
+                assert args[3].dtype == torch.float32
             self.tokens = self.stages.pop(0)
             return 0, [[]], [[]], torch.tensor([3])
 
@@ -1233,7 +1236,10 @@ def test_sensenova_interleave_generate_can_resume_after_ksampler(monkeypatch):
     class Model:
         load_device = torch.device("cpu")
         model_options = {}
-        model = SimpleNamespace(diffusion_model=diffusion_model)
+        model = object.__new__(model_base.SenseNovaU15)
+        torch.nn.Module.__init__(model)
+        model.diffusion_model = diffusion_model
+        model.manual_cast_dtype = torch.float32
 
         def pre_run(self):
             calls.append("pre_run")

@@ -39,39 +39,19 @@ def generate_text_event(
 ):
     """Decode one interleave text stage without carrying KV state across nodes."""
 
-    if not model.has_lm_head:
-        raise RuntimeError(
-            "This SenseNova checkpoint does not contain language_model.lm_head.weight, "
-            "which is required for interleaved generation."
-        )
-    if prefix_args[0].shape[0] != 1:
-        raise ValueError("SenseNova interleave currently requires a single prompt batch.")
-
-    hidden, prefix_keys, prefix_values, prefix_time = model._preprocess_prefix_state(
-        *prefix_args, transformer_options
+    token_ids, stop_token_id = model.generate_text_tokens(
+        *prefix_args,
+        max_tokens=max_text_tokens,
+        stop_token_ids=(IMAGE_START_TOKEN_ID,),
+        transformer_options=transformer_options,
+        progress=progress,
+        interrupt=interrupt,
     )
-    next_token = model._next_text_token(hidden)
-    token_ids = []
-    for step in range(max_text_tokens):
-        if interrupt is not None:
-            interrupt()
-        token_id = int(next_token.item())
-        if token_id == EOS_TOKEN_ID:
-            return InterleaveTextEvent(token_ids, "eos")
-        token_ids.append(token_id)
-        if token_id == IMAGE_START_TOKEN_ID:
-            return InterleaveTextEvent(token_ids, "image")
-        hidden, prefix_keys, prefix_values, prefix_time = model._decode_text_token(
-            next_token,
-            prefix_keys,
-            prefix_values,
-            prefix_time,
-            transformer_options,
-        )
-        if progress is not None:
-            progress(step + 1)
-        next_token = model._next_text_token(hidden)
-    return InterleaveTextEvent(token_ids, "max_text_tokens")
+    stop_reason = {
+        EOS_TOKEN_ID: "eos",
+        IMAGE_START_TOKEN_ID: "image",
+    }.get(stop_token_id, "max_text_tokens")
+    return InterleaveTextEvent(token_ids, stop_reason)
 
 
 def prefix_arguments(metadata, device, dtype, image_only):

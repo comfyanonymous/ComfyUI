@@ -186,7 +186,7 @@ class SenseNovaGenerate(io.ComfyNode):
 
         diffusion_model = model.model.diffusion_model
         device = model.load_device
-        dtype = diffusion_model.dtype
+        dtype = model.model.get_dtype_inference()
         transformer_options = model.model_options.get(
             "transformer_options", {}
         ).copy()
@@ -197,7 +197,7 @@ class SenseNovaGenerate(io.ComfyNode):
                 metadata, device, dtype, image_only=False
             )
             progress = comfy.utils.ProgressBar(max_think_tokens)
-            _, _, _, token_ids = (
+            token_ids = (
                 diffusion_model.preprocess_thinking_prefix_with_tokens(
                     *prefix_args,
                     max_think_tokens=max_think_tokens,
@@ -289,7 +289,7 @@ class SenseNovaGenerate(io.ComfyNode):
                 prefix_arguments(
                     positive_metadata,
                     device,
-                    diffusion_model.dtype,
+                    model.model.get_dtype_inference(),
                     image_only=False,
                 ),
                 max_text_tokens=max_text_tokens,
