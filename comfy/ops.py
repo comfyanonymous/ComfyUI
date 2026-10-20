@@ -508,6 +508,12 @@ class CastWeightBiasOp:
     weight_function = []
     bias_function = []
 
+    def prepare_input(self, input):
+        return None
+
+    def forward_prepared(self, input, prepared):
+        return self(input)
+
 class disable_weight_init:
     @staticmethod
     def _zero_init_parameter(module, name):
@@ -1034,6 +1040,21 @@ def _try_quantized_linear_input_act(x, weight, bias, input_act, act_weight, act_
             x, bias, input_act=input_act, input_act_weight=act_weight, input_act_eps=act_eps,
             residual=residual, residual_scale=residual_scale,
         )
+
+
+def linear_group(x, layers):
+    """Share an operation's prepared input across sibling linear calls."""
+    # Hooks can mutate x between siblings, including tensors without version counters.
+    module = torch.nn.modules.module
+    if (module._global_forward_pre_hooks or module._global_forward_hooks
+            or any(layer.comfy_force_forward or layer._forward_pre_hooks or layer._forward_hooks for layer in layers)):
+        return tuple(layer(x) for layer in layers)
+    prepared = None
+    for layer in layers:
+        prepared = layer.prepare_input(x)
+        if prepared is not None:
+            break
+    return tuple(layer.forward_prepared(x, prepared) for layer in layers)
 
 
 def linear_input_act(linear, x, input_act, act_weight=None, act_eps=0.0,

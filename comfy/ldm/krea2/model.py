@@ -15,6 +15,7 @@ from einops import rearrange
 import comfy.model_management
 import comfy.patcher_extension
 import comfy.ldm.common_dit
+import comfy.ops
 import comfy.utils
 from comfy.ldm.flux.layers import EmbedND, timestep_embedding
 from comfy.ldm.flux.math import apply_rope
@@ -56,7 +57,10 @@ class SwiGLU(nn.Module):
         self.down = operations.Linear(mlpdim, features, bias=bias, device=device, dtype=dtype)
 
     def forward(self, x):
-        return self.down(F.silu(self.gate(x)).mul_(self.up(x)))
+        gate, up = comfy.ops.linear_group(x, (self.gate, self.up))
+        gate = F.silu(gate).mul_(up)
+        del up
+        return self.down(gate)
 
 
 class Attention(nn.Module):
@@ -77,7 +81,7 @@ class Attention(nn.Module):
     def forward(self, x, freqs=None, mask=None, transformer_options={}):
         transformer_patches = transformer_options.get("patches", {})
         extra_options = transformer_options.copy()
-        q, k, v, gate = self.wq(x), self.wk(x), self.wv(x), self.gate(x)
+        q, k, v, gate = comfy.ops.linear_group(x, (self.wq, self.wk, self.wv, self.gate))
         q = rearrange(q, "B L (H D) -> B H L D", H=self.heads)
         k = rearrange(k, "B L (H D) -> B H L D", H=self.kvheads)
         v = rearrange(v, "B L (H D) -> B H L D", H=self.kvheads)
