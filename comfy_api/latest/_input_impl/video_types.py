@@ -234,6 +234,39 @@ def _rotation_quadrant(frame: av.VideoFrame) -> int:
     return int(round(frame.rotation // 90)) % 4 if frame.rotation else 0
 
 
+CHROMA_SUBSAMPLED_FORMAT_ALIASES = {
+    'nv12': 'yuv444p',
+    'nv21': 'yuv444p',
+    'nv16': 'yuv444p',
+    'nv61': 'yuv444p',
+    'p010le': 'yuv444p16le',
+    'p010be': 'yuv444p16le',
+    'p016le': 'yuv444p16le',
+    'p016be': 'yuv444p16le',
+    'p012le': 'yuv444p16le',
+    'p012be': 'yuv444p16le',
+    'p210le': 'yuv444p16le',
+    'p210be': 'yuv444p16le',
+    'p216le': 'yuv444p16le',
+    'p216be': 'yuv444p16le',
+    'p410le': 'yuv444p16le',
+    'p410be': 'yuv444p16le',
+}
+
+
+def _full_resolution_chroma_format(name: str) -> str | None:
+    if name in CHROMA_SUBSAMPLED_FORMAT_ALIASES:
+        candidate = CHROMA_SUBSAMPLED_FORMAT_ALIASES[name]
+    else:
+        candidate = name.replace('420', '444').replace('422', '444').replace('411', '444').replace('440', '444')
+        if candidate == name:
+            return None
+    try:
+        return candidate if av.VideoFormat(name=candidate) else None
+    except ValueError:
+        return None
+
+
 class VideoFromFile(VideoInput):
     """
     Class representing video input from a file.
@@ -557,12 +590,19 @@ class VideoFromFile(VideoInput):
                                 g = av.filter.Graph()
                                 g_src = g.add_buffer(width=frame.width, height=frame.height,
                                                      format=frame.format.name, time_base=video_stream.time_base)
+                                pad_format = _full_resolution_chroma_format(frame.format.name)
+                                g_conversion = None
+                                if pad_format is not None:
+                                    g_conversion = g.add('format', pad_format)
                                 g_pad = g.add('pad', f'{pad_w}:{pad_h}:0:0')
                                 g_fill = g.add('fillborders', f'left=0:right={pad_w - frame.width}:top=0:bottom={pad_h - frame.height}:mode=smear')
                                 g_sink = g.add('buffersink')
-                                g_src.link_to(g_pad)
-                                g_pad.link_to(g_fill)
-                                g_fill.link_to(g_sink)
+                                chain = [g_src]
+                                if g_conversion is not None:
+                                    chain.append(g_conversion)
+                                chain.extend((g_pad, g_fill, g_sink))
+                                for node_from, node_to in zip(chain, chain[1:]):
+                                    node_from.link_to(node_to)
                                 g.configure()
                                 align_graph = (g, g_src, g_sink)
                             align_graph[1].push(frame)
