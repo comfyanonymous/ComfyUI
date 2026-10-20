@@ -1047,7 +1047,8 @@ def linear_group(x, layers):
     # Hooks can mutate x between siblings, including tensors without version counters.
     module = torch.nn.modules.module
     if (module._global_forward_pre_hooks or module._global_forward_hooks
-            or any(layer.comfy_force_forward or layer._forward_pre_hooks or layer._forward_hooks for layer in layers)):
+            or any(not isinstance(layer, CastWeightBiasOp) or layer.comfy_force_forward
+                   or layer._forward_pre_hooks or layer._forward_hooks for layer in layers)):
         return tuple(layer(x) for layer in layers)
     prepared = None
     for layer in layers:

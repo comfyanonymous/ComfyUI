@@ -8,6 +8,7 @@ from comfy.ldm.krea2.model import Attention, SwiGLU
 
 
 @pytest.mark.parametrize("operations", [
+    torch.nn,
     comfy.ops.disable_weight_init,
     comfy.ops.manual_cast,
     comfy.ops.mixed_precision_ops(compute_dtype=torch.float32),
@@ -33,6 +34,19 @@ def test_plain_linears_keep_forward_hooks_and_gradients(operations):
     torch.testing.assert_close(actual_grad, expected_grad, rtol=0, atol=0)
     for handle in handles:
         handle.remove()
+
+
+def test_group_with_plain_torch_linear_uses_ordinary_calls():
+    class PreparingLinear(comfy.ops.manual_cast.Linear):
+        def prepare_input(self, x):
+            raise AssertionError("Mixed groups must use ordinary calls")
+
+    layers = [PreparingLinear(4, 3), torch.nn.Linear(4, 2)]
+    layers[0].load_state_dict(torch.nn.Linear(4, 3).state_dict())
+    x = torch.randn(5, 4)
+    actual = comfy.ops.linear_group(x, layers)
+    for layer, output in zip(layers, actual):
+        torch.testing.assert_close(output, layer(x), rtol=0, atol=0)
 
 
 def test_preparation_is_shared_and_lives_only_for_the_group():
