@@ -511,8 +511,8 @@ class CastWeightBiasOp:
     def prepare_input(self, input):
         return None
 
-    def forward_prepared(self, input, prepared):
-        return self(input)
+    def forward_prepared(self, input, prepared, *, output_act=None):
+        return _eager_output_act(self(input), output_act)
 
 class disable_weight_init:
     @staticmethod
@@ -1020,6 +1020,14 @@ def _eager_input_act(x, input_act, act_weight=None, act_eps=0.0):
     return INPUT_ACT_EAGER[input_act](x)
 
 
+def _eager_output_act(x, output_act):
+    if output_act is None:
+        return x
+    if output_act == "silu":
+        return torch.nn.functional.silu(x)
+    raise ValueError(f"Unsupported linear output activation: {output_act}")
+
+
 def _linear_residual(out, residual, residual_scale):
     return out if residual is None else torch.addcmul(residual, out, residual_scale)
 
@@ -1057,8 +1065,12 @@ def prepare_linear_group(x, layers):
     return None
 
 
-def linear_prepared(linear, x, prepared):
-    return linear(x) if prepared is None else linear.forward_prepared(x, prepared)
+def linear_prepared(linear, x, prepared, *, output_act=None):
+    if prepared is None:
+        return _eager_output_act(linear(x), output_act)
+    if output_act is None:
+        return linear.forward_prepared(x, prepared)
+    return linear.forward_prepared(x, prepared, output_act=output_act)
 
 
 def linear_group(x, layers):

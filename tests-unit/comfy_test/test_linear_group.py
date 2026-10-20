@@ -181,10 +181,10 @@ def test_krea_mlp_releases_preparation_before_down(monkeypatch):
         prepared_refs.append(weakref.ref(prepared))
         return prepared
 
-    def gate(x, prepared):
+    def gate(x, prepared, *, output_act=None):
         output = model.gate(x)
         gate_outputs.append(weakref.ref(output))
-        return output
+        return comfy.ops._eager_output_act(output, output_act)
 
     def up(x, prepared):
         assert gate_outputs[0]() is None
@@ -200,3 +200,60 @@ def test_krea_mlp_releases_preparation_before_down(monkeypatch):
     monkeypatch.setattr(model.up, "forward_prepared", up)
     model.down.register_forward_pre_hook(before_down)
     model(torch.randn(2, 5, 32))
+
+
+@pytest.mark.parametrize("operations", [torch.nn, comfy.ops.manual_cast])
+@pytest.mark.parametrize("hooked", [False, True])
+def test_output_activation_follows_module_hooks_and_keeps_gradients(operations, hooked):
+    layer = operations.Linear(4, 3)
+    layer.load_state_dict(torch.nn.Linear(4, 3).state_dict())
+    handle = layer.register_forward_hook(lambda module, inputs, output: output + 2) if hooked else None
+    x = torch.randn(5, 4, requires_grad=True)
+    try:
+        prepared = comfy.ops.prepare_linear_group(x, (layer,))
+        actual = comfy.ops.linear_prepared(layer, x, prepared, output_act="silu")
+        expected = torch.nn.functional.silu(layer(x))
+        torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+        actual_grad = torch.autograd.grad(actual.sum(), x)[0]
+        expected_grad = torch.autograd.grad(expected.sum(), x)[0]
+        torch.testing.assert_close(actual_grad, expected_grad, rtol=0, atol=0)
+    finally:
+        if handle is not None:
+            handle.remove()
+
+
+def test_default_prepared_linear_applies_output_activation_after_module_call():
+    layer = comfy.ops.manual_cast.Linear(4, 3)
+    layer.load_state_dict(torch.nn.Linear(4, 3).state_dict())
+    x = torch.randn(5, 4)
+    calls = []
+    handle = layer.register_forward_hook(lambda module, inputs, output: calls.append(module))
+    try:
+        actual = comfy.ops.linear_prepared(layer, x, object(), output_act="silu")
+        assert calls == [layer]
+        torch.testing.assert_close(actual, torch.nn.functional.silu(layer(x)), rtol=0, atol=0)
+    finally:
+        handle.remove()
+
+
+def test_krea_requests_output_activation_only_for_prepared_gate():
+    requests = []
+
+    class Operations(comfy.ops.manual_cast):
+        class Linear(comfy.ops.manual_cast.Linear):
+            def prepare_input(self, x):
+                return x
+
+            def forward_prepared(self, x, prepared, *, output_act=None):
+                assert prepared is x
+                requests.append((self, output_act))
+                return comfy.ops._eager_output_act(self(x), output_act)
+
+    model = SwiGLU(32, 4, multiple=16, operations=Operations)
+    for parameter in model.parameters():
+        parameter.data.normal_(0, 0.1)
+    x = torch.randn(2, 5, 32)
+    expected = model.down(torch.nn.functional.silu(model.gate(x)) * model.up(x))
+    actual = model(x)
+    assert requests == [(model.gate, "silu"), (model.up, None)]
+    torch.testing.assert_close(actual, expected, rtol=0, atol=0)
