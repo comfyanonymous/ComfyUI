@@ -1088,6 +1088,7 @@ class ExecutionPlan:
     inputs: Optional[dict]
     dynamic_prompt: Any
     execution_metadata: Any
+    output_layout: Any
     def __init__(
         self,
         prompt_id: str,
@@ -1100,6 +1101,7 @@ class ExecutionPlan:
         inputs: Optional[dict] = ...,
         dynamic_prompt: Any = ...,
         execution_metadata: Any = ...,
+        output_layout: Any = ...,
     ) -> None: ...
 
 @runtime_checkable

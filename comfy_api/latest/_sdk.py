@@ -1980,6 +1980,7 @@ class ExecutionPlan:
     dynamic_prompt: Any = None
     method: str = "execute"
     execution_metadata: Any = None  # host-owned prompt observation lifetime
+    output_layout: Any = None  # immutable per-node execute output layout; None for lifecycle methods
 
     def __post_init__(self) -> None:
         self.method = _normalize_v2_node_method(self.method)

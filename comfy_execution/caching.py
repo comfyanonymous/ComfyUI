@@ -8,6 +8,7 @@ from typing import Sequence, Mapping, Dict
 from comfy.model_patcher import is_model_patcher_output
 from comfy.system_memory import virtual_memory_available
 from comfy_execution.graph import DynamicPrompt
+from comfy_api.latest import io
 from abc import ABC, abstractmethod
 
 import nodes
@@ -123,6 +124,13 @@ class CacheKeySetInputSignature(CacheKeySet):
         if self.include_node_id_in_input() or (hasattr(class_def, "NOT_IDEMPOTENT") and class_def.NOT_IDEMPOTENT) or include_unique_id_in_input(class_type):
             signature.append(node_id)
         inputs = node["inputs"]
+        if issubclass(class_def, io.ComfyNode):
+            schema = class_def.GET_SCHEMA()
+            if schema.has_repeated_outputs:
+                signature.append(("REPEATED_OUTPUT_LAYOUT_V1", schema.resolve_outputs(inputs).slots))
+                # Accepted kwargs retain insertion order at execution. A switch
+                # may select its first input even when all values are unchanged.
+                signature.append(("INPUT_ORDER", tuple(inputs)))
         for key in sorted(inputs.keys()):
             if is_link(inputs[key]):
                 (ancestor_id, ancestor_socket) = inputs[key]
