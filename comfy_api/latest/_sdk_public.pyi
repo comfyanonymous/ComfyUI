@@ -646,7 +646,8 @@ class AssetsDomain(Protocol):
     async def delete_input(self, name: str) -> bool: ...
     async def path(self, ref: AssetRef) -> str: ...
     async def list(
-        self, folder: str, prefix: str = ..., recursive: bool = ...,
+        self, folder: str, prefix: str = "", recursive: bool = True,
+        *, order: Literal["stable", "discovery"] = "stable",
     ) -> list[str]: ...
     async def latest(
         self, folder: str, prefix: str = ..., suffix: str = ...,
