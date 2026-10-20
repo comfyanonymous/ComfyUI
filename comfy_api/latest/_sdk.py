@@ -675,6 +675,17 @@ class SigmasRef(TensorRef):
 
     KIND = "SIGMAS"
 
+    @classmethod
+    async def from_value(cls, value: Any) -> "SigmasRef":
+        """Publish a bounded real vector as SIGMAS under raw authority.
+
+        Preserve dtype and nonfinite values. The generic numeric tensor
+        bounds apply; this does not apply the stricter sampling-step rules.
+        """
+        value = _sigmas_tensor_from_value(value)
+        return SigmasRef._wrap(await current_runtime().refs.create(
+            "SIGMAS", value))
+
     async def steps(self) -> int:
         """Return the number of sampling intervals in this schedule.
 
@@ -895,6 +906,19 @@ class ModelRef(_TypedRef):
                 "percent": float(percent),
                 "actual_endpoints": bool(actual_endpoints),
             }))
+
+    async def sampling_sigmas(self) -> Optional["TensorRef"]:
+        """Snapshot the model's fixed sampling sigma table as numeric data.
+
+        Return None when the table is absent or has fewer than two entries.
+        Otherwise return an independent CPU vector, retaining tensor dtype
+        and nonfinite values, under the generic numeric tensor bounds.
+        Sequence entries use float64 to preserve their float() values.
+        Raw materialization still needs raw authority. This does not load
+        model weights, compute a new schedule, or expose arbitrary attributes.
+        """
+        return await current_runtime().ops.apply(
+            "model.sampling_sigmas", self, {})
 
     async def sampling_sigma_delta(
         self, *, steps: int, sampler_name: str, scheduler: str,
@@ -5700,6 +5724,13 @@ def _numeric_tensor_shape(shape, nbytes: int) -> None:
         raise ValueError("numeric tensor exceeds rank/shape/16M-element/64MiB bounds")
 
 
+def _sigmas_tensor_from_value(value):
+    value = _numeric_tensor_from_value(value)
+    if value.ndim != 1:
+        raise ValueError("SIGMAS requires a one-dimensional numeric vector")
+    return value
+
+
 def _numeric_tensor_from_value(value):
     import numpy as np
     import torch
@@ -10110,6 +10141,7 @@ class InProcessOps:
             "model.unet_context_dim": self._model_unet_context_dim,
             "model.is_zero_terminal_snr": self._model_is_zero_terminal_snr,
             "model.sigma_for_percent": self._model_sigma_for_percent,
+            "model.sampling_sigmas": self._model_sampling_sigmas,
             "model.sampling_sigma_delta": self._model_sampling_sigma_delta,
             "model.latent_scale_factor": self._model_latent_scale_factor,
             "guider.scheduled_cfg": self._guider_scheduled_cfg,
@@ -14261,6 +14293,36 @@ class InProcessOps:
         if not math.isfinite(result) or abs(result) > 1_000_000_000_000.0:
             raise ValueError("MODEL returned an invalid sigma")
         return result
+
+    async def _model_sampling_sigmas(
+        self, model: "ModelRef",
+    ) -> Optional["TensorRef"]:
+        import numpy as np
+        import torch
+
+        if not isinstance(model, ModelRef) or model.kind != "MODEL":
+            raise TypeError("sampling sigma projection requires a MODEL ref")
+        value = await current_runtime().refs.resolve(model)
+        sampling = value.get_model_object("model_sampling")
+        if not hasattr(sampling, "sigmas"):
+            return None
+        table = sampling.sigmas
+        if len(table) < 2:
+            return None
+        if isinstance(table, (list, tuple)):
+            _numeric_tensor_shape((len(table),), len(table) * 8)
+            # Match the scalar float conversion used by schedule consumers.
+            snapshot = torch.tensor([float(v) for v in table], dtype=torch.float64)
+        elif isinstance(table, (torch.Tensor, np.ndarray)):
+            table = _numeric_tensor_from_value(table)
+            if table.ndim != 1:
+                raise ValueError("model sampling sigmas must be one-dimensional")
+            # Own the data: never publish a mutable view of the model table.
+            snapshot = table.detach().to(device="cpu").clone()
+        else:
+            raise TypeError("model sampling sigmas require a numeric vector")
+        return TensorRef._wrap(await current_runtime().refs.create(
+            "TENSOR", snapshot))
 
     async def _model_sampling_sigma_delta(
         self, model: "ModelRef", steps: int, sampler_name: str,
