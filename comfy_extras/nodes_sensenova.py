@@ -4,6 +4,9 @@ from typing_extensions import override
 import comfy.model_management
 import comfy.utils
 from comfy.ldm.sensenova.interleave import (
+    IMAGE_CONTEXT_TOKEN_ID,
+    IMAGE_END_TOKEN_ID,
+    IMAGE_START_TOKEN_ID,
     append_interleave_image,
     append_interleave_tokens,
     expand_interleave_metadata,
@@ -11,8 +14,10 @@ from comfy.ldm.sensenova.interleave import (
     prefix_arguments,
     split_interleave_text,
 )
+from comfy.ldm.sensenova.model import THINK_SUFFIX_TOKEN_IDS
 from comfy.ldm.sensenova.sampling import SenseNovaModelSampling
 from comfy_api.latest import ComfyExtension, io, ui
+from comfy_execution.graph_utils import ExecutionBlocker
 
 
 class SenseNovaSamplingOptions(io.ComfyNode):
@@ -192,7 +197,7 @@ class SenseNovaGenerate(io.ComfyNode):
                 metadata, device, dtype, image_only=False
             )
             progress = comfy.utils.ProgressBar(max_think_tokens)
-            prefix_keys, prefix_values, prefix_time, token_ids = (
+            _, _, _, token_ids = (
                 diffusion_model.preprocess_thinking_prefix_with_tokens(
                     *prefix_args,
                     max_think_tokens=max_think_tokens,
@@ -210,29 +215,14 @@ class SenseNovaGenerate(io.ComfyNode):
         if not thinking:
             thinking = "SenseNova thinking completed without visible text."
 
-        updated_conditioning = []
-        for value, original_metadata in conditioning:
-            updated_metadata = dict(original_metadata)
-            # The KV prefix is now complete. Do not let KSampler fall back to
-            # rebuilding the text/reference prefix or run thinking again.
-            for key in (
-                "text_input_ids",
-                "reference_latents",
-                "prefix_indexes",
-                "prefix_mask",
-                "sensenova_thinking",
-                "sensenova_max_think_tokens",
-                "sensenova_thinking_result",
-            ):
-                updated_metadata.pop(key, None)
-            updated_metadata.update(
-                {
-                    "prefix_keys": prefix_keys,
-                    "prefix_values": prefix_values,
-                    "prefix_time": prefix_time,
-                }
-            )
-            updated_conditioning.append([value, updated_metadata])
+        input_ids = metadata["text_input_ids"]
+        suffix = input_ids.new_tensor([*token_ids, *THINK_SUFFIX_TOKEN_IDS]).unsqueeze(0)
+        updated_metadata = {
+            **metadata,
+            "text_input_ids": torch.cat((input_ids, suffix), dim=1),
+            "sensenova_thinking": False,
+        }
+        updated_conditioning = [[conditioning[0][0], updated_metadata]]
 
         return io.NodeOutput(
             updated_conditioning,
@@ -345,92 +335,33 @@ def _format_thinking_text(text: str) -> str:
     return text.strip()
 
 
-class SenseNovaInterleaveStage(io.ComfyNode):
-    """Capture one externally sampled interleave stage for later collection."""
+class SenseNovaDecode(io.ComfyNode):
+    """Decode the generated portion of a SenseNova interleave history."""
 
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
-            node_id="SenseNovaInterleaveStage",
-            display_name="SenseNova Interleave Stage",
+            node_id="SenseNovaDecode",
+            display_name="SenseNova Decode",
             category="model/sampling/sensenova",
             description=(
-                "Bundle one SenseNova text stage, its image-request flag, and "
-                "the image sampled for that stage. Feed accumulated stages to "
-                "SenseNova Interleave Collector."
+                "Decode the final conditioning from SenseNova Generate into text, "
+                "an image list, and thinking. With loops, use End Loop with "
+                "accumulate disabled. Input reference images are excluded. "
+                "Image consumers are skipped when no images were generated."
             ),
             inputs=[
-                io.String.Input("text", optional=True),
-                io.Boolean.Input("image_requested", default=False),
-                io.Image.Input("image", optional=True),
-                io.Conditioning.Input("conditioning", optional=True),
-                io.Conditioning.Input("negative", optional=True),
-                io.Latent.Input("samples", optional=True),
-            ],
-            outputs=[io.AnyType.Output(display_name="stage")],
-        )
-
-    @classmethod
-    def execute(
-        cls,
-        text="",
-        image_requested=False,
-        image=None,
-        conditioning=None,
-        negative=None,
-        samples=None,
-    ) -> io.NodeOutput:
-        return io.NodeOutput(
-            {
-                "text": str(text or ""),
-                "image_requested": bool(image_requested),
-                "image": image,
-                "conditioning": conditioning,
-                "negative": negative,
-                "samples": samples,
-            }
-        )
-
-
-def _interleave_stage_images(stages):
-    images = []
-    for stage in stages:
-        if not stage.get("image_requested") or stage.get("image") is None:
-            continue
-        image = stage["image"]
-        if not isinstance(image, torch.Tensor) or image.ndim != 4:
-            raise ValueError(
-                "SenseNova Interleave Collector expects stage images in BHWC format."
-            )
-        images.extend(image[index : index + 1] for index in range(image.shape[0]))
-    if not images:
-        return None
-    return torch.cat(images, dim=0)
-
-
-class SenseNovaInterleaveCollector(io.ComfyNode):
-    """Collect externally sampled stages into ordered text and images."""
-
-    @classmethod
-    def define_schema(cls) -> io.Schema:
-        return io.Schema(
-            node_id="SenseNovaInterleaveCollector",
-            display_name="SenseNova Interleave Collector",
-            category="model/sampling/sensenova",
-            is_input_list=True,
-            description=(
-                "Collect accumulated SenseNova interleave stages into ordered text "
-                "with image placeholders, an image batch, and separate thinking text."
-            ),
-            inputs=[
-                io.AnyType.Input(
-                    "stages",
-                    tooltip="A list of SenseNova Interleave Stage records.",
+                io.Clip.Input("clip"),
+                io.Conditioning.Input("conditioning"),
+                io.Image.Input(
+                    "image",
+                    optional=True,
+                    tooltip="Last sampled image, if the loop ended on an image request.",
                 ),
             ],
             outputs=[
                 io.String.Output(display_name="text"),
-                io.Image.Output(display_name="images"),
+                io.Image.Output(display_name="images", is_output_list=True),
                 io.String.Output(display_name="thinking"),
             ],
         )
@@ -438,30 +369,35 @@ class SenseNovaInterleaveCollector(io.ComfyNode):
     @classmethod
     def execute(
         cls,
-        stages,
+        clip,
+        conditioning,
+        image=None,
     ) -> io.NodeOutput:
-        if isinstance(stages, dict):
-            stages = [stages]
-        if not isinstance(stages, (list, tuple)):
+        if len(conditioning) != 1 or "sensenova_interleave_start" not in conditioning[0][1]:
             raise ValueError(
-                "SenseNova Interleave Collector expects a list of stage records."
+                "SenseNova Decode requires interleave conditioning from SenseNova Generate."
             )
-        if any(not isinstance(stage, dict) for stage in stages):
-            raise ValueError(
-                "SenseNova Interleave Collector received an invalid stage record."
-            )
-        if not stages:
-            raise ValueError("SenseNova Interleave Collector received no stages.")
-
+        metadata = conditioning[0][1]
+        token_ids = metadata["text_input_ids"][0, metadata["sensenova_interleave_start"]:].tolist()
         text_parts = []
-        for stage in stages:
-            text_parts.append(str(stage.get("text") or ""))
-            if stage.get("image_requested"):
+        text_tokens = []
+        for token_id in token_ids:
+            if token_id == IMAGE_START_TOKEN_ID:
+                text_parts.append(clip.decode(text_tokens, skip_special_tokens=True))
+                text_tokens = []
                 text_parts.append("<image>")
+            elif token_id not in (IMAGE_CONTEXT_TOKEN_ID, IMAGE_END_TOKEN_ID):
+                text_tokens.append(token_id)
+        text_parts.append(clip.decode(text_tokens, skip_special_tokens=True))
 
         text, thinking = split_interleave_text("".join(text_parts))
-        images = _interleave_stage_images(stages)
-        return io.NodeOutput(text, images, thinking)
+        images = [
+            reference.clamp(0.0, 1.0)
+            for reference in metadata["reference_latents"][metadata["sensenova_interleave_input_images"]:]
+        ]
+        if metadata["sensenova_interleave_pending_image"] and image is not None:
+            images.extend(value.clone() for value in image.split(1))
+        return io.NodeOutput(text, images or [ExecutionBlocker(None)], thinking)
 
 
 class SenseNovaExtension(ComfyExtension):
@@ -473,8 +409,7 @@ class SenseNovaExtension(ComfyExtension):
             SenseNovaTextEncode,
             SenseNovaGenerate,
             SenseNovaSamplingOptions,
-            SenseNovaInterleaveStage,
-            SenseNovaInterleaveCollector,
+            SenseNovaDecode,
         ]
 
 

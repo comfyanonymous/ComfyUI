@@ -154,6 +154,8 @@ def expand_interleave_metadata(metadata, image_only):
             "reference_latents": references,
             "sensenova_interleave_expanded": True,
             "sensenova_interleave_pending_image": False,
+            "sensenova_interleave_start": input_ids.shape[1],
+            "sensenova_interleave_input_images": len(references),
         }
     )
     return expanded

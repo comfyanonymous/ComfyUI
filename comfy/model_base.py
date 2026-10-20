@@ -2387,12 +2387,6 @@ class SenseNovaU15(BaseModel):
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
-        prefix_keys = kwargs.get("prefix_keys")
-        if prefix_keys is not None:
-            out["prefix_keys"] = SenseNovaSharedList(prefix_keys)
-            out["prefix_values"] = SenseNovaSharedList(kwargs["prefix_values"])
-            out["prefix_time"] = SenseNovaSharedRegular(kwargs["prefix_time"])
-            return out
         text_input_ids = kwargs.get("text_input_ids")
         if text_input_ids is not None:
             device = kwargs["device"]
