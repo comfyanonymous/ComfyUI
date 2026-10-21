@@ -1574,7 +1574,7 @@ def test_odd_width_subsampled_decode_keeps_last_columns(tmp_path, pix_fmt):
     pixels = np.zeros((height, width, 4), dtype=np.uint16)
     pixels[..., 0] = np.linspace(0, 65535, width)
     pixels[..., 1] = 32768
-    pixels[..., 3] = np.linspace(65535, 0, width)
+    pixels[..., 3] = np.linspace(65535, 16384, width)
     with av.open(path, mode="w") as container:
         stream = container.add_stream("ffv1", rate=8)
         stream.width, stream.height, stream.pix_fmt = width, height, pix_fmt
@@ -1587,7 +1587,7 @@ def test_odd_width_subsampled_decode_keeps_last_columns(tmp_path, pix_fmt):
 
     assert np.abs(components.images[0].numpy()[:, -2:] - expected[:, -2:, :3]).max() < 0.02
     if pix_fmt == "yuva420p":
-        assert np.abs(components.alpha[0].numpy()[:, -2:] - expected[:, -2:, 3:]).max() < 0.02
+        assert np.abs(components.alpha[0].numpy()[:, -2:] - expected[:, -2:, 3:]).max() < 0.01
 
 
 def test_as_cropped_components_releases_uncropped_storage():
