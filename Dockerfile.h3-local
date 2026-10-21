@@ -1,0 +1,19 @@
+FROM comfyui-sos-comfyui:vision-fixed
+
+# 固定 RTX 5060 / PyTorch 2.11 cu128 的本地编译产物，不升级运行栈。
+COPY sageattention-2.2.0-cp312-cp312-linux_x86_64.whl /opt/h3-wheels/
+RUN echo '93ecec1aeee32f4f58f7d9b908f8b442b8dea678f9f5ab935ae3bc288d0658bb  /opt/h3-wheels/sageattention-2.2.0-cp312-cp312-linux_x86_64.whl' | sha256sum --check - \
+    && python -m pip install --no-cache-dir --no-deps /opt/h3-wheels/sageattention-2.2.0-cp312-cp312-linux_x86_64.whl \
+    && python -c "import importlib.metadata as m; assert m.version('torch') == '2.11.0+cu128'; assert m.version('sageattention') == '2.2.0'"
+
+LABEL com.suzumiya.h3.sageattention.commit="d1a57a546c3d395b1ffcbeecc66d81db76f3b4b5"
+
+# 既有 Fill 节点包的实际导入依赖；不运行其全量云端 SDK 安装。
+COPY soundfile-0.14.0-py2.py3-none-manylinux_2_28_x86_64.whl /opt/h3-wheels/
+RUN echo '1e38bac1853412871318e82a1ba69a8be677619b56025bbfcccdb41b6cafe82d  /opt/h3-wheels/soundfile-0.14.0-py2.py3-none-manylinux_2_28_x86_64.whl' | sha256sum --check - \
+    && python -m pip install --no-cache-dir --no-deps /opt/h3-wheels/soundfile-0.14.0-py2.py3-none-manylinux_2_28_x86_64.whl \
+    && python -c "import soundfile; import importlib.metadata as m; assert m.version('torch') == '2.11.0+cu128'; assert m.version('soundfile') == '0.14.0'"
+
+COPY h3_local_requirements.txt /opt/h3-wheels/
+RUN python -m pip install --no-cache-dir --no-deps --only-binary=:all: --require-hashes --index-url https://pypi.org/simple -r /opt/h3-wheels/h3_local_requirements.txt \
+    && python -c "import importlib.metadata as m; assert m.version('torch') == '2.11.0+cu128'"
