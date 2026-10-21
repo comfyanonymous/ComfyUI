@@ -59,6 +59,7 @@ if dependencies_available():
     from app.assets.services.preview_rules import preview_fields
     from app.asset_export import AssetExportManager
 
+from app import agent_host
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
@@ -1314,6 +1315,12 @@ class PromptServer():
         self.client_session = aiohttp.ClientSession(timeout=timeout)
 
     def add_routes(self):
+        # The comfy-agent host mounts its own /api/agent and /api/workflows
+        # routes (the proxy + trust boundary now live in the wheel). Do it before
+        # the '/' static catch-all below so those prefixes win, and before the
+        # router freezes in start_multi_address().
+        if args.enable_agent:
+            agent_host.register(self.app)
         self.user_manager.add_routes(self.routes)
         self.model_file_manager.add_routes(self.routes)
         self.custom_node_manager.add_routes(self.routes, self.app, nodes.LOADED_MODULE_DIRS.items())
