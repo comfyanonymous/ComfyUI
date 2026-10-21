@@ -1,10 +1,10 @@
 # H3 本地依赖环境
 
-本机为 RTX 5060 8GB、32GB 内存。此配置补齐 H3 主路径依赖，不表示原尺寸长视频已通过显存或质量验收。
+本机为 RTX 5060 8GB、32GB 内存。本文区分依赖验收、真实模型试跑和成片质量；本地执行结果见末节，不把节点注册通过等同于生成通过。
 
 ## 启动与持久化
 
-`docker-compose.override.yml` 自动叠加到原配置，使用 `comfyui-sos-comfyui:h3-local`。五个数据挂载、GPU 设置、`--disable-cuda-malloc` 和 1.5GB 显存预留保持不变，只显式补上管理器启用标志。
+`docker-compose.override.yml` 自动叠加到原配置，使用 `comfyui-sos-comfyui:h3-local`。五个数据挂载、GPU 设置、`--disable-cuda-malloc` 和 1.5GB 显存预留保持不变，管理器入口仍启用。本轮为 H3 小显存实跑增加下面的原生参数。
 
 ```bash
 docker compose config --quiet
@@ -60,7 +60,7 @@ v1.87.0 全部 373 个节点的结构定义在实际镜像下通过检查。独�
 
 合计 57,203,835,765 字节。下载保留断点，完成后逐文件核对固定发布摘要、大小和 safetensors 头；未完成文件不能作为可用模型。
 
-2026-10-21：上述 6 个文件已全部完成大小、SHA256 及安全张量头校验；未加载这些权重运行完整 H3。
+2026-10-21 依赖验收阶段：上述 6 个文件已全部完成大小、SHA256 及安全张量头校验，该阶段仅校验文件；后续真实 H3 执行结果见末节。
 
 ## 构建和验收边界
 
@@ -78,7 +78,7 @@ H3 主路径依赖验收镜像为 `50460a79a4f1f7552432ba26b4f4675c65c89fba33c31
 
 与原基础镜像比对，原有 241 个 Python 包无版本变更或移除；新增 21 项固定依赖。另外既有扩展自身启动时补入 8 项小依赖（Socket.IO 相关 5 项及 jsonpointer、jsonpatch、lark），没有变更已有包。关闭的是管理器的无条件批量重算，不是修改这些扩展的自有启动行为。
 
-原工作流保持不变，SHA256 为 `ea78e0e23d665a31f34e4c762a84524248b20b846df9dfeb3b138621335baa41`。其 11 个 `DF_Int_to_Float` 和一个 `ImpactSwitch` 全处于旁路且没有连向输出，不是 H3 主路径依赖；随后用户明确要求保留旧分支并尽量补齐全部缺失节点，因此按下节安装原作，未修改画布或伪造同名节点。8 个空参考槽、节点 231/268 引用的本机不存在图片，仍需在真正试跑前整理；依赖齐全不表示原图可以不改素材直接排队。
+补齐依赖阶段原工作流保持不变，SHA256 为 `ea78e0e23d665a31f34e4c762a84524248b20b846df9dfeb3b138621335baa41`。其 11 个 `DF_Int_to_Float` 和一个 `ImpactSwitch` 全处于旁路且没有连向输出，不是 H3 主路径依赖；随后用户明确要求保留旧分支并尽量补齐全部缺失节点，因此按下节安装原作，该阶段未修改画布或伪造同名节点。8 个空参考槽、节点 231/268 引用的本机不存在图片，仍需在真正试跑前整理；依赖齐全不表示原图可以不改素材直接排队。
 
 ## 补齐旧分支
 
@@ -110,3 +110,44 @@ docker compose -f docker-compose.yml up -d --no-deps --no-build comfyui
 ```
 
 原镜像保留为 `comfyui-sos-comfyui:vision-fixed` 和 `comfyui-sos-comfyui:before-h3-20261021`，镜像 ID 为 `ba67d5aec57caf246473bc7c41ac05ad647e903775d2f05f057aac36fd489277`。管理器原配置备份在 `user/__manager/config.ini.before-h3-20261021.bak`，恢复前先检查是否已有用户后续修改。
+
+## 视频输入与真实 H3 试跑（2026-10-21）
+
+本机 `user/default/workflows/minimax/H3+SpriteSheet+outline+fix.json` 的视频输入已换为原作 `VHS_LoadVideo`：保留 251/254/256，移除 252/253/255 拆分器，图像接输出 0，音频接输出 2，固定 24fps、最多 360 帧。原三路旁路状态、其他生成参数和提示词保留；空槽不是自动判断，启用前必须选择有效文件。静音视频应断开该路 AUDIO，避免惰性音频读取报错。
+
+真实原生载入发现并修正两项旧画布兼容问题：RMBG 新增 `sensitivity` 后，旧控件序列发生错位，现补默认值 1，保留原模糊 0、偏移 -1 等含义；旧 ImpactSwitch 的 `select/sel_mode` 移到前列，按输入名迁移 11 条边的目标槽位，保留其选择 6、全部旧节点和旁路状态。没有修改两个原作扩展的源码。
+
+原图逐字节备份及原启动配置位于 `user/default/backups/h3-local-trial-20261021/`。原图的八个空图片和两个缺失图片引用仍保留，不擅自替换用户素材。可重跑的成功副本另存于同一 workflows/minimax 目录：`H3_SpriteSheet_8GB_trial_20261021.json` 是小样；`H3_SpriteSheet_8GB_original_size_ffn2_trial_20261021.json` 是原输出尺寸成功配置。未加分块的 `H3_SpriteSheet_8GB_original_size_trial_20261021.json` 为失败对照，不推荐直接排队。试跑使用本机已有 Hero 图及含声视频，参考视频仅读取 256×256、48 帧，停用其他空参考；明确不是原缺失素材的质量复现，也未验证三路高分辨率长参考同时启用。
+
+实际运行镜像支持并已启用：
+
+```text
+--disable-cuda-malloc --reserve-vram 1.5
+--fast-disk --async-offload 1 --disable-pinned-memory
+--cache-none --disable-cuda-graphs
+```
+
+动态 VRAM 在当前 NVIDIA/PyTorch 环境默认启用，日志已确认。`--fast-disk` 使用权重原文件的 mmap/偏移流式读取，不是新增整模型交换文件。当前 fast-disk 路径默认允许约 28GB 锁页，禁用持久锁页用于减少大规模持久锁页挤占 32GB 主机其他服务内存的风险，代价是传输速度，并不保证零锁页或杜绝主存不足。`--cache-none` 关闭节点结果/对象的持久复用缓存，但单次执行依赖、已加载模型和内核内部缓存仍可能占内存。当前镜像中 `--lowvram` 在动态模式不起作用，`--novram` 会关闭动态模式，因此不与上述参数堆叠；不全局强制 FP16，不修改核心或模型数学。
+
+未增加 Easy Use 清理节点：其 `cleanGpuUsed` 清自有缓存并调用 `unload_all_models()`，不能减少 H3 活跃采样张量峰值。保留原 KJ Memory Efficient Sage Attention 和 LoRA 链，不叠加另一个可能被已有 attention owner 覆盖的注意力补丁；实际原尺寸 FFN 溢出后，只增加原作 T8 的 FFN 分块。
+
+低负载完整图已实跑：256×160、22 帧、24fps、8 步，任务 `ea42dbd5-9452-44c2-8863-d46a21b0935a`，服务执行 119.76 秒。VHS 图像/音频参考、视频/音频 VAE、Qwen 编码器、量化 H3、原 LoRA 和 T8 采样、解码、BiRefNet、透明拼图全部完成；MP4 完整音视频解码通过，输出 22 帧，PNG 为 RGBA 3072×320，透明度含 0/255。采样监测的 GPU 峰值约 6250MiB，无 OOM；这不是 CUDA 内部分配的严格峰值，也不是画质验收。
+
+随后恢复原图 0.4MP、6 秒的原生连线，实际输出尺寸为 864×480、158 帧、24fps、8 步，使用同一组试跑素材和种子：
+
+| 配置 | 任务 ID | 实际结果 |
+| --- | --- | --- |
+| 原尺寸、不加 FFN 分块 | `a9dfaae8-cc54-4eb8-8e62-f0bf1d877a28` | 完成第 1 步后在 FFN 的 int8 `torch.cat` 申请 1.13GiB 时 GPU OOM，约 61.75 秒；主机仍有约 17GiB 可用内存。 |
+| 原尺寸、FFN 两分块 | `9a51d9de-2c85-4e24-a291-fb9af9f7bef9` | 8 步采样、音视频解码、去背和拼图全部完成，服务执行 462.91 秒，无 OOM。 |
+
+成功配置新增 `MiniMaxH3ChunkFeedForwardT8Advanced`，`chunks=2`、`seq_threshold=4096`，接在原 LoRA 与 T8 双时钟采样器之间，另接折叠的 `PreviewAny` 配置回执。它在打包 token 行数超过阈值时拆分 MLP 前向，不清空正在使用的模型、不修改磁盘核心；原 KJ 注意力补丁仍保留。分块会改变 GEMM 形状及浮点舍入，不声称逐位等价。回执还会改变模型加载的先后顺序，本次仅证明这组配置实跑成功，不将显存差值归因为单一节点或保证任何分辨率均能运行。
+
+完整结果为带声 MP4（864×480、158 帧、约 6.583 秒）及 RGBA PNG（10368×2400）；完整音视频解码及 PNG 解码均通过。PNG 首帧角落 alpha 为 0，包含真实透明区域，而不只是添加通道。离散监控记录的 GPU 最高占用为 7298MiB，主机可用内存最低 16360MiB，服务 RSS 最高 9462MiB；不是严格 CUDA 峰值。输出位于 `output/video/H3_Local_Trial_20261021_original_size_ffn2_00001_.mp4` 和 `output/SpriteSheets/H3_Local_Trial_20261021_original_size_ffn2_00001_.png`，SHA256 及媒体规格见本地 `original-size-ffn2-result.json`。
+
+完整运行通过后才把相同分块参数接回正式原图。最终为 103 节点、130 条边；相较逐字节备份，删除三个拆分节点，新增分块和回执两个节点，仅 251/254/256/257/370/443 六个保留节点因输入替换、兼容迁移或模型接线变化，其他原始节点、提示词、素材引用和生成参数保持不变。按输入名、端口和双向元数据检查全部连线通过。最终 SHA256 为 `d848ef43b42db4eddcf87e6149ca7405800a8466baea8577b54dd2f1d6eac732`。
+
+本轮启动参数的回退副本为 `user/default/backups/h3-local-trial-20261021/docker-compose.override.before-trial.yml`，仅在队列为空且确认没有后续修改时恢复该文件并重建单个 comfyui 容器；无需删除模型或重建镜像。试跑脚本、私有素材及浏览器临时配置均未写入镜像；临时 Chrome 已关闭。
+
+首个 1 步诊断任务虽生成视频，但旧 RMBG 控件导致拼图输出被服务拒绝；另一次陈旧前端导出也只执行 1 步。它们的失败/部分结果保留在本地记录，不冒充完整成功。小样与原尺寸基线使用真实原生 LiteGraph/graphToPrompt 导出；FFN 副本仅在该原生基线中加入原作两节点及对应连线，并在提交前断言步数和去背参数，未使用不完整的自制旁路转换器。
+
+原图选择 FL2VA 权重配 ReferenceToVideo，代码允许执行，但不是[官方训练任务中 R2V 对应 Ref2VA 的配对](https://docs.comfy.org/tutorials/video/minimax/minimax-h3-native)。本次不擅自下载或替换另一套模型；运行通过不能推论参考跟随、动作或像素风格质量通过。全部试跑输入、原生导出、任务与资源证据保存在 `/opt/maoning/Reference/h3-local-trial-20261021/`，不提交人物素材、模型或临时浏览器数据。

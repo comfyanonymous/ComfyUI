@@ -4,8 +4,8 @@ services:
     build:
       context: ./temp/h3-build/wheels
       dockerfile: ../../../Dockerfile.h3-local
-    # 仅显式打开管理器入口；保留现有显存预留和分配器设置。
+    # 8GB H3：原生动态卸载、NVMe流式读取，限制缓存和锁页主存占用。
     command:
       - /bin/sh
       - -lc
-      - umask 0002 && exec python main.py --listen 0.0.0.0 --port 8188 --enable-manager --enable-manager-legacy-ui --disable-cuda-malloc --reserve-vram 1.5
+      - umask 0002 && exec python main.py --listen 0.0.0.0 --port 8188 --enable-manager --enable-manager-legacy-ui --disable-cuda-malloc --reserve-vram 1.5 --fast-disk --async-offload 1 --disable-pinned-memory --cache-none --disable-cuda-graphs
