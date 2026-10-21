@@ -371,8 +371,8 @@ class BlurMask(IO.ComfyNode):
             return IO.NodeOutput(mask)
         out = []
         for m in mask:
-            output = scipy.ndimage.gaussian_filter(m.numpy(), sigma=sigma, mode="nearest")
-            out.append(torch.from_numpy(output))
+            output = scipy.ndimage.gaussian_filter(m.cpu().numpy(), sigma=sigma, mode="nearest")
+            out.append(torch.from_numpy(output).to(mask.device))
         return IO.NodeOutput(torch.stack(out, dim=0))
 
 

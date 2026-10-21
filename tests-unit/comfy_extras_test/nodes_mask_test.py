@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from comfy.cli_args import args as cli_args
@@ -44,3 +45,23 @@ def test_blur_mask_preserves_batch():
     assert torch.all((result >= 0.0) & (result <= 1.0 + 1e-6))
     assert float(result[0, 2, 0]) > float(result[1, 2, 0])
     assert float(result[1, 2, 4]) > float(result[0, 2, 4])
+
+
+def _available_devices():
+    devices = ["cpu"]
+    if torch.cuda.is_available():
+        devices.append("cuda")
+    if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+        devices.append("mps")
+    return devices
+
+
+@pytest.mark.parametrize("device", _available_devices())
+def test_blur_mask_preserves_device(device):
+    mask = torch.zeros(1, 9, 9, device=device)
+    mask[:, 2:7, 2:7] = 1.0
+    result = BlurMask.execute(mask, 1.0)[0]
+
+    assert result.device == mask.device
+    assert result.shape == mask.shape
+    assert 0.1 < float(result[0, 2, 4]) < 0.9
