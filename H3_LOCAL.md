@@ -38,6 +38,8 @@ docker build -f Dockerfile.h3-local -t comfyui-sos-comfyui:h3-local temp/h3-buil
 
 管理器配置保持 `security_level=normal`、安全扫描及 SSL 校验，下载渠道改为 `https://raw.githubusercontent.com/Comfy-Org/ComfyUI-Manager/main`。将官方支持的 `use_unified_resolver` 设为 `False`，避免每次重启都无条件重算并安装全部旧扩展依赖；界面内明确发起的安装仍可使用正常逐扩展流程。原 `custom_nodes/ComfyUI-Manager` 目录不删除，内置模式会阻止重复加载。
 
+启动配置使用 `--enable-manager` 启用新版管理器界面，不再附加 `--enable-manager-legacy-ui`。管理器仍为上述固定 Python 包版本，不重复安装或更新依赖，H3 卸载参数不变。
+
 T8 与 Sage 原作未达一万星，但目标工作流需要其专用接口，没有已核验的一万星等价替代；采用固定原作，不伪造同名节点或替换成不等价 LoRA。
 
 T8 最新版的附加保存节点依赖 `Hidden.execution_list`，当前运行镜像没有此新 API。固定 v1.87.0，而非接受部分注册或修改核心；已确认其 `h3_t8/nodes.py`、`sampling.py` 和 `core.py` 与最新版逐字一致，目标采样器和 H3 核心计算不变。

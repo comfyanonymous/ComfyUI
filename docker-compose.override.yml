@@ -8,4 +8,4 @@ services:
     command:
       - /bin/sh
       - -lc
-      - umask 0002 && exec python main.py --listen 0.0.0.0 --port 8188 --enable-manager --enable-manager-legacy-ui --disable-cuda-malloc --reserve-vram 1.5 --fast-disk --async-offload 1 --disable-pinned-memory --cache-none --disable-cuda-graphs
+      - umask 0002 && exec python main.py --listen 0.0.0.0 --port 8188 --enable-manager --disable-cuda-malloc --reserve-vram 1.5 --fast-disk --async-offload 1 --disable-pinned-memory --cache-none --disable-cuda-graphs
