@@ -90,6 +90,7 @@ def register(app) -> None:
         logging.exception("The local agent's routes could not be registered; it is disabled.")
         _failure = {"state": "failed", "reason": "unknown"}
         emit_event("agent_error", reason="unknown")
+        _publish_flag()
 
 
 def start(server, scheme: str, address: str, port: int) -> None:
@@ -163,7 +164,7 @@ def feature_flag():
         if status.get("reason"):
             flag["reason"] = status["reason"]
         return flag
-    except Exception:
+    except (Exception, SystemExit):  # read from load() during startup; a broken wheel must not end it
         if not _status_logged:
             _status_logged = True
             logging.exception("The local agent's status could not be read.")

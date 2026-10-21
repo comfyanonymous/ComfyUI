@@ -172,6 +172,15 @@ def test_any_exception_from_the_package_fails_the_agent_not_comfyui(monkeypatch,
     assert agent_host.load() is False
 
 
+def test_a_status_that_exits_during_load_fails_the_agent_not_comfyui(monkeypatch):
+    class ExitingHost(FakeHost):
+        status = _exit
+
+    _entry_points(monkeypatch, {"v1": ExitingHost})
+    assert agent_host.load() is True
+    assert feature_flags.get_server_features()["agent"] == {"state": "failed", "reason": "unknown"}
+
+
 def test_a_factory_that_returns_no_host_fails_the_agent(monkeypatch):
     _entry_points(monkeypatch, {"v1": object})
     assert agent_host.load() is False
@@ -233,6 +242,7 @@ def test_a_register_failure_fails_the_agent_not_comfyui(monkeypatch, caplog):
     with caplog.at_level(logging.INFO):
         agent_host.register(object())  # a broken wheel must not end add_routes
     assert agent_host.feature_flag() == {"state": "failed", "reason": "unknown"}
+    assert feature_flags.get_server_features()["agent"] == {"state": "failed", "reason": "unknown"}
     assert "[agent-event] agent_error reason=unknown" in _agent_records(caplog)
 
 
