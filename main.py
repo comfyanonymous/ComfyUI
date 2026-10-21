@@ -629,23 +629,26 @@ def start_comfyui(asyncio_loop=None):
 
     os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
     call_on_start = None
+    on_start_hooks = []
     if args.auto_launch:
-        def startup_server(scheme, address, port):
+        def open_browser(scheme, address, port):
             import webbrowser
             if os.name == 'nt' and address == '0.0.0.0':
                 address = '127.0.0.1'
             if ':' in address:
                 address = "[{}]".format(address)
             webbrowser.open(f"{scheme}://{address}:{port}")
-        call_on_start = startup_server
+        on_start_hooks.append(open_browser)
 
     if args.enable_agent:
-        launch_browser = call_on_start
-
-        def call_on_start(scheme, address, port):
-            if launch_browser is not None:
-                launch_browser(scheme, address, port)
+        def start_agent(scheme, address, port):
             app.agent_host.start(prompt_server, scheme, address, port)
+        on_start_hooks.append(start_agent)
+
+    if on_start_hooks:
+        def call_on_start(scheme, address, port):
+            for hook in on_start_hooks:
+                hook(scheme, address, port)
 
     async def start_all():
         await prompt_server.setup()
