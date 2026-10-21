@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import collections
+import contextlib
 import inspect
 import logging
 import math
@@ -29,11 +30,13 @@ from typing import Callable, Optional
 
 import torch
 import tqdm
+import folder_paths
 
 import comfy.float
 import comfy.hooks
 import comfy.lora
 import comfy.model_management
+import comfy.model_prefetch
 import comfy.ops
 import comfy.patcher_extension
 import comfy.utils
@@ -1402,6 +1405,18 @@ class ModelPatcher:
     def set_additional_models(self, key: str, models: list['ModelPatcher']):
         self.additional_models[key] = models
 
+    @contextlib.contextmanager
+    def writable_models(self, conds, noise_shape, model_options):
+        with contextlib.ExitStack() as stack:
+            for patcher in [self] + self.get_additional_models_with_key("multigpu"):
+                if not patcher.is_dynamic():
+                    continue
+                model = patcher.model.get_writable_model(conds, noise_shape, model_options, patcher.load_device)
+                if model is not None:
+                    with comfy.model_management.cuda_device_context(patcher.load_device):
+                        stack.enter_context(patcher.writable_model(model))
+            yield
+
     def remove_additional_models(self, key: str):
         if key in self.additional_models:
             self.additional_models.pop(key)
@@ -1819,6 +1834,34 @@ class ModelPatcherDynamic(ModelPatcher):
 
     def is_dynamic(self):
         return True
+
+    @contextlib.contextmanager
+    def writable_model(self, model):
+        state, file = comfy.utils.create_safetensors(model.state_dict())
+        patcher = None
+        try:
+            model.load_state_dict(state, assign=True)
+            patcher = ModelPatcherDynamic(model, self.load_device, torch.device("cpu"), fast_disk=self.fast_disk)
+            self.set_additional_models("writable", [patcher])
+            # Loading reverses this list; the writable model gets priority over its owner.
+            comfy.model_management.load_models_gpu([patcher, self])
+            patcher.set_in_use_by_current_prompt(True)
+            yield patcher
+        finally:
+            # The final forward may still be using the allocation graph's pages.
+            comfy.model_management.synchronize()
+            comfy.model_prefetch.cleanup_prefetch_queues()
+            comfy.model_prefetch.cleanup_malloc_graph()
+            if patcher is not None:
+                self.remove_additional_models("writable")
+                vbar = model.dynamic_vbars.pop(patcher.load_device, None)
+                if vbar is not None:
+                    vbar.close()
+                for module in model.modules():
+                    for pin in getattr(module, "_pins", {}).values():
+                        pin["dirty"] = False
+                comfy.model_management.unload_model_and_clones(patcher, unload_additional_models=False)
+            file.close()
 
     def set_in_use_by_current_prompt(self, in_use):
         self.model.dynamic_pins[self.load_device]["current_prompt"] = in_use

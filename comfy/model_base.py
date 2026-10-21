@@ -276,6 +276,9 @@ class BaseModel(torch.nn.Module):
     def encode_adm(self, **kwargs):
         return None
 
+    def get_writable_model(self, conds, noise_shape, model_options, device):
+        return None
+
     def concat_cond(self, **kwargs):
         if len(self.concat_keys) > 0:
             cond_concat = []
