@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from comfy.cli_args import args as cli_args
@@ -6,10 +7,17 @@ if not torch.cuda.is_available():
     cli_args.cpu = True
 
 import comfy.lora  # noqa: E402
+import comfy.model_management  # noqa: E402
 import comfy.sd  # noqa: E402
 from comfy.model_patcher import ModelPatcher  # noqa: E402
 
 DIM, RANK = 8, 2
+
+
+@pytest.fixture(autouse=True)
+def cpu_adapters(monkeypatch):
+    # the bypass hook moves adapter weights to get_torch_device(); keep them next to the CPU test modules on GPU machines
+    monkeypatch.setattr(comfy.model_management, "get_torch_device", lambda: torch.device("cpu"))
 
 
 class _Model(torch.nn.Module):
