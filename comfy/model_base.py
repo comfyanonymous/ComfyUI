@@ -84,6 +84,7 @@ import comfy.ldm.sensenova.model
 from comfy.ldm.sensenova.sampling import SenseNovaModelSampling, time_snr_shift
 import comfy.ldm.depth_anything_3.model
 import comfy.ldm.moss_image.model
+import comfy.ldm.fibo2.model
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -2819,6 +2820,24 @@ class MOSSImage(BaseModel):
             return noise.new_zeros((noise.shape[0], channels) + noise.shape[2:])
         image = utils.common_upscale(image.to(kwargs["device"]), noise.shape[-1], noise.shape[-2], "bilinear", "center")
         return utils.resize_to_batch_size(self.process_latent_in(image), noise.shape[0])
+
+class Fibo2(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.fibo2.model.Fibo2)
+        self.memory_usage_factor_conds = ("ref_latents",)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        # the gist token count follows the true text length, so no repeat padding: cond and uncond of different lengths run separately
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            out['ref_latents'] = comfy.conds.CONDList([self.process_latent_in(lat) for lat in ref_latents])
+        return out
+
+    extra_conds_shapes = Flux.extra_conds_shapes
 
 class HunyuanImage21(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
