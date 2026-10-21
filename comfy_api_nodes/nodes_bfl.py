@@ -1,3 +1,4 @@
+import json
 import math
 
 import torch
@@ -13,18 +14,26 @@ from comfy_api_nodes.apis.bfl import (
     BFLFluxProGenerateResponse,
     BFLFluxProUltraGenerateRequest,
     BFLFluxStatusResponse,
+    BFLFluxVideoEditRequest,
+    BFLFluxVideoUpscaleRequest,
     BFLFluxVTORequest,
     BFLStatus,
     Flux2ProGenerateRequest,
+    Flux3ImageRequest,
     Flux3ImageToVideoRequest,
+    Flux3MaxKeyframe,
+    Flux3MaxResult,
+    Flux3MaxStatusResponse,
+    Flux3MaxSubmitResponse,
+    Flux3MaxVideoRequest,
     Flux3TextToVideoRequest,
     Flux3VideoContinuationRequest,
-    Flux3VideoRequest,
 )
 from comfy_api_nodes.util import (
     ApiEndpoint,
     convert_mask_to_image,
     download_url_to_image_tensor,
+    downscale_video_to_max_pixels,
     download_url_to_video_output,
     get_number_of_images,
     poll_op,
@@ -36,6 +45,8 @@ from comfy_api_nodes.util import (
     validate_aspect_ratio_string,
     validate_image_dimensions,
     validate_string,
+    validate_video_dimensions,
+    validate_video_duration,
 )
 
 
@@ -588,16 +599,12 @@ class FluxEraseNode(IO.ComfyNode):
             ),
         )
 
-        def price_extractor(_r: BaseModel) -> float | None:
-            return None if initial_response.cost is None else initial_response.cost / 100
-
         response = await poll_op(
             cls,
             ApiEndpoint(initial_response.polling_url),
             response_model=BFLFluxStatusResponse,
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
-            price_extractor=price_extractor,
             completed_statuses=[BFLStatus.ready],
             failed_statuses=[
                 BFLStatus.request_moderated,
@@ -669,16 +676,12 @@ class FluxVTONode(IO.ComfyNode):
             ),
         )
 
-        def price_extractor(_r: BaseModel) -> float | None:
-            return None if initial_response.cost is None else initial_response.cost / 100
-
         response = await poll_op(
             cls,
             ApiEndpoint(initial_response.polling_url),
             response_model=BFLFluxStatusResponse,
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
-            price_extractor=price_extractor,
             completed_statuses=[BFLStatus.ready],
             failed_statuses=[
                 BFLStatus.request_moderated,
@@ -802,16 +805,12 @@ class Flux2ProImageNode(IO.ComfyNode):
             ),
         )
 
-        def price_extractor(_r: BaseModel) -> float | None:
-            return None if initial_response.cost is None else initial_response.cost / 100
-
         response = await poll_op(
             cls,
             ApiEndpoint(initial_response.polling_url),
             response_model=BFLFluxStatusResponse,
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
-            price_extractor=price_extractor,
             completed_statuses=[BFLStatus.ready],
             failed_statuses=[
                 BFLStatus.request_moderated,
@@ -994,16 +993,12 @@ class Flux2ImageNode(IO.ComfyNode):
             ),
         )
 
-        def price_extractor(_r: BaseModel) -> float | None:
-            return None if initial_response.cost is None else initial_response.cost / 100
-
         response = await poll_op(
             cls,
             ApiEndpoint(initial_response.polling_url),
             response_model=BFLFluxStatusResponse,
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
-            price_extractor=price_extractor,
             completed_statuses=[BFLStatus.ready],
             failed_statuses=[
                 BFLStatus.request_moderated,
@@ -1020,10 +1015,11 @@ _FLUX3_ASPECT_RATIOS = ["auto", "21:9", "2:1", "16:9", "4:3", "1:1", "3:4", "9:1
 _FLUX3_MIN_DURATION = 5
 _FLUX3_MAX_DURATION = 20
 _FLUX3_DURATIONS = ["auto"] + [str(i) for i in range(_FLUX3_MIN_DURATION, _FLUX3_MAX_DURATION + 1)]
-_FLUX3_RESOLUTIONS = {"720p": "hd", "1080p": "fhd"}
+_FLUX3_RESOLUTIONS = {"720p": "hd", "1080p": "fhd", "1440p": "qhd", "2160p": "uhd"}
 _FLUX3_MAX_IMAGES = 10
 _FLUX3_MIN_IMAGE_SIDE = 256
 _FLUX3_MAX_IMAGE_ASPECT = 64
+_FLUX3_MAX_START_VIDEO_PIXELS = 3840 * 2160
 
 
 def _flux3_validate_image(image: torch.Tensor) -> None:
@@ -1079,8 +1075,7 @@ def _flux3_parse_times(value: str, image_count: int, duration: int | str) -> lis
 class Flux3VideoNodeBase(IO.ComfyNode):
     """Shared widgets, request plumbing and polling for the FLUX 3 generation modes."""
 
-    RATE_HD: float
-    RATE_FHD: float
+    RATES: dict[str, float]
 
     @classmethod
     def common_inputs(cls) -> list:
@@ -1155,7 +1150,7 @@ class Flux3VideoNodeBase(IO.ComfyNode):
             depends_on=IO.PriceBadgeDepends(widgets=["resolution", "duration"]),
             expr=f"""
                 (
-                  $rate := widgets.resolution = "1080p" ? {cls.RATE_FHD} : {cls.RATE_HD};
+                  $rate := $lookup({json.dumps(cls.RATES)}, widgets.resolution);
                   $type(widgets.duration) = "string" and widgets.duration != "auto"
                     ? {{"type":"usd","usd": $rate * $number(widgets.duration)}}
                     : {{"type":"usd","usd": $rate, "format": {{"suffix": "/second"}}}}
@@ -1164,24 +1159,27 @@ class Flux3VideoNodeBase(IO.ComfyNode):
         )
 
 
-async def _flux3_execute(cls: type[IO.ComfyNode], request: Flux3VideoRequest) -> IO.NodeOutput:
-    initial_response = await sync_op(
-        cls,
-        ApiEndpoint(path="/proxy/bfl/v1/flux-3-video", method="POST"),
-        response_model=BFLFluxProGenerateResponse,
-        data=request,
+_FLUX3_VIDEO_ENDPOINT = ApiEndpoint(path="/proxy/bfl/v1/flux-3-video", method="POST")
+_FLUX_VIDEO_UPSCALE_ENDPOINT = ApiEndpoint(path="/proxy/bfl/v1/flux-tools/video-upscale-v1", method="POST")
+_FLUX_VIDEO_EDIT_ENDPOINT = ApiEndpoint(path="/proxy/bfl/v1/flux-tools/video-edit-v1", method="POST")
+_BFL_POLL_PROXY_PATH = "/proxy/bfl/v1/get_result"
+
+
+async def _bfl_video_execute(
+    cls: type[IO.ComfyNode], endpoint: ApiEndpoint, request: BaseModel, poll_via_proxy: bool = False
+) -> IO.NodeOutput:
+    initial_response = await sync_op(cls, endpoint, response_model=BFLFluxProGenerateResponse, data=request)
+    poll_endpoint = (
+        ApiEndpoint(path=_BFL_POLL_PROXY_PATH, query_params={"polling_url": initial_response.polling_url})
+        if poll_via_proxy
+        else ApiEndpoint(initial_response.polling_url)
     )
-
-    def price_extractor(_r: BaseModel) -> float | None:
-        return None if initial_response.cost is None else initial_response.cost / 100
-
     response = await poll_op(
         cls,
-        ApiEndpoint(initial_response.polling_url),
+        poll_endpoint,
         response_model=BFLFluxStatusResponse,
         status_extractor=lambda r: r.status,
         progress_extractor=lambda r: r.progress,
-        price_extractor=price_extractor,
         completed_statuses=[BFLStatus.ready],
         failed_statuses=[
             BFLStatus.request_moderated,
@@ -1199,8 +1197,7 @@ async def _flux3_execute(cls: type[IO.ComfyNode], request: Flux3VideoRequest) ->
 
 
 class Flux3TextToVideoNode(Flux3VideoNodeBase):
-    RATE_HD = 0.2431
-    RATE_FHD = 0.4147
+    RATES = {"720p": 0.2431, "1080p": 0.4147, "1440p": 0.572, "2160p": 1.144}
 
     @classmethod
     def define_schema(cls) -> IO.Schema:
@@ -1243,12 +1240,11 @@ class Flux3TextToVideoNode(Flux3VideoNodeBase):
         request = Flux3TextToVideoRequest(
             **cls.common_fields(prompt, aspect_ratio, duration, resolution, generate_audio, safety_tolerance)
         )
-        return await _flux3_execute(cls, request)
+        return await _bfl_video_execute(cls, _FLUX3_VIDEO_ENDPOINT, request)
 
 
 class Flux3ImageToVideoNode(Flux3VideoNodeBase):
-    RATE_HD = 0.2431
-    RATE_FHD = 0.4147
+    RATES = {"720p": 0.2431, "1080p": 0.4147, "1440p": 0.572, "2160p": 1.144}
 
     @classmethod
     def define_schema(cls) -> IO.Schema:
@@ -1341,12 +1337,11 @@ class Flux3ImageToVideoNode(Flux3VideoNodeBase):
             keyframes=list(zip(times, urls)) if times is not None else urls,
             **fields,
         )
-        return await _flux3_execute(cls, request)
+        return await _bfl_video_execute(cls, _FLUX3_VIDEO_ENDPOINT, request)
 
 
 class Flux3VideoContinuationNode(Flux3VideoNodeBase):
-    RATE_HD = 0.5863
-    RATE_FHD = 0.7579
+    RATES = {"720p": 0.5863, "1080p": 0.7579, "1440p": 0.9295, "2160p": 1.3585}
 
     @classmethod
     def define_schema(cls) -> IO.Schema:
@@ -1357,7 +1352,10 @@ class Flux3VideoContinuationNode(Flux3VideoNodeBase):
             description="Continues a video with FLUX 3: the new clip carries on from the final frames "
             "of the one you provide.",
             inputs=[
-                IO.Video.Input("video", tooltip="The clip to continue."),
+                IO.Video.Input(
+                    "video",
+                    tooltip="The clip to continue. Clips over 3840x2160 pixels in area are downscaled to fit.",
+                ),
                 IO.String.Input(
                     "prompt",
                     multiline=True,
@@ -1390,9 +1388,676 @@ class Flux3VideoContinuationNode(Flux3VideoNodeBase):
         seed: int,
     ) -> IO.NodeOutput:
         fields = cls.common_fields(prompt, aspect_ratio, duration, resolution, generate_audio, safety_tolerance)
+        video = downscale_video_to_max_pixels(video, _FLUX3_MAX_START_VIDEO_PIXELS)
         url = await upload_video_to_comfyapi(cls, video, wait_label="Uploading source video")
         request = Flux3VideoContinuationRequest(start_video=url, **fields)
-        return await _flux3_execute(cls, request)
+        return await _bfl_video_execute(cls, _FLUX3_VIDEO_ENDPOINT, request)
+
+
+_FLUX_VIDEO_UPSCALE_MODES = {"creative": 1, "precise": 0}
+_FLUX_VIDEO_UPSCALE_MAX_INPUT_PIXELS = 3840 * 2160
+_FLUX_VIDEO_UPSCALE_MAX_ASPECT_RATIO = 4.0
+
+
+class FluxVideoUpscaleNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="FluxVideoUpscaleNode",
+            display_name="Flux Video Upscale",
+            category="partner/video/BFL",
+            description="Upscales a video 1.5 to 3 times with FLUX super-resolution, either preserving "
+            "the source precisely or creatively enhancing its detail.",
+            inputs=[
+                IO.Video.Input(
+                    "video",
+                    tooltip="Source clip of 1 to 20 seconds with an aspect ratio between 1:4 and 4:1. "
+                    "The output is rendered at 24 fps and capped at about 14.4 megapixels per frame.",
+                ),
+                IO.Float.Input(
+                    "upscale_factor",
+                    default=2.0,
+                    min=1.5,
+                    max=3.0,
+                    step=0.1,
+                    tooltip="Output size relative to the source. Very large sources are upscaled by "
+                    "less than the requested factor because of the per-frame cap.",
+                ),
+                IO.Combo.Input(
+                    "mode",
+                    options=list(_FLUX_VIDEO_UPSCALE_MODES),
+                    default="creative",
+                    tooltip="'creative' restores and invents fine detail, best for generated footage, "
+                    "textures and scenery. 'precise' sharpens the source without changing it, "
+                    "for faces, products and real footage.",
+                ),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Optional description of the clip that steers the enhanced detail. "
+                    "Leave empty for a neutral upscale.",
+                ),
+                IO.Boolean.Input(
+                    "auto_downscale",
+                    default=True,
+                    tooltip="Automatically downscale sources larger than 3840x2160 pixels in area to fit "
+                    "the input limit. Aspect ratio is preserved; smaller videos are untouched.",
+                ),
+                IO.Int.Input(
+                    "safety_tolerance",
+                    default=2,
+                    min=0,
+                    max=4,
+                    advanced=True,
+                    tooltip="Moderation tolerance, 0 is the strictest.",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=42,
+                    min=0,
+                    max=0xFFFFFFFF,
+                    control_after_generate=True,
+                    tooltip="Seed to determine if node should re-run; FLUX picks its own seed, so "
+                    "actual results are nondeterministic regardless of this value.",
+                ),
+            ],
+            outputs=[IO.Video.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["mode"]),
+                expr="""
+                    (
+                      $precise := widgets.mode = "precise";
+                      {"type":"range_usd",
+                       "min_usd": $precise ? 0.212 : 0.297,
+                       "max_usd": $precise ? 0.848 : 1.188,
+                       "format": {"approximate": true, "suffix": "/s", "note": "(1080p-4K output)"}}
+                    )
+                """,
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        video: Input.Video,
+        upscale_factor: float,
+        mode: str,
+        prompt: str,
+        auto_downscale: bool,
+        safety_tolerance: int,
+        seed: int,
+    ) -> IO.NodeOutput:
+        validate_video_duration(video, min_duration=1.0, max_duration=20.0)
+        validate_video_dimensions(video, min_width=64, min_height=64)
+        width, height = video.get_dimensions()
+        if max(width, height) > _FLUX_VIDEO_UPSCALE_MAX_ASPECT_RATIO * min(width, height):
+            raise ValueError(f"Video aspect ratio must be between 1:4 and 4:1, got {width}x{height}.")
+        if auto_downscale:
+            video = downscale_video_to_max_pixels(video, _FLUX_VIDEO_UPSCALE_MAX_INPUT_PIXELS)
+        elif width * height > _FLUX_VIDEO_UPSCALE_MAX_INPUT_PIXELS:
+            raise ValueError(
+                f"Video must be at most 3840x2160 pixels in area, got {width}x{height}. "
+                "Enable auto_downscale or use a smaller video."
+            )
+        url = await upload_video_to_comfyapi(cls, video, wait_label="Uploading source video")
+        request = BFLFluxVideoUpscaleRequest(
+            input_video=url,
+            upscale_factor=round(upscale_factor, 1),
+            creativity=_FLUX_VIDEO_UPSCALE_MODES[mode],
+            prompt=prompt.strip() or None,
+            safety_tolerance=safety_tolerance,
+        )
+        return await _bfl_video_execute(cls, _FLUX_VIDEO_UPSCALE_ENDPOINT, request, poll_via_proxy=True)
+
+
+_FLUX_VIDEO_EDIT_FPS = 24
+_FLUX_VIDEO_EDIT_MIN_FRAMES = 17
+_FLUX_VIDEO_EDIT_MAX_FRAMES = 361
+_FLUX_VIDEO_EDIT_MIN_DURATION = (_FLUX_VIDEO_EDIT_MIN_FRAMES - 0.5) / _FLUX_VIDEO_EDIT_FPS
+_FLUX_VIDEO_EDIT_MAX_DURATION = _FLUX_VIDEO_EDIT_MAX_FRAMES / _FLUX_VIDEO_EDIT_FPS
+_FLUX_VIDEO_EDIT_MIN_SIDE = 160
+_FLUX_VIDEO_EDIT_MAX_PROMPT_LENGTH = 4096
+_FLUX_VIDEO_EDIT_MAX_PIXELS = 1280 * 704
+
+
+class FluxVideoEditNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="FluxVideoEditNode",
+            display_name="Flux Video Edit",
+            category="partner/video/BFL",
+            description="Edits a clip from a written instruction: remove, add or replace objects, change "
+            "the setting, restyle the footage, change on-screen text, or replace the spoken dialogue. "
+            "Length, framing, camera motion and audio come from the source clip.",
+            inputs=[
+                IO.Video.Input(
+                    "video",
+                    tooltip="Source clip of 0.7 to 15 seconds, at least 160x160 pixels. The output is "
+                    "rendered at 24 fps and capped at about 0.9 megapixels per frame, so a larger source "
+                    "comes back smaller.",
+                ),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="What to change, in plain language, up to 4096 characters. Anything you do "
+                    "not mention is meant to stay as it was. Replacement dialogue has to fit the time the "
+                    "original speech takes, and a silent clip stays silent.",
+                ),
+                IO.Boolean.Input(
+                    "auto_downscale",
+                    default=True,
+                    tooltip="Automatically downscale sources larger than 1280x704 pixels in area before "
+                    "upload. Aspect ratio is preserved; smaller videos are untouched.",
+                ),
+                IO.Int.Input(
+                    "safety_tolerance",
+                    default=4,
+                    min=0,
+                    max=4,
+                    advanced=True,
+                    tooltip="Moderation tolerance, 0 is the strictest.",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=42,
+                    min=0,
+                    max=0xFFFFFFFF,
+                    control_after_generate=True,
+                    tooltip="Seed to determine if node should re-run; FLUX picks its own seed, so "
+                    "actual results are nondeterministic regardless of this value.",
+                ),
+            ],
+            outputs=[IO.Video.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.0429,"format":{"suffix":"/second"}}""",
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        video: Input.Video,
+        prompt: str,
+        auto_downscale: bool,
+        safety_tolerance: int,
+        seed: int,
+    ) -> IO.NodeOutput:
+        validate_string(
+            prompt, field_name="prompt", min_length=1, max_length=_FLUX_VIDEO_EDIT_MAX_PROMPT_LENGTH
+        )
+        validate_video_duration(
+            video,
+            min_duration=_FLUX_VIDEO_EDIT_MIN_DURATION,
+            max_duration=_FLUX_VIDEO_EDIT_MAX_DURATION,
+        )
+        validate_video_dimensions(
+            video, min_width=_FLUX_VIDEO_EDIT_MIN_SIDE, min_height=_FLUX_VIDEO_EDIT_MIN_SIDE
+        )
+        if auto_downscale:
+            width, height = video.get_dimensions()
+            scale = math.sqrt(_FLUX_VIDEO_EDIT_MAX_PIXELS / (width * height))
+            if min(width, height) * scale >= _FLUX_VIDEO_EDIT_MIN_SIDE:
+                video = downscale_video_to_max_pixels(video, _FLUX_VIDEO_EDIT_MAX_PIXELS)
+        url = await upload_video_to_comfyapi(cls, video, wait_label="Uploading source video")
+        request = BFLFluxVideoEditRequest(
+            video=url,
+            prompt=prompt.strip(),
+            safety_tolerance=safety_tolerance,
+        )
+        return await _bfl_video_execute(cls, _FLUX_VIDEO_EDIT_ENDPOINT, request, poll_via_proxy=True)
+
+
+_FLUX3_IMAGE_ENDPOINT = ApiEndpoint(path="/proxy/bfl/v1/flux-3-image", method="POST")
+_FLUX3_IMAGE_ASPECT_RATIOS = [
+    "auto", "21:9", "2:1", "16:9", "3:2", "7:5", "4:3", "5:4", "1:1", "4:5", "3:4", "5:7", "2:3", "9:16", "1:2", "9:21"
+]
+_FLUX3_IMAGE_RESOLUTIONS = {"0.75K": "768sq", "1K": "1k", "1.5K": "1.5k", "2K": "2k", "4K": "4k"}
+_FLUX3_IMAGE_MAX_PROMPT_LENGTH = 15000
+
+
+def _flux3_box_rows(elements: list) -> list[dict]:
+    rows = []
+    for index, element in enumerate(elements, start=1):
+        parts = []
+        if element.get("type") == "text":
+            parts.append(f'the text "{element.get("text", "")}"')
+        if element.get("desc"):
+            parts.append(element["desc"])
+        if element.get("color_palette"):
+            parts.append("colors " + ", ".join(element["color_palette"]))
+        row = {"id": f"box_{index}", "bbox": element["bbox"]}
+        if parts:
+            row["desc"] = ", ".join(parts)
+        rows.append(row)
+    return rows
+
+
+class Flux3ImageNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="Flux3ImageNode",
+            display_name="FLUX 3 Image",
+            category="partner/image/BFL",
+            description="Generates an image with FLUX 3 Image from a prompt, or edits and combines up to 10 "
+            "reference images. Refer to the references in the prompt as image 1, image 2, and so on.",
+            inputs=[
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="What to generate, or the edit to make. The prompt is interpreted and "
+                    "expanded before generation.",
+                ),
+                IO.Autogrow.Input(
+                    "images",
+                    template=IO.Autogrow.TemplateNames(
+                        IO.Image.Input("image"),
+                        names=[f"image_{i}" for i in range(1, _FLUX3_MAX_IMAGES + 1)],
+                        min=0,
+                    ),
+                    tooltip="Optional reference images, up to 10 in total, at least 256x256 pixels each.",
+                ),
+                IO.Array.Input(
+                    "bounding_boxes",
+                    optional=True,
+                    tooltip="Optional boxes from Create Bounding Boxes that place objects or text in the "
+                    "output. Positions are relative to the canvas, so give it the output's aspect ratio.",
+                ),
+                IO.Combo.Input(
+                    "aspect_ratio",
+                    options=_FLUX3_IMAGE_ASPECT_RATIOS,
+                    default="auto",
+                    tooltip="'auto' follows the first reference image, or picks a ratio from the prompt.",
+                ),
+                IO.Combo.Input(
+                    "resolution",
+                    options=list(_FLUX3_IMAGE_RESOLUTIONS),
+                    default="2K",
+                    tooltip="Output size at the chosen aspect ratio: 0.75K is about 0.6 megapixels, "
+                    "1K 1 MP, 1.5K 2.4 MP, 2K 4.2 MP, 4K 16.8 MP.",
+                ),
+                IO.Boolean.Input(
+                    "grounding",
+                    default=True,
+                    tooltip="Let the model research the prompt with web and image search before generating.",
+                ),
+                IO.Int.Input(
+                    "safety_tolerance",
+                    default=4,
+                    min=0,
+                    max=4,
+                    advanced=True,
+                    tooltip="Moderation tolerance, 0 is the strictest.",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=42,
+                    min=0,
+                    max=0xFFFFFFFF,
+                    control_after_generate=True,
+                    tooltip="Seed to determine if node should re-run; FLUX 3 picks its own seed, so "
+                    "actual results are nondeterministic regardless of this value.",
+                ),
+            ],
+            outputs=[IO.Image.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["resolution"]),
+                expr="""
+                (
+                  $prices := {"0.75k": 0.05863, "1k": 0.06864, "1.5k": 0.1001, "2k": 0.143, "4k": 0.86801};
+                  {"type": "usd", "usd": $lookup($prices, widgets.resolution)}
+                )
+                """,
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        prompt: str,
+        images: IO.Autogrow.Type,
+        aspect_ratio: str,
+        resolution: str,
+        grounding: bool,
+        safety_tolerance: int,
+        seed: int,
+        bounding_boxes: list | None = None,
+    ) -> IO.NodeOutput:
+        validate_string(prompt, field_name="prompt", min_length=1, max_length=_FLUX3_IMAGE_MAX_PROMPT_LENGTH)
+        if bounding_boxes:
+            prompt = f"{prompt} {json.dumps(_flux3_box_rows(bounding_boxes), ensure_ascii=False)}"
+            if len(prompt) > _FLUX3_IMAGE_MAX_PROMPT_LENGTH:
+                raise ValueError(
+                    f"The prompt together with the bounding boxes is {len(prompt)} characters long, "
+                    f"the limit is {_FLUX3_IMAGE_MAX_PROMPT_LENGTH}. Shorten the prompt or the box descriptions."
+                )
+        reference_images = _flux3_collect_images(images, "reference images")
+        image_urls = None
+        if reference_images:
+            image_urls = await upload_images_to_comfyapi(
+                cls, reference_images, max_images=_FLUX3_MAX_IMAGES, wait_label="Uploading references"
+            )
+        initial_response = await sync_op(
+            cls,
+            _FLUX3_IMAGE_ENDPOINT,
+            response_model=BFLFluxProGenerateResponse,
+            data=Flux3ImageRequest(
+                prompt=prompt,
+                images=image_urls,
+                aspect_ratio=aspect_ratio,
+                resolution=_FLUX3_IMAGE_RESOLUTIONS[resolution],
+                grounding=grounding,
+                safety_tolerance=safety_tolerance,
+            ),
+        )
+        response = await poll_op(
+            cls,
+            ApiEndpoint(path=_BFL_POLL_PROXY_PATH, query_params={"polling_url": initial_response.polling_url}),
+            response_model=BFLFluxStatusResponse,
+            status_extractor=lambda r: r.status,
+            progress_extractor=lambda r: r.progress,
+            completed_statuses=[BFLStatus.ready],
+            failed_statuses=[
+                BFLStatus.request_moderated,
+                BFLStatus.content_moderated,
+                BFLStatus.error,
+                BFLStatus.task_not_found,
+            ],
+            queued_statuses=[BFLStatus.pending],
+            max_retries_per_poll=3,
+        )
+        return IO.NodeOutput(await download_url_to_image_tensor(response.result["sample"]))
+
+
+_FLUX3MAX_ENDPOINT = "/proxy/fal/blackforestlabs/flux-3-max"
+_FLUX3MAX_FPS = 24
+_FLUX3MAX_MAX_PROMPT_LENGTH = 50000
+
+
+class Flux3MaxVideoNodeBase(IO.ComfyNode):
+
+    @classmethod
+    def common_inputs(cls) -> list:
+        return [
+            IO.Combo.Input(
+                "aspect_ratio",
+                options=_FLUX3_ASPECT_RATIOS,
+                default="auto",
+                tooltip="Output aspect ratio. 'auto' is 16:9 for text prompts and follows the first image otherwise.",
+            ),
+            IO.Combo.Input(
+                "duration",
+                options=[str(i) for i in range(_FLUX3_MIN_DURATION, _FLUX3_MAX_DURATION + 1)],
+                default="5",
+                tooltip="Clip length in seconds.",
+            ),
+            IO.Combo.Input(
+                "resolution",
+                options=["720p", "1080p"],
+                default="720p",
+                tooltip="Output resolution.",
+            ),
+            IO.Combo.Input(
+                "reasoning_level",
+                options=["low", "high"],
+                default="high",
+                tooltip="How much the model reasons about and expands the prompt before generating. "
+                "'high' takes longer; the price is the same.",
+            ),
+            IO.Boolean.Input(
+                "generate_audio",
+                default=True,
+                tooltip="Generate synchronized audio. Off produces a video with no audio track.",
+            ),
+            IO.Int.Input(
+                "seed",
+                default=42,
+                min=0,
+                max=2147483646,
+                control_after_generate=True,
+                tooltip="Seed controls whether the node should re-run; "
+                "results are non-deterministic regardless of seed.",
+            ),
+        ]
+
+    @classmethod
+    def common_fields(
+        cls,
+        prompt: str,
+        aspect_ratio: str,
+        duration: str,
+        resolution: str,
+        reasoning_level: str,
+        generate_audio: bool,
+        seed: int,
+    ) -> dict:
+        validate_string(prompt, field_name="prompt", min_length=1, max_length=_FLUX3MAX_MAX_PROMPT_LENGTH)
+        return {
+            "prompt": prompt,
+            "aspect_ratio": aspect_ratio,
+            "duration": int(duration),
+            "resolution": resolution,
+            "reasoning_level": reasoning_level,
+            "generate_audio": generate_audio,
+            "seed": seed,
+        }
+
+    @classmethod
+    def price_badge(cls) -> IO.PriceBadge:
+        return IO.PriceBadge(
+            depends_on=IO.PriceBadgeDepends(widgets=["resolution", "duration"]),
+            expr="""
+                (
+                  $promo := $now() < "2026-11-07T00:00:00.000Z";
+                  $rate := widgets.resolution = "1080p"
+                    ? ($promo ? 0.103675 : 0.4147)
+                    : ($promo ? 0.060775 : 0.2431);
+                  {"type":"usd","usd": $rate * $number(widgets.duration)}
+                )
+                """,
+        )
+
+
+async def _flux3max_execute(
+    cls: type[IO.ComfyNode], route: str, request: Flux3MaxVideoRequest
+) -> IO.NodeOutput:
+    submit = await sync_op(
+        cls,
+        ApiEndpoint(path=f"{_FLUX3MAX_ENDPOINT}/{route}", method="POST"),
+        response_model=Flux3MaxSubmitResponse,
+        data=request,
+    )
+    await poll_op(
+        cls,
+        ApiEndpoint(path=f"{_FLUX3MAX_ENDPOINT}/requests/{submit.request_id}/status"),
+        response_model=Flux3MaxStatusResponse,
+        status_extractor=lambda r: r.status,
+        completed_statuses=["COMPLETED"],
+        queued_statuses=["IN_QUEUE"],
+    )
+    result = await sync_op(
+        cls,
+        ApiEndpoint(path=f"{_FLUX3MAX_ENDPOINT}/requests/{submit.request_id}"),
+        response_model=Flux3MaxResult,
+    )
+    return IO.NodeOutput(await download_url_to_video_output(result.video.url))
+
+
+class Flux3MaxTextToVideoNode(Flux3MaxVideoNodeBase):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="Flux3MaxTextToVideoNode",
+            display_name="FLUX 3 Max Text to Video",
+            category="partner/video/BFL",
+            description="Generates a video with synchronized audio from a text prompt via FLUX 3 Max.",
+            inputs=[
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="What you want, in plain language. Describe ambient sound, music and speech "
+                    "separately for layered audio.",
+                ),
+                *cls.common_inputs(),
+            ],
+            outputs=[IO.Video.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=cls.price_badge(),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        prompt: str,
+        aspect_ratio: str,
+        duration: str,
+        resolution: str,
+        reasoning_level: str,
+        generate_audio: bool,
+        seed: int,
+    ) -> IO.NodeOutput:
+        request = Flux3MaxVideoRequest(
+            **cls.common_fields(prompt, aspect_ratio, duration, resolution, reasoning_level, generate_audio, seed)
+        )
+        return await _flux3max_execute(cls, "text-to-video", request)
+
+
+class Flux3MaxImageToVideoNode(Flux3MaxVideoNodeBase):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="Flux3MaxImageToVideoNode",
+            display_name="FLUX 3 Max Image to Video",
+            category="partner/video/BFL",
+            description="Animates 1 to 10 images with FLUX 3 Max. Each image becomes a frame of the clip: "
+            "one image opens it, two become its first and last frame, and more are spread across it "
+            "or pinned to times you choose.",
+            inputs=[
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="How the scene should move and sound.",
+                ),
+                IO.Autogrow.Input(
+                    "keyframes",
+                    template=IO.Autogrow.TemplatePrefix(
+                        IO.Image.Input("image", tooltip="Keyframe image."),
+                        prefix="image_",
+                        min=1,
+                        max=_FLUX3_MAX_IMAGES,
+                    ),
+                    tooltip="1 to 10 images, in playback order.",
+                ),
+                IO.DynamicCombo.Input(
+                    "placement",
+                    options=[
+                        IO.DynamicCombo.Option("spread across the clip", []),
+                        IO.DynamicCombo.Option(
+                            "at times",
+                            [
+                                IO.String.Input(
+                                    "times",
+                                    default="0",
+                                    tooltip="One time in seconds per image, comma-separated and "
+                                    "increasing, e.g. '0, 2.5, 5'.",
+                                ),
+                            ],
+                        ),
+                    ],
+                    tooltip="'spread across the clip' puts the first image at the start, the last at the end "
+                    "and the rest evenly between; 'at times' pins every image to a second you choose.",
+                ),
+                *cls.common_inputs(),
+            ],
+            outputs=[IO.Video.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=cls.price_badge(),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        prompt: str,
+        keyframes: IO.Autogrow.Type,
+        placement: dict,
+        aspect_ratio: str,
+        duration: str,
+        resolution: str,
+        reasoning_level: str,
+        generate_audio: bool,
+        seed: int,
+    ) -> IO.NodeOutput:
+        fields = cls.common_fields(prompt, aspect_ratio, duration, resolution, reasoning_level, generate_audio, seed)
+        images = [
+            image
+            for batch in keyframes.values()
+            if batch is not None
+            for image in (batch if batch.ndim == 4 else [batch])
+        ]
+        if len(images) > _FLUX3_MAX_IMAGES:
+            raise ValueError(f"FLUX 3 Max supports at most {_FLUX3_MAX_IMAGES} keyframe images, got {len(images)}.")
+        if not images:
+            raise ValueError("Connect at least one keyframe image.")
+        times = None
+        if placement["placement"] == "at times":
+            times = _flux3_parse_times(placement["times"], len(images), fields["duration"])
+        urls = await upload_images_to_comfyapi(
+            cls, images, max_images=_FLUX3_MAX_IMAGES, wait_label="Uploading keyframes"
+        )
+        if times is None and len(urls) <= 2:
+            request = Flux3MaxVideoRequest(
+                image_url=urls[0], end_image_url=urls[1] if len(urls) == 2 else None, **fields
+            )
+            return await _flux3max_execute(cls, "image-to-video", request)
+        if times is None:
+            last_frame = fields["duration"] * _FLUX3MAX_FPS
+            frames = [round(i * last_frame / (len(urls) - 1)) for i in range(len(urls))]
+        else:
+            frames = [round(time * _FLUX3MAX_FPS) for time in times]
+        request = Flux3MaxVideoRequest(
+            keyframes=[Flux3MaxKeyframe(image_url=url, frame_index=frame) for url, frame in zip(urls, frames)],
+            **fields,
+        )
+        return await _flux3max_execute(cls, "keyframes-to-video", request)
 
 
 class BFLExtension(ComfyExtension):
@@ -1412,6 +2077,11 @@ class BFLExtension(ComfyExtension):
             Flux3TextToVideoNode,
             Flux3ImageToVideoNode,
             Flux3VideoContinuationNode,
+            FluxVideoUpscaleNode,
+            FluxVideoEditNode,
+            Flux3ImageNode,
+            Flux3MaxTextToVideoNode,
+            Flux3MaxImageToVideoNode,
         ]
 
 

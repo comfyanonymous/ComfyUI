@@ -126,19 +126,6 @@ def _normalize_grok_reference_prompt(prompt: str, total_images: int, voices: lis
     return prompt
 
 
-def _extract_grok_price(response) -> float | None:
-    if response.usage and response.usage.cost_in_usd_ticks is not None:
-        return response.usage.cost_in_usd_ticks / 10_000_000_000
-    return None
-
-
-def _extract_grok_video_price(response) -> float | None:
-    price = _extract_grok_price(response)
-    if price is not None:
-        return price * 1.43
-    return None
-
-
 class GrokImageNode(IO.ComfyNode):
 
     @classmethod
@@ -637,24 +624,26 @@ class GrokVideoNode(IO.ComfyNode):
             inputs=[
                 IO.Combo.Input(
                     "model",
-                    options=["grok-imagine-video", "grok-imagine-video-1.5"],
+                    options=["grok-imagine-video", "grok-imagine-video-1.5", "grok-imagine-video-1.5-lite"],
+                    default="grok-imagine-video-1.5-lite",
                     tooltip="The model to use for video generation.",
                 ),
                 IO.String.Input(
                     "prompt",
                     multiline=True,
                     tooltip="Text description of the desired video. "
-                    "Optional for grok-imagine-video-1.5 when an input image is provided.",
+                    "Optional for the grok-imagine-video-1.5 models when an input image is provided.",
                 ),
                 IO.Combo.Input(
                     "resolution",
                     options=["480p", "720p", "1080p"],
-                    tooltip="The resolution of the output video. 1080p is only available for grok-imagine-video-1.5.",
+                    tooltip="The resolution of the output video. 1080p is not available for grok-imagine-video.",
                 ),
                 IO.Combo.Input(
                     "aspect_ratio",
                     options=["auto", "16:9", "4:3", "3:2", "1:1", "2:3", "3:4", "9:16"],
-                    tooltip="The aspect ratio of the output video.",
+                    tooltip="The aspect ratio of the output video. "
+                    "Ignored when an input image is provided; the video follows the image's aspect ratio.",
                 ),
                 IO.Int.Input(
                     "duration",
@@ -695,10 +684,13 @@ class GrokVideoNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["model", "duration", "resolution"], inputs=["image"]),
                 expr="""
                 (
+                  $isLite := widgets.model = "grok-imagine-video-1.5-lite";
                   $is15 := $contains(widgets.model, "1.5");
-                  $rate := $is15
-                    ? (widgets.resolution = "1080p" ? 0.25 : (widgets.resolution = "720p" ? 0.14 : 0.08))
-                    : (widgets.resolution = "720p" ? 0.07 : 0.05);
+                  $rate := $isLite
+                    ? (widgets.resolution = "1080p" ? 0.14 : (widgets.resolution = "720p" ? 0.03 : 0.02))
+                    : ($is15
+                        ? (widgets.resolution = "1080p" ? 0.25 : (widgets.resolution = "720p" ? 0.14 : 0.08))
+                        : (widgets.resolution = "720p" ? 0.07 : 0.05));
                   $imgCost := $is15 ? 0.01 : 0.002;
                   $base := $rate * widgets.duration;
                   $total := inputs.image.connected ? $base + $imgCost : $base;
@@ -719,14 +711,14 @@ class GrokVideoNode(IO.ComfyNode):
         seed: int,
         image: Input.Image | None = None,
     ) -> IO.NodeOutput:
-        if resolution == "1080p" and model != "grok-imagine-video-1.5":
-            raise ValueError(f"1080p resolution is only available for grok-imagine-video-1.5, not '{model}'.")
+        if resolution == "1080p" and model == "grok-imagine-video":
+            raise ValueError("1080p resolution is not available for grok-imagine-video.")
         image_url = None
         if image is not None:
             if get_number_of_images(image) != 1:
                 raise ValueError("Only one input image is supported.")
             image_url = InputUrlObject(url=f"data:image/png;base64,{tensor_to_base64_string(image)}")
-        if image is None or model != "grok-imagine-video-1.5":
+        if image is None or model == "grok-imagine-video":
             validate_string(prompt, strip_whitespace=True, min_length=1)
         initial_response = await sync_op(
             cls,
@@ -747,7 +739,6 @@ class GrokVideoNode(IO.ComfyNode):
             ApiEndpoint(path=f"/proxy/xai/v1/videos/{initial_response.request_id}"),
             status_extractor=lambda r: r.status if r.status is not None else "complete",
             response_model=VideoStatusResponse,
-            price_extractor=_extract_grok_video_price if model == "grok-imagine-video-1.5" else _extract_grok_price,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.video.url))
 
@@ -825,7 +816,6 @@ class GrokVideoEditNode(IO.ComfyNode):
             ApiEndpoint(path=f"/proxy/xai/v1/videos/{initial_response.request_id}"),
             status_extractor=lambda r: r.status if r.status is not None else "complete",
             response_model=VideoStatusResponse,
-            price_extractor=_extract_grok_price,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.video.url))
 
@@ -1022,7 +1012,6 @@ class GrokVideoReferenceNode(IO.ComfyNode):
             ApiEndpoint(path=f"/proxy/xai/v1/videos/{initial_response.request_id}"),
             status_extractor=lambda r: r.status if r.status is not None else "complete",
             response_model=VideoStatusResponse,
-            price_extractor=_extract_grok_video_price,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.video.url))
 
@@ -1127,7 +1116,6 @@ class GrokVideoExtendNode(IO.ComfyNode):
             ApiEndpoint(path=f"/proxy/xai/v1/videos/{initial_response.request_id}"),
             status_extractor=lambda r: r.status if r.status is not None else "complete",
             response_model=VideoStatusResponse,
-            price_extractor=_extract_grok_video_price,
         )
         return IO.NodeOutput(await download_url_to_video_output(response.video.url))
 

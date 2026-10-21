@@ -39,6 +39,11 @@ class TestFeatureFlags:
         assert "max_upload_size" in features
         assert isinstance(features["max_upload_size"], (int, float))
 
+    def test_get_server_features_reports_the_assets_flag_without_an_argument(self, monkeypatch):
+        """A no-argument call must report the current assets flag, not a default."""
+        monkeypatch.setitem(SERVER_FEATURE_FLAGS, "assets", True)
+        assert get_server_features()["assets"] is True
+
     def test_get_connection_feature_with_missing_sid(self):
         """Test getting feature for non-existent session ID."""
         sockets_metadata = {}
@@ -154,6 +159,11 @@ class TestParseCliFeatureFlags:
         monkeypatch.setattr("comfy_api.feature_flags.args", type("Args", (), {"feature_flag": ["show_signin_button=true"]})())
         result = _parse_cli_feature_flags()
         assert result == {"show_signin_button": True}
+
+    @pytest.mark.parametrize("key", ["partner_node_token", "local_web_sso"])
+    def test_frontend_strict_bool_flags_parse_to_bool(self, monkeypatch, key):
+        monkeypatch.setattr("comfy_api.feature_flags.args", type("Args", (), {"feature_flag": [f"{key}=true"]})())
+        assert _parse_cli_feature_flags()[key] is True
 
     def test_missing_equals_defaults_to_true(self, monkeypatch):
         """Bare flag without '=' is treated as the string 'true' (and coerced if registered)."""
