@@ -38,7 +38,7 @@ docker build -f Dockerfile.h3-local -t comfyui-sos-comfyui:h3-local temp/h3-buil
 
 管理器配置保持 `security_level=normal`、安全扫描及 SSL 校验，下载渠道改为 `https://raw.githubusercontent.com/Comfy-Org/ComfyUI-Manager/main`。将官方支持的 `use_unified_resolver` 设为 `False`，避免每次重启都无条件重算并安装全部旧扩展依赖；界面内明确发起的安装仍可使用正常逐扩展流程。原 `custom_nodes/ComfyUI-Manager` 目录不删除，内置模式会阻止重复加载。
 
-启动配置使用 `--enable-manager` 启用新版管理器界面，不再附加 `--enable-manager-legacy-ui`。管理器仍为上述固定 Python 包版本，不重复安装或更新依赖，H3 卸载参数不变。
+启动配置使用 `--enable-manager` 启用新版管理器界面，不再附加 `--enable-manager-legacy-ui`。管理器仍为上述固定 Python 包版本，不重复安装或更新依赖；后续主存调优见末节。
 
 T8 与 Sage 原作未达一万星，但目标工作流需要其专用接口，没有已核验的一万星等价替代；采用固定原作，不伪造同名节点或替换成不等价 LoRA。
 
@@ -125,11 +125,13 @@ docker compose -f docker-compose.yml up -d --no-deps --no-build comfyui
 
 ```text
 --disable-cuda-malloc --reserve-vram 1.5
---fast-disk --async-offload 1 --disable-pinned-memory
---cache-none --disable-cuda-graphs
+--async-offload 1 --cache-ram 12 12
+--disable-cuda-graphs
 ```
 
-动态 VRAM 在当前 NVIDIA/PyTorch 环境默认启用，日志已确认。`--fast-disk` 使用权重原文件的 mmap/偏移流式读取，不是新增整模型交换文件。当前 fast-disk 路径默认允许约 28GB 锁页，禁用持久锁页用于减少大规模持久锁页挤占 32GB 主机其他服务内存的风险，代价是传输速度，并不保证零锁页或杜绝主存不足。`--cache-none` 关闭节点结果/对象的持久复用缓存，但单次执行依赖、已加载模型和内核内部缓存仍可能占内存。当前镜像中 `--lowvram` 在动态模式不起作用，`--novram` 会关闭动态模式，因此不与上述参数堆叠；不全局强制 FP16，不修改核心或模型数学。
+动态 VRAM 在当前 NVIDIA/PyTorch 环境默认启用，日志已确认。当前不启用 `--fast-disk` 或 `--disable-pinned-memory`，允许原生主存权重驻留与锁页传输。`--cache-ram 12 12` 的两个值是 GiB 可用内存压力阈值，不是缓存容量上限：当前新增锁页路径通常检查约 6GiB 余量，节点间尝试恢复约 12GiB。它们不是硬预留，仍可能换页或主存不足；本机实测边界见末节，不使用无预算的 `--high-ram`。
+
+下述首次试跑及保守回退模式使用 `--fast-disk --async-offload 1 --disable-pinned-memory --cache-none --disable-cuda-graphs`。fast-disk 从原权重 mmap/偏移流式读取，不新增整模型交换文件；cache-none 禁用节点结果/对象的持久复用缓存，不代表所有内存都能立即释放。当前镜像中 `--lowvram` 在动态模式不起作用，`--novram` 会关闭动态模式，因此不堆叠这些参数；不全局强制 FP16，不修改核心或采样算法。
 
 未增加 Easy Use 清理节点：其 `cleanGpuUsed` 清自有缓存并调用 `unload_all_models()`，不能减少 H3 活跃采样张量峰值。保留原 KJ Memory Efficient Sage Attention 和 LoRA 链，不叠加另一个可能被已有 attention owner 覆盖的注意力补丁；实际原尺寸 FFN 溢出后，只增加原作 T8 的 FFN 分块。
 
@@ -153,3 +155,19 @@ docker compose -f docker-compose.yml up -d --no-deps --no-build comfyui
 首个 1 步诊断任务虽生成视频，但旧 RMBG 控件导致拼图输出被服务拒绝；另一次陈旧前端导出也只执行 1 步。它们的失败/部分结果保留在本地记录，不冒充完整成功。小样与原尺寸基线使用真实原生 LiteGraph/graphToPrompt 导出；FFN 副本仅在该原生基线中加入原作两节点及对应连线，并在提交前断言步数和去背参数，未使用不完整的自制旁路转换器。
 
 原图选择 FL2VA 权重配 ReferenceToVideo，代码允许执行，但不是[官方训练任务中 R2V 对应 Ref2VA 的配对](https://docs.comfy.org/tutorials/video/minimax/minimax-h3-native)。本次不擅自下载或替换另一套模型；运行通过不能推论参考跟随、动作或像素风格质量通过。全部试跑输入、原生导出、任务与资源证据保存在 `/opt/maoning/Reference/h3-local-trial-20261021/`，不提交人物素材、模型或临时浏览器数据。
+
+## 主存换速度对照（2026-10-21）
+
+固定上述原尺寸成功图、素材、seed20261021、模型精度、LoRA、8 步及 FFN2，仅比较原磁盘模式与当前主存策略。每次重启服务后完整执行，无节点缓存命中；未清系统页缓存或 swap，因此不是严格冷盘基准，也不是保留热模型的比较。
+
+| 配置 | 完整耗时 | 后续步间中位数 | 任务 ID |
+| --- | --- | --- | --- |
+| 原磁盘模式 | 466.496 秒 | 48.810 秒 | `00456db5-483e-40b2-83db-5361e7928ccc` |
+| 当前主存模式，首次 | 453.783 秒 | 45.151 秒 | `11a9f72c-54fc-423e-8cb3-44fc44608117` |
+| 当前主存模式，复跑 | 454.794 秒 | 45.043 秒 | `c3f83cf9-31cc-465c-8b45-bd2a8bd8fbf6` |
+
+完整耗时缩短约 2.5–2.7%，步间约 7.5–7.7%；不是成倍提速。约 6 秒同口径离散样本中，服务 RSS 从原模式最高 8039MiB 增至 22230–23212MiB。候选 2 秒保护样本最低可用内存 4800MiB，本次额外 swap 约 3.8–4.0GiB；两轮均无 OOM 或保护中断，不保证其他分辨率、参考数量及并发负载同样安全。测试看门狗不是常驻服务，不把原生压力阈值说成硬内存限制。
+
+两轮均完成带声 864×480/158 帧视频、去背与 RGBA 10368×2400 拼图，完整解码和 FFN 回执通过。PNG 解码像素摘要在基线及两次候选之间均不同，原因尚未确定；未更换模型、精度、种子或采样设置，但不宣称逐位相同或完全无损。复跑后半段容器 GPU 遥测有缺口，不作为完整显存峰值；空队列时仅同配置重建本服务，最终 NVML、新 CUDA 小计算、3874 个节点及新版管理器 4.2.2 复验通过。
+
+无预算主存驻留（允许 pin 且 cache-none）曾因主存余量降至约 2.5GiB、持续换出而被测试保护停止，未保留。原磁盘启动配置备份及本轮脚本、完整输出校验和资源记录在 `/opt/maoning/Reference/h3-ram-speed-20261021/`。回退时只在空队列下将 Compose 命令恢复为上述保守参数，保留 `--enable-manager`，再重建单个 comfyui；不覆盖后续用户修改，不删除模型或重建镜像。
