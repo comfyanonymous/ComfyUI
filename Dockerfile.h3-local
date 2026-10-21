@@ -17,3 +17,8 @@ RUN echo '1e38bac1853412871318e82a1ba69a8be677619b56025bbfcccdb41b6cafe82d  /opt
 COPY h3_local_requirements.txt /opt/h3-wheels/
 RUN python -m pip install --no-cache-dir --no-deps --only-binary=:all: --require-hashes --index-url https://pypi.org/simple -r /opt/h3-wheels/h3_local_requirements.txt \
     && python -c "import importlib.metadata as m; assert m.version('torch') == '2.11.0+cu128'"
+
+# 恢复原作旧分支节点，不执行会下载权重的 Impact 安装脚本。
+COPY h3_legacy_requirements.txt /opt/h3-wheels/
+RUN python -m pip install --no-cache-dir --no-deps --only-binary=:all: --require-hashes --index-url https://pypi.org/simple -r /opt/h3-wheels/h3_legacy_requirements.txt \
+    && python -c "import piexif, dill; import importlib.metadata as m; assert m.version('torch') == '2.11.0+cu128'; assert m.version('piexif') == '1.1.3'; assert m.version('dill') == '0.4.1'"

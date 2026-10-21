@@ -15,6 +15,7 @@ docker compose up -d --no-deps --no-build comfyui
 
 ```bash
 cp h3_local_requirements.txt temp/h3-build/wheels/h3_local_requirements.txt
+cp h3_legacy_requirements.txt temp/h3-build/wheels/h3_legacy_requirements.txt
 docker build -f Dockerfile.h3-local -t comfyui-sos-comfyui:h3-local temp/h3-build/wheels
 ```
 
@@ -31,6 +32,9 @@ docker build -f Dockerfile.h3-local -t comfyui-sos-comfyui:h3-local temp/h3-buil
 | SageAttention | 官方 `thu-ml/SageAttention@d1a57a546c3d395b1ffcbeecc66d81db76f3b4b5`，版本 `2.2.0` |
 | Sage wheel SHA256 | `93ecec1aeee32f4f58f7d9b908f8b442b8dea678f9f5ab935ae3bc288d0658bb` |
 | Fill 音频导入依赖 | `soundfile==0.14.0`，以固定 wheel 和 `--no-deps` 补齐 |
+| Derfuu 旧转换节点 | `Derfuu/Derfuu_ComfyUI_ModdedNodes@d0905bed31249f2bd0814c67585cf4fe3c77c015`，v1.0.1 |
+| Impact Pack 旧开关节点 | `ltdrdata/ComfyUI-Impact-Pack@429d0159ad429e64d2b3916e6e7be9c22d025c3c`，v8.28.3 |
+| Impact 最小新增依赖 | `piexif==1.1.3`、`dill==0.4.1`，固定 wheel 摘要，不解析传递依赖 |
 
 管理器配置保持 `security_level=normal`、安全扫描及 SSL 校验，下载渠道改为 `https://raw.githubusercontent.com/Comfy-Org/ComfyUI-Manager/main`。将官方支持的 `use_unified_resolver` 设为 `False`，避免每次重启都无条件重算并安装全部旧扩展依赖；界面内明确发起的安装仍可使用正常逐扩展流程。原 `custom_nodes/ComfyUI-Manager` 目录不删除，内置模式会阻止重复加载。
 
@@ -70,11 +74,32 @@ Debian 13 的 glibc 2.41 与 CUDA 12.8 头文件有声明冲突，复用 [Sunshi
 
 本机下载、构建、验收脚本及完整结果保存在 `/opt/maoning/Reference/h3-local-setup-20261021/`；它们不进入 ComfyUI 核心或 Git 中的模型目录。
 
-最终生产镜像为 `50460a79a4f1f7552432ba26b4f4675c65c89fba33c31bd9a6743f84e6522e73`。重启后扩展导入失败数为 0，T8 实际注册 373 个节点；H3 模型、编码器、VAE、LoRA 和 toonout 均出现在相应选项中，所有活跃后端节点齐全。管理器版本接口与临时 Chrome 页面检查通过，48 项 GPU 验收在最终镜像再次通过。
+H3 主路径依赖验收镜像为 `50460a79a4f1f7552432ba26b4f4675c65c89fba33c31bd9a6743f84e6522e73`，补齐旧分支前另保留为 `comfyui-sos-comfyui:before-legacy-20261021`。该阶段重启后扩展导入失败数为 0，T8 实际注册 373 个节点；H3 模型、编码器、VAE、LoRA 和 toonout 均出现在相应选项中，所有活跃后端节点齐全。管理器版本接口与临时 Chrome 页面检查通过，48 项 GPU 验收在该镜像再次通过。
 
 与原基础镜像比对，原有 241 个 Python 包无版本变更或移除；新增 21 项固定依赖。另外既有扩展自身启动时补入 8 项小依赖（Socket.IO 相关 5 项及 jsonpointer、jsonpatch、lark），没有变更已有包。关闭的是管理器的无条件批量重算，不是修改这些扩展的自有启动行为。
 
-原工作流保持不变，SHA256 为 `ea78e0e23d665a31f34e4c762a84524248b20b846df9dfeb3b138621335baa41`。其 11 个 `DF_Int_to_Float` 和一个 `ImpactSwitch` 全处于旁路且没有连向输出，不是 H3 主路径依赖；前者原扩展已归档，不默认补装旧包。8 个空参考槽、节点 231/268 引用的本机不存在图片，仍需在真正试跑前整理；依赖齐全不表示原图可以不改素材直接排队。
+原工作流保持不变，SHA256 为 `ea78e0e23d665a31f34e4c762a84524248b20b846df9dfeb3b138621335baa41`。其 11 个 `DF_Int_to_Float` 和一个 `ImpactSwitch` 全处于旁路且没有连向输出，不是 H3 主路径依赖；随后用户明确要求保留旧分支并尽量补齐全部缺失节点，因此按下节安装原作，未修改画布或伪造同名节点。8 个空参考槽、节点 231/268 引用的本机不存在图片，仍需在真正试跑前整理；依赖齐全不表示原图可以不改素材直接排队。
+
+## 补齐旧分支
+
+两个原作均低于一万星，Derfuu 在 2024-11 归档；作为用户明确选择的旧图兼容例外，不将其当作活跃的新项目选型。两者源码直接从原作者 GitHub 克隆并固定上表提交，不修改原作实现。
+
+下列命令仅适用于两个目标目录尚不存在的安装环境；已有目录应先检查本地改动，不覆盖：
+
+```bash
+git clone --filter=blob:none https://github.com/Derfuu/Derfuu_ComfyUI_ModdedNodes.git custom_nodes/Derfuu_ComfyUI_ModdedNodes
+git -C custom_nodes/Derfuu_ComfyUI_ModdedNodes switch --detach d0905bed31249f2bd0814c67585cf4fe3c77c015
+git clone --filter=blob:none https://github.com/ltdrdata/ComfyUI-Impact-Pack.git custom_nodes/ComfyUI-Impact-Pack
+git -C custom_nodes/ComfyUI-Impact-Pack switch --detach 429d0159ad429e64d2b3916e6e7be9c22d025c3c
+```
+
+Derfuu 使用现有 NumPy 和 ComfyUI，自身没有安装脚本或新依赖。Impact 完整包硬导入所需的 segment-anything、scikit-image、SciPy、OpenCV、Transformers 等已存在，镜像仅通过 `h3_legacy_requirements.txt` 补充 piexif 和 dill；不再装一份会覆盖现有 OpenCV 的 headless 发行包，不安装整份无上限 requirements。
+
+本次不运行 Impact 的 `install.py`，避免其自动下载 SAM ViT-B、生成配置及清理旧目录；正常原作导入无需此脚本。SAM2 在源码中明确为可选依赖，这次未安装，也未下载其权重。开关节点验收通过不等于 SAM2 分割功能已验收。
+
+独立真实 CPU ComfyUI 注册 Derfuu 全部 31 个、Impact 全部 197 个节点。通过 `/prompt` 实际执行 17 项无模型图：15 个整数值转 FLOAT（含旧图 5–15）及两路 lazy 开关，返回数值、分支标签和索引均符合预期。过程未执行 H3、未生成视频、未写用户输入或模型。检查脚本、安装前基线和结果位于 `/opt/maoning/Reference/h3-legacy-setup-20261021/`。
+
+2026-10-21 正式服务复验：当前镜像 `a9796897817f2ef121062bc9dba942e18135a163fe17a1833ee842f7b67297cf`，共注册 3874 个节点，原 3646 个无移除。目标工作流 104 个节点涉及的 49 种后端类型全部可用，包含旁路分支，缺失数为 0；前端虚拟节点不计入后端。原 270 个 Python 包版本全部未变，仅新增上述两个包。17 项实际执行再次全通过，工作流摘要不变，T8 373 个节点、六个模型文件和选项、管理器版本接口、两原作前端脚本均通过检查。重启日志没有扩展导入失败或这些测试的执行错误；不表示其他扩展可选功能或完整 H3 生成已通过测试。
 
 ## 恢复原服务
 
