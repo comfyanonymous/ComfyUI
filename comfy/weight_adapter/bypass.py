@@ -171,16 +171,27 @@ class BypassForwardHook:
                 or adapter_type.bypass_forward is WeightAdapterTrainBase.bypass_forward
             )
             if not is_default_bypass:
-                return adapter_bypass(self.original_forward, x, *args, **kwargs)
+                if self.offset is None:
+                    return adapter_bypass(self.original_forward, x, *args, **kwargs)
+                base_out = self.original_forward(x, *args, **kwargs)
+                self._slice(base_out).copy_(adapter_bypass(self._sliced_forward, x, *args, **kwargs))
+                return base_out
 
         # Default bypass: g(f(x) + h(x, f(x)))
         base_out = self.original_forward(x, *args, **kwargs)
         if self.offset is not None:
-            part = base_out.narrow(self.out_dim, self.offset[1], self.offset[2])
+            part = self._slice(base_out)
             part.copy_(self.adapter.g(part + self.adapter.h(x, part)))
             return base_out
         h_out = self.adapter.h(x, base_out)
         return self.adapter.g(base_out + h_out)
+
+    def _slice(self, out: torch.Tensor) -> torch.Tensor:
+        return out.narrow(self.out_dim, self.offset[1], self.offset[2])
+
+    def _sliced_forward(self, x: torch.Tensor, *args, **kwargs) -> torch.Tensor:
+        """The module forward restricted to the adapter's output features, for adapters that change the input (GLoRA)."""
+        return self._slice(self.original_forward(x, *args, **kwargs))
 
     def inject(self):
         """Replace module forward with bypass version."""

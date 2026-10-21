@@ -7,6 +7,7 @@ if not torch.cuda.is_available():
 
 import comfy.lora  # noqa: E402
 import comfy.sd  # noqa: E402
+import comfy.weight_adapter  # noqa: E402
 from comfy.model_patcher import ModelPatcher  # noqa: E402
 
 DIM, RANK, ALPHA = 16, 4, 2.0
@@ -64,3 +65,33 @@ def test_bypass_lora_applies_adapters_on_fused_weight_slices(monkeypatch):
             bypassed.eject_model()
         assert torch.equal(qkv(x), base_qkv)
         assert torch.equal(o(x), base_o)
+
+
+class _InputShiftAdapter(comfy.weight_adapter.WeightAdapterBase):
+    """An adapter with its own bypass_forward that changes the module input, like GLoRA: f(x + a) + b."""
+
+    def __init__(self, a, b):
+        self.weights = ()
+        self.a, self.b = a, b
+
+    def bypass_forward(self, org_forward, x, *args, **kwargs):
+        return org_forward(x + self.a, *args, **kwargs) + self.b
+
+
+def test_bypass_forward_override_only_changes_its_slice():
+    torch.manual_seed(0)
+    model = _Model()
+    qkv = model.diffusion_model.qkv
+    x = torch.randn(2, 5, DIM)
+    a, b = torch.randn(DIM), torch.randn(DIM)
+    expected = qkv(x)
+    expected[..., DIM:2 * DIM] = torch.nn.functional.linear(x + a, qkv.weight[DIM:2 * DIM], qkv.bias[DIM:2 * DIM]) + b
+
+    manager = comfy.weight_adapter.BypassInjectionManager()
+    manager.add_adapter("diffusion_model.qkv.weight", _InputShiftAdapter(a, b), offset=(0, DIM, DIM))
+    injection = manager.create_injections(model)[0]
+    injection.inject(None)
+    try:
+        torch.testing.assert_close(qkv(x), expected)
+    finally:
+        injection.eject(None)
