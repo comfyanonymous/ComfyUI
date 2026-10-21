@@ -56,9 +56,13 @@ def Normalize(in_channels, num_groups=32):
 
 
 def fused_norm_served(device, dtype):
-    # the kitchen NHWC GroupNorm path; MIOpen converts back to NCHW and loses the gain
-    return (getattr(comfy.quant_ops, "ck", None) is not None and torch.version.hip is None
-            and device.type == "cuda" and dtype in (torch.float16, torch.bfloat16))
+    # MIOpen runs a channels_last conv through NCHW and loses the gain; the kitchen fp16 conv on RDNA3+ does not
+    ck = getattr(comfy.quant_ops, "ck", None)
+    if ck is None or device.type != "cuda":
+        return False
+    if torch.version.hip:
+        return dtype == torch.float16 and ck.registry.get_constraints("hip", "fp16_conv3d") is not None
+    return dtype in (torch.float16, torch.bfloat16)
 
 
 
@@ -106,7 +110,8 @@ def padded_conv(padded, weight, bias):
 
 
 def conv_weight(weight, x):
-    if comfy.ops._fp16_linear_wanted(x):
+    # the ROCm kitchen conv accumulates in fp32, so it needs no fp16-accumulation opt-in
+    if comfy.ops._fp16_linear_wanted(x) or (torch.version.hip and x.dtype == torch.float16):
         return weight.unsqueeze(2).contiguous(memory_format=torch.channels_last_3d)
     return weight
 
