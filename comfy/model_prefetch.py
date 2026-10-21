@@ -62,6 +62,13 @@ class _MallocGraphScope:
 def malloc_graph_scope(device):
     return _MallocGraphScope(device)
 
+def _warm_capture_stream(stream):
+    # empty_cache can discard BLAS workspaces between generations.
+    with pause_malloc_graph(), torch.cuda.stream(stream):
+        torch.cuda.current_blas_handle()
+        one = torch.empty((2, 2), device=stream.device)
+        torch.addmm(one[0], one, one)
+
 def malloc_graph_begin(device):
     global MALLOC_GRAPH_USED
     if not malloc_graph_enabled(device):
@@ -69,6 +76,9 @@ def malloc_graph_begin(device):
     thread_id = threading.get_ident()
     graph = MALLOC_GRAPHS.get(thread_id)
     if graph is None:
+        stream = GRAPH_CAPTURE_STREAMS.get(device)
+        if stream is not None:
+            _warm_capture_stream(stream)
         graph = comfy_aimdo.malloc_graph.record(
             comfy.model_management.current_stream(device), args.assert_graph_breaks
         )
@@ -192,12 +202,7 @@ def prefetch_queue_pop(queue, device, module, dtype=None, core=None, enable_grap
         if capture_stream is None:
             capture_stream = torch.cuda.Stream(device=device)
             # Keep PyTorch's persistent BLAS workspaces outside the allocation graph.
-            malloc_graph.pause()
-            with torch.cuda.stream(capture_stream):
-                torch.cuda.current_blas_handle()
-                one = torch.empty((2, 2), device=device)
-                torch.addmm(one[0], one, one)
-            malloc_graph.resume()
+            _warm_capture_stream(capture_stream)
             GRAPH_CAPTURE_STREAMS[device] = capture_stream
 
     signature = None
