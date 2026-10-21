@@ -70,8 +70,8 @@ def load() -> bool:
         emit_event("agent_error", reason="unknown")
         _publish_flag()
         return False
-    _publish_flag()
-    return True
+    _publish_flag()  # reads status(), which disables a host that exits
+    return _failure is None
 
 
 def register(app) -> None:
@@ -82,7 +82,7 @@ def register(app) -> None:
     No-op when the package did not load; a failure here disables the agent, not
     ComfyUI's startup."""
     global _failure
-    if _host is None:
+    if _host is None or _failure is not None:
         return
     try:
         _host.register(app)
@@ -155,7 +155,7 @@ def _publish_flag():
 
 def feature_flag():
     """The `agent` feature flag: the host's state, and its reason when it has one."""
-    global _status_logged
+    global _failure, _status_logged
     if _failure is not None or _host is None:
         return _failure
     try:
@@ -164,7 +164,12 @@ def feature_flag():
         if status.get("reason"):
             flag["reason"] = status["reason"]
         return flag
-    except (Exception, SystemExit):  # read from load() during startup; a broken wheel must not end it
+    except SystemExit:  # a wheel that exits is broken, not briefly unhealthy, so disable it
+        logging.exception("The local agent's status could not be read; it is disabled.")
+        _failure = {"state": "failed", "reason": "unknown"}
+        emit_event("agent_error", reason="unknown")
+        return _failure
+    except Exception:
         if not _status_logged:
             _status_logged = True
             logging.exception("The local agent's status could not be read.")

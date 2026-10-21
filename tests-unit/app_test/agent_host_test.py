@@ -177,8 +177,11 @@ def test_a_status_that_exits_during_load_fails_the_agent_not_comfyui(monkeypatch
         status = _exit
 
     _entry_points(monkeypatch, {"v1": ExitingHost})
-    assert agent_host.load() is True
+    assert agent_host.load() is False
     assert feature_flags.get_server_features()["agent"] == {"state": "failed", "reason": "unknown"}
+    agent_host.register(object())
+    agent_host.start(SimpleNamespace(loop=None, send_sync=lambda *a: None), "http", "127.0.0.1", 8188)
+    assert agent_host._host.registered == [] and agent_host._host.started is None, "a host that exits is disabled"
 
 
 def test_a_factory_that_returns_no_host_fails_the_agent(monkeypatch):
