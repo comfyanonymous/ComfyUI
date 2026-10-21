@@ -24,6 +24,7 @@ import logging
 import math
 import time
 import uuid
+import weakref
 from typing import Callable, Optional
 
 import torch
@@ -1778,6 +1779,8 @@ class ModelPatcherDynamic(ModelPatcher):
 
     def __init__(self, model, load_device, offload_device, size=0, weight_inplace_update=False, fast_disk=False):
         super().__init__(model, load_device, offload_device, size, weight_inplace_update, fast_disk)
+        if not hasattr(self.model, "comfy_writable"):
+            self.model.comfy_writable = False
         if not hasattr(self.model, "dynamic_vbars"):
             self.model.dynamic_vbars = {}
         if not hasattr(self.model, "dynamic_pins"):
@@ -1807,6 +1810,7 @@ class ModelPatcherDynamic(ModelPatcher):
                 "weights-fast": (comfy_aimdo.host_buffer.HostBuffer(0, 0, 0), [], [-1], [0], [0], {}),
                 "patches-fast": (comfy_aimdo.host_buffer.HostBuffer(0, 0, 0), [], [-1], [0], [0], {}),
                 "fast_disk": self.fast_disk,
+                "writable": self.model.comfy_writable,
                 "hostbufs_initialized": False,
                 "failed": False,
                 "active": False,
@@ -1827,7 +1831,27 @@ class ModelPatcherDynamic(ModelPatcher):
             # x10. We dont know what model defined type casts we have in the vbar, but virtual address
             # space is pretty free. This will cover someone casting an entire model from FP4 to FP32
             # with some left over.
-            vbar = comfy_aimdo.model_vbar.ModelVBAR(self.model_size() * 10, self.load_device.index)
+            size = self.model_size() * 10
+            pageout = None
+            if self.model.comfy_writable:
+                size = sum(comfy.memory_management.vram_aligned_size(p) for p in self.model.parameters())
+                model_ref = weakref.ref(self.model)
+
+                def pageout(offset, size):
+                    model = model_ref()
+                    if model is None:
+                        return
+
+                    for m in model.modules():
+                        if not hasattr(m, "_v") or m._v_signature is None:
+                            continue
+                        vbar, address, length = m._v
+                        start = address - vbar.base_addr
+                        if start < offset + size and start + length > offset:
+                            m.writeback(m._v_weight)
+                            m._v_signature = None
+
+            vbar = comfy_aimdo.model_vbar.ModelVBAR(size, self.load_device.index, pageout_callback=pageout)
             self.model.dynamic_vbars[self.load_device] = vbar
         return vbar
 
@@ -1991,7 +2015,7 @@ class ModelPatcherDynamic(ModelPatcher):
 
                     #Models that mix tiny and giant weights can causing lopsided stream buffer
                     #rotations and stall. force the tinys over.
-                    if module_mem > 16 * 1024:
+                    if module_mem > 16 * 1024 or self.model.comfy_writable:
                         force_load, v_weight_size = setup_param(self, m, n, "weight")
                         force_load_bias, v_weight_bias = setup_param(self, m, n, "bias")
                         force_load = force_load or force_load_bias
@@ -2129,8 +2153,10 @@ class ModelPatcherDynamic(ModelPatcher):
         for subset in subsets:
             hostbuf, stack, stack_split, pinned_size, *_ = pin_state[subset]
             while len(stack) > 0:
-                module, offset = stack.pop()
+                module, offset = stack[-1]
                 module_pin = module._pins[subset]
+                comfy.pinned_memory.flush_pin(module, module_pin)
+                stack.pop()
                 pin = module_pin["pin"]
                 size = pin.numel() * pin.element_size()
                 module_pin["balancer_entry"][-1] = None
@@ -2160,8 +2186,8 @@ class ModelPatcherDynamic(ModelPatcher):
         super().unpatch_model(device_to=None, unpatch_weights=False)
 
         if unpatch_weights:
-            self.partially_unload_ram(1e32)
             self.partially_unload(None, 1e32)
+            self.partially_unload_ram(1e32)
             for m in self.model.modules():
                 move_weight_functions(m, device_to)
 
