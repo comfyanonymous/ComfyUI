@@ -1,6 +1,6 @@
 services:
   comfyui:
-    image: comfyui-sos-comfyui:h3-local
+    image: comfyui-sos-comfyui:h3-quality
     build:
       context: ./temp/h3-build/wheels
       dockerfile: ../../../Dockerfile.h3-local

@@ -22,3 +22,14 @@ RUN python -m pip install --no-cache-dir --no-deps --only-binary=:all: --require
 COPY h3_legacy_requirements.txt /opt/h3-wheels/
 RUN python -m pip install --no-cache-dir --no-deps --only-binary=:all: --require-hashes --index-url https://pypi.org/simple -r /opt/h3-wheels/h3_legacy_requirements.txt \
     && python -c "import piexif, dill; import importlib.metadata as m; assert m.version('torch') == '2.11.0+cu128'; assert m.version('piexif') == '1.1.3'; assert m.version('dill') == '0.4.1'"
+
+# 只回移植官方旁路 LoRA 修复，保留0.33接口和既有量化内核。
+COPY h3_fused_bypass.patch /opt/h3-wheels/
+RUN echo '28a44d8c49d37534c5fb3af0855ad689c4261f5a90295034d397d84a0835f90d  /app/comfy/ops.py' | sha256sum --check - \
+    && echo '618c286c5f74e823318f41774e02cfcfa02d74ee9d51320ec0aa2694cd74aa8e  /app/comfy/weight_adapter/bypass.py' | sha256sum --check - \
+    && git -C /app apply --check /opt/h3-wheels/h3_fused_bypass.patch \
+    && git -C /app apply /opt/h3-wheels/h3_fused_bypass.patch \
+    && python -m py_compile /app/comfy/ops.py /app/comfy/weight_adapter/bypass.py \
+    && python -c "import importlib.metadata as m; assert m.version('torch') == '2.11.0+cu128'"
+
+LABEL com.suzumiya.h3.bypass.upstream="d91ed5f5b7fa60fa18464c2ad7c80254da2f0f29"

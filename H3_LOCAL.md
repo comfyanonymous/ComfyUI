@@ -4,7 +4,7 @@
 
 ## 启动与持久化
 
-`docker-compose.override.yml` 自动叠加到原配置，使用 `comfyui-sos-comfyui:h3-local`。五个数据挂载、GPU 设置、`--disable-cuda-malloc` 和 1.5GB 显存预留保持不变，管理器入口仍启用。本轮为 H3 小显存实跑增加下面的原生参数。
+`docker-compose.override.yml` 自动叠加到原配置，使用 `comfyui-sos-comfyui:h3-quality`。五个数据挂载、GPU 设置、`--disable-cuda-malloc` 和 1.5GB 显存预留保持不变，管理器入口仍启用。当前完整 LoRA 修复及验证边界见末节。
 
 ```bash
 docker compose config --quiet
@@ -16,7 +16,8 @@ docker compose up -d --no-deps --no-build comfyui
 ```bash
 cp h3_local_requirements.txt temp/h3-build/wheels/h3_local_requirements.txt
 cp h3_legacy_requirements.txt temp/h3-build/wheels/h3_legacy_requirements.txt
-docker build -f Dockerfile.h3-local -t comfyui-sos-comfyui:h3-local temp/h3-build/wheels
+cp h3_fused_bypass.patch temp/h3-build/wheels/h3_fused_bypass.patch
+docker build -f Dockerfile.h3-local -t comfyui-sos-comfyui:h3-quality temp/h3-build/wheels
 ```
 
 `Dockerfile.h3-local` 校验 wheel 摘要并使用 `--no-deps` 安装，禁止顺带升级或降级 PyTorch。Fill 还会整体导入其音频、SDK、PDF 等节点，因此将独立环境实际验证所需的 19 项缺包以版本和 wheel 摘要固定在 `h3_local_requirements.txt`，安装启用 `--require-hashes`，不全量安装扩展的浮动 requirements。它基于本机已有、验收过的 `vision-fixed` 镜像，不是适用于任意设备的通用安装包。
@@ -26,7 +27,7 @@ docker build -f Dockerfile.h3-local -t comfyui-sos-comfyui:h3-local temp/h3-buil
 | 组件 | 本次版本或提交 |
 | --- | --- |
 | PyTorch / CUDA | `2.11.0+cu128`，未修改 |
-| ComfyUI | `0.33.0`，未修改核心 |
+| ComfyUI | `0.33.0`，仅回移植官方融合/旁路 LoRA 修复，见末节 |
 | 管理器 | 内置 `comfyui_manager==4.2.2`，不另装第二份 |
 | T8 采样扩展 | 原作者 v1.87.0：`T8mars/comfyui-minimax-h3-audio-T8@4af2a0256eb5dccc0dabc6256de6b9527bfd8531` |
 | SageAttention | 官方 `thu-ml/SageAttention@d1a57a546c3d395b1ffcbeecc66d81db76f3b4b5`，版本 `2.2.0` |
@@ -171,3 +172,25 @@ docker compose -f docker-compose.yml up -d --no-deps --no-build comfyui
 两轮均完成带声 864×480/158 帧视频、去背与 RGBA 10368×2400 拼图，完整解码和 FFN 回执通过。PNG 解码像素摘要在基线及两次候选之间均不同，原因尚未确定；未更换模型、精度、种子或采样设置，但不宣称逐位相同或完全无损。复跑后半段容器 GPU 遥测有缺口，不作为完整显存峰值；空队列时仅同配置重建本服务，最终 NVML、新 CUDA 小计算、3874 个节点及新版管理器 4.2.2 复验通过。
 
 无预算主存驻留（允许 pin 且 cache-none）曾因主存余量降至约 2.5GiB、持续换出而被测试保护停止，未保留。原磁盘启动配置备份及本轮脚本、完整输出校验和资源记录在 `/opt/maoning/Reference/h3-ram-speed-20261021/`。回退时只在空队列下将 Compose 命令恢复为上述保守参数，保留 `--enable-manager`，再重建单个 comfyui；不覆盖后续用户修改，不删除模型或重建镜像。
+
+## 完整 LoRA 与全量注意力（2026-10-21）
+
+保留用户确认的当前 INT8 主模型、NVFP4 编码器、Turbo LoRA 和输入，不下载或换成另一套模型。用户当前原图已调整为 20 步，不以此前 8 步基准覆盖；当前参考是 `设定图高清.png`，不是旧试跑的 Hero 图和视频。
+
+实际 0.33 的 `linear_input_act` 在 INT8+convrot 融合路径直接调用内核，可能绕过 `LoraLoaderBypassModelOnly` 注入的 fc2 forward，导致部分 LoRA 漏算；原生 MLP、KJ/T8 FFN 都走同一助手，不是两分块独有。`h3_fused_bypass.patch` 仅回移植[官方修复 d91ed5f / PR#16862](https://github.com/Comfy-Org/ComfyUI/pull/16862)：活动旁路的模块走完整 forward，普通模块仍保留融合路径，卸载 hook 时恢复原 flag。构建前校验旧文件 SHA，拒绝对未知版本静默套补丁；不复制宿主较新核心、不升级 PyTorch 或量化库。
+
+候选镜像 `fc078d277f08cea43aa37a0fb48aef416c420d489c458efa0fda10e15d677be2`。离线构建复用原依赖；启动后 272 个包的版本、3874 个节点名称和 T8 的 373 个节点均与原服务相同。保留原 `h3-local` 镜像 `a9796897817f2ef121062bc9dba942e18135a163fe17a1833ee842f7b67297cf` 及原启动配置，可在空队列时仅恢复镜像标签并重建单个服务。
+
+两镜像使用实际量化 MLP/LoRA 和 CUDA 各跑 64 项小张量对照，覆盖 FP16/BF16、有/无 bias、强度 0/0.8/1、INT8+convrot、1/2 分块，以及 CPU 权重卸载。旧镜像重现 fc2 漏算；候选与同块完整 forward 参考严格一致，最大误差 0，hook 生命周期检查通过。测试 allocated/reserved 峰值分别为 16.33/32MiB，不含驱动上下文，不是整图峰值。12 项路由测试与 6 项启动守卫也通过。当前 cu128 下 Comfy Kitchen 的优化 CUDA 后端仍禁用，不能把该测试说成 cu130 优化核验收。
+
+工作流候选将 366 号 KJ Sage 节点换成原作 `MiniMaxH3LowVRAMAttentionT8Advanced(head_chunks=4)`，保留 FFN2/阈值4096。按头分组仍覆盖全部文本、图像参考、音频及视频 token，不使用稀疏注意力、抽帧、降分辨率或额外量化；不同内核及分组形状仍可能改变浮点舍入，不承诺逐像素相同。现 T8 版本仍有临时引用寿命较长的限制，不能把其“提前释放”描述为理想显存收益。
+
+实际原生前端导出已逐节点比较：只变更注意力节点并新增回执，其他有效参数一致，保留 864×480、158帧、24fps、20步和当前 seed。旧 ImpactSwitch 保存后的端口顺序按名称迁移，保留选择值、旁路和全部旧分支，避免加载失败后误导出旧画布。正式原图现为103节点/131边，SHA256为`8fd5beb9d544099172f945bc1d1c69f1979251333aa8946f701d05b3cdfb1cd2`；写前核对原SHA无用户新编辑，写后静态验收和正式文件原生API再导出均通过，与实跑候选完全相同。
+
+当前完整任务`2b755229-943b-4dce-851f-3244ba41c61d`成功执行1165.137秒（约19分25秒），20/20步、无缓存命中、节点错误、OOM或保护中断。注意力回执确认50/50块、foreign0、head4；FFN回执为2/4096，没有外部MLP委派。带声MP4为864×480、158帧、24fps，完整音视频解码通过；透明拼图为RGBA10368×2400、alpha0..255，完整解码通过，首中尾视频帧已查看。这证明当前规格可执行与计算链完整，不等同于噪点消失、BF16原精度或像素画美术质量验收。
+
+580次保护采样中GPU最高7058MiB、服务RSS最高20825MiB、可用主存最低4601MiB，本次额外swap约3719MiB；不是CUDA严格峰值，也不保证更多参考、分辨率或并发负载可执行。成片位于`output/video/H3_Quality_20261021_head4_ffn2_00001_.mp4`，拼图位于`output/SpriteSheets/H3_Quality_20261021_head4_ffn2_00001_.png`。此前8步/旧素材的速度结果不能直接作为本次画质或性能A/B对照。
+
+另以同一原生SDPA核对原生注意力、T8单组与四组，覆盖部分RoPE、FP16/BF16、1/17/129/257个token及旁路LoRA。本权重经文件头确认56头，32例全部严格一致。额外42头余数覆盖32例中有1例超出预设逐点容差（2/8256个元素；相对L2为0.00317），仍保留失败、未放宽阈值；全部头/token/QKV切片及hook计数通过，不能宣称任意头数逐位一致。首次夹具误带训练标志导致的RoPE拒绝已单独保留，只修随机夹具，不改生产代码。补充夹具守卫18项通过。实际Turbo文件头的259组A/B均匹配当前UNET，无目标或形状缺失；这是metadata核对，不冒充实时hook计数。
+
+脚本、真实数值结果（包含未通过项）、原图逐字节备份、权限修复前记录和 Compose 回退副本保存在 `/opt/maoning/Reference/h3-quality-first-20261021/`。仅修复原 JSON 的组读写权限（600→660，其他用户仍无权限），不递归改权限、不修改模型。测试保护仅按任务 ID 中断自有任务，不中断用户队列。已打开的旧画布需重新打开该工作流文件；不自动覆盖用户浏览器中未保存的编辑。
