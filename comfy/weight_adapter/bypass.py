@@ -120,14 +120,18 @@ class BypassForwardHook:
         module: nn.Module,
         adapter: BypassAdapter,
         multiplier: float = 1.0,
+        offset: Optional[tuple] = None,
     ):
         self.module = module
         self.adapter = adapter
         self.multiplier = multiplier
+        # (0, start, size): the adapter only covers these output features of the module, e.g. q of a fused qkv weight
+        self.offset = offset
         self.original_forward = None
 
         # Determine layer type and conv params from module class (works for quantized layers)
         module_info = get_module_type_info(module)
+        self.out_dim = 1 if module_info["is_conv"] else -1
 
         # Set multiplier and layer type info on adapter for use in h()
         adapter.multiplier = multiplier
@@ -171,6 +175,10 @@ class BypassForwardHook:
 
         # Default bypass: g(f(x) + h(x, f(x)))
         base_out = self.original_forward(x, *args, **kwargs)
+        if self.offset is not None:
+            part = base_out.narrow(self.out_dim, self.offset[1], self.offset[2])
+            part.copy_(self.adapter.g(part + self.adapter.h(x, part)))
+            return base_out
         h_out = self.adapter.h(x, base_out)
         return self.adapter.g(base_out + h_out)
 
@@ -283,7 +291,7 @@ class BypassInjectionManager:
     """
 
     def __init__(self):
-        self.adapters: dict[str, tuple[BypassAdapter, float]] = {}
+        self.adapters: dict[str, list[tuple[BypassAdapter, float, Optional[tuple]]]] = {}
         self.hooks: list[BypassForwardHook] = []
 
     def add_adapter(
@@ -291,6 +299,7 @@ class BypassInjectionManager:
         key: str,
         adapter: BypassAdapter,
         strength: float = 1.0,
+        offset: Optional[tuple] = None,
     ):
         """
         Add an adapter for a specific weight key.
@@ -299,6 +308,7 @@ class BypassInjectionManager:
             key: Weight key (e.g., "model.layers.0.self_attn.q_proj.weight")
             adapter: The weight adapter (LoRAAdapter, LoKrAdapter, etc.)
             strength: Multiplier for adapter effect
+            offset: (0, start, size) when the adapter covers only those output rows of the weight
         """
         # Remove .weight suffix if present for module lookup
         module_key = key
@@ -308,7 +318,7 @@ class BypassInjectionManager:
                 f"[BypassManager] Stripped .weight suffix: {key} -> {module_key}"
             )
 
-        self.adapters[module_key] = (adapter, strength)
+        self.adapters.setdefault(module_key, []).append((adapter, strength, offset))
         logging.debug(
             f"[BypassManager] Added adapter: {module_key} (type={type(adapter).__name__}, strength={strength})"
         )
@@ -355,7 +365,7 @@ class BypassInjectionManager:
         )
         logging.debug(f"[BypassManager] Model type: {type(model).__name__}")
 
-        for key, (adapter, strength) in self.adapters.items():
+        for key, module_adapters in self.adapters.items():
             logging.debug(f"[BypassManager] Looking for module: {key}")
             module = self._get_module_by_key(model, key)
 
@@ -372,8 +382,9 @@ class BypassInjectionManager:
             logging.debug(
                 f"[BypassManager] Creating hook for {key} (module type={type(module).__name__}, weight shape={module.weight.shape})"
             )
-            hook = BypassForwardHook(module, adapter, multiplier=strength)
-            self.hooks.append(hook)
+            # several adapters on one module (e.g. q, k and v of a fused qkv) chain their hooks
+            for adapter, strength, offset in module_adapters:
+                self.hooks.append(BypassForwardHook(module, adapter, multiplier=strength, offset=offset))
 
         logging.debug(f"[BypassManager] Created {len(self.hooks)} hooks")
 
@@ -392,7 +403,7 @@ class BypassInjectionManager:
             logging.debug(
                 f"[BypassManager] eject_all called, ejecting {len(self.hooks)} hooks"
             )
-            for hook in self.hooks:
+            for hook in reversed(self.hooks):
                 hook.eject()
 
         return [PatcherInjection(inject=inject_all, eject=eject_all)]
@@ -439,6 +450,6 @@ def create_bypass_injections_from_patches(
                 continue
 
             combined_strength = strength * patch_strength
-            manager.add_adapter(key, adapter, strength=combined_strength)
+            manager.add_adapter(key, adapter, strength=combined_strength, offset=offset)
 
     return manager.create_injections(model)
