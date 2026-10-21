@@ -35,9 +35,9 @@ def test_mirror_matches_torch_reflect():
 def test_mirror_padding_larger_than_image():
     image = torch.arange(4.0).reshape(1, 1, 4, 1)
 
-    out = run(image, dims(left=7, right=6), MIRROR)
+    out = run(image, dims(left=7, right=16), MIRROR)
 
-    assert out[0, 0, :, 0].tolist() == [1, 0, 1, 2, 3, 2, 1, 0, 1, 2, 3, 2, 1, 0, 1, 2, 3]
+    assert out[0, 0, :, 0].tolist() == [1, 0, 1, 2, 3, 2, 1] + [0, 1, 2, 3, 2, 1] * 3 + [0, 1]
 
 
 def test_mirror_single_pixel_dimension():
@@ -103,8 +103,8 @@ def test_feathering_only_blends_padded_sides():
     region = out[0, :, 4:, 0]
 
     assert torch.all(out[0, :, :4] == 0.0)
-    assert torch.all(region[:, 0] == 0.0)
-    assert torch.all(region[:, 1:4] > 0.0) and torch.all(region[:, 1:4] < 1.0)
+    # weights (4/5)^2, (3/5)^2, (2/5)^2, (1/5)^2: the edge pixel is blended, not replaced
+    assert torch.allclose(region[:, :4], torch.tensor([0.36, 0.64, 0.84, 0.96]).expand(10, 4))
     assert torch.all(region[:, 4:] == 1.0)
 
 

@@ -678,6 +678,17 @@ def pad_mirror(image: torch.Tensor, left: int, top: int, right: int, bottom: int
     return image[:, rows[:, None], cols[None, :]]
 
 
+def feather_weight(size: int, before: int, after: int, feathering: int, device: torch.device) -> torch.Tensor:
+    # integer distances: fp16/bf16 can't represent large pixel indices exactly
+    i = torch.arange(size, device=device)
+    dist = torch.full_like(i, feathering)
+    if before > 0:
+        dist = torch.minimum(dist, i)
+    if after > 0:
+        dist = torch.minimum(dist, size - 1 - i)
+    return ((feathering - dist) / (feathering + 1)).square()
+
+
 def pad_color(image: torch.Tensor, left: int, top: int, right: int, bottom: int, color: str, feathering: int) -> torch.Tensor:
     batch, height, width, channels = image.shape
     rgb = [c / 255.0 for c in hex_to_rgb(color[:7])]
@@ -689,20 +700,9 @@ def pad_color(image: torch.Tensor, left: int, top: int, right: int, bottom: int,
     inner.copy_(image)
 
     if feathering > 0:
-        # integer distances: fp16/bf16 can't represent large pixel indices exactly
-        y = torch.arange(height, device=image.device)[:, None]
-        x = torch.arange(width, device=image.device)[None, :]
-        dist = torch.full((height, width), feathering, device=image.device)
-        if top > 0:
-            dist = torch.minimum(dist, y)
-        if bottom > 0:
-            dist = torch.minimum(dist, height - 1 - y)
-        if left > 0:
-            dist = torch.minimum(dist, x)
-        if right > 0:
-            dist = torch.minimum(dist, width - 1 - x)
-        weight = ((feathering - dist) / feathering).square().unsqueeze(-1).to(image.dtype)
-        inner.lerp_(fill, weight)
+        wy = feather_weight(height, top, bottom, feathering, image.device).to(image.dtype)
+        wx = feather_weight(width, left, right, feathering, image.device).to(image.dtype)
+        inner.lerp_(fill, torch.maximum(wy[:, None], wx[None, :]).unsqueeze(-1))
     return out
 
 
