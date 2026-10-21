@@ -67,19 +67,21 @@ for folder_name, folder_options in folder_names.items():
 folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes")], set())
 folder_names_and_paths["datasets"]     = ([os.path.join(base_path, "datasets")], set())
 custom_directories = {
-    "temp"  :"x:\\xModels\\inputs\\.temp",
-    "input" :"x:\\xModels\\inputs\\.comfy",
-    "output":f"x:\\xModels\\outputs\\{datetime.now():%Y-%m-%d}",
+    "temp"     :"x:\\xModels\\inputs\\.temp",
+    "input"    :"x:\\xModels\\inputs\\.comfy",
+    "previews" :"x:\\xModels\\inputs\\.comfy\\.previews",
+    "output"   :f"x:\\xModels\\outputs\\{datetime.now():%Y-%m-%d}",
 }
 for directory, directory_path in custom_directories.items():
     if not os.path.isdir(directory_path):
         os.mkdir(directory_path)
 
 
-temp_directory   = custom_directories["temp"]
-input_directory  = custom_directories["input"]
-output_directory = custom_directories["output"]
-user_directory   = os.path.join(base_path, "user")
+temp_directory     = custom_directories["temp"]
+input_directory    = custom_directories["input"]
+output_directory   = custom_directories["output"]
+previews_directory = custom_directories["previews"]
+user_directory     = os.path.join(base_path, "user")
 
 filename_list_cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
 
@@ -141,6 +143,10 @@ def set_input_directory(input_dir: str) -> None:
     global input_directory
     input_directory = input_dir
 
+def set_previews_directory(previews_dir: str) -> None:
+    global previews_directory
+    previews_directory = previews_dir
+
 def get_output_directory() -> str:
     global output_directory
     return output_directory
@@ -152,6 +158,10 @@ def get_temp_directory() -> str:
 def get_input_directory() -> str:
     global input_directory
     return input_directory
+
+def get_previews_directory() -> str:
+    """Where generated asset previews are stored. Not served by type through /view."""
+    return previews_directory
 
 def get_user_directory() -> str:
     return user_directory
