@@ -115,32 +115,38 @@ def test_embed_and_pack_releases_intermediates(conditioning):
     assert torch.equal(slices["text"], context[0])
 
 
-def test_embed_and_pack_preserves_mixed_reference_row_order():
+@pytest.mark.parametrize("device", [
+    "cpu",
+    pytest.param("cuda", marks=pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")),
+    pytest.param("mps", marks=pytest.mark.skipif(not torch.backends.mps.is_available(), reason="requires MPS")),
+])
+@pytest.mark.parametrize("video_kind", ["video", "video_audio"])
+def test_embed_and_pack_preserves_mixed_reference_row_order(device, video_kind):
     model = MiniMaxH3Model(
         hidden_size=8, num_layers=0, token_refiner_num_layers=0,
         num_attention_heads=1, attention_head_dim=8, ffn_hidden_size=8,
         latents_dim=2, audio_latents_dim=3, text_dim=5,
         timestep_input_dim=8, time_embed_hidden_size=8, time_embed_dim=8,
-        dtype=torch.float32, device="cpu", operations=nn,
+        dtype=torch.float32, device=device, operations=nn,
     )
-    video = torch.randn(1, 2, 2, 4, 12)[..., ::2]
-    audio = torch.randn(1, 3, 2, 6)[..., ::2]
+    video = torch.randn(1, 2, 2, 4, 12, device=device)[..., ::2]
+    audio = torch.randn(1, 3, 2, 6, device=device)[..., ::2]
     refs = [{"kind": "image", "latent_h": 4, "latent_w": 6},
             {"kind": "audio", "ref_audio_t": 2},
-            {"kind": "video_audio", "latent_t": 2, "latent_h": 4, "latent_w": 6, "ref_audio_t": 3}]
+            {"kind": video_kind, "latent_t": 2, "latent_h": 4, "latent_w": 6, "ref_audio_t": 3 if video_kind == "video_audio" else 0}]
     payload = {"refs": refs, "seed": 13, "audio_cond_noise_aug": 0.8,
-               "cond_video_latents": [torch.randn(1, 2, 1, 4, 6), torch.randn_like(video)],
-               "cond_audio_latents": [torch.randn(1, 3, 2, 2), torch.randn_like(audio)]}
+               "cond_video_latents": [torch.randn(1, 2, 1, 4, 6, device=device), torch.randn_like(video)],
+               "cond_audio_latents": [torch.randn(1, 3, 2, 2, device=device)] + ([torch.randn_like(audio)] if video_kind == "video_audio" else [])}
     layout = PackedLayout(4, 2, 4, 6, 3, refs=refs)
     seen = {}
     hooks = [model.video_patch_proj.register_forward_pre_hook(lambda m, a: seen.update(video=a[0])),
              model.audio_patch_proj.register_forward_pre_hook(lambda m, a: seen.update(audio=a[0]))]
     try:
         with torch.no_grad():
-            model._embed_and_pack(video, audio, torch.randn(1, 4, 8), layout, payload, {})
-        assert torch.equal(seen["video"][~layout.img_update], model._cond_video_rows(payload, "cpu"))
+            model._embed_and_pack(video, audio, torch.randn(1, 4, 8, device=device), layout, payload, {})
+        assert torch.equal(seen["video"][~layout.img_update], model._cond_video_rows(payload, device))
         assert torch.equal(seen["video"][layout.img_update], patchify_video(video))
-        assert torch.equal(seen["audio"][~layout.audio_update], model._cond_audio_rows(payload, "cpu"))
+        assert torch.equal(seen["audio"][~layout.audio_update], model._cond_audio_rows(payload, device))
         assert torch.equal(seen["audio"][layout.audio_update], pack_audio(audio))
     finally:
         for hook in hooks:
