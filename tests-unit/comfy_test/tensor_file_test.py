@@ -1,4 +1,5 @@
 import os
+import sys
 
 import pytest
 import safetensors.torch
@@ -6,6 +7,11 @@ import torch
 
 from comfy.memory_management import read_tensor_file_slice_into, write_tensor_file_slice
 from comfy.utils import create_safetensors
+
+pytestmark = pytest.mark.skipif(
+    os.name != "nt" and sys.platform != "linux",
+    reason="anonymous files require Linux or Windows",
+)
 
 
 def test_sparse_safetensors_and_write_validation():

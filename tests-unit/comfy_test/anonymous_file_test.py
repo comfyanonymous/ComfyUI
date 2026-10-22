@@ -1,10 +1,16 @@
 import mmap
 import os
+import sys
 import tempfile
 
 import pytest
 
 from comfy.anonymous_file import create_anonymous_file
+
+pytestmark = pytest.mark.skipif(
+    os.name != "nt" and sys.platform != "linux",
+    reason="anonymous files require Linux or Windows",
+)
 
 
 def test_sparse_file_io_mapping_and_lifetime(tmp_path, monkeypatch):
