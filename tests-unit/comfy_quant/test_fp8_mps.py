@@ -17,6 +17,7 @@ from comfy.cli_args import args
 if not torch.cuda.is_available():
     args.cpu = True
 
+import comfy.model_patcher  # noqa: E402
 from comfy import ops
 from comfy.quant_ops import (  # noqa: E402
     QuantizedTensor,
@@ -142,8 +143,6 @@ class TestFP8OnMPS(unittest.TestCase):
 
     def test_lora_patch_on_mps(self):
         """The reported crash: patching a LoRA onto fp8 weights dequantizes them on device."""
-        import comfy.model_patcher
-
         model = _fp8_linear_model()
         patcher = comfy.model_patcher.ModelPatcher(model, load_device=torch.device("mps"),
                                                    offload_device=torch.device("cpu"))

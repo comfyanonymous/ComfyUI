@@ -96,6 +96,7 @@ _FP8_MPS_LUT_CACHE = {}
 
 
 def _fp8_lut(fp8_dtype, out_dtype, device):
+    """Build (and cache) a 256 entry table decoding every fp8 bit pattern, without fp8 casts."""
     key = (fp8_dtype, out_dtype, device)
     lut = _FP8_MPS_LUT_CACHE.get(key)
     if lut is None:
@@ -117,12 +118,14 @@ class _TensorCoreFP8LayoutBase(_CKFp8Layout):
 
     @classmethod
     def dequantize(cls, qdata, params):
+        """Dequantize fp8 storage, decoding through a LUT on backends without float8 kernels."""
         if qdata.device.type == "mps":
             return _fp8_dequantize_no_cast(qdata, params.scale, params.orig_dtype)
         return super().dequantize(qdata, params)
 
     @classmethod
     def quantize(cls, tensor, scale=None, stochastic_rounding=0, inplace_ops=False):
+        """Quantize to fp8 storage, doing the narrowing cast on CPU on backends without float8 kernels."""
         if cls.FP8_DTYPE is None:
             raise NotImplementedError(f"{cls.__name__} must define FP8_DTYPE")
 
@@ -130,8 +133,10 @@ class _TensorCoreFP8LayoutBase(_CKFp8Layout):
             device = tensor.device
             if isinstance(scale, torch.Tensor):
                 scale = scale.cpu()
-            # inplace_ops would only mutate the CPU copy, so drop it.
-            qdata, params = cls.quantize(tensor.cpu(), scale=scale, stochastic_rounding=stochastic_rounding)
+            # tensor.cpu() is a private copy, so the scaling can safely write in place
+            # instead of allocating a second full sized tensor.
+            qdata, params = cls.quantize(tensor.cpu(), scale=scale,
+                                         stochastic_rounding=stochastic_rounding, inplace_ops=True)
             return qdata.to(device=device), cls.Params(scale=params.scale.to(device=device),
                                                        orig_dtype=params.orig_dtype,
                                                        orig_shape=params.orig_shape)
