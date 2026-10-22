@@ -2800,6 +2800,7 @@ class Krea2(BaseModel):
 class MOSSImage(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.moss_image.model.MOSSImage)
+        self.memory_usage_factor_conds = ("ref_latents",)
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
@@ -2807,6 +2808,27 @@ class MOSSImage(BaseModel):
         # rope positions follow the true text length, so no repeat padding: cond and uncond of different lengths run separately
         if cross_attn is not None:
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents:
+            # control adapters widen video_embedder, the references carry no control
+            channels = self.diffusion_model.video_embedder.weight.shape[1]
+            ref_latents = [torch.nn.functional.pad(self.process_latent_in(lat), (0, 0, 0, 0, 0, channels - lat.shape[1])) for lat in ref_latents]
+            ref_latents_method = kwargs.get("reference_latents_method", None)
+            if ref_latents_method is not None:
+                out['ref_latents_method'] = comfy.conds.CONDConstant(ref_latents_method)
+            if ref_latents_method not in ("index", "index_timestep_zero") and torch.is_inference_mode_enabled() and kwargs.get("hooks") is None:
+                # references that attend only to each other at t = 0: their keys and values are computed once, not every step; equal ones batch without copies
+                device, dtype = kwargs["device"], self.get_dtype_inference()
+                out['ref_kv'] = comfy.conds.CONDConstant(self.diffusion_model.preprocess_refs([lat.to(device=device, dtype=dtype) for lat in ref_latents]))
+            else:
+                out['ref_latents'] = comfy.conds.CONDList(ref_latents)
+        return out
+
+    def extra_conds_shapes(self, **kwargs):
+        out = {}
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            out['ref_latents'] = list([1, 128, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 128])
         return out
 
     def concat_cond(self, **kwargs):
