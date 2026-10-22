@@ -4,8 +4,7 @@ Detailed rules referenced from [AGENTS.md](../../AGENTS.md).
 
 ## Node Conventions
 
-- Follow existing node conventions: `INPUT_TYPES`, `RETURN_TYPES`, `FUNCTION`,
-  `CATEGORY`, and registration through the local mapping used by that file.
+- Use V3 schemas for new nodes and reuse existing native nodes wherever possible.
 - Keep node changes backward compatible by default. Add inputs with sensible
   defaults and avoid changing output types unless the request requires it.
 - Model implementations should add the minimal number of ComfyUI nodes required
