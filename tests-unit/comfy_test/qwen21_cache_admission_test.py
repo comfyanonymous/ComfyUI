@@ -9,15 +9,21 @@ if not torch.cuda.is_available():
 from comfy import conds, memory_management, model_base, model_management, model_patcher, ops, supported_models, system_memory
 
 
-@pytest.mark.parametrize("vram_margin,ram_margin,reclaimable,admitted", [
-    (-1, -1, 0, False),
-    (0, -1, 0, False),
-    (1, -1, 0, True),
-    (-1, 0, 0, True),
-    (-1, -4096, 4095, False),
-    (-1, -4096, 4096, True),
+@pytest.mark.parametrize("vram_margin,ram_margin,reclaimable,transformer_options,admitted", [
+    (-1, -1, 0, {}, False),
+    (0, -1, 0, {}, False),
+    (1, -1, 0, {}, True),
+    (-1, 0, 0, {}, True),
+    (-1, -4096, 4095, {}, False),
+    (-1, -4096, 4096, {}, True),
+    (1, 0, 0, {"patches_replace": {"dit": {("single_block", 0): object()}}}, False),
+    (1, 0, 0, {"patches": {"post_input": [object()]}}, False),
+    (1, 0, 0, {"patches": {"single_block": [object()]}}, False),
+    (1, 0, 0, {"patches": {"attn1_patch": [object()]}}, False),
+    (1, 0, 0, {"patches_replace": {"dit": {}}, "patches": {"post_input": [], "single_block": [], "attn1_patch": []}}, True),
+    (1, 0, 0, {"patches": {"unrelated": [object()]}}, True),
 ])
-def test_cache_budget_admits_all_conditions_together(monkeypatch, vram_margin, ram_margin, reclaimable, admitted):
+def test_cache_budget_admits_all_conditions_together(monkeypatch, vram_margin, ram_margin, reclaimable, transformer_options, admitted):
     config = supported_models.QwenImage21(dict(num_layers=2, attention_head_dim=8, num_attention_heads=2,
         context_in_dim=16, in_channels=4, out_channels=4, axes_dims_rope=(2, 2, 4), dtype=torch.float32))
     config.custom_operations = ops.manual_cast
@@ -38,7 +44,7 @@ def test_cache_budget_admits_all_conditions_together(monkeypatch, vram_margin, r
     monkeypatch.setattr(model_management, "free_pins", lambda size, **kwargs: min(size, reclaimable))
     monkeypatch.setattr(patcher, "get_free_memory", lambda device: 4 * cache_bytes + vram_margin)
 
-    cache = model.get_writable_model(conditions, (1, 4, 3, 5), {}, torch.device("cpu"))
+    cache = model.get_writable_model(conditions, (1, 4, 3, 5), {"transformer_options": transformer_options}, torch.device("cpu"))
     assert (cache is not None) == admitted
     assert all(("prefix_cache" in c[0]["model_conds"]) == admitted for c in conditions.values())
     if cache is not None:
