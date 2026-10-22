@@ -153,8 +153,8 @@ def test_extra_conds_prepares_references_only_for_inference(monkeypatch, grad_en
     wrapper.diffusion_model = MiniMaxH3Model.__new__(MiniMaxH3Model)
     nn.Module.__init__(wrapper.diffusion_model)
     wrapper.diffusion_model.patch_size = (1, 2, 2)
-    ref = {"latent": torch.randn(1, 2, 1, 4, 6, requires_grad=grad_enabled),
-           "audio_latent": torch.randn(1, 3, 2, 2, requires_grad=grad_enabled)}
+    ref = {"latent": torch.randn(1, 2, 1, 4, 6, device=device, requires_grad=grad_enabled),
+           "audio_latent": torch.randn(1, 3, 2, 2, device=device, requires_grad=grad_enabled)}
     kwargs = {"device": device, "minimax_refs": [ref], "minimax_audio_cond_noise_aug": 0.5}
     with torch.set_grad_enabled(grad_enabled):
         first = wrapper.extra_conds(**kwargs, seed=13)["minimax_payload"].cond
@@ -168,8 +168,14 @@ def test_extra_conds_prepares_references_only_for_inference(monkeypatch, grad_en
         if not grad_enabled:
             assert first["prepared_video_rows"].device.type == "cpu"
             assert first["prepared_audio_rows"].device.type == "cpu"
-        a = wrapper.diffusion_model._cond_audio_rows(first, "cpu")
-        b = wrapper.diffusion_model._cond_audio_rows(second, "cpu")
+        a = wrapper.diffusion_model._cond_audio_rows(first, device)
+        b = wrapper.diffusion_model._cond_audio_rows(second, device)
+        assert a.device.type == device and b.device.type == device
+        unprepared = {k: v for k, v in first.items() if not k.startswith("prepared_")}
+        assert torch.equal(a, wrapper.diffusion_model._cond_audio_rows(unprepared, device))
+        staged_video = wrapper.diffusion_model._cond_video_rows(first, device)
+        assert staged_video.device.type == device
+        assert torch.equal(staged_video, wrapper.diffusion_model._cond_video_rows(unprepared, device))
         assert not torch.equal(a, b)
         if grad_enabled:
             a.sum().backward()
