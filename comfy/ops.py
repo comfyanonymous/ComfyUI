@@ -190,8 +190,11 @@ def cast_modules_with_vbar(comfy_modules, dtype, device, bias_dtype, non_blockin
             "resident": resident,
         }
 
-        if resident:
+        # Batched prefetch registers its modules with queue cleanup before this
+        # call. Keep faults reachable there even if preparation fails.
+        if return_faulted or resident:
             s._prefetch = prefetch
+        if resident:
             continue
 
         materialize_meta_param(s, ["weight", "bias"])
