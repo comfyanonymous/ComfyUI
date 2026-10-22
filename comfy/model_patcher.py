@@ -30,7 +30,6 @@ from typing import Callable, Optional
 
 import torch
 import tqdm
-import folder_paths
 
 import comfy.float
 import comfy.hooks

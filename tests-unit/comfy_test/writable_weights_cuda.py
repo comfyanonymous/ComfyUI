@@ -11,7 +11,6 @@ import torch
 import comfy_aimdo.control as aimdo
 
 assert aimdo.init("cuda") and aimdo.init_device(0)
-import comfy.ldm.wan.model_animate2
 from comfy import memory_management, model_management, model_patcher, model_prefetch, ops, pinned_memory, utils
 
 memory_management.aimdo_enabled = True
@@ -49,7 +48,6 @@ for writable in (False, True):
     vbar = model.dynamic_vbars.pop(device)
     vbar.close()
     file.close()
-    print("PIN_STEAL_POLICY_PASS", writable, flush=True)
 
 for fast in (False, True):
     for disable_pins in (False, True):
@@ -125,7 +123,6 @@ for fast in (False, True):
         model.dynamic_vbars.clear()
         vbar.close()
         file.close()
-        print("WRITABLE_WEIGHT_PASS", fast, disable_pins, flush=True)
 
 source = torch.arange(17, dtype=torch.float32, device=device)
 state, file = utils.create_safetensors({"weight": source})
@@ -134,5 +131,3 @@ restored = torch.empty(17)
 assert memory_management.read_tensor_file_slice_into(state["weight"], restored)
 assert torch.equal(restored, source.cpu())
 file.close()
-
-print("WRITABLE_WEIGHTS_CUDA_PASS", flush=True)
