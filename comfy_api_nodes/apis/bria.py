@@ -45,6 +45,22 @@ class BriaEditImageRequest(BaseModel):
     )
 
 
+class BriaGenerateImageRequest(BaseModel):
+    prompt: str | None = Field(None)
+    structured_prompt: str | None = Field(None)
+    images: list[str] | None = Field(None, description="A single reference image.")
+    aspect_ratio: str = Field(...)
+    resolution: str = Field(...)
+    seed: int = Field(...)
+    prompt_content_moderation: bool = Field(False, description="If true, returns 422 on prompt moderation failure.")
+    visual_input_content_moderation: bool = Field(
+        False, description="If true, returns 422 on reference image moderation failure."
+    )
+    visual_output_content_moderation: bool = Field(
+        False, description="If true, returns 422 on visual output moderation failure."
+    )
+
+
 class BriaRemoveBackgroundRequest(BaseModel):
     image: str = Field(...)
     sync: bool = Field(False)

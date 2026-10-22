@@ -28,6 +28,8 @@ def _steal_pin(module, stack, buckets, size, priority, subset):
     if priority <= -bucket[-1][0]:
         return False
 
+    # The victim's pin may still be the source of a queued copy, and the caller overwrites it next.
+    comfy.model_management.sync_all_offload_streams()
     *_, victim = bucket.pop()
     module_pin = module._pins[subset]
     victim_pin = victim._pins[subset]
