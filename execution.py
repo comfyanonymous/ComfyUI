@@ -18,6 +18,7 @@ import comfy.model_management
 import comfy.model_patcher
 import comfy.model_prefetch
 import comfy.system_memory
+import comfy.telemetry
 import comfy_aimdo.model_vbar
 from comfy.internal_logging import detail
 
@@ -728,7 +729,9 @@ class PromptExecutor:
                 _cache_logger.warning(f"Cache provider {provider.__class__.__name__} error on {event}: {e}")
 
     def execute(self, prompt, prompt_id, extra_data={}, execute_outputs=[]):
-        asyncio.run(self.execute_async(prompt, prompt_id, extra_data, execute_outputs))
+        with comfy.telemetry.prompt_span(prompt_id, extra_data) as span:
+            asyncio.run(self.execute_async(prompt, prompt_id, extra_data, execute_outputs))
+            span.finish(self.status_messages)
 
     async def execute_async(self, prompt, prompt_id, extra_data={}, execute_outputs=[]):
         set_preview_method(extra_data.get("preview_method"))
@@ -789,7 +792,9 @@ class PromptExecutor:
                         break
 
                     assert node_id is not None, "Node ID should not be None at this point"
-                    result, error, ex = await execute(self.server, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_node_outputs, self.asset_manager)
+                    with comfy.telemetry.node_span(dynamic_prompt, node_id, cached=node_id in cached_nodes) as span:
+                        result, error, ex = await execute(self.server, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_node_outputs, self.asset_manager)
+                        span.finish(result.name, ex)
                     self.success = result != ExecutionResult.FAILURE
                     if result == ExecutionResult.FAILURE:
                         self.handle_execution_error(prompt_id, dynamic_prompt.original_prompt, current_outputs, executed, error, ex)

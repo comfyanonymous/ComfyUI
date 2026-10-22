@@ -225,6 +225,7 @@ parser.add_argument("--multi-user", action="store_true", help="Enables per-user 
 
 parser.add_argument("--verbose", action=VerboseAction, nargs='*', default=[], metavar='LEVEL FILE', help='Set console logging with no values or LEVEL, or add a LEVEL FILE log output. May be repeated.')
 parser.add_argument("--log-stdout", action="store_true", help="Send normal process output to stdout instead of stderr (default).")
+parser.add_argument("--enable-opentelemetry", action="store_true", help="Export OpenTelemetry traces, metrics and logs over OTLP/HTTP. Needs the opentelemetry-sdk and opentelemetry-exporter-otlp-proto-http packages. Configure the endpoint and service with the standard OTEL_* environment variables.")
 
 
 # The default built-in provider hosted under web/

@@ -33,6 +33,7 @@ import comfy.memory_management
 import comfy.system_memory
 import comfy.utils
 import comfy.quant_ops
+import comfy.telemetry
 import comfy_aimdo.host_buffer
 import comfy_aimdo.vram_buffer
 from comfy.internal_logging import detail
@@ -936,6 +937,7 @@ def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, pins
                 soft_empty_cache()
     return unloaded_models
 
+@comfy.telemetry.traced("load models")
 def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimum_memory_required=None, force_full_load=False):
     cleanup_models_gc()
     global vram_state

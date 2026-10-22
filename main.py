@@ -270,6 +270,7 @@ from app.assets.manager import AssetManager, default_asset_manager  # imports to
 from protocol import BinaryEventTypes
 import nodes
 import comfy.model_management
+import comfy.telemetry
 import comfyui_version
 import app.logger
 import hook_breaker_ac10a0
@@ -622,6 +623,7 @@ def start_comfyui(asyncio_loop=None):
     prompt_server.add_routes()
     hijack_progress(prompt_server)
 
+    comfy.telemetry.setup(prompt_server.prompt_queue)
     threading.Thread(target=prompt_worker, daemon=True, args=(prompt_server.prompt_queue, prompt_server, asset_manager)).start()
 
     if args.quick_test_for_ci:
