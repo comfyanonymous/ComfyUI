@@ -117,6 +117,7 @@ _psst, we're hiring:_ [comfy.org/careers](https://www.comfy.org/careers)
 | Launch / startup flags | https://docs.comfy.org/development/comfyui-server/startup-flags |
 | Changelog | https://docs.comfy.org/changelog |
 | Workflow templates | https://comfy.org/workflows |
+| Older example workflows | https://comfyanonymous.github.io/ComfyUI_examples/ |
 | Built-in node reference | https://docs.comfy.org/built-in-nodes/overview |
 | Writing custom nodes | https://docs.comfy.org/custom-nodes/overview |
 | Prompt syntax: weighting, `{wildcards}`, `embedding:`, `//` comments | https://docs.comfy.org/built-in-nodes/ClipTextEncode |
