@@ -391,12 +391,6 @@ Use `--tls-keyfile key.pem --tls-certfile cert.pem` to enable TLS/SSL, the app w
 > Note: Windows users can use [alexisrolland/docker-openssl](https://github.com/alexisrolland/docker-openssl) or one of the [3rd party binary distributions](https://wiki.openssl.org/index.php/Binaries) to run the command example above.
 <br/><br/>If you use a container, note that the volume mount `-v` can be a relative path so `... -v ".\:/openssl-certs" ...` would create the key & cert files in the current directory of your command prompt or powershell terminal.
 
-## How to export OpenTelemetry traces, metrics and logs?
-
-Install the SDK and the OTLP exporter with `pip install opentelemetry-sdk opentelemetry-exporter-otlp-proto-http`, then start ComfyUI with `--enable-opentelemetry`. ComfyUI sends traces, metrics and logs over OTLP/HTTP to `http://localhost:4318`, or to the collector set in the standard `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable. `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES` name the instance.
-
-Each prompt is one trace, with a span for its wait in the queue and a span for each executed node. An API client can make the prompt part of its own trace by sending a [W3C `traceparent`](https://www.w3.org/TR/trace-context/) header with `POST /prompt`. Metrics cover prompt, queue and node durations, cached nodes, queue size, device memory and loaded models. Spans and metrics never include node inputs or outputs. Log records are exported as ComfyUI writes them, linked to the node that was running.
-
 ## Support and dev channel
 
 [Discord](https://comfy.org/discord): Try the #help or #feedback channels.

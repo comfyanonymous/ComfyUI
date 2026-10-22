@@ -39,7 +39,6 @@ from comfy.cli_args import args
 from comfy.deploy_environment import get_deploy_environment
 import comfy.utils
 import comfy.model_management
-import comfy.telemetry
 from comfy_api import feature_flags
 from comfy.comfy_api_env import get_environment_overrides
 import node_helpers
@@ -1219,10 +1218,6 @@ class PromptServer():
                     usage_source = request.headers.get("Comfy-Usage-Source")
                     if usage_source:
                         extra_data["comfy_usage_source"] = usage_source
-                if comfy.telemetry.enabled:
-                    for header in ("traceparent", "tracestate"):
-                        if header not in extra_data and header in request.headers:
-                            extra_data[header] = request.headers[header]
                 if valid[0]:
                     outputs_to_execute = valid[2]
                     sensitive = {}
