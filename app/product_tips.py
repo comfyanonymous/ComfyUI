@@ -3,9 +3,9 @@
 Plain ASCII on purpose: Windows consoles may still use cp1252.
 """
 
-COMFY_API_STARTUP_TIP = "Comfy API: host your ComfyUI workflows with your custom nodes as scalable cloud endpoints. No servers or GPUs to manage. -> https://platform.comfy.org/ascii (optional paid service, hide: --disable-product-tips)"
+COMFY_API_STARTUP_TIP = "ComfyUI is developed by Comfy Org. We also offer commercial products to deploy ComfyUI as scalable cloud endpoints. Please see platform.comfy.org/ascii for more information."
 
-COMFY_API_JOB_HINT = "Comfy API: host your ComfyUI workflows in the cloud -> https://platform.comfy.org/ascii-job (hide: --disable-product-tips)"
+COMFY_API_JOB_HINT = "ComfyUI is developed by Comfy Org. We also offer commercial products to deploy ComfyUI as scalable cloud endpoints. Please see platform.comfy.org/ascii-job for more information."
 
 
 def tips_enabled(args, environ) -> bool:
