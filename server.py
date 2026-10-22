@@ -35,7 +35,7 @@ from aiohttp import web
 import logging
 
 import mimetypes
-from comfy.cli_args import args
+from comfy.cli_args import DEFAULT_VERSION_STRING, args
 from comfy.deploy_environment import get_deploy_environment
 import comfy.utils
 import comfy.model_management
@@ -1365,7 +1365,7 @@ class PromptServer():
             workflow_templates_path = FrontendManager.legacy_templates_path()
             if workflow_templates_path:
                 self.app.add_routes([
-                    web.static('/templates', workflow_templates_path)
+                    web.static('/templates', workflow_templates_path, follow_symlinks=True)
                 ])
         else:
             handler = FrontendManager.template_asset_handler()
@@ -1376,11 +1376,11 @@ class PromptServer():
         embedded_docs_path = FrontendManager.embedded_docs_path()
         if embedded_docs_path:
             self.app.add_routes([
-                web.static('/docs', embedded_docs_path)
+                web.static('/docs', embedded_docs_path, follow_symlinks=True)
             ])
 
         self.app.add_routes([
-            web.static('/', self.web_root),
+            web.static('/', self.web_root, follow_symlinks=args.front_end_root is None and (args.front_end_version == DEFAULT_VERSION_STRING or FrontendManager.frontend_fallback)),
         ])
 
     def get_queue_info(self):
