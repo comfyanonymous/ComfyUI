@@ -713,7 +713,6 @@ class MeshyTextToModelSmartTopologyNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            is_output_node=True,
             price_badge=IO.PriceBadge(expr='{"type":"usd","usd":0.286}'),
         )
 
@@ -749,8 +748,8 @@ class MeshyTextToModelSmartTopologyNode(IO.ComfyNode):
         )
         return IO.NodeOutput(
             task_id,
-            await download_url_to_file_3d(result.model_urls.glb, "glb", task_id=task_id),
-            await download_url_to_file_3d(result.model_urls.fbx, "fbx", task_id=task_id),
+            await download_url_to_file_3d(result.model_urls.glb, "glb"),
+            await download_url_to_file_3d(result.model_urls.fbx, "fbx"),
         )
 
 
@@ -829,7 +828,6 @@ class MeshyImageToModelSmartTopologyNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            is_output_node=True,
             price_badge=IO.PriceBadge(
                 depends_on=IO.PriceBadgeDepends(widgets=["should_texture", "should_texture.texture_resolution"]),
                 expr="""
@@ -892,8 +890,8 @@ class MeshyImageToModelSmartTopologyNode(IO.ComfyNode):
         )
         return IO.NodeOutput(
             task_id,
-            await download_url_to_file_3d(result.model_urls.glb, "glb", task_id=task_id),
-            await download_url_to_file_3d(result.model_urls.fbx, "fbx", task_id=task_id),
+            await download_url_to_file_3d(result.model_urls.glb, "glb"),
+            await download_url_to_file_3d(result.model_urls.fbx, "fbx"),
         )
 
 
