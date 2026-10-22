@@ -695,7 +695,7 @@ class VAE:
                         self.upscale_ratio *= 2
                         self.latent_channels *= 4
                         old_memory_used_decode = self.memory_used_decode
-                        self.memory_used_decode = lambda shape, dtype: old_memory_used_decode(shape, dtype) * (1.0 if self.first_stage_model.decoder.fused_norm and comfy.ldm.modules.diffusionmodules.model.fused_norm_served(self.device, dtype) else 4.0)
+                        self.memory_used_decode = lambda shape, dtype: old_memory_used_decode(shape, dtype) * (1.0 if comfy.ldm.modules.diffusionmodules.model.fused_norm_served(self.device, dtype) else 4.0)
 
                     decoder_ch = sd['decoder.conv_in.weight'].shape[0] // ddconfig['ch_mult'][-1]
                     if decoder_ch != ddconfig['ch']:
