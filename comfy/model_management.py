@@ -1624,7 +1624,16 @@ def get_disk_swap_total():
         logging.warning("Could not get amount of swap memory on system.")
     return total
 
-if not args.disable_pinned_memory:
+def is_integrated_gpu():
+    device = get_torch_device()
+    return device.type == "cuda" and bool(torch.cuda.get_device_properties(device).is_integrated)
+
+DISABLE_PINNED_MEMORY = args.disable_pinned_memory
+if not DISABLE_PINNED_MEMORY and is_integrated_gpu():
+    # Integrated GPU VRAM is carved out of system RAM, so pinning host memory only takes RAM from the GPU.
+    DISABLE_PINNED_MEMORY = True
+
+if not DISABLE_PINNED_MEMORY:
     if is_nvidia() or is_amd():
         ram = get_total_memory(torch.device("cpu"))
         if WINDOWS:
@@ -2009,6 +2018,9 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
     return False
 
 def supports_fp8_compute(device=None):
+    if is_device_cpu(device):
+        return False
+
     if SUPPORT_FP8_OPS:
         return True
 
@@ -2033,6 +2045,9 @@ def supports_fp8_compute(device=None):
     return True
 
 def supports_nvfp4_compute(device=None):
+    if is_device_cpu(device):
+        return False
+
     if not is_nvidia():
         return False
 
@@ -2043,6 +2058,9 @@ def supports_nvfp4_compute(device=None):
     return True
 
 def supports_mxfp8_compute(device=None):
+    if is_device_cpu(device):
+        return False
+
     if not is_nvidia():
         return False
 
@@ -2071,6 +2089,9 @@ def supports_fp64(device=None):
     return True
 
 def supports_int8_compute(device=None):
+    if is_device_cpu(device):
+        return False
+
     # The eager comfy_kitchen backend implements int8 weight-only quantized
     # matmul via torch._int_mm, which PyTorch does not implement for MPS.
     # https://github.com/pytorch/pytorch/issues/141287
