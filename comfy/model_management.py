@@ -1539,6 +1539,15 @@ def get_offload_stream(device):
         return s
     return None
 
+def sync_all_offload_streams():
+    # Wait for every queued weight copy, so a pinned source buffer can be overwritten.
+    if NUM_STREAMS == 0:
+        synchronize()
+        return
+    for streams in STREAMS.values():
+        for stream in streams:
+            stream.synchronize()
+
 def sync_stream(device, stream):
     if stream is None or current_stream(device) is None:
         return
