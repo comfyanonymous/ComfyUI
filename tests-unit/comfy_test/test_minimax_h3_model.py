@@ -142,8 +142,7 @@ def test_embed_and_pack_preserves_mixed_reference_row_order(device, video_kind):
     hooks = [model.video_patch_proj.register_forward_pre_hook(lambda m, a: seen.update(video=a[0])),
              model.audio_patch_proj.register_forward_pre_hook(lambda m, a: seen.update(audio=a[0]))]
     try:
-        with torch.no_grad():
-            model._embed_and_pack(video, audio, torch.randn(1, 4, 8, device=device), layout, payload, {})
+        model._embed_and_pack(video, audio, torch.randn(1, 4, 8, device=device), layout, payload, {})
         assert torch.equal(seen["video"][~layout.img_update], model._cond_video_rows(payload, device))
         assert torch.equal(seen["video"][layout.img_update], patchify_video(video))
         assert torch.equal(seen["audio"][~layout.audio_update], model._cond_audio_rows(payload, device))
