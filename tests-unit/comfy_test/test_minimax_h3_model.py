@@ -140,8 +140,12 @@ def test_reference_preprocessing_is_exact_and_scoped_to_payload(augmentation):
         assert not torch.equal(model._cond_video_rows(next_payload, "cpu"), expected[0])
 
 
+@pytest.mark.parametrize("device", [
+    "cpu",
+    pytest.param("cuda", marks=pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")),
+])
 @pytest.mark.parametrize("grad_enabled", [False, True])
-def test_extra_conds_prepares_references_only_for_inference(monkeypatch, grad_enabled):
+def test_extra_conds_prepares_references_only_for_inference(monkeypatch, grad_enabled, device):
     monkeypatch.setattr(BaseModel, "extra_conds", lambda self, **kwargs: {})
     wrapper = MiniMaxH3.__new__(MiniMaxH3)
     nn.Module.__init__(wrapper)
@@ -151,7 +155,7 @@ def test_extra_conds_prepares_references_only_for_inference(monkeypatch, grad_en
     wrapper.diffusion_model.patch_size = (1, 2, 2)
     ref = {"latent": torch.randn(1, 2, 1, 4, 6, requires_grad=grad_enabled),
            "audio_latent": torch.randn(1, 3, 2, 2, requires_grad=grad_enabled)}
-    kwargs = {"device": "cpu", "minimax_refs": [ref], "minimax_audio_cond_noise_aug": 0.5}
+    kwargs = {"device": device, "minimax_refs": [ref], "minimax_audio_cond_noise_aug": 0.5}
     with torch.set_grad_enabled(grad_enabled):
         first = wrapper.extra_conds(**kwargs, seed=13)["minimax_payload"].cond
         repeated = wrapper.extra_conds(**kwargs, seed=13)["minimax_payload"]
@@ -161,6 +165,9 @@ def test_extra_conds_prepares_references_only_for_inference(monkeypatch, grad_en
         assert ("prepared_video_rows" in first) is not grad_enabled
         assert ("prepared_audio_rows" in first) is not grad_enabled
         assert first is not second
+        if not grad_enabled:
+            assert first["prepared_video_rows"].device.type == "cpu"
+            assert first["prepared_audio_rows"].device.type == "cpu"
         a = wrapper.diffusion_model._cond_audio_rows(first, "cpu")
         b = wrapper.diffusion_model._cond_audio_rows(second, "cpu")
         assert not torch.equal(a, b)
