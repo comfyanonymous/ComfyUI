@@ -98,3 +98,16 @@ def test_multi_device_btrfs_needs_every_device_fast():
     ):
         assert comfy.storage._linux_fast_storage(os.makedev(9, 1)) is False
     comfy.storage._linux_fast_storage.cache_clear()
+
+
+def test_unreadable_btrfs_devices_is_unknown():
+    def listdir(path):
+        if path == "/sys/fs/btrfs":
+            return ["fsid"]
+        raise PermissionError(path)
+
+    with (
+        mock.patch.object(comfy.storage.os, "listdir", side_effect=listdir),
+        mock.patch.object(comfy.storage.os.path, "exists", return_value=True),
+    ):
+        assert comfy.storage._btrfs_devices("nvme0n1") is None

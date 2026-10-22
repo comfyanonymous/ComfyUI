@@ -64,7 +64,10 @@ def _btrfs_devices(name):
     for fsid in filesystems:
         devices = f"/sys/fs/btrfs/{fsid}/devices"
         if os.path.exists(f"{devices}/{name}"):
-            return os.listdir(devices)
+            try:
+                return os.listdir(devices)
+            except OSError:
+                return None
     return [name]
 
 
@@ -74,7 +77,10 @@ def _linux_fast_storage(device):
     if not os.path.exists(sys_device):
         return None
     name = os.path.basename(os.path.realpath(sys_device))
-    devices = [x for member in _btrfs_devices(name) for x in _physical_block_devices(member)]
+    members = _btrfs_devices(name)
+    if members is None:
+        return None
+    devices = [x for member in members for x in _physical_block_devices(member)]
     results = [_fast_nvme(x) for x in devices]
     if any(x is None for x in results):
         return None
