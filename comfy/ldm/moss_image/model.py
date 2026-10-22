@@ -218,7 +218,7 @@ class MOSSImage(nn.Module):
         transformer_options = transformer_options.copy()
         text_len = context.shape[1]
         if len(ref_latents) > 0 and ref_latents_method not in ("index", "index_timestep_zero_joint"):
-            # not computed once in extra_conds
+            # every step when extra_conds could not precompute them (training, hooks)
             ref_kv, ref_latents = self.preprocess_refs(ref_latents, transformer_options), []
         if ref_kv is not None:
             # one set of references serves the whole batch
