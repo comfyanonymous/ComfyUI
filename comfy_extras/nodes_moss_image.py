@@ -90,12 +90,56 @@ class MOSSImageControl(io.ComfyNode):
                              node_helpers.conditioning_set_values_with_timestep_range(negative, values, start_percent, end_percent))
 
 
+# edit LoRA layouts: the reference method and whether the text encoder also sees the references
+EDIT_FORMATS = {
+    "ai-toolkit": ("index_timestep_zero_isolated", True),
+    "ai-toolkit (kv_cache off)": ("index_timestep_zero", True),
+    "Moss-Image-Edit": ("index_timestep_zero_text_start", False),
+}
+
+
+class TextEncodeMOSSImageEdit(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="TextEncodeMOSSImageEdit",
+            display_name="Text Encode MOSS-Image Edit",
+            category="model/conditioning/moss_image",
+            description="Encodes an edit instruction with reference images for a MOSS-Image edit LoRA, use it for the negative prompt too. The references are used at the size they come in, scale them first.",
+            inputs=[
+                io.Clip.Input("clip"),
+                io.String.Input("prompt", multiline=True, dynamic_prompts=True),
+                io.Vae.Input("vae"),
+                io.Combo.Input("edit_format", options=list(EDIT_FORMATS), tooltip="The layout the edit LoRA was trained with: ai-toolkit's MOSS-Image Edit Training (its kv_cache option on or off) or Moss-Image-Edit. With kv_cache off the references also attend to the image being generated, so they are recomputed every step."),
+                io.Autogrow.Input("images", template=io.Autogrow.TemplatePrefix(input=io.Image.Input("image"), prefix="image_", min=1)),
+            ],
+            outputs=[io.Conditioning.Output()],
+            is_experimental=True,
+        )
+
+    @classmethod
+    def execute(cls, clip, prompt, vae, edit_format, images) -> io.NodeOutput:
+        method, vision = EDIT_FORMATS[edit_format]
+        images = [images[name] for name in sorted(images) if images[name] is not None]
+        vl = []
+        if vision:
+            # the text encoder sees each reference downscaled to at most 384x384 pixels, after a "Picture N:" marker
+            for image in images:
+                scale = min(1.0, math.sqrt(384 * 384 / (image.shape[1] * image.shape[2])))
+                vl.append(comfy.utils.common_upscale(image.movedim(-1, 1), round(image.shape[2] * scale), round(image.shape[1] * scale), "area", "disabled").movedim(1, -1))
+            prompt = "".join("Picture {}: <|vision_start|><|image_pad|><|vision_end|>".format(i + 1) for i in range(len(vl))) + prompt
+        conditioning = clip.encode_from_tokens_scheduled(clip.tokenize(prompt, images=vl))
+        refs = [vae.encode(image[:, :, :, :3]) for image in images]
+        return io.NodeOutput(node_helpers.conditioning_set_values(conditioning, {"reference_latents": refs, "reference_latents_method": method}))
+
+
 class MOSSImageExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             MOSSImageLayoutPrompt,
             MOSSImageControl,
+            TextEncodeMOSSImageEdit,
         ]
 
 
