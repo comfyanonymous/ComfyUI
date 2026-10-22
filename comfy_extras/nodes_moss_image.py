@@ -92,9 +92,9 @@ class MOSSImageControl(io.ComfyNode):
 
 # edit LoRA layouts: the reference method and whether the text encoder also sees the references
 EDIT_FORMATS = {
-    "ai-toolkit": ("index_timestep_zero", True),
-    "ai-toolkit (kv_cache off)": ("index_timestep_zero_joint", True),
-    "Moss-Image-Edit": ("index_timestep_zero_frame0", False),
+    "ai-toolkit": ("index_timestep_zero_isolated", True),
+    "ai-toolkit (kv_cache off)": ("index_timestep_zero", True),
+    "Moss-Image-Edit": ("index_timestep_zero_text_start", False),
 }
 
 

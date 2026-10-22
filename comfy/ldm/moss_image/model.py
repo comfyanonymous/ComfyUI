@@ -217,7 +217,7 @@ class MOSSImage(nn.Module):
         dtype, device = x.dtype, x.device
         transformer_options = transformer_options.copy()
         text_len = context.shape[1]
-        if len(ref_latents) > 0 and ref_latents_method not in ("index", "index_timestep_zero_joint"):
+        if len(ref_latents) > 0 and ref_latents_method not in ("index", "index_timestep_zero"):
             # every step when extra_conds could not precompute them (training, hooks)
             ref_kv, ref_latents = self.preprocess_refs(ref_latents, transformer_options), []
         if ref_kv is not None:
@@ -225,7 +225,7 @@ class MOSSImage(nn.Module):
             ref_kv = ref_kv.expand(B, -1, -1, -1, -1) if ref_kv.shape[0] == 1 else comfy.utils.repeat_to_batch_size(ref_kv, B)
         refs = [comfy.utils.repeat_to_batch_size(ref, B) for ref in ref_latents]
         # ai-toolkit puts the references on the image's f, Moss-Image-Edit at the text start; shifting the rest keeps them at f = 0, where their keys were computed
-        f_offset = -text_len if (len(refs) > 0 or ref_kv is not None) and ref_latents_method != "index_timestep_zero_frame0" else 0
+        f_offset = -text_len if (len(refs) > 0 or ref_kv is not None) and ref_latents_method != "index_timestep_zero_text_start" else 0
         pe = self.rope(H, W, text_len, device, transformer_options, [ref.shape[-2:] for ref in refs], f_offset)
 
         vec = self.time_embedding(timestep_embedding(timestep, 256).to(dtype))

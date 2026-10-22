@@ -2816,7 +2816,7 @@ class MOSSImage(BaseModel):
             ref_latents_method = kwargs.get("reference_latents_method", None)
             if ref_latents_method is not None:
                 out['ref_latents_method'] = comfy.conds.CONDConstant(ref_latents_method)
-            if ref_latents_method not in ("index", "index_timestep_zero_joint") and torch.is_inference_mode_enabled() and kwargs.get("hooks") is None:
+            if ref_latents_method not in ("index", "index_timestep_zero") and torch.is_inference_mode_enabled() and kwargs.get("hooks") is None:
                 # references that attend only to each other at t = 0: their keys and values are computed once, not every step; equal ones batch without copies
                 device, dtype = kwargs["device"], self.get_dtype_inference()
                 out['ref_kv'] = comfy.conds.CONDConstant(self.diffusion_model.preprocess_refs([lat.to(device=device, dtype=dtype) for lat in ref_latents]))
