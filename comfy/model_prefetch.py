@@ -97,6 +97,8 @@ def cleanup_malloc_graph():
         if graph._comfy_active:
             graph.abort()
             graph._comfy_active = False
+        else:
+            comfy.model_management.synchronize()
         for module in graph._comfy_cuda_graph_modules:
             _drop_graph(module)
         MALLOC_GRAPH_ROGUES += graph.rogue_count

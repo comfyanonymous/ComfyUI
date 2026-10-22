@@ -87,7 +87,7 @@ def test_int8_segments_preserve_row_mapping_and_uncast(backend_available):
             fused.assert_called_once()
             assert torch.equal(fused.call_args.args[4], rows)
         uncast.assert_called_once()
-        qdata, scale = ops.TensorWiseINT8Layout.get_plain_tensors(layer.weight)
+        qdata, scale = ops.quant_ops.TensorWiseINT8Layout.get_plain_tensors(layer.weight)
         branch = ops.quant_ops.ck.int8_linear(x, qdata, scale, convrot=True, input_act="swiglu")
         expected = torch.addcmul(residual, branch, gates[rows.long()].to(actual.dtype))
     assert torch.equal(actual, expected)
@@ -144,7 +144,7 @@ def test_indexed_fusion_ineligible_operands(case):
                                       residual_scale=gate, residual_segments=[(0, 3, 0)])
         if case == "fp32_residual":
             assert actual.dtype == torch.float32
-            qdata, scale = ops.TensorWiseINT8Layout.get_plain_tensors(layer.weight)
+            qdata, scale = ops.quant_ops.TensorWiseINT8Layout.get_plain_tensors(layer.weight)
             branch = ops.quant_ops.ck.int8_linear(x, qdata, scale, convrot=True, input_act="swiglu")
             assert torch.equal(actual, torch.addcmul(residual, branch, gate.to(branch.dtype)))
         else:
@@ -194,3 +194,34 @@ def test_forced_int8_forward_preserves_indexed_residual():
     forward.assert_called_once()
     assert torch.equal(forward.call_args.args[0], ops._swiglu_eager(x))
     assert torch.equal(actual, torch.addcmul(residual, branch, gates[[1, 0, 0]]))
+
+
+@pytest.mark.parametrize("layout", ["fp8", "transposed", "w4a8"])
+def test_segmented_residual_preserves_quantized_dispatch(layout):
+    torch.manual_seed(7)
+    weight = torch.randn(32, 256, dtype=torch.bfloat16)
+    if layout == "fp8":
+        weight = ops.QuantizedTensor.from_float(weight, "TensorCoreFP8Layout")
+    elif layout == "transposed":
+        weight = ops.QuantizedTensor.from_float(weight.t().contiguous(), "TensorWiseINT8Layout").t()
+    else:
+        weight = ops.QuantizedTensor.from_float(weight, "AsymW4A8Int8Layout", bits=4)
+    layer = ops.mixed_precision_ops(compute_dtype=torch.bfloat16).Linear(256, 32)
+    layer.weight = torch.nn.Parameter(weight, requires_grad=False)
+    layer.bias = torch.nn.Parameter(torch.randn(32, dtype=torch.bfloat16), requires_grad=False)
+    layer.layout_type = weight._layout_cls
+    layer.quant_format = {"fp8": "float8_e4m3fn", "transposed": "int8_tensorwise", "w4a8": "asym_w4a8_int8"}[layout]
+    if layout != "w4a8":
+        layer.pre_quant_scale = torch.linspace(0.25, 1.75, 256, dtype=torch.bfloat16)
+        layer.input_scale = torch.tensor(0.01)
+    x = torch.randn(3, 512, dtype=torch.bfloat16)
+    residual = torch.randn(3, 32, dtype=torch.bfloat16)
+    gates = torch.randn(2, 32, dtype=torch.bfloat16)
+    with torch.no_grad(), mock.patch.object(
+        ops.quant_ops.ck, "int8_linear_indexed_gate",
+        side_effect=AssertionError("unsupported layout reached indexed fusion"), create=True,
+    ):
+        expected = torch.addcmul(residual, layer(ops._swiglu_eager(x)), gates[[1, 0, 0]])
+        actual = ops.linear_input_act(layer, x, "swiglu", residual=residual,
+                                      residual_scale=gates, residual_segments=[(0, 1, 1), (1, 3, 0)])
+    assert torch.equal(actual, expected)
