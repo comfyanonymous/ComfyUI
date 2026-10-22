@@ -2728,9 +2728,10 @@ class QwenImage21(QwenImage):
             diffusion_model.reset_prefix_cache(patcher is not None and len(patcher.hook_patches) == 0)
 
     def get_writable_model(self, conds, noise_shape, model_options, device):
-        options = model_options.get("transformer_options", {}).get("qwen_image21_cache", {})
+        transformer_options = model_options.get("transformer_options", {})
+        options = transformer_options.get("qwen_image21_cache", {})
         model = self.diffusion_model
-        if options.get("device", "auto") != "auto" or not model.prefix_cache_enabled:
+        if options.get("device", "auto") != "auto" or not model.can_cache_prefix(transformer_options):
             return None
 
         heads = model.transformer_blocks[0].attn.heads

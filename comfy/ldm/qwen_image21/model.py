@@ -351,6 +351,13 @@ class QwenImage21Transformer2DModel(nn.Module):
         self.prefix_cache = None
         self.prefix_cache_enabled = enabled
 
+    def can_cache_prefix(self, transformer_options):
+        # Cached steps run target rows only; block hooks require the complete sequence.
+        patches = transformer_options.get("patches", {})
+        hooked = (transformer_options.get("patches_replace", {}).get("dit") or patches.get("post_input")
+                  or patches.get("single_block") or patches.get("attn1_patch"))
+        return self.prefix_cache_enabled and not hooked
+
     def select_prefix_cache(self, key, cache_bytes, device, options):
         # returns (cache with the slot to read or fill selected, whether the slot is filled), or (None, False) to recompute
         if options.get("device") == "off":
@@ -437,9 +444,7 @@ class QwenImage21Transformer2DModel(nn.Module):
 
         blocks_replace = transformer_options.get("patches_replace", {}).get("dit", {})
         cache, cached = None, False
-        # a cached step runs target rows only, so anything hooked into a block would see a different sequence from step 2
-        hooked = blocks_replace or patches.get("post_input") or patches.get("single_block") or patches.get("attn1_patch")
-        if self.prefix_cache_enabled and prefix_len > 0 and not hooked:
+        if prefix_len > 0 and self.can_cache_prefix(transformer_options):
             key = prefix_cache_key(x, context, ref_latents, image_slots)
             options = transformer_options.get("qwen_image21_cache", {})
             if prefix_cache is not None and x.device in prefix_cache:
