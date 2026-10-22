@@ -1,6 +1,4 @@
-import av
 import torch
-from av.codec import CodecContext
 from pydantic import BaseModel
 from typing_extensions import override
 
@@ -49,6 +47,7 @@ from comfy_api_nodes.util import (
     upload_video_to_comfyapi,
     validate_string,
     validate_video_duration,
+    video_to_images_and_mask,
 )
 
 BRIA_MAX_OUTPUT_SIDE = 8192
@@ -1036,28 +1035,6 @@ class BriaVideoReplaceBackground(IO.ComfyNode):
         return IO.NodeOutput(await download_url_to_video_output(response.result.video_url))
 
 
-def _video_to_images_and_mask(video: Input.Video) -> tuple[Input.Image, Input.Mask]:
-    """Decode a transparent webm (VP9 + alpha) into image frames and an alpha mask.
-
-    VP9 keeps its alpha in a side layer that PyAV's default vp9 decoder drops, so the frames
-    are decoded with libvpx-vp9. Returns RGB images [B,H,W,3] in 0..1 and a mask [B,H,W]
-    following the Load Image convention (1 = transparent) for compositing or Save WEBM.
-    """
-    rgb_frames: list[torch.Tensor] = []
-    alpha_frames: list[torch.Tensor] = []
-    with av.open(video.get_stream_source(), mode="r") as container:
-        stream = container.streams.video[0]
-        decoder = CodecContext.create("libvpx-vp9", "r") if stream.codec_context.name == "vp9" else None
-        for packet in container.demux(stream):
-            for frame in (decoder.decode(packet) if decoder is not None else packet.decode()):
-                rgba = torch.from_numpy(frame.to_ndarray(format="rgba")).float() / 255.0
-                rgb_frames.append(rgba[..., :3])
-                alpha_frames.append(rgba[..., 3])
-    images = torch.stack(rgb_frames) if rgb_frames else torch.zeros(0, 0, 0, 3)
-    mask = (1.0 - torch.stack(alpha_frames)) if alpha_frames else torch.zeros((images.shape[0], 64, 64))
-    return images, mask
-
-
 class BriaTransparentVideoBackground(IO.ComfyNode):
 
     @classmethod
@@ -1122,7 +1099,7 @@ class BriaTransparentVideoBackground(IO.ComfyNode):
             response_model=BriaRemoveVideoBackgroundResponse,
         )
         video_out = await download_url_to_video_output(response.result.video_url)
-        images, mask = _video_to_images_and_mask(video_out)
+        images, mask = video_to_images_and_mask(video_out)
         return IO.NodeOutput(images, mask)
 
 
