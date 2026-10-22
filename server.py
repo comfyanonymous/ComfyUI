@@ -36,11 +36,11 @@ import logging
 
 import mimetypes
 from comfy.cli_args import args
-from comfy.deploy_environment import get_deploy_environment
 import comfy.utils
 import comfy.model_management
 from comfy_api import feature_flags
-from comfy.comfy_api_env import get_environment_overrides
+from app.comfy_api_env import get_environment_overrides
+from app.deploy_environment import get_deploy_environment
 import node_helpers
 from comfyui_version import __version__
 from app.frontend_management import FrontendManager, parse_version
