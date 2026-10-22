@@ -8,7 +8,7 @@ import comfy.model_management
 import nodes
 from comfy_execution.execution_observer import (
     ExecutionObserver,
-    has_execution_observers,
+    get_execution_observers,
     register_execution_observer,
     unregister_execution_observer,
 )
@@ -75,6 +75,14 @@ class Interrupt(Constant):
         raise comfy.model_management.InterruptProcessingException()
 
 
+class RegisterLate(Constant):
+    observer = None
+
+    def execute(self, value):
+        register_execution_observer(self.observer)
+        return (value,)
+
+
 class Server:
     client_id = None
 
@@ -116,6 +124,7 @@ def recorder(monkeypatch):
         "ObserverAsyncSeeContext": AsyncSeeContext,
         "ObserverFail": Fail,
         "ObserverInterrupt": Interrupt,
+        "ObserverRegisterLate": RegisterLate,
     }.items():
         monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, name, node)
     observer = Recorder()
@@ -215,11 +224,54 @@ def test_a_failing_observer_does_not_break_execution(recorder, caplog):
     assert "Execution observer Broken error in on_node_start: observer bug" in caplog.text
 
 
-def test_registration_is_idempotent_and_reversible():
-    observer = ExecutionObserver()
-    assert not has_execution_observers()
-    register_execution_observer(observer)
-    register_execution_observer(observer)
-    assert has_execution_observers()
-    unregister_execution_observer(observer)
-    assert not has_execution_observers()
+def test_observers_changed_mid_prompt_take_effect_from_the_next_prompt(recorder):
+    class Leaving(Recorder):
+        def on_node_start(self, *args):
+            super().on_node_start(*args)
+            unregister_execution_observer(self)
+
+    leaving, late = Leaving(), Recorder()
+    RegisterLate.observer = late
+    register_execution_observer(leaving)
+    prompt = {"1": node("ObserverConstant", 1), "2": node("ObserverRegisterLate", ["1", 0])}
+    try:
+        new_executor().execute(prompt, "first", {}, ["2"])
+        assert leaving.events == [
+            ("prompt_start", "first"),
+            ("cached", []),
+            ("node_start", "1", "ObserverConstant", None),
+            ("node_end", "1", "success", None),
+            ("node_start", "2", "ObserverRegisterLate", None),
+            ("node_end", "2", "success", None),
+            ("prompt_end", "first", "success"),
+        ]
+        assert late.events == []
+        assert current_node.get() is None
+
+        new_executor().execute(prompt, "second", {}, ["2"])
+        assert leaving.events[-1] == ("prompt_end", "first", "success")
+        assert late.events[0] == ("prompt_start", "second")
+        assert late.events[-1] == ("prompt_end", "second", "success")
+        assert len(late.events) == 7
+    finally:
+        unregister_execution_observer(late)
+
+
+def test_registration_compares_observers_by_identity():
+    class AlwaysEqual(ExecutionObserver):
+        def __eq__(self, other):
+            return True
+
+        __hash__ = object.__hash__
+
+    first, second = AlwaysEqual(), AlwaysEqual()
+    assert get_execution_observers() == ()
+    register_execution_observer(first)
+    register_execution_observer(first)
+    register_execution_observer(second)
+    assert [o is first for o in get_execution_observers()] == [True, False]
+    assert get_execution_observers()[1] is second
+    unregister_execution_observer(second)
+    assert len(get_execution_observers()) == 1 and get_execution_observers()[0] is first
+    unregister_execution_observer(first)
+    assert get_execution_observers() == ()

@@ -48,7 +48,7 @@ from comfy_execution.media_enrichment import enrich_output_with_media_metadata
 from comfy_api.internal import _ComfyNodeInternal, _NodeOutputInternal, first_real_override, is_class, make_locked_method_func
 from comfy_api.latest import io, _io
 from comfy_execution.cache_provider import _has_cache_providers, _get_cache_providers, _logger as _cache_logger
-from comfy_execution.execution_observer import has_execution_observers, notify_execution_observers
+from comfy_execution.execution_observer import get_execution_observers, notify_execution_observers
 from app.assets.manager import AssetManager, NoAssets
 
 if TYPE_CHECKING:
@@ -760,8 +760,9 @@ class PromptExecutor:
         ram_release_callback = self.caches.outputs.ram_release if self.cache_type == CacheType.RAM_PRESSURE else None
         comfy.memory_management.set_ram_cache_release_state(ram_release_callback, ram_headroom)
 
+        observers = get_execution_observers()
         try:
-            notify_execution_observers("on_prompt_start", prompt_id)
+            notify_execution_observers(observers, "on_prompt_start", prompt_id)
             with torch.inference_mode():
                 dynamic_prompt = DynamicPrompt(prompt)
                 reset_progress_state(prompt_id, dynamic_prompt)
@@ -784,7 +785,7 @@ class PromptExecutor:
                 self.add_message("execution_cached",
                               { "nodes": cached_nodes, "prompt_id": prompt_id},
                               broadcast=False)
-                notify_execution_observers("on_nodes_cached", prompt_id, cached_nodes)
+                notify_execution_observers(observers, "on_nodes_cached", prompt_id, cached_nodes)
                 pending_subgraph_results = {}
                 pending_async_nodes = {} # TODO - Unify this with pending_subgraph_results
                 ui_node_outputs = {}
@@ -801,12 +802,12 @@ class PromptExecutor:
                         break
 
                     assert node_id is not None, "Node ID should not be None at this point"
-                    observed = has_execution_observers() and node_id not in cached_nodes
+                    observed = bool(observers) and node_id not in cached_nodes
                     if observed:
-                        notify_execution_observers("on_node_start", prompt_id, node_id, dynamic_prompt.get_node(node_id)["class_type"], dynamic_prompt.get_parent_node_id(node_id))
+                        notify_execution_observers(observers, "on_node_start", prompt_id, node_id, dynamic_prompt.get_node(node_id)["class_type"], dynamic_prompt.get_parent_node_id(node_id))
                     result, error, ex = await execute(self.server, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_node_outputs, self.asset_manager)
                     if observed:
-                        notify_execution_observers("on_node_end", prompt_id, node_id, _observed_outcome(result, ex), ex)
+                        notify_execution_observers(observers, "on_node_end", prompt_id, node_id, _observed_outcome(result, ex), ex)
                     self.success = result != ExecutionResult.FAILURE
                     if result == ExecutionResult.FAILURE:
                         self.handle_execution_error(prompt_id, dynamic_prompt.original_prompt, current_outputs, executed, error, ex)
@@ -861,10 +862,10 @@ class PromptExecutor:
             comfy.memory_management.set_ram_cache_release_state(None, 0)
             self.prompt_model_tracker.end()
             self._notify_prompt_lifecycle("end", prompt_id)
-            if has_execution_observers():
+            if observers:
                 events = {event for event, _ in self.status_messages}
                 outcome = "success" if "execution_success" in events else "interrupted" if "execution_interrupted" in events else "error"
-                notify_execution_observers("on_prompt_end", prompt_id, outcome)
+                notify_execution_observers(observers, "on_prompt_end", prompt_id, outcome)
 
 
 async def validate_inputs(prompt_id, prompt, item, validated, visiting=None):

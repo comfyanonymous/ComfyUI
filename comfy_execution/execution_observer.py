@@ -4,6 +4,10 @@ Observers are called synchronously by the prompt worker, inside the asyncio task
 prompt. Context variables an observer sets in a start method are therefore visible to the node
 code that runs next, and it can reset them in the matching end method. Observer methods should
 return quickly. Exceptions they raise are logged and never break execution.
+
+The executor takes the registered observers once when a prompt starts and calls the same ones
+for the whole prompt, so every start call gets its matching end call. Observers registered or
+unregistered while a prompt runs take effect from the next prompt.
 """
 
 import logging
@@ -48,7 +52,7 @@ def register_execution_observer(observer: ExecutionObserver) -> None:
     """Register an execution observer. Observers are called in registration order."""
     global _observers_snapshot
     with _observers_lock:
-        if observer in _observers:
+        if any(registered is observer for registered in _observers):
             _logger.warning(f"Execution observer {observer.__class__.__name__} already registered")
             return
         _observers.append(observer)
@@ -58,19 +62,21 @@ def register_execution_observer(observer: ExecutionObserver) -> None:
 def unregister_execution_observer(observer: ExecutionObserver) -> None:
     global _observers_snapshot
     with _observers_lock:
-        try:
-            _observers.remove(observer)
-            _observers_snapshot = tuple(_observers)
-        except ValueError:
-            _logger.warning(f"Execution observer {observer.__class__.__name__} was not registered")
+        for i, registered in enumerate(_observers):
+            if registered is observer:
+                del _observers[i]
+                _observers_snapshot = tuple(_observers)
+                return
+    _logger.warning(f"Execution observer {observer.__class__.__name__} was not registered")
 
 
-def has_execution_observers() -> bool:
-    return bool(_observers_snapshot)
+def get_execution_observers() -> Tuple[ExecutionObserver, ...]:
+    """The observers registered right now, in registration order."""
+    return _observers_snapshot
 
 
-def notify_execution_observers(method: str, *args) -> None:
-    for observer in _observers_snapshot:
+def notify_execution_observers(observers: Tuple[ExecutionObserver, ...], method: str, *args) -> None:
+    for observer in observers:
         try:
             getattr(observer, method)(*args)
         except Exception as e:
