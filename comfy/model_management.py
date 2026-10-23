@@ -1775,7 +1775,42 @@ def pytorch_attention_enabled():
     global ENABLE_PYTORCH_ATTENTION
     return ENABLE_PYTORCH_ATTENTION
 
+AMD_VAE_SDPA_WORKS = None
+
+def amd_vae_sdpa_works():
+    """Whether SDPA gives correct results at the VAE's single head, large head dim shapes.
+
+    The flash attention probe at startup uses a small head dim. Some AOTriton builds
+    ship no kernels for head dims above 256, which then fail at launch or return
+    garbage, so run the VAE shapes once and compare against the math backend.
+    Math itself is excluded: if it is the only backend left, slice attention uses
+    far less memory at high resolution.
+    """
+    global AMD_VAE_SDPA_WORKS
+    if AMD_VAE_SDPA_WORKS is not None:
+        return AMD_VAE_SDPA_WORKS
+    try:
+        from torch.nn.attention import SDPBackend, sdpa_kernel
+        device = get_torch_device()
+        generator = torch.Generator(device=device).manual_seed(0)
+        for dtype in (torch.float16, torch.bfloat16, torch.float32):
+            for head_dim in (384, 512):
+                q, k, v = torch.randn((3, 1, 1, 1001, head_dim), dtype=dtype, device=device, generator=generator)  # not a multiple of any block size, so the last block is partial
+                with sdpa_kernel([SDPBackend.FLASH_ATTENTION, SDPBackend.CUDNN_ATTENTION, SDPBackend.EFFICIENT_ATTENTION]):
+                    out = torch.nn.functional.scaled_dot_product_attention(q, k, v)
+                with sdpa_kernel(SDPBackend.MATH):
+                    ref = torch.nn.functional.scaled_dot_product_attention(q.float(), k.float(), v.float())
+                if not torch.allclose(out.float(), ref, atol=2e-2, rtol=2e-2):
+                    raise RuntimeError("wrong result for {} head dim {}".format(dtype, head_dim))
+        AMD_VAE_SDPA_WORKS = True
+    except Exception as e:
+        logging.warning("Pytorch attention does not work at the VAE head dims, using slice attention in the VAE: {}".format(e))
+        AMD_VAE_SDPA_WORKS = False
+    return AMD_VAE_SDPA_WORKS
+
 def pytorch_attention_enabled_vae():
+    if is_amd() and pytorch_attention_enabled():
+        return amd_vae_sdpa_works()
     return pytorch_attention_enabled()
 
 def pytorch_attention_flash_attention():
