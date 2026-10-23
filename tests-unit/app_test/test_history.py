@@ -1,5 +1,10 @@
 import copy
 import json
+import logging
+import sqlite3
+import threading
+import time
+from enum import IntEnum
 from types import SimpleNamespace
 import pytest
 from sqlalchemy import text
@@ -219,9 +224,6 @@ def test_corrupt_nested_restore(file_db, change):
 
 
 def test_real_write_wait_does_not_hold_queue_mutex(file_db):
-    import sqlite3
-    import threading
-    import time
 
     store = HistoryStore(2)
     q = PromptQueue(SimpleNamespace(queue_updated=lambda: None))
@@ -289,9 +291,6 @@ def test_requested_history_startup_failure(monkeypatch, dependency, url):
 
 
 def test_completion_stays_visible_while_storage_waits(file_db):
-    import sqlite3
-    import threading
-    import time
 
     q = PromptQueue(SimpleNamespace(queue_updated=lambda: None))
     q.initialize_history(HistoryStore(2))
@@ -321,7 +320,6 @@ def test_completion_stays_visible_while_storage_waits(file_db):
 
 
 def test_delete_batches_rollback(file_db):
-    import sqlite3
 
     store = HistoryStore(600)
     for id in ["one", "two"]:
@@ -369,3 +367,121 @@ def test_large_integer_timestamp_is_finite():
     r["status"]["messages"][0][1]["timestamp"] = 10**400
     canonical, _ = project_record("one", r)
     assert canonical["status"]["messages"][0][1]["timestamp"] == 10**400
+
+
+class JsonInt(IntEnum):
+    VALUE = 7
+
+
+class JsonString(str):
+    pass
+
+
+class JsonFloat(float):
+    pass
+
+
+@pytest.mark.parametrize("value", [JsonInt.VALUE, JsonString("text"), JsonFloat(1.25)])
+def test_json_scalar_subclass_roundtrip(file_db, value):
+    expected = json.loads(json.dumps(value, allow_nan=False))
+    r = record()
+    r["outputs"]["custom"] = value
+    store = HistoryStore(2)
+    store.save("one", r)
+    assert store.load()["one"]["outputs"]["custom"] == expected
+
+
+@pytest.mark.parametrize(
+    "value", [JsonFloat("nan"), JsonFloat("inf"), JsonFloat("-inf")]
+)
+def test_nonfinite_scalar_subclass_rejected(file_db, value):
+    r = record()
+    r["outputs"]["custom"] = value
+    store = HistoryStore(2)
+    with pytest.raises(HistoryStorageError):
+        store.save("one", r)
+    assert store.load() == {}
+
+
+def test_failure_reason_never_logs_exception_payload(file_db, monkeypatch, caplog):
+    q = PromptQueue(SimpleNamespace(queue_updated=lambda: None))
+    store = HistoryStore(2)
+    q.initialize_history(store)
+    complete(q, "one")
+
+    def fail(*a, **kw):
+        raise HistoryStorageError(
+            "PRIVATE exception SQL token", reason="PRIVATE reason"
+        ) from ValueError("PRIVATE cause")
+
+    with caplog.at_level(logging.DEBUG), monkeypatch.context() as m:
+        m.setattr(store, "save", fail)
+        complete(q, "two")
+        m.setattr(store, "remove", fail)
+        with pytest.raises(HistoryStorageError):
+            q.remove_history(clear=True)
+    assert "reason=storage_error" in caplog.text
+    assert "PRIVATE" not in caplog.text
+    assert all(entry.exc_info is None for entry in caplog.records)
+    assert q.history_persistence_status()["failure_count"] == 2
+    assert "one" in store.load()
+
+
+def test_actual_projection_reason_logged(file_db, caplog, monkeypatch):
+    q = PromptQueue(SimpleNamespace(queue_updated=lambda: None))
+    q.initialize_history(HistoryStore(2))
+    with caplog.at_level(logging.ERROR):
+        with monkeypatch.context() as m:
+            m.setattr("app.history.MAX_RECORD_BYTES", 10)
+            complete(q, "too-large")
+        r = record("unsupported")
+        q.put(r["prompt"])
+        _, item = q.get()
+        q.task_done(item, {"outputs": {"custom": object()}}, None)
+    assert "reason=record_too_large" in caplog.text
+    assert "reason=unsupported_json" in caplog.text
+    assert q.history_persistence_status()["failure_count"] == 2
+    complete(q, "good")
+    assert "good" in q.history_store.load()
+
+
+def test_database_reason_omits_sql_and_parameters(file_db, monkeypatch, caplog):
+    q = PromptQueue(SimpleNamespace(queue_updated=lambda: None))
+    store = HistoryStore(2)
+    q.initialize_history(store)
+
+    def fail(session):
+        raise OperationalError(
+            "PRIVATE SQL",
+            {"token": "PRIVATE token"},
+            sqlite3.OperationalError("database is locked PRIVATE driver"),
+        )
+
+    with caplog.at_level(logging.DEBUG), monkeypatch.context() as m:
+        m.setattr(store, "_prune", fail)
+        complete(q, "one")
+    assert "reason=database_locked" in caplog.text
+    assert "PRIVATE" not in caplog.text
+    assert all(entry.exc_info is None for entry in caplog.records)
+
+
+def test_history_startup_reason_omits_exception_payload(monkeypatch, caplog):
+    import main
+
+    monkeypatch.setattr(main.args, "enable_history", True)
+    monkeypatch.setattr(main, "dependencies_available", lambda: True)
+    monkeypatch.setattr(main, "get_database_url", lambda: "sqlite:///history.db")
+
+    def fail():
+        raise OperationalError(
+            "PRIVATE SQL",
+            {"token": "PRIVATE token"},
+            sqlite3.OperationalError("database is locked PRIVATE driver"),
+        )
+
+    monkeypatch.setattr(main, "init_db", fail)
+    with caplog.at_level(logging.DEBUG), pytest.raises(SystemExit):
+        main.setup_database(SimpleNamespace(enabled=False, startup=lambda: None))
+    assert "reason=database_locked" in caplog.text
+    assert "PRIVATE" not in caplog.text
+    assert all(entry.exc_info is None for entry in caplog.records)

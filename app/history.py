@@ -6,6 +6,7 @@ import math
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.assets.event_log import error_kind
 from app.database.db import create_write_session
 from app.database.models import ExecutionHistory
 from comfy_execution.history import HistoryStorageError
@@ -29,20 +30,22 @@ EVENT_FIELDS = {
 
 
 def _copy_json(value):
-    if value is None or type(value) in (str, bool, int):
+    if value is None or isinstance(value, (str, bool, int)):
         return value
-    if type(value) is float and math.isfinite(value):
+    if isinstance(value, float) and math.isfinite(value):
         return value
     if isinstance(value, (list, tuple)):
         return [_copy_json(v) for v in value]
     if isinstance(value, dict) and all(isinstance(k, str) for k in value):
         return {k: _copy_json(v) for k, v in value.items() if k not in SENSITIVE_KEYS}
-    raise HistoryStorageError("History contains unsupported JSON values")
+    raise HistoryStorageError(
+        "History contains unsupported JSON values", reason="unsupported_json"
+    )
 
 
 def _validate(prompt_id, record):
     if not isinstance(record, dict) or not isinstance(record.get("outputs"), dict):
-        raise HistoryStorageError("Invalid history record")
+        raise HistoryStorageError("Invalid history record", reason="invalid_record")
     prompt = record.get("prompt")
     if (
         not isinstance(prompt, list)
@@ -52,13 +55,13 @@ def _validate(prompt_id, record):
         or not isinstance(prompt[3], dict)
         or not isinstance(prompt[4], list)
     ):
-        raise HistoryStorageError("Invalid history prompt")
+        raise HistoryStorageError("Invalid history prompt", reason="invalid_record")
     extra = prompt[3]
     pnginfo = extra.get("extra_pnginfo", {})
     if not isinstance(pnginfo, dict) or not isinstance(
         pnginfo.get("workflow", {}), dict
     ):
-        raise HistoryStorageError("Invalid history workflow")
+        raise HistoryStorageError("Invalid history workflow", reason="invalid_record")
     status = record.get("status")
     if status is not None:
         if (
@@ -67,7 +70,7 @@ def _validate(prompt_id, record):
             or type(status.get("completed")) is not bool
             or not isinstance(status.get("messages"), list)
         ):
-            raise HistoryStorageError("Invalid history status")
+            raise HistoryStorageError("Invalid history status", reason="invalid_record")
         for message in status["messages"]:
             if (
                 not isinstance(message, (list, tuple))
@@ -75,13 +78,17 @@ def _validate(prompt_id, record):
                 or not isinstance(message[0], str)
                 or not isinstance(message[1], dict)
             ):
-                raise HistoryStorageError("Invalid history message")
+                raise HistoryStorageError(
+                    "Invalid history message", reason="invalid_record"
+                )
             timestamp = message[1].get("timestamp")
             if timestamp is not None and (
                 type(timestamp) not in (int, float)
                 or (type(timestamp) is float and not math.isfinite(timestamp))
             ):
-                raise HistoryStorageError("Invalid history timestamp")
+                raise HistoryStorageError(
+                    "Invalid history timestamp", reason="invalid_record"
+                )
 
 
 def project_record(prompt_id, record):
@@ -111,10 +118,14 @@ def project_record(prompt_id, record):
             projected, allow_nan=False, separators=(",", ":"), ensure_ascii=True
         )
         if len(encoded) > MAX_RECORD_BYTES:
-            raise HistoryStorageError("History record exceeds 100 MiB")
+            raise HistoryStorageError(
+                "History record exceeds 100 MiB", reason="record_too_large"
+            )
         return projected, encoded
     except (ValueError, TypeError, KeyError, IndexError, RecursionError) as exc:
-        raise HistoryStorageError("History could not be serialized") from exc
+        raise HistoryStorageError(
+            "History could not be serialized", reason="serialization_failed"
+        ) from exc
 
 
 class HistoryStore:
@@ -155,7 +166,9 @@ class HistoryStore:
                         row.format_version != FORMAT_VERSION
                         or len(row.record_json) > MAX_RECORD_BYTES
                     ):
-                        raise HistoryStorageError("Unsupported history format")
+                        raise HistoryStorageError(
+                            "Unsupported history format", reason="unsupported_format"
+                        )
                     record = json.loads(
                         row.record_json,
                         parse_constant=lambda _: (_ for _ in ()).throw(
@@ -167,7 +180,12 @@ class HistoryStore:
                     history[row.prompt_id] = record
                 return history
         except (SQLAlchemyError, ValueError, TypeError, RecursionError) as exc:
-            raise HistoryStorageError("History could not be restored") from exc
+            raise HistoryStorageError(
+                "History could not be restored",
+                reason=error_kind(exc)
+                if isinstance(exc, SQLAlchemyError)
+                else "invalid_json",
+            ) from exc
 
     def save(self, prompt_id, record):
         canonical, encoded = project_record(prompt_id, record)
@@ -193,7 +211,9 @@ class HistoryStore:
                 removed = self._prune(session)
             return canonical, removed
         except SQLAlchemyError as exc:
-            raise HistoryStorageError("History could not be saved", canonical) from exc
+            raise HistoryStorageError(
+                "History could not be saved", canonical, reason=error_kind(exc)
+            ) from exc
 
     def remove(self, ids, clear=False):
         try:
@@ -208,4 +228,6 @@ class HistoryStore:
                             )
                         )
         except SQLAlchemyError as exc:
-            raise HistoryStorageError("History could not be deleted") from exc
+            raise HistoryStorageError(
+                "History could not be deleted", reason=error_kind(exc)
+            ) from exc

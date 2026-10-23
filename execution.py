@@ -1331,9 +1331,9 @@ class PromptQueue:
                     "healthy": self.history_failure_count == 0,
                     "failure_count": self.history_failure_count}
 
-    def _history_failed(self):
+    def _history_failed(self, error):
         self.history_failure_count += 1
-        logging.error("History persistence failed; inspect database availability. The result may only exist in memory.")
+        logging.error("History persistence failed (reason=%s). The result may only exist in memory.", error.reason)
 
     def put(self, item):
         with self.mutex:
@@ -1370,18 +1370,18 @@ class PromptQueue:
             record = {"prompt": prompt, "outputs": {}, "status": status_dict}
             record.update(history_result)
             removed = []
-            failed = False
+            failure = None
             if self.history_store is not None:
                 try:
                     record, removed = self.history_store.save(prompt[1], record)
                 except HistoryStorageError as error:
                     if error.record is not None:
                         record = error.record
-                    failed = True
+                    failure = error
             with self.mutex:
                 self.currently_running.pop(item_id)
-                if failed:
-                    self._history_failed()
+                if failure is not None:
+                    self._history_failed(failure)
                 if self.history_store is None and len(self.history) > MAXIMUM_HISTORY_SIZE:
                     self.history.pop(next(iter(self.history)))
                 for prompt_id in removed:
@@ -1480,9 +1480,9 @@ class PromptQueue:
             if self.history_store is not None:
                 try:
                     self.history_store.remove(ids, clear=clear)
-                except HistoryStorageError:
+                except HistoryStorageError as error:
                     with self.mutex:
-                        self._history_failed()
+                        self._history_failed(error)
                     raise
             with self.mutex:
                 if clear:

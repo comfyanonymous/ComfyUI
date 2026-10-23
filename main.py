@@ -35,6 +35,7 @@ import faulthandler
 import logging
 import signal
 import sys
+from comfy_execution.history import HistoryStorageError
 from comfy_execution.progress import get_progress_state
 from comfy_execution.utils import get_executing_context
 from comfy_api import feature_flags
@@ -509,7 +510,7 @@ def setup_database(asset_manager):
         asset_manager.startup()
     except Exception as e:
         if args.enable_history:
-            stop_history_startup("Cannot open or upgrade the history database. Check its path, permissions and lock; preserve the database when recovering.")
+            stop_history_startup(f"Cannot open or upgrade the history database (reason={error_kind(e)}). Check its path, permissions and lock; preserve the database when recovering.")
         failure, message = database_failure_message(e, get_database_url())
         if failure != "unsupported_url":  # that error repeats the URL, which can carry a password
             logging.debug("Asset database startup failed", exc_info=True)
@@ -636,12 +637,12 @@ def start_comfyui(asyncio_loop=None):
     cuda_malloc_warning()
     setup_database(asset_manager)
     if args.enable_history:
+        # SQLAlchemy is optional when history and assets are disabled.
         from app.history import HistoryStore
-        from comfy_execution.history import HistoryStorageError
         try:
             prompt_server.prompt_queue.initialize_history(HistoryStore(args.history_limit))
-        except HistoryStorageError:
-            stop_history_startup("Cannot restore history. Preserve the database and check its format and integrity.")
+        except HistoryStorageError as error:
+            stop_history_startup(f"Cannot restore history (reason={error.reason}). Preserve the database and check its format and integrity.")
 
     prompt_server.add_routes()
     hijack_progress(prompt_server)
