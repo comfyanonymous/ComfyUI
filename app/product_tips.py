@@ -3,7 +3,7 @@
 Plain ASCII on purpose: Windows consoles may still use cp1252.
 """
 
-COMFY_API_STARTUP_TIP = "ComfyUI is developed by Comfy Org. We also offer commercial products to deploy ComfyUI as scalable cloud endpoints. Please see platform.comfy.org/ascii for more information."
+COMFY_API_STARTUP_TIP = "ComfyUI is developed by Comfy Org. We also offer commercial products to deploy ComfyUI as scalable cloud endpoints. Visit platform.comfy.org/ascii for more information."
 
 COMFY_API_JOB_HINT = "ComfyUI is developed by Comfy Org. We also offer commercial products to deploy ComfyUI as scalable cloud endpoints. Please see platform.comfy.org/ascii-job for more information."
 
