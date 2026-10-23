@@ -18,7 +18,7 @@ if not torch.cuda.is_available():
 import folder_paths  # noqa: E402
 import server  # noqa: E402
 from app import deploy_to_cloud  # noqa: E402
-from comfy import comfy_api_env  # noqa: E402
+from app import comfy_api_env  # noqa: E402
 
 BEARER = "Bearer eyJhbGciOiJSUzI1NiJ9.test.sig"
 API_KEY = "comfyui-" + "0123456789abcdef" * 4

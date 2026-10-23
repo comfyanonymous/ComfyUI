@@ -16,7 +16,7 @@ from aiohttp import web
 import folder_paths
 from comfy.cli_args import args
 from comfy_api import feature_flags
-from comfy.comfy_api_env import builder_base_url, platform_base_url
+from app.comfy_api_env import builder_base_url, platform_base_url
 from comfyui_version import __version__
 
 HEADLESS_MARKER = "used_headlessly"
