@@ -384,17 +384,21 @@ async def poll_op_raw(
     progress_bar = utils.ProgressBar(100) if progress_extractor else None
     last_progress: int | None = None
 
-    server_estimate = _server_estimates_by_execution.pop(cls, None)
-    if server_estimate is not None:
-        state = _PollUIState(
-            started=started,
-            estimated_duration=server_estimate.p50_seconds,
-            estimated_p90=server_estimate.p90_seconds,
-            estimate_includes_queue=server_estimate_includes_queue,
-        )
-    else:
-        state = _PollUIState(started=started, estimated_duration=estimated_duration)
-    estimate_bar = utils.ProgressBar(100) if progress_bar is None and server_estimate is not None else None
+    state = _PollUIState(started=started, estimated_duration=estimated_duration)
+    estimate_bar: utils.ProgressBar | None = None
+
+    def _adopt_server_estimate():
+        nonlocal estimate_bar
+        server_estimate = _server_estimates_by_execution.pop(cls, None)
+        if server_estimate is None:
+            return
+        state.estimated_duration = server_estimate.p50_seconds
+        state.estimated_p90 = server_estimate.p90_seconds
+        state.estimate_includes_queue = server_estimate_includes_queue
+        if progress_bar is None and estimate_bar is None:
+            estimate_bar = utils.ProgressBar(100)
+
+    _adopt_server_estimate()
     stop_ticker = asyncio.Event()
 
     async def _cancel():
@@ -480,6 +484,7 @@ async def poll_op_raw(
                 await _cancel()
                 raise
 
+            _adopt_server_estimate()
             try:
                 status = _normalize_status_value(status_extractor(resp_json))
             except Exception as e:
