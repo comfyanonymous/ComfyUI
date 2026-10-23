@@ -619,7 +619,9 @@ async def router_op_raw(
     return await sync_op_raw(
         cls,
         ApiEndpoint(path=path),
-        max_retries=0 if failed else 3,
+        timeout=120.0,
+        max_retries=0 if failed else 10,
+        retry_backoff=1.4,
         max_retries_on_rate_limit=0 if failed else 16,
         progress_origin_ts=started,
     )
