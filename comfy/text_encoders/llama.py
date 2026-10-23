@@ -1233,7 +1233,8 @@ class BaseGenerate:
                     extra["visual_pos_masks"] = visual_pos_masks
                 if step == 0 and cache_ids is not None:
                     past_key_values, x = llm_prefix_cache.prefill(self, embeds, cache_ids, max_cache_len,
-                                                                  lambda e, pkv: self.model.forward(None, embeds=e, attention_mask=None, past_key_values=pkv, **extra)[0])
+                                                                  lambda e, pkv, p: self.model.forward(None, embeds=e, attention_mask=None, past_key_values=pkv, position_ids=p, **extra)[0],
+                                                                  position_ids=position_ids)
                 else:
                     x, _, past_key_values = self.model.forward(None, embeds=embeds, attention_mask=None, past_key_values=past_key_values, input_ids=current_input_ids, position_ids=position_ids, **extra, embeds_info=(embeds_info if step == 0 else None))
                 logits = self.logits(x)[:, -1]

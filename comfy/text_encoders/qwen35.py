@@ -792,9 +792,6 @@ class Qwen35(BaseLlama, BaseGenerate, torch.nn.Module):
                                   position_ids=kwargs.get("position_ids"), cache_ids=kwargs.get("cache_ids"))
 
     def _generate_mtp(self, embeds, max_length, stop_tokens, sampling=None, fixed_depth=None, position_ids=None, cache_ids=None):
-        if position_ids is not None:
-            # the prefix cache stores plain sequential positions; MRoPE (image) prompts take the uncached path
-            cache_ids = None
         device = embeds.device
         cfg = self.model.config
         if stop_tokens is None:
@@ -810,7 +807,8 @@ class Qwen35(BaseLlama, BaseGenerate, torch.nn.Module):
             pkv = self.init_kv_cache(embeds.shape[0], cap, device, dt)
         else:
             pkv, x = llm_prefix_cache.prefill(self, embeds, cache_ids, cap,
-                                              lambda e, kv: self.model.forward(None, embeds=e, attention_mask=None, past_key_values=kv)[0])
+                                              lambda e, kv, p: self.model.forward(None, embeds=e, attention_mask=None, past_key_values=kv, position_ids=p)[0],
+                                              position_ids=position_ids)
             cap = pkv[self.model.config.layer_types.index("full_attention")].key.shape[2]
         # repair window: drafting ahead plus a near-full rollback
         mtp_kv = self.mtp.layers[0].self_attn.init_kv_cache(embeds.shape[0], cap, device, dt, {})
@@ -1127,8 +1125,11 @@ class Qwen35ClipModel(sd1_clip.SDClipModel):
         embeds, _, _, embeds_info = self.process_tokens(tokens_only, self.execution_device)
         position_ids = comfy.text_encoders.qwen_vl.qwen2vl_mrope_position_ids(embeds_info, embeds.shape[1], embeds.device)
         extra = {}
-        if llm_prefix_cache.enabled() and position_ids is None and len(tokens_only) == 1 and all(isinstance(t, int) for t in tokens_only[0]):
-            extra["cache_ids"] = tokens_only[0]
+        if llm_prefix_cache.enabled() and len(tokens_only) == 1:
+            # image positions get ids from the image content, so an image prompt can reuse a cached prefix too
+            cache_ids = llm_prefix_cache.prompt_ids(tokens_only[0], embeds_info, embeds.shape[1])
+            if cache_ids is not None:
+                extra["cache_ids"] = cache_ids
         return self.transformer.generate(embeds, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed,
                                          presence_penalty=presence_penalty, position_ids=position_ids, mtp=mtp, **extra)
 

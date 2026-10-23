@@ -6,6 +6,10 @@ of generation. A recurrent state can't be truncated, so a new prompt resumes fro
 checkpoint inside its common prefix with the cached tokens; the KV is truncated to match by the
 decode bias.
 
+Image prompts are cached too: each image position's id is a hash of the image plus its offset in the span
+(prompt_ids), and the prefill passes each segment its slice of the MRoPE positions. A prefix's positions depend only
+on the prefix, so a matching prefix has matching positions.
+
 COMFY_LLM_PREFIX_CACHE: off (default) | gpu (resident, parked in pinned RAM when another model
 needs the VRAM) | vram (resident, never parked) | cpu (parked in pinned RAM after every call) |
 disk (parked to COMFY_LLM_PREFIX_CACHE_DIR after every call, mmapped back) | stats (same timing log, never reuses).
@@ -19,6 +23,7 @@ must use the bf16 FixedKVCache: Int8FixedKVCache can't continue a prefill from a
 re-initialises the packed store and attends only the new segment), so GatedAttention picks FixedKVCache while the
 cache is on.
 """
+import hashlib
 import json
 import logging
 import os
@@ -258,8 +263,41 @@ def _checkpoint_positions(ids, start):
     return out
 
 
-def prefill(model, embeds, ids, capacity, forward):
-    """Prefill `embeds` (whole prompt) reusing a cached prefix of `ids`. Returns (pkv, x of the last position)."""
+def prompt_ids(tokens, embeds_info, seq_len):
+    """Cache ids for one prompt, one per embed position: the token ids, and for each image span a key per position
+    made from a hash of the image (so the same image at the same place matches the cached prefix). None when the
+    prompt holds anything else that isn't a token (video, audio, raw embeddings) or the spans don't line up."""
+    spans = iter(embeds_info)
+    out = []
+    for t in tokens:
+        if isinstance(t, int):
+            out.append(t)
+            continue
+        if not isinstance(t, dict) or t.get("type") != "image" or not torch.is_tensor(t.get("data")):
+            return None
+        info = next(spans, None)
+        if info is None or info.get("type") != "image" or info.get("index") != len(out):
+            return None
+        digest = _image_digest(t["data"])
+        out.extend((digest, k) for k in range(info["size"]))
+    if next(spans, None) is not None or len(out) != seq_len:
+        return None
+    return out
+
+
+def _image_digest(image):
+    # content + shape + dtype: a resized or re-encoded copy is a different image
+    data = image.detach().to("cpu").contiguous()
+    h = hashlib.blake2b(digest_size=16)
+    h.update(f"{tuple(data.shape)}|{data.dtype}".encode())
+    h.update(data.view(torch.uint8).numpy().tobytes() if data.numel() else b"")
+    return "img:" + h.hexdigest()
+
+
+def prefill(model, embeds, ids, capacity, forward, position_ids=None):
+    """Prefill `embeds` (whole prompt) reusing a cached prefix of `ids`. Returns (pkv, x of the last position).
+    `forward(embeds, pkv, position_ids)` runs one segment; `position_ids` (MRoPE, `(3, len(ids))`) is sliced to the
+    segment, or None for plain sequential positions, which the model takes from the cache index."""
     global _slot
     stats.clear()
     device, dtype = embeds.device, embeds.dtype
@@ -274,12 +312,14 @@ def prefill(model, embeds, ids, capacity, forward):
     _sync(device)
     t1 = time.perf_counter()
     stats.update(prompt_len=len(ids), prefix_len=n, hit=n > 0, restore_s=round(t1 - t0, 3))
+    if position_ids is not None:
+        stats["image_positions"] = sum(1 for t in ids if not isinstance(t, int))
     # prefill in segments that end on checkpoint positions; the DeltaNet states are cloned at each
     # because the next segment and decode update them in place
     start = n
     # stats mode prefills in one pass, as core does without the cache
     for pos in ([] if MODE == "stats" else _checkpoint_positions(ids, n)) + [len(ids)]:
-        x = _run_prefill(embeds[:, start:pos], pkv, forward)
+        x = _run_prefill(embeds[:, start:pos], pkv, forward, position_ids, start)
         if MODE != "stats":
             checkpoints[pos] = _linear_states(pkv, clone=True)
             _touch(pos)
@@ -298,17 +338,21 @@ def prefill(model, embeds, ids, capacity, forward):
     return pkv, x
 
 
-def _run_prefill(embeds, pkv, forward):
+def _run_prefill(embeds, pkv, forward, position_ids, offset):
+    # offset: where `embeds` starts in the whole prompt, to slice its positions
+    def run(a, b):
+        return forward(embeds[:, a:b], pkv, None if position_ids is None else position_ids[..., offset + a:offset + b])
+
     total = embeds.shape[1]
     if CHUNK <= 0 or total <= CHUNK + MIN_SUFFIX:
-        return forward(embeds, pkv)
+        return run(0, total)
     x = None
     start = 0
     while start < total:
         end = start + CHUNK
         if total - end < MIN_SUFFIX:
             end = total
-        x = forward(embeds[:, start:end], pkv)[:, -1:]
+        x = run(start, end)[:, -1:]
         start = end
     return x
 
