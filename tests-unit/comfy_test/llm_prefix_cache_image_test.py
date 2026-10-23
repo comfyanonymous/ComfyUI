@@ -100,19 +100,32 @@ def _prompt(model, parts):
     return embeds, ids, qwen2vl_mrope_position_ids(info, embeds.shape[1], "cpu")
 
 
-@pytest.mark.parametrize("mtp", [False, True])
-@pytest.mark.parametrize("chunk", [0, 8])
-def test_cached_image_prompt_matches_uncached_greedy(monkeypatch, mtp, chunk):
+def test_shortest_cached_suffix_stays_off_the_verify_path():
+    from comfy.text_encoders.llama import SPEC_ROWS
+    assert llm_prefix_cache.MIN_SUFFIX > SPEC_ROWS
+
+
+# off, auto (adaptive tree), a fixed chain depth, and fixed trees with siblings at one and two levels
+MTP_MODES = [False, True, "3", "tree2s2", "tree4s1m8"]
+
+
+@pytest.mark.parametrize("mtp", MTP_MODES)
+@pytest.mark.parametrize("chunk", [0, 12])
+@pytest.mark.parametrize("pictures", [True, False])
+def test_cached_image_prompt_matches_uncached_greedy(monkeypatch, mtp, chunk, pictures):
     model = _tiny_model(monkeypatch)
     _cache_on(monkeypatch, chunk)
     system = [1, 2, 3, 4, 5, 6, 7, 8] + MSG_END
     turn1 = [system, [9, 10, 11], 1, [12, 13] + MSG_END, [20, 21, 22, 23, 24, 25, 26, 27]]
+    if not pictures:
+        turn1 = [p for p in turn1 if not isinstance(p, int)]
 
     # every multi-token pass (prefill segments, cached or not) gets MRoPE positions for its own length
+    from comfy.text_encoders.llama import SPEC_ROWS
     real_forward, seen = model.model.forward, []
 
     def spy(x, embeds=None, position_ids=None, **kw):
-        if embeds is not None and embeds.shape[1] > 6:
+        if embeds is not None and embeds.shape[1] > SPEC_ROWS:
             seen.append(position_ids is not None and tuple(position_ids.shape) == (3, embeds.shape[1]))
         return real_forward(x, embeds=embeds, position_ids=position_ids, **kw)
     monkeypatch.setattr(model.model, "forward", spy)
@@ -123,18 +136,43 @@ def test_cached_image_prompt_matches_uncached_greedy(monkeypatch, mtp, chunk):
         return model.generate(embeds, do_sample=False, max_length=12, mtp=mtp, position_ids=positions, **kw)
 
     first = run(turn1, cached=True)
-    assert llm_prefix_cache.stats["image_positions"] == IMAGE_SIZE
+    images = IMAGE_SIZE if pictures else 0
+    assert llm_prefix_cache.stats.get("image_positions", 0) == images
     assert first == run(turn1, cached=False)
     # the next turn: the reply, then a second image and more text
     turn2 = turn1 + [first + MSG_END, [30, 31, 32], 2, [33, 34] + MSG_END, [40, 41, 42, 43, 44, 45, 46, 47]]
+    if not pictures:
+        turn2 = [p for p in turn2 if not isinstance(p, int)]
     llm_prefix_cache.drop()
     run(turn1, cached=True)
     second = run(turn2, cached=True)
     stats = dict(llm_prefix_cache.stats)
-    assert stats["hit"] and stats["prefix_len"] > len(system) + 3 + IMAGE_SIZE  # resumed past the first image
-    assert stats["image_positions"] == 2 * IMAGE_SIZE
+    assert stats["hit"] and stats["prefix_len"] > len(system) + 3 + images  # resumed past the first image
+    assert stats.get("image_positions", 0) == 2 * images
     assert second == run(turn2, cached=False)
-    assert seen and all(seen)
+    if pictures:
+        assert seen and all(seen)
+
+
+@pytest.mark.parametrize("tree", ["tree2s2", True])
+def test_plain_decode_after_tree_mtp_reuses_the_cache(monkeypatch, tree):
+    # an in-place restore hands the next call the KV objects a tree verify left behind; plain decode and the
+    # cached prefill must not see that call's verify tree
+    model = _tiny_model(monkeypatch)
+    _cache_on(monkeypatch)
+    system = [1, 2, 3, 4, 5, 6, 7, 8] + MSG_END
+    turn1 = [system, [9, 10, 11], 1, [12, 13] + MSG_END, [20, 21, 22, 23, 24, 25, 26, 27]]
+
+    def run(parts, cached, mtp):
+        embeds, ids, positions = _prompt(model, parts)
+        kw = {"cache_ids": ids} if cached else {}
+        return model.generate(embeds, do_sample=False, max_length=12, mtp=mtp, position_ids=positions, **kw)
+
+    first = run(turn1, cached=True, mtp=tree)
+    turn2 = turn1 + [first + MSG_END, [30, 31, 32], 2, [33, 34] + MSG_END, [40, 41, 42, 43, 44, 45, 46, 47]]
+    second = run(turn2, cached=True, mtp=False)
+    assert llm_prefix_cache.stats["restore"] == "in-place" and llm_prefix_cache.stats["hit"]
+    assert second == run(turn2, cached=False, mtp=False)
 
 
 def test_changed_image_misses_at_the_image(monkeypatch):

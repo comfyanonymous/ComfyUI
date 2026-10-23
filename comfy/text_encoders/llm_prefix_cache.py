@@ -40,7 +40,7 @@ DISK_DIR = os.environ.get("COMFY_LLM_PREFIX_CACHE_DIR", "/tmp/llm_prefix_cache")
 CKPT_RECENT = int(os.environ.get("COMFY_LLM_PREFIX_CACHE_CKPTS", "6"))  # message-boundary checkpoints kept
 HOST_CAP = int(float(os.environ.get("COMFY_LLM_PREFIX_CACHE_HOST_GB", "4")) * 2**30)
 MSG_END = (248046, 198)  # "<|im_end|>\n" in the Qwen3.5 vocab: a checkpoint may sit after it
-MIN_SUFFIX = 7  # suffixes of 6 or fewer tokens would take the decode/verify paths
+MIN_SUFFIX = 9  # suffixes of llama.SPEC_ROWS (8) or fewer tokens would take the decode/verify paths
 
 _slot = None
 stats = {}
@@ -207,6 +207,7 @@ def _set_prefix(pkv, n):
         kv.index = n
         if isinstance(kv, FixedKVState):
             kv.tracker["step"] = -1
+            kv.tracker["tree"] = None  # a reused cache keeps the last MTP call's verify tree; prefill and plain decode have none
         elif isinstance(kv, LinearKV):
             kv.uncommitted = 0
             kv.ctl_tracker["step"] = None
@@ -344,12 +345,13 @@ def _run_prefill(embeds, pkv, forward, position_ids, offset):
         return forward(embeds[:, a:b], pkv, None if position_ids is None else position_ids[..., offset + a:offset + b])
 
     total = embeds.shape[1]
-    if CHUNK <= 0 or total <= CHUNK + MIN_SUFFIX:
+    chunk = max(CHUNK, MIN_SUFFIX)  # a chunk of SPEC_ROWS or fewer tokens would take the verify path
+    if CHUNK <= 0 or total <= chunk + MIN_SUFFIX:
         return run(0, total)
     x = None
     start = 0
     while start < total:
-        end = start + CHUNK
+        end = start + chunk
         if total - end < MIN_SUFFIX:
             end = total
         x = run(start, end)[:, -1:]
