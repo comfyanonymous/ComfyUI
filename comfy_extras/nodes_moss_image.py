@@ -105,7 +105,7 @@ class TextEncodeMOSSImageEdit(io.ComfyNode):
             node_id="TextEncodeMOSSImageEdit",
             display_name="Text Encode MOSS-Image Edit",
             category="model/conditioning/moss_image",
-            description="Encodes an edit instruction with reference images for a MOSS-Image edit LoRA, use it for the negative prompt too. The references are used at the size they come in, scale them first. Without a VAE, the ai-toolkit formats only show the images to the text encoder.",
+            description="Encodes an edit instruction with reference images for a MOSS-Image edit LoRA, use it for the negative prompt too. The references are used at the size they come in, scale them first. Without a VAE, the images only go to the text encoder.",
             inputs=[
                 io.Clip.Input("clip"),
                 io.String.Input("prompt", multiline=True, dynamic_prompts=True),
@@ -122,7 +122,7 @@ class TextEncodeMOSSImageEdit(io.ComfyNode):
         method, vision = EDIT_FORMATS[edit_format]
         images = [images[name] for name in sorted(images) if images[name] is not None]
         vl = []
-        if vision:
+        if vision or vae is None:
             # the text encoder sees each reference downscaled to at most 384x384 pixels, after a "Picture N:" marker
             for image in images:
                 scale = min(1.0, math.sqrt(384 * 384 / (image.shape[1] * image.shape[2])))
