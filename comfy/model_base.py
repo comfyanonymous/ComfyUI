@@ -276,6 +276,9 @@ class BaseModel(torch.nn.Module):
     def encode_adm(self, **kwargs):
         return None
 
+    def get_writable_model(self, conds, noise_shape, model_options, device):
+        return None
+
     def concat_cond(self, **kwargs):
         if len(self.concat_keys) > 0:
             cond_concat = []
@@ -2723,6 +2726,35 @@ class QwenImage21(QwenImage):
         if diffusion_model is not None:
             diffusion_model.current_patcher = patcher
             diffusion_model.reset_prefix_cache(patcher is not None and len(patcher.hook_patches) == 0)
+
+    def get_writable_model(self, conds, noise_shape, model_options, device):
+        transformer_options = model_options.get("transformer_options", {})
+        options = transformer_options.get("qwen_image21_cache", {})
+        model = self.diffusion_model
+        if options.get("device", "auto") != "auto" or not model.can_cache_prefix(transformer_options):
+            return None
+
+        heads = model.transformer_blocks[0].attn.heads
+        slots = []
+        for conditions in conds.values():
+            for cond in conditions:
+                cond["model_conds"] = c = cond["model_conds"].copy()
+                length = c["c_crossattn"].cond.shape[1]
+                if "ref_latents" in c:
+                    length += sum(t.shape[-2] * t.shape[-1] for t in c["ref_latents"].cond)
+                shape = (noise_shape[0], 2, length, heads, model.inner_dim // heads)
+                slot = comfy.ldm.qwen_image21.model.PrefixCacheSlot(shape, len(model.transformer_blocks), self.get_dtype_inference(), options.get("dtype", "default"))
+                slots.append((c, slot))
+
+        cache = comfy.ldm.qwen_image21.model.KVCacheModel([slot for _, slot in slots])
+        cache_bytes = sum(p.numel() * p.element_size() for p in cache.parameters())
+        if not (self.current_patcher.get_free_memory(device) > 4 * cache_bytes or
+                comfy.model_management.ensure_pin_budget(cache_bytes, evict_active=False)):
+            return None
+
+        for c, slot in slots:
+            c.setdefault("prefix_cache", comfy.conds.CONDKVCache({})).cond[device] = slot
+        return cache
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
