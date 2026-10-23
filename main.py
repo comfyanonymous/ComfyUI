@@ -18,6 +18,7 @@ import folder_paths
 import time
 from comfy.cli_args import enables_dynamic_vram
 from app import governance
+from app import product_tips
 from app.logger import setup_logger
 console_log_level = get_console_log_level(args.verbose)
 file_log_outputs = get_file_log_outputs(args.verbose)
@@ -37,6 +38,7 @@ import sys
 from comfy_execution.progress import get_progress_state
 from comfy_execution.utils import get_executing_context
 from comfy_api import feature_flags
+import app.agent_host
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
@@ -129,7 +131,6 @@ def handle_comfyui_manager_unavailable():
 
 if args.enable_agent:
     logging.info("[agent-event] flag_enabled")
-    import app.agent_host
     app.agent_host.load()  # a failure stays reported: the agent's paths answer 503 with the reason
 
 
@@ -272,7 +273,6 @@ import nodes
 import comfy.model_management
 import comfyui_version
 import app.logger
-import app.agent_host
 import hook_breaker_ac10a0
 
 import comfy.memory_management
@@ -408,6 +408,10 @@ def prompt_worker(q, server_instance, asset_manager):
                     logging.info(f"Prompt executed in {execution_time}", extra={'color': 'green'})
                 else:
                     logging.info("Prompt executed in {:.2f} seconds".format(execution_time), extra={'color': 'green'})
+
+                job_hint = product_tips.get_relevant_job_hint(args, os.environ, e.success, extra_data)
+                if job_hint is not None:
+                    logging.info(job_hint)
 
             flags = q.get_flags()
             free_memory = flags.get("free_memory", False)
@@ -641,12 +645,13 @@ def start_comfyui(asyncio_loop=None):
         call_on_start = startup_server
 
     if args.enable_agent:
-        launch_browser = call_on_start
+        open_browser = call_on_start
 
-        def call_on_start(scheme, address, port):
-            if launch_browser is not None:
-                launch_browser(scheme, address, port)
+        def start_agent(scheme, address, port):
+            if open_browser is not None:
+                open_browser(scheme, address, port)
             app.agent_host.start(prompt_server, scheme, address, port)
+        call_on_start = start_agent
 
     async def start_all():
         await prompt_server.setup()
@@ -682,6 +687,8 @@ if __name__ == "__main__":
     event_loop, prompt_server, start_all_func = start_comfyui()
     try:
         x = start_all_func()
+        if product_tips.tips_enabled(args, os.environ):
+            logging.info(product_tips.COMFY_API_STARTUP_TIP)
         app.logger.print_startup_warnings()
         event_loop.run_until_complete(x)
     except KeyboardInterrupt:

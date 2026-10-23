@@ -17,9 +17,9 @@ import aiohttp
 from aiohttp.client_exceptions import ClientError
 from yarl import URL
 
+from app.comfy_api_env import normalize_comfy_api_base
+from app.deploy_environment import get_deploy_environment
 from comfy.cli_args import args
-from comfy.comfy_api_env import normalize_comfy_api_base
-from comfy.deploy_environment import get_deploy_environment
 from comfy.model_management import processing_interrupted
 from comfy_api.latest import IO
 from comfy_execution.graph_utils import is_link
