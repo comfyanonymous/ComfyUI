@@ -18,12 +18,15 @@ import uuid
 import zlib
 import comfy.utils
 from av.video.reformatter import ColorPrimaries, ColorRange, ColorTrc
+from enum import Enum
 from fractions import Fraction
+from typing import TypedDict
 from PIL.Image import Exif
 
 from server import PromptServer
 from comfy_api.latest import ComfyExtension, IO, UI
 from comfy_execution.preview_tonemap import linear_to_preview
+from comfy_extras.color_util import hex_to_rgb
 from comfy.cli_args import args
 from typing_extensions import override
 
@@ -644,6 +647,147 @@ class ResizeAndPadImage(IO.ComfyNode):
         return IO.NodeOutput(output)
 
     resize_and_pad = execute  # TODO: remove
+
+
+class PadType(str, Enum):
+    PAD_DIMENSIONS = "pad dimensions"
+    PAD_BY = "pad by multiplier"
+    PAD_TO_MULTIPLE = "pad to multiple"
+
+
+class PadStyle(str, Enum):
+    COLOR = "color"
+    MIRROR = "mirror image"
+
+
+def split_padding(total: int) -> tuple[int, int]:
+    return total // 2, total - total // 2
+
+
+def mirror_indices(size: int, before: int, after: int, device: torch.device) -> torch.Tensor:
+    # reflect without repeating the edge pixel, repeating the mirrored image when the padding exceeds the size
+    period = max(2 * (size - 1), 1)
+    idx = torch.arange(-before, size + after, device=device).abs() % period
+    return torch.where(idx < size, idx, period - idx)
+
+
+def pad_mirror(image: torch.Tensor, left: int, top: int, right: int, bottom: int) -> torch.Tensor:
+    _, height, width, _ = image.shape
+    rows = mirror_indices(height, top, bottom, image.device)
+    cols = mirror_indices(width, left, right, image.device)
+    return image[:, rows[:, None], cols[None, :]]
+
+
+def feather_weight(size: int, before: int, after: int, feathering: int, device: torch.device) -> torch.Tensor:
+    # integer distances: fp16/bf16 can't represent large pixel indices exactly
+    i = torch.arange(size, device=device)
+    dist = torch.full_like(i, feathering)
+    if before > 0:
+        dist = torch.minimum(dist, i)
+    if after > 0:
+        dist = torch.minimum(dist, size - 1 - i)
+    return ((feathering - dist) / (feathering + 1)).square()
+
+
+def pad_color(image: torch.Tensor, left: int, top: int, right: int, bottom: int, color: str, feathering: int) -> torch.Tensor:
+    batch, height, width, channels = image.shape
+    rgb = [c / 255.0 for c in hex_to_rgb(color[:7])]
+    fill = torch.tensor((rgb + [1.0] * channels)[:channels], dtype=image.dtype, device=image.device)
+
+    out = torch.empty((batch, height + top + bottom, width + left + right, channels), dtype=image.dtype, device=image.device)
+    out[:] = fill
+    inner = out[:, top:top + height, left:left + width]
+    inner.copy_(image)
+
+    if feathering > 0:
+        wy = feather_weight(height, top, bottom, feathering, image.device).to(image.dtype)
+        wx = feather_weight(width, left, right, feathering, image.device).to(image.dtype)
+        inner.lerp_(fill, torch.maximum(wy[:, None], wx[None, :]).unsqueeze(-1))
+    return out
+
+
+class PadImageNode(IO.ComfyNode):
+    class PadTypedDict(TypedDict):
+        padding_type: PadType
+        left: int
+        top: int
+        right: int
+        bottom: int
+        multiplier: float
+        multiple: int
+
+    class PadStyleTypedDict(TypedDict):
+        padding_style: PadStyle
+        color: str
+        feathering: int
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="PadImageNode",
+            display_name="Pad Image",
+            description="Pad an image with a solid color or a mirrored copy of its edges.",
+            category="image/transform",
+            search_aliases=["pad", "pad image", "padding", "reflect", "mirror", "extend canvas", "expand image", "border"],
+            inputs=[
+                IO.Image.Input("image"),
+                IO.DynamicCombo.Input(
+                    "padding_type",
+                    tooltip="Select how much padding to add: exact amounts per side, a size multiplier, or up to the next multiple.",
+                    options=[
+                        IO.DynamicCombo.Option(PadType.PAD_DIMENSIONS, [
+                            IO.Int.Input("left", default=0, min=0, max=MAX_RESOLUTION, step=1, tooltip="Pixels to add on the left."),
+                            IO.Int.Input("top", default=0, min=0, max=MAX_RESOLUTION, step=1, tooltip="Pixels to add on the top."),
+                            IO.Int.Input("right", default=0, min=0, max=MAX_RESOLUTION, step=1, tooltip="Pixels to add on the right."),
+                            IO.Int.Input("bottom", default=0, min=0, max=MAX_RESOLUTION, step=1, tooltip="Pixels to add on the bottom."),
+                        ]),
+                        IO.DynamicCombo.Option(PadType.PAD_BY, [
+                            IO.Float.Input("multiplier", default=1.0, min=1.0, max=8.0, step=0.01, tooltip="Output size relative to the input (e.g., 1.5 adds 25% on each side). Padding is split evenly between opposite sides."),
+                        ]),
+                        IO.DynamicCombo.Option(PadType.PAD_TO_MULTIPLE, [
+                            IO.Int.Input("multiple", default=32, min=1, max=MAX_RESOLUTION, step=1, tooltip="Pad so width and height are divisible by this number. Padding is split evenly between opposite sides, with the extra pixel going to the right/bottom."),
+                        ]),
+                    ],
+                ),
+                IO.DynamicCombo.Input(
+                    "padding_style",
+                    tooltip="What to fill the padded area with.",
+                    options=[
+                        IO.DynamicCombo.Option(PadStyle.COLOR, [
+                            IO.Color.Input("color", default="#000000", tooltip="Fill color for the padded area. Alpha is ignored."),
+                            IO.Int.Input("feathering", default=0, min=0, max=MAX_RESOLUTION, step=1, tooltip="Blend this many pixels of the image edge into the fill color on the padded sides."),
+                        ]),
+                        IO.DynamicCombo.Option(PadStyle.MIRROR, []),
+                    ],
+                ),
+            ],
+            outputs=[IO.Image.Output(display_name="image")],
+        )
+
+    @classmethod
+    def execute(cls, image: IO.Image.Type, padding_type: PadTypedDict, padding_style: PadStyleTypedDict) -> IO.NodeOutput:
+        _, height, width, _ = image.shape
+        selected_type = padding_type["padding_type"]
+        if selected_type == PadType.PAD_DIMENSIONS:
+            left, top, right, bottom = padding_type["left"], padding_type["top"], padding_type["right"], padding_type["bottom"]
+        elif selected_type == PadType.PAD_BY:
+            left, right = split_padding(round(width * padding_type["multiplier"]) - width)
+            top, bottom = split_padding(round(height * padding_type["multiplier"]) - height)
+        elif selected_type == PadType.PAD_TO_MULTIPLE:
+            multiple = padding_type["multiple"]
+            left, right = split_padding(-width % multiple)
+            top, bottom = split_padding(-height % multiple)
+        else:
+            raise ValueError(f"Unsupported padding type: {selected_type}")
+        if left == top == right == bottom == 0:
+            return IO.NodeOutput(image)
+
+        selected_style = padding_style["padding_style"]
+        if selected_style == PadStyle.MIRROR:
+            return IO.NodeOutput(pad_mirror(image, left, top, right, bottom))
+        elif selected_style == PadStyle.COLOR:
+            return IO.NodeOutput(pad_color(image, left, top, right, bottom, padding_style["color"], padding_style["feathering"]))
+        raise ValueError(f"Unsupported padding style: {selected_style}")
 
 
 class SaveSVGNode(IO.ComfyNode):
@@ -2127,6 +2271,7 @@ class ImagesExtension(ComfyExtension):
             SaveSVGNode,
             ImageStitch,
             ResizeAndPadImage,
+            PadImageNode,
             GetImageSize,
             GetLatentSize,
             ImageRotate,
