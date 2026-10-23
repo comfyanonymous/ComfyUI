@@ -11,14 +11,14 @@ import comfy.lora  # noqa: E402
 
 
 def _missing_key_warnings(caplog):
-    with caplog.at_level(logging.WARNING):
-        return [r for r in caplog.records if "lora keys not loaded" in r.getMessage()]
+    return [r for r in caplog.records if "lora keys not loaded" in r.getMessage()]
 
 
 def test_load_lora_aggregates_missing_key_warning(caplog):
     lora = {"unrelated.{}.lora_up.weight".format(i): None for i in range(20)}
 
-    comfy.lora.load_lora(lora, {})
+    with caplog.at_level(logging.WARNING):
+        comfy.lora.load_lora(lora, {})
 
     warnings = _missing_key_warnings(caplog)
     assert len(warnings) == 1
@@ -31,7 +31,8 @@ def test_load_lora_aggregates_missing_key_warning(caplog):
 def test_load_lora_lists_all_missing_keys_when_few(caplog):
     lora = {"a.weight": None, "b.weight": None}
 
-    comfy.lora.load_lora(lora, {})
+    with caplog.at_level(logging.WARNING):
+        comfy.lora.load_lora(lora, {})
 
     warnings = _missing_key_warnings(caplog)
     assert len(warnings) == 1
@@ -43,6 +44,7 @@ def test_load_lora_lists_all_missing_keys_when_few(caplog):
 def test_load_lora_no_warning_when_all_keys_loaded(caplog):
     lora = {"a.config": 1}
 
-    comfy.lora.load_lora(lora, {})
+    with caplog.at_level(logging.WARNING):
+        comfy.lora.load_lora(lora, {})
 
     assert _missing_key_warnings(caplog) == []
