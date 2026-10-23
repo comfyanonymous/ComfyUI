@@ -162,7 +162,7 @@ class FluxKontextMultiReferenceLatentMethod(io.ComfyNode):
                 io.Conditioning.Input("conditioning"),
                 io.Combo.Input(
                     "reference_latents_method",
-                    options=["offset", "index", "uxo/uno", "index_timestep_zero"],
+                    options=["offset", "index", "uxo/uno", "index_timestep_zero", "index_timestep_zero_isolated", "index_timestep_zero_text_start"],
                     advanced=True,
                 ),
             ],
@@ -306,9 +306,9 @@ class Flux3LayoutPrompt(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="Flux3LayoutPrompt",
-            display_name="FLUX.3 Layout Prompt",
+            display_name="FLUX 3 Image Layout Prompt",
             category="model/conditioning/flux",
-            description="Appends the boxes from Create Bounding Boxes to a FLUX.3 prompt as its layout table.",
+            description="Appends the boxes from Create Bounding Boxes to a FLUX 3 Image prompt as its layout table.",
             inputs=[
                 io.String.Input("prompt", multiline=True, dynamic_prompts=True,
                                 tooltip="The prompt text. Cite box N as <obj_N> to tie words to it."),
