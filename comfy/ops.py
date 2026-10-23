@@ -75,12 +75,18 @@ try:
             ]
 
             SDPA_CONTIGUOUS_KV_L2_SIZE = 0
+            SDPA_MATH_ABOVE_HEAD_DIM = 0
             if comfy.model_management.is_amd():
                 props = torch.cuda.get_device_properties(comfy.model_management.get_torch_device())
                 if props.gcnArchName.split(':')[0] == "gfx1151":  # aotriton gets a lot slower once one head of the strided k/v doesn't fit in L2
                     SDPA_CONTIGUOUS_KV_L2_SIZE = props.L2_cache_size
+                if props.gcnArchName.startswith("gfx11"):  # aotriton ships no head dim > 256 kernels for gfx11, yet pytorch dispatches to them (ROCm/aotriton#168)
+                    SDPA_MATH_ABOVE_HEAD_DIM = 256
 
             def scaled_dot_product_attention(q, k, v, *args, **kwargs):
+                if SDPA_MATH_ABOVE_HEAD_DIM and q.shape[-1] > SDPA_MATH_ABOVE_HEAD_DIM:
+                    with sdpa_kernel(SDPBackend.MATH):
+                        return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
                 if q.nelement() < 1024 * 128:  # arbitrary number, for small inputs cudnn attention seems slower
                     return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
                 attn_mask = args[0] if len(args) > 0 else kwargs.get("attn_mask")
