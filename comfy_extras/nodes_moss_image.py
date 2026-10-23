@@ -124,7 +124,7 @@ class TextEncodeMOSSImageEdit(io.ComfyNode):
         method, vision = EDIT_FORMATS[edit_format]
         images = [images[name] for name in sorted(images) if images[name] is not None]
         vl = []
-        if vision or vae is None:
+        if (vision or vae is None) and image_strength > 0:
             # the text encoder sees each reference downscaled to at most 384x384 pixels, after a "Picture N:" marker
             for image in images:
                 scale = min(1.0, math.sqrt(384 * 384 / (image.shape[1] * image.shape[2])))
@@ -134,7 +134,7 @@ class TextEncodeMOSSImageEdit(io.ComfyNode):
         conditioning = clip.encode_from_tokens_scheduled(tokens)
         if len(vl) > 0 and image_strength != 1.0:
             # log(strength) on each image's vision tokens scales their share of attention, Qwen3.5 merges 2x2 patches of 16 px into one token
-            weight = math.log(image_strength) if image_strength > 0 else float("-inf")
+            weight = math.log(image_strength)
             bias = []
             for t in next(iter(tokens.values()))[0]:
                 if isinstance(t[0], dict):
