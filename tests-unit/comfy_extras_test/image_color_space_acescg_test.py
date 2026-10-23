@@ -19,9 +19,6 @@ from comfy_extras import nodes_images  # noqa: E402
 from comfy_extras.nodes_images import (  # noqa: E402
     ImageColorSpace,
     SaveImageAdvanced,
-    _ACESCG_TO_REC2020,
-    _REC2020_TO_REC709,
-    _convert_rgb_primaries,
     _encode_image,
     inject_exr_metadata,
 )
@@ -82,16 +79,13 @@ def test_acescg_round_trip_preserves_superwhites():
 
 
 def test_acescg_to_linear_uses_ap1_to_rec709():
-    acescg = torch.tensor([[[[1.0, 0.0, 0.0]]]], dtype=torch.float32)
-    # Hub: ACEScg → Rec.2020 → Rec.709, which equals AP1 → Rec.709.
-    expected = _convert_rgb_primaries(
-        _convert_rgb_primaries(acescg, _ACESCG_TO_REC2020),
-        _REC2020_TO_REC709,
-    )
+    primaries = torch.tensor([[[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]]], dtype=torch.float32)
+    # Columns of the published AP1 → Rec.709 matrix with Bradford D60 → D65 adaptation.
+    expected = torch.tensor([[[[1.70505, -0.13026, -0.02400], [-0.62179, 1.14080, -0.12897], [-0.08326, -0.01055, 1.15297]]]], dtype=torch.float32)
 
-    out = _convert(acescg, "linear ACEScg", "linear")
+    out = _convert(primaries, "linear ACEScg", "linear")
 
-    torch.testing.assert_close(out, expected, rtol=1e-5, atol=1e-5)
+    torch.testing.assert_close(out, expected, rtol=0, atol=1e-4)
 
 
 def test_same_space_acescg_is_a_no_op_on_values():
