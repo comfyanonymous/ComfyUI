@@ -15,6 +15,7 @@ from comfy.cli_args import args
 
 args.cpu = True
 from execution import PromptQueue
+import main  # noqa: E402
 
 
 def record(id="one"):
@@ -263,8 +264,6 @@ def test_real_write_wait_does_not_hold_queue_mutex(file_db):
     "assets,history", [(False, False), (True, False), (False, True), (True, True)]
 )
 def test_startup_matrix(monkeypatch, assets, history):
-    import main
-
     calls = []
     monkeypatch.setattr(main.args, "enable_history", history)
     monkeypatch.setattr(main, "dependencies_available", lambda: True)
@@ -281,8 +280,6 @@ def test_startup_matrix(monkeypatch, assets, history):
     [(False, "sqlite:////tmp/a.db"), (True, "sqlite:///:memory:?cache=shared")],
 )
 def test_requested_history_startup_failure(monkeypatch, dependency, url):
-    import main
-
     monkeypatch.setattr(main.args, "enable_history", True)
     monkeypatch.setattr(main, "dependencies_available", lambda: dependency)
     monkeypatch.setattr(main, "get_database_url", lambda: url)
@@ -466,8 +463,6 @@ def test_database_reason_omits_sql_and_parameters(file_db, monkeypatch, caplog):
 
 
 def test_history_startup_reason_omits_exception_payload(monkeypatch, caplog):
-    import main
-
     monkeypatch.setattr(main.args, "enable_history", True)
     monkeypatch.setattr(main, "dependencies_available", lambda: True)
     monkeypatch.setattr(main, "get_database_url", lambda: "sqlite:///history.db")
