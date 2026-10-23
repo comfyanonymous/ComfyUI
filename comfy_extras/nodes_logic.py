@@ -92,7 +92,7 @@ class BranchNode(io.ComfyNode):
         return io.Schema(
             node_id="BranchNode",
             display_name="Branch",
-            category="logic",
+            category="utilities/logic",
             description="Select from connected inputs by name. Inputs can be renamed by double clicking them.",
             search_aliases=["switch", "choice", "pick"],
             is_experimental=True,
