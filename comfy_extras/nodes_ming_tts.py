@@ -29,7 +29,7 @@ class MingTTSSample(io.ComfyNode):
                 ), tooltip="Connect Ming Speaker Encode outputs in order. Multiple speakers require Tiny. VAE and reference text are optional."),
                 io.Float.Input("sigma", default=0.25, min=0.0, max=100.0, step=0.01, optional=True, advanced=True),
                 io.Boolean.Input("separate_turns", default=True, optional=True, tooltip="Generate speaker turns and blank-line-separated paragraphs in chunks, splitting long passages at chunk_length. Tiny voice descriptions reuse the first chunk's voice when no speaker is connected. max_steps still limits the whole output. Disable for joint generation; multiple speakers then need reference context."),
-                io.Int.Input("chunk_length", default=90, min=1, max=4096, optional=True, advanced=True, tooltip="When separate_turns is on, target this many words or CJK characters per chunk. Prefer sentences, then clauses or word boundaries. Larger chunks give more continuous delivery; lower this if words are skipped. This is a text limit, not a duration in seconds."),
+                io.Int.Input("chunk_length", default=60, min=1, max=4096, optional=True, advanced=True, tooltip="When separate_turns is on, target this many words or CJK characters per chunk. Prefer sentences, then clauses or word boundaries. Larger chunks give more continuous delivery; lower this if words are skipped. This is a text limit, not a duration in seconds."),
             ],
             outputs=[io.Latent.Output()],
         )
