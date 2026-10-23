@@ -18,7 +18,7 @@ class MingTTSSample(io.ComfyNode):
                 io.Model.Input("model"),
                 io.String.Input("text", multiline=True, tooltip="Words to speak. For Tiny dialogue, start every line with speaker_1:, speaker_2:, etc."),
                 io.Int.Input("seed", default=0, min=0, max=0xffffffffffffffff, control_after_generate=True),
-                io.Int.Input("max_steps", default=250, min=1, max=4096, tooltip="Total audio-patch limit for the whole output, including all dialogue turns."),
+                io.Int.Input("max_steps", default=1000, min=1, max=4096, tooltip="Total audio-patch limit for the whole output, including all dialogue turns."),
                 io.Float.Input("cfg", default=2.0, min=0.0, max=100.0, step=0.1),
                 io.Float.Input("temperature", default=0.0, min=0.0, max=100.0, step=0.1),
                 io.String.Input("instruction", multiline=True, default="", optional=True, tooltip="Optional voice or delivery description. Uses each model's released instruction format automatically. Tiny instruction tasks omit the language line."),
