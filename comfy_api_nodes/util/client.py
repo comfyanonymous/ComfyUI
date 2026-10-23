@@ -600,6 +600,7 @@ async def router_op_raw(
         cls, ApiEndpoint(path=requests_path, method="POST"), data=data, final_label_on_success=None
     )
     path = f"{requests_path}/{submit['request_id']}"
+    started = time.monotonic()
     status = await poll_op_raw(
         cls,
         ApiEndpoint(path=f"{path}/status"),
@@ -620,6 +621,7 @@ async def router_op_raw(
         ApiEndpoint(path=path),
         max_retries=0 if failed else 3,
         max_retries_on_rate_limit=0 if failed else 16,
+        progress_origin_ts=started,
     )
 
 
