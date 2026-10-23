@@ -123,8 +123,8 @@ def split_sentences(text, max_length):
 
 
 def generate(bundle, diffusion, text, seed=0, max_steps=250, cfg=2.0, sigma=0.25, temperature=0.0, instruction="", language="",
-             speakers=(), mute_speaker=False, separate_turns=True,
-             min_steps=None, stop_threshold=0.5, chunk_length=90):
+             speakers=(), separate_turns=True,
+             min_steps=None, stop_threshold=0.5, chunk_length=90, _voice_context=None):
     model = bundle.cond_stage_model
     device, dtype = bundle.patcher.load_device, model.compute_dtype
     if not text.strip():
@@ -156,16 +156,20 @@ def generate(bundle, diffusion, text, seed=0, max_steps=250, cfg=2.0, sigma=0.25
             turns = []
     if turns:
         samples, stops = [], []
+        voice_context = None
         for index, (words, voice) in enumerate(turns):
             if max_steps < 1:
                 break
             latent, probabilities = generate(
                 bundle, diffusion, words, seed=seed, max_steps=max_steps, cfg=cfg, sigma=sigma,
                 temperature=temperature, instruction=instruction, language=language,
-                speakers=voice, mute_speaker=mute_speaker, separate_turns=False,
+                speakers=voice, separate_turns=False,
                 min_steps=min_steps, stop_threshold=stop_threshold,
-                chunk_length=chunk_length,
+                chunk_length=chunk_length, _voice_context=voice_context,
             )
+            if index == 0 and model.tiny and instruction.strip() and not speakers:
+                # Keep the first generated voice fixed across this execution's chunks.
+                voice_context = (latent, words + "\n")
             samples.append(latent)
             stops.extend(probabilities)
             max_steps -= latent.shape[-1] // model.patch_size
@@ -179,6 +183,8 @@ def generate(bundle, diffusion, text, seed=0, max_steps=250, cfg=2.0, sigma=0.25
         f" speaker_{i}:{s['reference_text']}\n" if num_speakers > 1 else s["reference_text"]
         for i, s in references
     )
+    if _voice_context is not None and not speakers:
+        reference_latents, reference_text = _voice_context
     generator = torch.Generator(device=device).manual_seed(seed)
     cpu_generator = torch.Generator(device="cpu").manual_seed(seed)
     comfy.model_management.load_models_gpu([bundle.patcher, diffusion])
@@ -197,7 +203,7 @@ def generate(bundle, diffusion, text, seed=0, max_steps=250, cfg=2.0, sigma=0.25
             ids = torch.tensor([ids], device=device, dtype=torch.long)
             embeds = backbone.embed_tokens(ids, out_dtype=dtype)
             if speaker_positions:
-                if mute_speaker or (model.tiny and instruction.strip() and not speakers):
+                if model.tiny and instruction.strip() and not speakers:
                     embeds[:, speaker_positions] = 0
                 else:
                     embedding = speaker if speaker is not None else torch.zeros((1, 192), device=device, dtype=dtype)
