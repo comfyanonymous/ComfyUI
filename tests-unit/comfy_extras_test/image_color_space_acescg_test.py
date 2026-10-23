@@ -60,13 +60,13 @@ AP1_D60_CHROMATICITIES = (0.713, 0.293, 0.165, 0.830, 0.128, 0.044, 0.32168, 0.3
 
 
 def test_acescct_to_acescg_decodes_reference_codes():
-    out = _convert(ACESCCT, "HDR ACEScct", "HDR ACEScg")
+    out = _convert(ACESCCT, "HDR ACEScct", "linear ACEScg")
 
     torch.testing.assert_close(out, ACESCG, rtol=1e-5, atol=1e-5)
 
 
 def test_acescg_to_acescct_encodes_reference_codes():
-    out = _convert(ACESCG, "HDR ACEScg", "HDR ACEScct")
+    out = _convert(ACESCG, "linear ACEScg", "HDR ACEScct")
 
     torch.testing.assert_close(out, ACESCCT, rtol=1e-5, atol=1e-5)
 
@@ -74,8 +74,8 @@ def test_acescg_to_acescct_encodes_reference_codes():
 def test_acescg_round_trip_preserves_superwhites():
     linear = torch.tensor([[[[0.02, 0.18, 8.0]]]], dtype=torch.float32)
 
-    cct = _convert(linear, "HDR ACEScg", "HDR ACEScct")
-    back = _convert(cct, "HDR ACEScct", "HDR ACEScg")
+    cct = _convert(linear, "linear ACEScg", "HDR ACEScct")
+    back = _convert(cct, "HDR ACEScct", "linear ACEScg")
 
     torch.testing.assert_close(back, linear, rtol=1e-4, atol=1e-5)
     assert back.amax().item() > 1.0
@@ -89,20 +89,20 @@ def test_acescg_to_linear_uses_ap1_to_rec709():
         _REC2020_TO_REC709,
     )
 
-    out = _convert(acescg, "HDR ACEScg", "linear")
+    out = _convert(acescg, "linear ACEScg", "linear")
 
     torch.testing.assert_close(out, expected, rtol=1e-5, atol=1e-5)
 
 
 def test_same_space_acescg_is_a_no_op_on_values():
     image = torch.tensor([[[[1.5, -0.1, 0.2]]]], dtype=torch.float32)
-    out = _convert(image, "HDR ACEScg", "HDR ACEScg")
+    out = _convert(image, "linear ACEScg", "linear ACEScg")
     torch.testing.assert_close(out.cpu().float(), image)
 
 
 def test_exr_metadata_stamps_ap1_d60_for_acescg():
     raw = _encode_image(torch.ones(2, 2, 3), "exr", "32-bit float", "linear")
-    tagged = inject_exr_metadata(raw, None, None, "HDR ACEScg")
+    tagged = inject_exr_metadata(raw, None, None, "linear ACEScg")
     chroma = _read_chromaticities(tagged)
 
     assert chroma == pytest.approx(AP1_D60_CHROMATICITIES)
@@ -131,7 +131,7 @@ def dirs(tmp_path, monkeypatch):
 
 def test_save_image_advanced_writes_acescg_chromaticities(dirs):
     images = torch.full((1, 8, 8, 3), 1.5)
-    fmt = {"format": "exr", "bit_depth": "32-bit float", "input_color_space": "HDR ACEScg"}
+    fmt = {"format": "exr", "bit_depth": "32-bit float", "input_color_space": "linear ACEScg"}
     entry = SaveImageAdvanced.execute(images, "acescg", fmt).ui["images"][0]
     path = dirs / "output" / entry["filename"]
     chroma = _read_chromaticities(path.read_bytes())

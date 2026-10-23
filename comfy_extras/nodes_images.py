@@ -1407,16 +1407,16 @@ class ImageSDRToHDR(IO.ComfyNode):
 class ImageColorSpace(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
-        spaces = ["sRGB", "HDR", "HDR PQ", "linear", "HDR LogC3", "HDR ACEScg", "HDR ACEScct"]
+        spaces = ["sRGB", "HDR", "HDR ACEScct", "HDR LogC3", "HDR PQ", "linear", "linear ACEScg"]
         return IO.Schema(
             node_id="ImageColorSpace",
             display_name="Convert Image Color Space",
             category="image/color",
-            description="Convert sRGB, linear Rec.709, HDR (Rec.2020 HLG), HDR PQ (Rec.2020 PQ), HDR LogC3, HDR ACEScg, and HDR ACEScct. LogC3 uses the EI 800 curve with Rec.709 primaries and codes clamped to [0, 1]. ACEScg is scene-linear AP1 with D60 white. ACEScct is the ACEScg log encoding. Both use Bradford adaptation to D65. Convert LogC3 or ACEScct to HDR ACEScg (AP1 scene-linear) or linear (Rec.709) before saving EXR. Linear 1.0 and ACEScg 1.0 use the same 203-nit reference white as sRGB; HLG uses a 1000-nit reference display. Linear, ACEScg, and ACEScct outputs preserve extended values. Linear-to-HDR conversions preserve highlights without tone mapping; HLG and PQ outputs clip negative channels. SDR output and PQ-to-HLG conversion tone-map excess luminance across the batch and compress out-of-gamut colors. Conversions compute in float32 and return the intermediate device and dtype. Straight alpha is not color-transformed.",
+            description="Convert sRGB, linear Rec.709, HDR (Rec.2020 HLG), HDR PQ (Rec.2020 PQ), HDR LogC3, linear ACEScg, and HDR ACEScct. LogC3 uses the EI 800 curve with Rec.709 primaries and codes clamped to [0, 1]. ACEScg is scene-linear AP1 with D60 white. ACEScct is the ACEScg log encoding. Both use Bradford adaptation to D65. Convert LogC3 or ACEScct to linear ACEScg (AP1 scene-linear) or linear (Rec.709) before saving EXR. Linear 1.0 and ACEScg 1.0 use the same 203-nit reference white as sRGB; HLG uses a 1000-nit reference display. Linear, ACEScg, and ACEScct outputs preserve extended values. Linear-to-HDR conversions preserve highlights without tone mapping; HLG and PQ outputs clip negative channels. SDR output and PQ-to-HLG conversion tone-map excess luminance across the batch and compress out-of-gamut colors. Conversions compute in float32 and return the intermediate device and dtype. Straight alpha is not color-transformed.",
             inputs=[
                 IO.Image.Input("image"),
                 IO.Combo.Input("source", options=spaces, default="sRGB", tooltip="Color space of the input pixels."),
-                IO.Combo.Input("destination", options=spaces, default="sRGB", tooltip="Color space of the output pixels. Set the save node to this same color space. Convert LogC3 or ACEScct to HDR ACEScg for ACEScg EXR, or to linear for Rec.709 EXR. Convert to sRGB/HDR/HDR PQ before saving video."),
+                IO.Combo.Input("destination", options=spaces, default="sRGB", tooltip="Color space of the output pixels. Set the save node to this same color space. Convert LogC3 or ACEScct to linear ACEScg for ACEScg EXR, or to linear for Rec.709 EXR. Convert to sRGB/HDR/HDR PQ before saving video."),
             ],
             outputs=[IO.Image.Output()],
         )
@@ -1434,7 +1434,7 @@ class ImageColorSpace(IO.ComfyNode):
             rgb = _convert_rgb_primaries(srgb_to_linear(rgb), _REC709_TO_REC2020) * _SDR_WHITE_NITS
         elif source == "linear":
             rgb = _convert_rgb_primaries(rgb, _REC709_TO_REC2020) * _SDR_WHITE_NITS
-        elif source == "HDR ACEScg":
+        elif source == "linear ACEScg":
             rgb = _convert_rgb_primaries(rgb, _ACESCG_TO_REC2020) * _SDR_WHITE_NITS
         elif source == "HDR LogC3":
             rgb = rgb.clamp(0.0, 1.0)
@@ -1460,7 +1460,7 @@ class ImageColorSpace(IO.ComfyNode):
 
         if destination == "linear":
             rgb = _convert_rgb_primaries(rgb / _SDR_WHITE_NITS, _REC2020_TO_REC709)
-        elif destination == "HDR ACEScg":
+        elif destination == "linear ACEScg":
             rgb = _convert_rgb_primaries(rgb / _SDR_WHITE_NITS, _REC2020_TO_ACESCG)
         elif destination == "HDR LogC3":
             rgb = _convert_rgb_primaries(rgb / _SDR_WHITE_NITS, _REC2020_TO_REC709).clamp_min(0.0)
@@ -1579,10 +1579,10 @@ def inject_exr_metadata(
     their RGB→XYZ relationship is the `chromaticities` attribute. We pick the
     primaries that match what the user told us their input was:
 
-      colorspace="sRGB"        → Rec. 709 / sRGB primaries (D65)
-      colorspace="linear"      → Rec. 709 primaries (D65)
-      colorspace="HDR"         → Rec. 2020 / BT.2100 primaries (D65)
-      colorspace="HDR ACEScg"  → ACEScg / AP1 primaries (D60)
+      colorspace="sRGB"           → Rec. 709 / sRGB primaries (D65)
+      colorspace="HDR"            → Rec. 2020 / BT.2100 primaries (D65)
+      colorspace="linear"         → Rec. 709 primaries (D65)
+      colorspace="linear ACEScg"  → ACEScg / AP1 primaries (D60)
 
     Pixels are always converted to linear scene light upstream (sRGB EOTF
     inverse for sRGB; HLG OETF inverse for HDR; ACEScg is already linear),
@@ -1612,13 +1612,13 @@ def inject_exr_metadata(
     if colorspace is not None:
         # Map each colorspace option to the RGB primaries the linear pixels
         # are now in. "sRGB" and "linear" both produce Rec. 709 linear; "HDR"
-        # (HLG-encoded Rec. 2020 input) produces Rec. 2020 linear; "HDR ACEScg"
+        # (HLG-encoded Rec. 2020 input) produces Rec. 2020 linear; "linear ACEScg"
         # is already ACEScg / AP1 linear.
         primaries_name = {
-            "sRGB":        "Rec.709",
-            "linear":      "Rec.709",
-            "HDR":         "Rec.2020",
-            "HDR ACEScg":  "ACEScg",
+            "sRGB":          "Rec.709",
+            "HDR":           "Rec.2020",
+            "linear":        "Rec.709",
+            "linear ACEScg": "ACEScg",
         }.get(colorspace, "Rec.709")
         new_blob += _exr_attribute(
             "chromaticities",
@@ -1926,7 +1926,7 @@ def _to_scene_linear(img_tensor: torch.Tensor, colorspace: str) -> torch.Tensor:
         return srgb_to_linear(img_tensor)
     if colorspace == "HDR":
         return hlg_to_linear(img_tensor)
-    # "linear" (Rec.709) and "HDR ACEScg" (AP1) are already scene-linear.
+    # "linear" (Rec.709) and "linear ACEScg" (AP1) are already scene-linear.
     return img_tensor
 
 
@@ -1976,13 +1976,13 @@ def _encode_image(
     For EXR the input is interpreted according to `colorspace` and converted
     to scene-linear (EXR's convention) before writing:
 
-      "sRGB"        → input is sRGB-encoded Rec. 709; apply inverse sRGB EOTF.
-      "HDR"         → input is HLG-encoded Rec. 2020 (BT.2100); apply inverse HLG
-                      OETF to get scene-linear, per BT.2100 Note 5a.
-      "linear"      → input is already scene-linear (Rec. 709 primaries); write
-                      through unchanged. Use this for renderer/compositor output.
-      "HDR ACEScg"  → input is already scene-linear ACEScg (AP1 / D60); write
-                      through unchanged. Use this for ACES VFX plates.
+      "sRGB"           → input is sRGB-encoded Rec. 709; apply inverse sRGB EOTF.
+      "HDR"            → input is HLG-encoded Rec. 2020 (BT.2100); apply inverse HLG
+                         OETF to get scene-linear, per BT.2100 Note 5a.
+      "linear"         → input is already scene-linear (Rec. 709 primaries); write
+                         through unchanged. Use this for renderer/compositor output.
+      "linear ACEScg"  → input is already scene-linear ACEScg (AP1 / D60); write
+                         through unchanged. Use this for ACES VFX plates.
 
     For PNG, colorspace selection does not modify pixels — PNG is delivered
     sRGB-encoded and there is no PNG path for wide-gamut HDR in this node.
@@ -2126,7 +2126,7 @@ class SaveImageAdvanced(IO.ComfyNode):
                             IO.Combo.Input("bit_depth", options=["32-bit float", "16-bit float"], default="16-bit float", advanced=True),
                             IO.Combo.Input(
                                 "input_color_space",
-                                options=["sRGB", "HDR", "linear", "HDR ACEScg"],
+                                options=["sRGB", "HDR", "linear", "linear ACEScg"],
                                 default="sRGB",
                                 advanced=True,
                                 tooltip=(
@@ -2134,7 +2134,7 @@ class SaveImageAdvanced(IO.ComfyNode):
                                     "sRGB — input is sRGB-encoded Rec.709; the inverse sRGB EOTF is applied.\n"
                                     "HDR — input is HLG-encoded Rec.2020 (BT.2100); the inverse HLG OETF is applied to get scene-linear light.\n"
                                     "linear — input is already scene-linear (Rec.709 primaries); written through unchanged. Use this for renderer/compositor output.\n"
-                                    "HDR ACEScg — input is already scene-linear ACEScg (AP1 / D60); written through unchanged with ACEScg chromaticities."
+                                    "linear ACEScg — input is already scene-linear ACEScg (AP1 / D60); written through unchanged with ACEScg chromaticities."
                                 ),
                             ),
                         ]),
