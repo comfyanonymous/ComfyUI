@@ -935,10 +935,15 @@ class VAE:
                 self.disable_offload = True
             elif metadata is not None and metadata.get("kandinsky6_audio_vae"):  # Kandinsky 6 audio VAE
                 bigvgan_config = json.loads(metadata["bigvgan_config"])
-                self.first_stage_model = comfy.ldm.kandinsky6.audio_vae.Kandinsky6AudioVAE(bigvgan_config)
-                def _no_k6_encode(*args, **kwargs):
-                    raise RuntimeError("Kandinsky 6 audio VAE cannot encode audio")
-                self.memory_used_encode = _no_k6_encode
+                with_encoder = "vae.encoder.conv_in.weight" in sd and "mel_converter.mel_basis" in sd
+                self.first_stage_model = comfy.ldm.kandinsky6.audio_vae.Kandinsky6AudioVAE(bigvgan_config, with_encoder=with_encoder)
+                if with_encoder:
+                    # 129M encoder weights plus a small mel/activation working set per batch item.
+                    self.memory_used_encode = lambda shape, dtype: (shape[0] * 135_000_000) * model_management.dtype_size(dtype)
+                else:
+                    def _no_k6_encode(*args, **kwargs):
+                        raise RuntimeError("Kandinsky 6 audio VAE cannot encode audio")
+                    self.memory_used_encode = _no_k6_encode
                 # Measured BigVGAN decode peak in fp32 elements: ~1.43 GB fixed overhead plus
                 # ~155 MB per latent frame, from RSS high-water marks of fresh decodes.
                 self.memory_used_decode = lambda shape, dtype: (shape[0] * 40_000_000 * shape[1] + 380_000_000) * model_management.dtype_size(dtype)
@@ -947,6 +952,7 @@ class VAE:
                 self.upscale_ratio = 1024
                 self.downscale_ratio = 1024
                 self.latent_dim = 1
+                self.crop_input = False
                 self.audio_sample_rate = 44100
                 self.process_output = lambda audio: audio
                 self.process_input = lambda audio: audio

@@ -6,12 +6,13 @@ import torch
 
 import comfy.ops
 import comfy.sd
+import comfy.utils
 from comfy import model_detection
 from comfy import model_management
 from comfy import samplers
 from comfy import supported_models
 from comfy.ldm.kandinsky6 import piflow
-from comfy.ldm.kandinsky6.audio_vae import Kandinsky6AudioVAE
+from comfy.ldm.kandinsky6.audio_vae import Kandinsky6AudioVAE, MelConverter
 from comfy.ldm.kandinsky6.core_contract import AUDIO_DEFAULTS
 from comfy.ldm.kandinsky6.detection import detect_kandinsky6, to_native_state_dict
 from comfy.ldm.kandinsky6.model import Kandinsky6NativeAVDiT
@@ -19,6 +20,7 @@ from comfy_extras.nodes_kandinsky6 import (
     Kandinsky6EmptyLatent,
     Kandinsky6PiFlowGuider,
 )
+from comfy_extras.nodes_lt import LTXVConcatAVLatent
 
 
 # Released Pro dimensions. Detection compares checkpoint shapes against these,
@@ -318,6 +320,79 @@ def test_audio_vae_uses_contract_scaling_factor():
     assert torch.equal(model.decode(z), expected)
 
 
+def test_mel_converter_maps_waveform_to_mel_shape():
+    torch.manual_seed(0)
+    mel = MelConverter()(torch.randn(1, 10000))
+    # One 512-hop mel frame per 512 samples, 128 bands, fp32 for the encoder.
+    assert tuple(mel.shape) == (1, 128, 10000 // 512)
+    assert mel.dtype == torch.float32
+
+
+def test_audio_vae_full_encodes_waveform_to_latent():
+    torch.manual_seed(0)
+    model = Kandinsky6AudioVAE(_SMALL_BIGVGAN_CONFIG, with_encoder=True)
+    latent = model.encode(torch.randn(1, 1, 20000))
+    # The encoder halves the 512-hop mel frames: 1024 samples per latent frame.
+    assert tuple(latent.shape) == (1, 20000 // 1024, 40)
+
+
+def test_audio_vae_full_state_dict_round_trips():
+    torch.manual_seed(0)
+    sd = Kandinsky6AudioVAE(_SMALL_BIGVGAN_CONFIG, with_encoder=True).state_dict()
+    assert "vae.encoder.conv_in.weight" in sd
+    assert "mel_converter.mel_basis" in sd
+    fresh = Kandinsky6AudioVAE(_SMALL_BIGVGAN_CONFIG, with_encoder=True)
+    missing, unexpected = fresh.load_state_dict(sd, strict=True)
+    assert not missing and not unexpected
+
+
+def test_vae_build_detects_k6_audio_encoder():
+    torch.manual_seed(0)
+    full = Kandinsky6AudioVAE(_SMALL_BIGVGAN_CONFIG, with_encoder=True)
+    metadata = {"kandinsky6_audio_vae": "1", "bigvgan_config": json.dumps(_SMALL_BIGVGAN_CONFIG)}
+    vae = comfy.sd.VAE(sd=full.state_dict(), metadata=metadata, device=torch.device("cpu"))
+    assert vae.first_stage_model.mel_converter is not None
+    latent = vae.encode(torch.randn(1, 20000, 1))
+    assert tuple(latent.shape) == (1, 20000 // 1024, 40)
+
+
+def test_vae_build_keeps_k6_audio_decoder_only():
+    decoder_only = Kandinsky6AudioVAE(_SMALL_BIGVGAN_CONFIG)
+    metadata = {"kandinsky6_audio_vae": "1", "bigvgan_config": json.dumps(_SMALL_BIGVGAN_CONFIG)}
+    vae = comfy.sd.VAE(sd=decoder_only.state_dict(), metadata=metadata, device=torch.device("cpu"))
+    assert not hasattr(vae.first_stage_model, "mel_converter")
+    with pytest.raises(RuntimeError, match="cannot encode"):
+        vae.memory_used_encode((1, 1, 1000), torch.float32)
+
+
+def test_reshape_mask_maps_2d_mask_onto_1d_latent_time_axis():
+    # The columns of a 2D mask image are the audio time axis; the rows collapse.
+    mask = torch.linspace(0.0, 1.0, steps=8).reshape(1, 1, 1, 8)
+    out = comfy.utils.reshape_mask(mask, (1, 218, 40))
+    assert tuple(out.shape) == (1, 218, 40)
+    assert torch.all(out == out[:, :, :1].expand(-1, -1, 40))
+    assert out[0, 0, 0] < out[0, -1, 0]
+    assert abs(float(out[0, -1, 0]) - 1.0) < 1e-5
+    # A full-shape 3D mask passes through unchanged.
+    full = torch.rand(1, 218, 40)
+    assert torch.equal(comfy.utils.reshape_mask(full, (1, 218, 40)), full)
+
+
+def test_concat_av_latent_fits_time_first_audio():
+    reference = torch.zeros(1, 20, 40)
+
+    audio, mask = LTXVConcatAVLatent.fit_audio(
+        reference, torch.randn(1, 17, 40), torch.zeros(1, 1, 4, 17))
+    # A short track is zero-padded; the padded tail stays unmasked so the
+    # model generates it.
+    assert tuple(audio.shape) == (1, 20, 40) and tuple(mask.shape) == (1, 20, 40)
+    assert torch.all(mask[:, :17] == 0) and torch.all(mask[:, 17:] == 1)
+
+    audio, mask = LTXVConcatAVLatent.fit_audio(
+        reference, torch.randn(1, 25, 40), torch.ones(1, 1, 4, 25))
+    assert tuple(audio.shape) == (1, 20, 40) and tuple(mask.shape) == (1, 20, 40)
+
+
 def test_empty_latent_node_builds_joint_latent():
     latent = Kandinsky6EmptyLatent().build(864, 480, 121, 1)[0]
     video, audio = latent["samples"].unbind()
@@ -503,6 +578,33 @@ def test_piflow_rollout_evaluates_dit_once_per_segment():
     assert tuple(v_out.shape) == tuple(video.shape)
     assert tuple(a_out.shape) == tuple(audio.shape)
     assert torch.isfinite(v_out).all() and torch.isfinite(a_out).all()
+
+
+def test_piflow_rollout_audio_mask_keeps_clean_region():
+    model = _small_distilled_dit(n_grid=2)
+    torch.manual_seed(0)
+    video = torch.randn(1, 16, 2, 4, 4)
+    audio = torch.randn(1, 4, 40)
+    context = torch.randn(1, 6, 32)
+    pooled = torch.randn(1, 32)
+    audio_clean = torch.randn(1, 4, 40)
+
+    _, a = piflow.rollout(
+        model, video, audio, context, pooled, steps=4, dtype=torch.float32,
+        audio_mask=torch.zeros(1, 4, 40), audio_clean=audio_clean,
+    )
+    # A fully masked audio stream comes back exactly as the clean latent.
+    assert torch.equal(a, audio_clean)
+
+    mask = torch.zeros(1, 4, 40)
+    mask[:, 2:] = 1.0
+    _, a2 = piflow.rollout(
+        model, video, audio, context, pooled, steps=4, dtype=torch.float32,
+        audio_mask=mask, audio_clean=audio_clean,
+    )
+    # Masked frames stay clean; the rest is generated.
+    assert torch.equal(a2[:, :2], audio_clean[:, :2])
+    assert not torch.equal(a2[:, 2:], audio_clean[:, 2:])
 
 
 def test_piflow_guider_is_a_basic_guider():

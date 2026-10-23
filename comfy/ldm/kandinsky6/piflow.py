@@ -90,8 +90,14 @@ def policy_rollout_fm(x_t_start, sigma_t_start, raw_t_start, raw_t_end, total_su
     return x_t, sigma_t
 
 
-def rollout(dit, video, audio, context, pooled, *, steps, dtype, reference=None, transformer_options=None, callback=None):
-    """Run the PiFlow segments; one DiT evaluation per segment."""
+def rollout(dit, video, audio, context, pooled, *, steps, dtype, reference=None, transformer_options=None, callback=None, audio_mask=None, audio_clean=None):
+    """Run the PiFlow segments; one DiT evaluation per segment.
+
+    With ``audio_mask`` the masked audio region is kept clean: before each
+    evaluation it is replaced by the on-distribution noised clean latent, and
+    the final output takes the clean latent there, matching Comfy's standard
+    inpainting semantics.
+    """
     params = PIFLOW_DEFAULTS
     eps = float(params["eps"])
     shift = float(params["shift"])
@@ -102,12 +108,17 @@ def rollout(dit, video, audio, context, pooled, *, steps, dtype, reference=None,
     device = video.device
     n_grid = dit.n_grid
     options = dict(transformer_options or {})
+    audio_noise = audio
 
     for index in range(steps):
         mm.throw_exception_if_processing_interrupted()
         segment = base_segment * (final_scale if index == steps - 1 else 1.0)
         raw_dst = max(raw_src - segment, eps)
         sigma_src = shift_timesteps(torch.full((batch,), raw_src, device=device), shift)
+
+        if audio_mask is not None:
+            sigma = sigma_src.reshape(batch, *((audio.ndim - 1) * [1]))
+            audio = audio * audio_mask + (sigma * audio_noise + (1 - sigma) * audio_clean) * (1 - audio_mask)
 
         v_out, a_out = dit(
             [video.to(dtype), audio.to(dtype)],
@@ -141,4 +152,6 @@ def rollout(dit, video, audio, context, pooled, *, steps, dtype, reference=None,
             callback(index, (x0_streams[0], x0_streams[1]), (video, audio), steps)
         raw_src = raw_dst
 
+    if audio_mask is not None:
+        audio = audio * audio_mask + audio_clean * (1 - audio_mask)
     return video, audio

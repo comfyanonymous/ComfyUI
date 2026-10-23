@@ -194,9 +194,11 @@ class Kandinsky6PiFlowGuider(comfy.samplers.CFGGuider):
     Each segment costs one DiT evaluation; the model's n_grid velocity grids are
     then integrated over the segment by a network-free policy, so the distilled
     model runs on its intended step budget. Only the positive conditioning is
-    consumed (the distilled release runs without CFG) and the sampling is full
-    denoise. The custom sampler's ``sampler`` and sigma values only set the
-    segment count (len(sigmas) - 1); PiFlow keeps its own shifted schedule.
+    consumed (the distilled release runs without CFG). The video stream is fully
+    denoised; a latent noise mask can keep part of the audio stream clean, which
+    is how a custom audio track is encoded into the generation. The custom
+    sampler's ``sampler`` and sigma values only set the segment count
+    (len(sigmas) - 1); PiFlow keeps its own shifted schedule.
     """
 
     def set_conds(self, positive):
@@ -206,8 +208,13 @@ class Kandinsky6PiFlowGuider(comfy.samplers.CFGGuider):
                      denoise_mask, callback, disable_pbar, seed, latent_shapes=None):
         self.inner_model.latent_shapes = latent_shapes
 
-        if denoise_mask is not None and bool(torch.any(denoise_mask < 1.0 - 1e-6)):
-            raise ValueError("Kandinsky 6 PiFlow sampling supports full denoise only.")
+        audio_mask = None
+        if denoise_mask is not None:
+            masks = comfy.utils.unpack_latents(denoise_mask, latent_shapes)
+            if not bool(torch.all(masks[0] >= 1.0 - 1e-6)):
+                raise ValueError("Kandinsky 6 PiFlow sampling supports full video denoise only.")
+            if len(masks) > 1:
+                audio_mask = masks[1]
         if len(self.conds["positive"]) != 1:
             raise ValueError(
                 "Kandinsky 6 PiFlow sampling expects a single joint conditioning, "
@@ -223,6 +230,9 @@ class Kandinsky6PiFlowGuider(comfy.samplers.CFGGuider):
             reference = mm.cast_to_device(reference, device, dtype)
 
         video, audio = comfy.utils.unpack_latents(noise, latent_shapes)
+        audio_clean = None
+        if audio_mask is not None:
+            _, audio_clean = comfy.utils.unpack_latents(latent_image, latent_shapes)
         steps = max(int(sigmas.shape[-1]) - 1, 1)
 
         def segment_callback(step, x0_streams, x_streams, total):
@@ -243,6 +253,8 @@ class Kandinsky6PiFlowGuider(comfy.samplers.CFGGuider):
             reference=reference,
             transformer_options=self.model_options.get("transformer_options", {}),
             callback=segment_callback,
+            audio_mask=audio_mask,
+            audio_clean=audio_clean,
         )
         samples, _ = comfy.utils.pack_latents((video, audio))
         return self.inner_model.process_latent_out(samples.to(torch.float32))
