@@ -23,7 +23,7 @@ try:
     from alembic.script import ScriptDirectory
     from sqlalchemy import create_engine, event
     from sqlalchemy.engine import URL, make_url
-    from sqlalchemy.exc import OperationalError
+    from sqlalchemy.exc import ArgumentError, OperationalError
     from sqlalchemy.orm import sessionmaker
     from sqlalchemy.pool import StaticPool
 
@@ -223,6 +223,17 @@ def lock_holder_db_path():
 def _is_memory_db(db_url):
     """Check if the database URL refers to an in-memory SQLite database."""
     return db_url in ("sqlite:///:memory:", "sqlite://")
+
+
+def is_persistent_sqlite_url(url):
+    try:
+        parsed = make_url(url)
+    except ArgumentError:
+        return False
+    database = parsed.database
+    return (parsed.drivername == "sqlite" and bool(database)
+            and database != ":memory:" and not database.startswith("file:")
+            and parsed.query.get("mode") != "memory")
 
 
 def init_db():
