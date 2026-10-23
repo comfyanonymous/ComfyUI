@@ -684,8 +684,12 @@ def _display_time_progress(
                 time_line += " (taking longer than usual)"
         elif is_queued is False:
             pe = processing_elapsed_seconds if processing_elapsed_seconds is not None else elapsed_seconds
-            remaining = max(0, int(estimated_total) - int(pe))
-            time_line += f" (~{remaining}s remaining)"
+            if estimated_p90 is None or pe < estimated_total:
+                time_line += f" (~{max(0, int(estimated_total) - int(pe))}s remaining)"
+            elif pe < estimated_p90:
+                time_line += " (should finish soon)"
+            else:
+                time_line += " (taking longer than usual)"
     text = f"{time_line}\n\n{extra_text}" if extra_text else time_line
     _display_text(node_cls, text, status=status, price=price)
 
