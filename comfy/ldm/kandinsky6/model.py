@@ -449,16 +449,29 @@ class Kandinsky6(nn.Module):
         visual_shape = visual_embed.shape[:-1]
         visual_embed = visual_embed.flatten(1, -2)
         if visual_reference_tail:
-            if t_len < 2:
+            # The tail frames are the ones the token-type embeddings mark as
+            # references. Generated frames keep positions 0..T-1; the tail
+            # gets its own run of positions 0..K-1, so it overlaps the start
+            # of the generated clip and the model matches frames onto it.
+            ref_ids = (
+                visual_token_type_ids[0]
+                if visual_token_type_ids.ndim == 2
+                else visual_token_type_ids
+            )
+            ref_frames = int(ref_ids.sum())
+            if t_len <= ref_frames:
                 raise ValueError(
-                    "Kandinsky 6 I2VA reference-tail RoPE needs at least two frames."
+                    "Kandinsky 6 reference-tail RoPE needs at least one generated frame."
                 )
             rope_v = self.rope_encode_3d(
-                t_len - 1, h, w, device=x_V.device, dtype=dtype
+                t_len - ref_frames, h, w, device=x_V.device, dtype=dtype
             )
-            tokens_per_frame = visual_shape[2] * visual_shape[3]
             rope_v = torch.cat(
-                (rope_v, rope_v[:, :tokens_per_frame]), dim=1
+                (
+                    rope_v,
+                    self.rope_encode_3d(ref_frames, h, w, device=x_V.device, dtype=dtype),
+                ),
+                dim=1,
             )
         else:
             rope_v = self.rope_encode_3d(
@@ -531,7 +544,9 @@ class Kandinsky6NativeAVDiT(Kandinsky6):
     ``x`` is a two-item sequence containing the video and audio streams. A
     noisy video latent gets a zero visual condition plus mask appended; for
     I2VA the ``k6_reference`` conditioning carries the encoded reference,
-    which is appended as a clean tail frame and cropped from the output.
+    which is appended as clean tail frames (one per reference frame, marked
+    by the visual token-type embeddings and the mask channel) and cropped
+    from the output.
     """
 
     def _legacy_forward(self, *args, **kwargs):
@@ -571,9 +586,9 @@ class Kandinsky6NativeAVDiT(Kandinsky6):
         if y is None:
             raise ValueError("Kandinsky 6 requires CLIP-L pooled conditioning.")
 
-        # For I2VA the clean reference frame is appended as a tail inside the
-        # model and cropped from the output, so the sampler only ever sees the
-        # generated latent.
+        # For I2VA the clean reference frames are appended as a tail inside
+        # the model and cropped from the output, so the sampler only ever
+        # sees the generated latent.
         reference_tail = k6_reference is not None
         visual_token_type_ids = None
         if reference_tail:
@@ -594,16 +609,17 @@ class Kandinsky6NativeAVDiT(Kandinsky6):
                     f"batch: reference={k6_reference.shape[0]}, video={video.shape[0]}."
                 )
             generated_frames = video.shape[2]
+            ref_frames = k6_reference.shape[2]
             video = torch.cat((video, k6_reference), dim=2)
             visual_token_type_ids = torch.zeros(
                 video.shape[2], dtype=torch.long, device=video.device
             )
-            visual_token_type_ids[-1] = 1
+            visual_token_type_ids[-ref_frames:] = 1
 
         visual_cond = torch.zeros_like(video)
         visual_mask = torch.zeros_like(video[:, :1])
         if reference_tail:
-            visual_mask[:, :, -1] = 1
+            visual_mask[:, :, -ref_frames:] = 1
         video_input = torch.cat((video, visual_cond, visual_mask), dim=1)
         transformer_options = {} if transformer_options is None else transformer_options
 

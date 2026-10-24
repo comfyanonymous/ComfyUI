@@ -489,6 +489,63 @@ def test_dit_expands_single_reference_to_video_batch():
     assert tuple(out.shape) == tuple(video.shape)
 
 
+def test_dit_appends_multi_frame_reference_tail():
+    model = _small_dit()
+    video = torch.randn(1, 16, 3, 4, 4)
+    audio = torch.randn(1, 4, 40)
+    context = torch.randn(1, 6, 32)
+    pooled = torch.randn(1, 32)
+    timestep = torch.tensor([0.5])
+    reference = torch.randn(1, 16, 2, 4, 4)
+
+    out_t2va, _ = model(x=(video, audio), timestep=timestep, context=context, y=pooled)
+    out_chained, _ = model(
+        x=(video, audio), timestep=timestep, context=context, y=pooled,
+        k6_reference=reference,
+    )
+
+    # The sampler only ever sees the generated frames: the multi-frame
+    # reference tail is appended inside the model and cropped from the output.
+    assert tuple(out_chained.shape) == tuple(video.shape)
+    assert not torch.equal(out_t2va, out_chained)
+
+
+def test_dit_reference_tail_rope_covers_generated_and_reference_frames():
+    model = _small_dit()
+    calls = []
+    original = model.rope_encode_3d
+
+    def recording(t, h, w, **kwargs):
+        calls.append(int(t))
+        return original(t, h, w, **kwargs)
+
+    model.rope_encode_3d = recording
+    video = torch.randn(1, 16, 3, 4, 4)
+    audio = torch.randn(1, 4, 40)
+    context = torch.randn(1, 6, 32)
+    pooled = torch.randn(1, 32)
+    timestep = torch.tensor([0.5])
+    reference = torch.randn(1, 16, 2, 4, 4)
+
+    model(x=(video, audio), timestep=timestep, context=context, y=pooled,
+          k6_reference=reference)
+
+    # Generated frames keep positions 0..T-1; the reference tail gets its own
+    # run of positions 0..K-1 so it overlaps the start of the clip.
+    assert calls == [3, 2]
+
+
+def test_dit_single_frame_tail_rope_unchanged():
+    # The unified two-call RoPE must reduce to the old single-frame behavior:
+    # a one-frame tail sits at position 0, the first frame of the generated
+    # run.
+    model = _small_dit()
+    tail = model.rope_encode_3d(1, 4, 4)
+    full = model.rope_encode_3d(3, 4, 4)
+    tokens_per_frame = 2 * 2
+    assert torch.equal(tail, full[:, :tokens_per_frame])
+
+
 def _small_distilled_dit(n_grid=2):
     # A distilled head expands both output heads into n_grid DX grids.
     torch.manual_seed(0)
