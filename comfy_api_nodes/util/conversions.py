@@ -101,7 +101,7 @@ def tensor_to_pil(image: torch.Tensor, total_pixels: int | None = 2048 * 2048) -
     # TODO: remove alpha if not allowed and present
     input_tensor = image.cpu()
     if total_pixels is not None:
-        input_tensor = downscale_image_tensor(input_tensor.unsqueeze(0), total_pixels=total_pixels).squeeze()
+        input_tensor = downscale_image_tensor(input_tensor.unsqueeze(0), total_pixels=total_pixels).squeeze(0)
     image_np = (input_tensor.numpy() * 255).astype(np.uint8)
     img = Image.fromarray(image_np)
     return img

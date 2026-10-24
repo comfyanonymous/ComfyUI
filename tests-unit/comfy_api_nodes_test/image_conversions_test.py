@@ -14,6 +14,7 @@ from comfy_api_nodes.util.conversions import (  # noqa: E402
     bytesio_to_image_tensor,
     downscale_image_tensor,
     pad_images_to_common_channels,
+    tensor_to_pil,
 )
 
 
@@ -83,6 +84,18 @@ def test_pad_leaves_homogeneous_channels_unchanged():
     images = [torch.rand(1, 4, 4, 3), torch.rand(2, 4, 4, 3)]
     padded = pad_images_to_common_channels(images)
     assert all(p is i for p, i in zip(padded, images))
+
+
+@pytest.mark.parametrize("height,width", [(1, 4), (4, 1), (1, 1)])
+def test_tensor_to_pil_preserves_thin_rgb_image(height, width):
+    image = torch.zeros(height, width, 3)
+    image[..., 0] = 1.0
+
+    result = tensor_to_pil(image)
+
+    assert result.size == (width, height)
+    assert result.mode == "RGB"
+    assert result.getpixel((0, 0)) == (255, 0, 0)
 
 
 DOWNSCALE_CASES = [
