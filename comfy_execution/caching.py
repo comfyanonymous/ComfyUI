@@ -465,7 +465,20 @@ class LRUCache(BasicCache):
 
     async def get(self, node_id):
         self._mark_used(node_id)
+        self._mark_expanded_used(self.cache_key_set.get_data_key(node_id))
         return await self._get_immediate(node_id)
+
+    # A cached parent doesn't expand again, so the nodes it expanded into are marked used through it.
+    def _mark_expanded_used(self, cache_key):
+        seen = set()
+        stack = list(self.children.get(cache_key, ()))
+        while stack:
+            key = stack.pop()
+            if key in seen or key not in self.cache:
+                continue
+            seen.add(key)
+            self.used_generation[key] = self.generation
+            stack.extend(self.children.get(key, ()))
 
     def _mark_used(self, node_id):
         cache_key = self.cache_key_set.get_data_key(node_id)
