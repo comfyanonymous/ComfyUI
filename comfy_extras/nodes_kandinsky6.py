@@ -2,6 +2,7 @@
 import math
 
 import torch
+from tqdm.auto import tqdm
 from typing_extensions import override
 
 import comfy.model_management as mm
@@ -243,27 +244,31 @@ class Kandinsky6PiFlowGuider(comfy.samplers.CFGGuider):
             _, audio_clean = comfy.utils.unpack_latents(latent_image, latent_shapes)
         steps = max(int(sigmas.shape[-1]) - 1, 1)
 
-        def segment_callback(step, x0_streams, x_streams, total):
-            if callback is None:
-                return
-            x0_packed, _ = comfy.utils.pack_latents(x0_streams)
-            x_packed, _ = comfy.utils.pack_latents(x_streams)
-            callback(step, x0_packed, x_packed, total)
+        # PiFlow drives its own loop, so it owns the CLI progress bar the way the
+        # k_diffusion samplers do; the preview callback only feeds the UI.
+        with tqdm(total=steps, disable=disable_pbar) as pbar:
+            def segment_callback(step, x0_streams, x_streams, total):
+                pbar.update(1)
+                if callback is None:
+                    return
+                x0_packed, _ = comfy.utils.pack_latents(x0_streams)
+                x_packed, _ = comfy.utils.pack_latents(x_streams)
+                callback(step, x0_packed, x_packed, total)
 
-        video, audio = piflow.rollout(
-            self.inner_model.diffusion_model,
-            video,
-            audio,
-            context,
-            pooled,
-            steps=steps,
-            dtype=dtype,
-            reference=reference,
-            transformer_options=self.model_options.get("transformer_options", {}),
-            callback=segment_callback,
-            audio_mask=audio_mask,
-            audio_clean=audio_clean,
-        )
+            video, audio = piflow.rollout(
+                self.inner_model.diffusion_model,
+                video,
+                audio,
+                context,
+                pooled,
+                steps=steps,
+                dtype=dtype,
+                reference=reference,
+                transformer_options=self.model_options.get("transformer_options", {}),
+                callback=segment_callback,
+                audio_mask=audio_mask,
+                audio_clean=audio_clean,
+            )
         samples, _ = comfy.utils.pack_latents((video, audio))
         return self.inner_model.process_latent_out(samples.to(torch.float32))
 

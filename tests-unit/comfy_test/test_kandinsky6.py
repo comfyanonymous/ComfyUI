@@ -611,3 +611,56 @@ def test_piflow_guider_is_a_basic_guider():
     # The PiFlow guider is a CFG guider that keeps a single conditioning, so it
     # slots into the custom sampler like the other guiders.
     assert issubclass(Kandinsky6PiFlowGuider, samplers.CFGGuider)
+
+
+def test_piflow_guider_drives_cli_progress_bar(monkeypatch):
+    # PiFlow runs its own segment loop, so it must create the CLI progress bar
+    # the k_diffusion samplers do; the preview callback alone only feeds the UI.
+    from comfy_extras import nodes_kandinsky6 as k6_nodes
+
+    steps = 4
+    video = torch.randn(1, 16, 2, 4, 4)
+    audio = torch.randn(1, 4, 40)
+    noise, latent_shapes = comfy.utils.pack_latents((video, audio))
+
+    guider = object.__new__(Kandinsky6PiFlowGuider)
+    guider.inner_model = types.SimpleNamespace(
+        get_dtype_inference=lambda: torch.float32,
+        diffusion_model=None,
+        process_latent_out=lambda x: x,
+    )
+    guider.conds = {"positive": [{"cross_attn": torch.randn(1, 4, 32),
+                                  "pooled_output": torch.randn(1, 32)}]}
+    guider.model_options = {"transformer_options": {}}
+
+    # The rollout hands back to the per-segment callback once per segment.
+    def fake_rollout(dit, v, a, context, pooled, *, steps, dtype, **kwargs):
+        cb = kwargs.get("callback")
+        for i in range(steps):
+            if cb is not None:
+                cb(i, (v, a), (v, a), steps)
+        return v, a
+    monkeypatch.setattr(k6_nodes.piflow, "rollout", fake_rollout)
+
+    bars = {}
+    class FakeBar:
+        def __init__(self, total=None, disable=None):
+            bars["total"], bars["disable"], bars["updates"] = total, disable, 0
+        def update(self, n=1):
+            bars["updates"] += n
+        def __enter__(self):
+            return self
+        def __exit__(self, *exc):
+            return False
+    monkeypatch.setattr(k6_nodes, "tqdm", FakeBar)
+
+    guider.inner_sample(
+        noise, noise, torch.device("cpu"), None,
+        torch.linspace(1.0, 0.0, steps + 1), None, None, False, 0,
+        latent_shapes=latent_shapes,
+    )
+
+    # One bar sized to the segment count, advanced once per segment.
+    assert bars["total"] == steps
+    assert bars["disable"] is False
+    assert bars["updates"] == steps
