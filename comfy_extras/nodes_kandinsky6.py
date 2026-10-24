@@ -2,12 +2,14 @@
 import math
 
 import torch
+from typing_extensions import override
 
 import comfy.model_management as mm
 import comfy.nested_tensor
 import comfy.samplers
 import comfy.utils
 import node_helpers
+from comfy_api.latest import ComfyExtension, io
 
 from comfy.ldm.kandinsky6.core_contract import (
     GENERATION_DEFAULTS,
@@ -81,25 +83,28 @@ def _validate_joint_latent(joint_latent):
             )
 
 
-class Kandinsky6EmptyLatent:
+class Kandinsky6EmptyLatent(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "width": ("INT", {"default": int(GENERATION_DEFAULTS["width"]), "min": 256, "max": 2048, "step": 8}),
-                "height": ("INT", {"default": int(GENERATION_DEFAULTS["height"]), "min": 256, "max": 2048, "step": 8}),
-                "length": ("INT", {"default": int(GENERATION_DEFAULTS["sample_frames"]), "min": 1, "max": 1001, "step": _VIDEO_TEMPORAL_FACTOR,
-                                   "tooltip": "Pixel frames. Counts not of the form 4*n+1 are rounded to the nearest lower count."}),
-                "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096}),
-            }
-        }
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="Kandinsky6EmptyLatent",
+            display_name="Kandinsky 6 Empty Latent (video+audio)",
+            category="model/latent/kandinsky6",
+            description="Empty joint video+audio latent for Kandinsky 6; the two streams are sized to stay in sync.",
+            inputs=[
+                io.Int.Input("width", default=int(GENERATION_DEFAULTS["width"]), min=256, max=2048, step=8),
+                io.Int.Input("height", default=int(GENERATION_DEFAULTS["height"]), min=256, max=2048, step=8),
+                io.Int.Input("length", default=int(GENERATION_DEFAULTS["sample_frames"]), min=1, max=1001, step=_VIDEO_TEMPORAL_FACTOR,
+                             tooltip="Pixel frames. Counts not of the form 4*n+1 are rounded to the nearest lower count."),
+                io.Int.Input("batch_size", default=1, min=1, max=4096),
+            ],
+            outputs=[
+                io.Latent.Output(display_name="joint_latent"),
+            ],
+        )
 
-    RETURN_TYPES = ("LATENT",)
-    RETURN_NAMES = ("joint_latent",)
-    FUNCTION = "build"
-    CATEGORY = "Kandinsky 6"
-
-    def build(self, width, height, length, batch_size):
+    @classmethod
+    def execute(cls, width, height, length, batch_size) -> io.NodeOutput:
         fps = float(GENERATION_DEFAULTS["fps"])
         t_lat = (length - 1) // _VIDEO_TEMPORAL_FACTOR + 1
         # The video rounds down to the nearest 4*n+1 frame count; the audio
@@ -130,10 +135,10 @@ class Kandinsky6EmptyLatent:
             "sample_rate": _AUDIO_SAMPLE_RATE,
         }
         _validate_joint_latent(latent)
-        return (latent,)
+        return io.NodeOutput(latent)
 
 
-class Kandinsky6ImageToVideoAudio:
+class Kandinsky6ImageToVideoAudio(io.ComfyNode):
     """Animate a reference image into video+audio, or run text-only.
 
     ``image`` is resized to the generation size and VAE-encoded here, so no
@@ -144,29 +149,32 @@ class Kandinsky6ImageToVideoAudio:
     """
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "positive": ("CONDITIONING",),
-                "negative": ("CONDITIONING",),
-                "empty_latent": ("LATENT",),
-            },
-            "optional": {
-                "image": ("IMAGE",),
-                "vae": ("VAE",),
-            },
-        }
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="Kandinsky6ImageToVideoAudio",
+            display_name="Kandinsky 6 Image to Video+Audio",
+            category="model/conditioning/kandinsky6",
+            description="Animate a reference image into video+audio, or run text-only. The image is resized and VAE-encoded here; leave it unconnected for pure text-to-video+audio.",
+            inputs=[
+                io.Conditioning.Input("positive"),
+                io.Conditioning.Input("negative"),
+                io.Latent.Input("empty_latent"),
+                io.Image.Input("image", optional=True),
+                io.Vae.Input("vae", optional=True),
+            ],
+            outputs=[
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
+                io.Latent.Output(display_name="joint_latent"),
+            ],
+        )
 
-    RETURN_TYPES = ("CONDITIONING", "CONDITIONING", "LATENT")
-    RETURN_NAMES = ("positive", "negative", "joint_latent")
-    FUNCTION = "apply"
-    CATEGORY = "Kandinsky 6"
-
-    def apply(self, positive, negative, empty_latent, image=None, vae=None):
+    @classmethod
+    def execute(cls, positive, negative, empty_latent, image=None, vae=None) -> io.NodeOutput:
         _validate_joint_latent(empty_latent)
 
         if image is None:
-            return positive, negative, empty_latent
+            return io.NodeOutput(positive, negative, empty_latent)
         if vae is None:
             raise ValueError("Connect the video VAE to encode the I2VA reference image.")
 
@@ -185,7 +193,7 @@ class Kandinsky6ImageToVideoAudio:
         values = {"k6_reference": reference}
         positive = node_helpers.conditioning_set_values(positive, values)
         negative = node_helpers.conditioning_set_values(negative, values)
-        return positive, negative, empty_latent
+        return io.NodeOutput(positive, negative, empty_latent)
 
 
 class Kandinsky6PiFlowGuider(comfy.samplers.CFGGuider):
@@ -205,7 +213,7 @@ class Kandinsky6PiFlowGuider(comfy.samplers.CFGGuider):
         self.inner_set_conds({"positive": positive})
 
     def inner_sample(self, noise, latent_image, device, sampler, sigmas,
-                     denoise_mask, callback, disable_pbar, seed, latent_shapes=None):
+                      denoise_mask, callback, disable_pbar, seed, latent_shapes=None):
         self.inner_model.latent_shapes = latent_shapes
 
         audio_mask = None
@@ -260,35 +268,39 @@ class Kandinsky6PiFlowGuider(comfy.samplers.CFGGuider):
         return self.inner_model.process_latent_out(samples.to(torch.float32))
 
 
-class Kandinsky6PiFlowGuiderNode:
+class Kandinsky6PiFlowGuiderNode(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "model": ("MODEL",),
-                "conditioning": ("CONDITIONING",),
-            }
-        }
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="Kandinsky6PiFlowGuider",
+            display_name="Kandinsky 6 PiFlow Guider",
+            category="model/sampling/guiders",
+            description="Runs the vendor PiFlow schedule on a distilled Kandinsky 6 checkpoint. The video is fully denoised; a latent noise mask can keep part of the audio clean to encode a custom track.",
+            inputs=[
+                io.Model.Input("model"),
+                io.Conditioning.Input("conditioning"),
+            ],
+            outputs=[
+                io.Guider.Output(display_name="guider"),
+            ],
+        )
 
-    RETURN_TYPES = ("GUIDER",)
-    RETURN_NAMES = ("guider",)
-    FUNCTION = "build"
-    CATEGORY = "Kandinsky 6"
-
-    def build(self, model, conditioning):
+    @classmethod
+    def execute(cls, model, conditioning) -> io.NodeOutput:
         guider = Kandinsky6PiFlowGuider(model)
         guider.set_conds(conditioning)
-        return (guider,)
+        return io.NodeOutput(guider)
 
 
-NODE_CLASS_MAPPINGS = {
-    "Kandinsky6EmptyLatent": Kandinsky6EmptyLatent,
-    "Kandinsky6ImageToVideoAudio": Kandinsky6ImageToVideoAudio,
-    "Kandinsky6PiFlowGuider": Kandinsky6PiFlowGuiderNode,
-}
+class Kandinsky6Extension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            Kandinsky6EmptyLatent,
+            Kandinsky6ImageToVideoAudio,
+            Kandinsky6PiFlowGuiderNode,
+        ]
 
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "Kandinsky6EmptyLatent": "Kandinsky 6 Empty Latent (video+audio)",
-    "Kandinsky6ImageToVideoAudio": "Kandinsky 6 Image to Video+Audio",
-    "Kandinsky6PiFlowGuider": "Kandinsky 6 PiFlow Guider",
-}
+
+async def comfy_entrypoint() -> Kandinsky6Extension:
+    return Kandinsky6Extension()

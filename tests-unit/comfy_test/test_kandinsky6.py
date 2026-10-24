@@ -394,7 +394,7 @@ def test_concat_av_latent_fits_time_first_audio():
 
 
 def test_empty_latent_node_builds_joint_latent():
-    latent = Kandinsky6EmptyLatent().build(864, 480, 121, 1)[0]
+    latent = Kandinsky6EmptyLatent.execute(864, 480, 121, 1)[0]
     video, audio = latent["samples"].unbind()
     assert tuple(video.shape) == (1, 16, 31, 60, 108)
     assert tuple(audio.shape) == (1, 218, 40)
@@ -406,7 +406,7 @@ def test_empty_latent_node_rounds_unaligned_shapes():
     # Width/height floor to the VAE factor, the frame count to 4*n+1, and
     # batch sizes above 1 build unchanged. 122 frames round down to 121,
     # which the audio stream is sized from as well.
-    latent = Kandinsky6EmptyLatent().build(865, 479, 122, 2)[0]
+    latent = Kandinsky6EmptyLatent.execute(865, 479, 122, 2)[0]
     video, audio = latent["samples"].unbind()
     assert tuple(video.shape) == (2, 16, 31, 59, 108)
     assert tuple(audio.shape) == (2, 218, 40)
