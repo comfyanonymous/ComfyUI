@@ -47,6 +47,8 @@ import comfy.text_encoders.fibo2
 
 from . import supported_models_base
 from . import latent_formats
+from .ldm.kandinsky6.core_contract import SCHEDULER_DEFAULTS
+from .ldm.kandinsky6.detection import to_native_state_dict
 
 from . import diffusers_convert
 import comfy.model_management
@@ -2359,6 +2361,25 @@ class Kandinsky5Image(Kandinsky5):
         return supported_models_base.ClipTarget(comfy.text_encoders.kandinsky5.Kandinsky5TokenizerImage, comfy.text_encoders.kandinsky5.te(**hunyuan_detect))
 
 
+class Kandinsky6(Kandinsky5):
+    unet_config = {
+        "image_model": "kandinsky6",
+    }
+
+    sampling_settings = {
+        "shift": float(SCHEDULER_DEFAULTS["scheduler_scale"]),
+    }
+
+    latent_format = latent_formats.HunyuanVideo
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.Kandinsky6(self, device=device)
+
+    def process_unet_state_dict(self, state_dict):
+        return to_native_state_dict(state_dict)
+
+
 class ACEStep15(supported_models_base.BASE):
     unet_config = {
         "audio_model": "ace1.5",
@@ -2752,6 +2773,7 @@ models = [
     Flux2,
     Flux3,
     Lens,
+    Kandinsky6,
     Kandinsky5Image,
     Kandinsky5,
     Anima,
