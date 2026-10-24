@@ -392,6 +392,9 @@ async def poll_op_raw(
         server_estimate = _server_estimates_by_execution.pop(cls, None)
         if server_estimate is None:
             return
+        if not server_estimate_includes_queue and state.estimated_duration is None:
+            state.base_processing_elapsed = 0.0
+            state.active_since = time.monotonic()
         state.estimated_duration = server_estimate.p50_seconds
         state.estimated_p90 = server_estimate.p90_seconds
         state.estimate_includes_queue = server_estimate_includes_queue
