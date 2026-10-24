@@ -112,6 +112,31 @@ def test_get_save_image_path(temp_dir):
         assert filename_prefix == "test"
 
 
+def test_get_save_image_path_rejects_dotdot(temp_dir):
+    with pytest.raises(Exception, match="outside the output folder"):
+        folder_paths.get_save_image_path("../escape", temp_dir)
+
+
+def test_get_save_image_path_allows_output_subfolder_symlink(tmp_path):
+    output_dir = str(tmp_path / "output")
+    dest = str(tmp_path / "other_volume")
+    os.makedirs(output_dir)
+    os.makedirs(dest)
+    try:
+        os.symlink(dest, os.path.join(output_dir, "extra"))
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks not supported on this platform/filesystem")
+
+    full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path("extra/shot", output_dir)
+    assert os.path.samefile(full_output_folder, dest)
+    assert filename == "shot"
+    assert counter == 1
+    assert subfolder == "extra"
+    assert filename_prefix == "extra/shot"
+    assert folder_paths.is_within_directory(output_dir, full_output_folder) is False
+    assert folder_paths.is_lexically_within_directory(output_dir, full_output_folder) is True
+
+
 def test_base_path_changes(set_base_dir):
     test_dir = os.path.abspath("/test/dir")
     set_base_dir(test_dir)
